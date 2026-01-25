@@ -1,5 +1,5 @@
 // ==============================
-// Wrestling Coaching Experience
+// Wrestling Performance Lab
 // Role-based views + training experience
 // ==============================
 
@@ -13,6 +13,8 @@ const skipBtn = document.getElementById("skipBtn");
 const userMeta = document.getElementById("userMeta");
 const roleMeta = document.getElementById("roleMeta");
 const editProfileBtn = document.getElementById("editProfileBtn");
+const headerLang = document.getElementById("headerLang");
+const headerFlag = document.getElementById("headerFlag");
 
 // form fields
 const pName = document.getElementById("pName");
@@ -58,6 +60,7 @@ function applyProfile(profile) {
     userMeta.textContent = "Athlete View";
     roleMeta.textContent = "Training Focus: Mat Technique";
     setRoleUI("athlete");
+    setHeaderLang("en");
     return;
   }
 
@@ -72,6 +75,13 @@ function applyProfile(profile) {
     fillAthleteProfileForm(profile);
     renderCompetitionPreview(profile);
   }
+  setHeaderLang(profile.lang || "en");
+}
+
+function setHeaderLang(lang) {
+  if (!headerLang || !headerFlag) return;
+  headerLang.value = lang;
+  headerFlag.textContent = lang === "es" ? "🇪🇸" : "🇺🇸";
 }
 
 function showOnboarding(prefillProfile = null) {
@@ -273,6 +283,15 @@ muteBtn.addEventListener("click", () => {
   speechSynthesis.cancel();
   muteBtn.textContent = muted ? "🔇" : "🔊";
 });
+
+if (headerLang) {
+  headerLang.addEventListener("change", () => {
+    const profile = getProfile() || { role: "athlete" };
+    profile.lang = headerLang.value;
+    setProfile(profile);
+    setHeaderLang(profile.lang);
+  });
+}
 
 // ---------- DATA ----------
 const WEEK_PLAN = [

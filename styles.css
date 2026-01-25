@@ -673,6 +673,28 @@ textarea:focus{
   align-items:center;
 }
 
+.lang-switch{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(0,0,0,0.22);
+}
+
+.lang-switch select{
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+.lang-switch .flag{
+  font-size: 16px;
+}
+
 @media (max-width: 720px){
   .grid,
   .checkin-grid,
