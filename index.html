@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Wrestling Coaching Experience</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <!-- ONBOARDING / LANDING -->
+  <div id="onboarding" class="onboarding hidden" role="dialog" aria-modal="true">
+    <div class="onboarding-card">
+      <div class="brand">
+        <div class="brand-mark">WCE</div>
+        <div>
+          <h2>Create your profile</h2>
+          <p class="small">This takes 30 seconds. You can edit it later.</p>
+        </div>
+      </div>
+
+      <form id="profileForm" class="form">
+        <div class="grid">
+          <label>
+            <span>Full name</span>
+            <input id="pName" type="text" placeholder="e.g., Jaime Espinal" required />
+          </label>
+
+          <label>
+            <span>Role</span>
+            <select id="pRole" required>
+              <option value="athlete">Athlete</option>
+              <option value="coach">Coach</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Profile photo (optional)</span>
+            <input id="pPhoto" type="text" placeholder="Add a photo URL" />
+          </label>
+
+          <label>
+            <span>Country (optional)</span>
+            <input id="pCountry" type="text" placeholder="e.g., United States" />
+          </label>
+
+          <label>
+            <span>City/State (optional)</span>
+            <input id="pCity" type="text" placeholder="e.g., Lincoln, NE" />
+          </label>
+
+          <label>
+            <span>School or club?</span>
+            <select id="pSchoolClub" required>
+              <option value="no" selected>No</option>
+              <option value="yes">Yes</option>
+            </select>
+          </label>
+
+          <label>
+            <span>School name (optional)</span>
+            <input id="pSchool" type="text" placeholder="e.g., Lincoln West" />
+          </label>
+
+          <label>
+            <span>Club name (optional)</span>
+            <input id="pClub" type="text" placeholder="e.g., Midwest Grapplers" />
+          </label>
+
+          <label>
+            <span>Team / School (optional)</span>
+            <input id="pTeam" type="text" placeholder="e.g., Penn State / Archmere" />
+          </label>
+
+          <label>
+            <span>Level</span>
+            <select id="pLevel" required>
+              <option value="beginner">Beginner</option>
+              <option value="intermediate" selected>Intermediate</option>
+              <option value="advanced">Advanced</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Primary wrestling style</span>
+            <select id="pStyle" required>
+              <option value="freestyle">Freestyle</option>
+              <option value="greco-roman">Greco-Roman</option>
+              <option value="folkstyle">Folkstyle</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Preferred position</span>
+            <select id="pPosition" required>
+              <option value="neutral">Neutral</option>
+              <option value="top">Top</option>
+              <option value="bottom">Bottom</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Match strategy preference</span>
+            <select id="pStrategy">
+              <option value="balanced" selected>Balanced</option>
+              <option value="offensive">Offensive</option>
+              <option value="defensive">Defensive</option>
+              <option value="counter">Counter-based</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Years of experience</span>
+            <input id="pYears" type="number" min="0" max="30" placeholder="e.g., 4" />
+          </label>
+
+          <label>
+            <span>Weight class (optional)</span>
+            <input id="pWeight" type="text" placeholder="e.g., 157 / 72kg" />
+          </label>
+
+          <label>
+            <span>Current weight (optional)</span>
+            <input id="pCurrentWeight" type="text" placeholder="e.g., 157 lb" />
+          </label>
+
+          <label>
+            <span>Language</span>
+            <select id="pLang" required>
+              <option value="en" selected>English</option>
+              <option value="es">Spanish</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="form-section">
+          <h3>Preferred Techniques</h3>
+          <p class="small muted">Pick 2-4 per position.</p>
+          <div class="tech-grid">
+            <div class="mini-card">
+              <h4>Neutral</h4>
+              <label class="check"><input type="checkbox" value="Single Leg" class="tech-neutral"> Single Leg</label>
+              <label class="check"><input type="checkbox" value="Double Leg" class="tech-neutral"> Double Leg</label>
+              <label class="check"><input type="checkbox" value="High Crotch" class="tech-neutral"> High Crotch</label>
+              <label class="check"><input type="checkbox" value="Snap Down" class="tech-neutral"> Snap Down</label>
+              <input id="pNeutralOther" type="text" placeholder="Other (optional)" />
+            </div>
+            <div class="mini-card">
+              <h4>Top</h4>
+              <label class="check"><input type="checkbox" value="Half Nelson" class="tech-top"> Half Nelson</label>
+              <label class="check"><input type="checkbox" value="Breakdown" class="tech-top"> Breakdown</label>
+              <label class="check"><input type="checkbox" value="Tilt" class="tech-top"> Tilt</label>
+              <input id="pTopOther" type="text" placeholder="Other (optional)" />
+            </div>
+            <div class="mini-card">
+              <h4>Bottom</h4>
+              <label class="check"><input type="checkbox" value="Stand-Up" class="tech-bottom"> Stand-Up</label>
+              <label class="check"><input type="checkbox" value="Switch" class="tech-bottom"> Switch</label>
+              <label class="check"><input type="checkbox" value="Sit-Out" class="tech-bottom"> Sit-Out</label>
+              <input id="pBottomOther" type="text" placeholder="Other (optional)" />
+            </div>
+            <div class="mini-card">
+              <h4>Defense</h4>
+              <label class="check"><input type="checkbox" value="Sprawl" class="tech-defense"> Sprawl</label>
+              <label class="check"><input type="checkbox" value="Whizzer" class="tech-defense"> Whizzer</label>
+              <label class="check"><input type="checkbox" value="Hand Fighting" class="tech-defense"> Hand Fighting</label>
+              <input id="pDefenseOther" type="text" placeholder="Other (optional)" />
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>International Experience</h3>
+          <div class="grid">
+            <label>
+              <span>International competition?</span>
+              <select id="pInternational">
+                <option value="no" selected>No</option>
+                <option value="yes">Yes</option>
+              </select>
+            </label>
+            <label>
+              <span>Countries / events (optional)</span>
+              <input id="pInternationalEvents" type="text" placeholder="e.g., Pan-Am, Canada Open" />
+            </label>
+            <label>
+              <span>Years (optional)</span>
+              <input id="pInternationalYears" type="text" placeholder="e.g., 2 years" />
+            </label>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>Competition Notes</h3>
+          <div class="grid">
+            <label>
+              <span>Coach cue preference</span>
+              <select id="pCoachCues">
+                <option value="short">Short cues only</option>
+                <option value="calm">Stay calm tone</option>
+                <option value="energy">High energy cues</option>
+                <option value="specific" selected>Specific instruction only</option>
+              </select>
+            </label>
+            <label>
+              <span>What helps you most? (optional)</span>
+              <input id="pCueNotes" type="text" placeholder="e.g., Simple reminders between periods" />
+            </label>
+            <label>
+              <span>Injuries or limitations (optional)</span>
+              <input id="pInjuryNotes" type="text" placeholder="e.g., Left shoulder caution" />
+            </label>
+          </div>
+        </div>
+
+        <label>
+          <span>Main goal</span>
+          <input id="pGoal" type="text" placeholder="e.g., Improve bottom escapes / get in shape" required />
+        </label>
+
+        <div class="row">
+          <button type="submit" class="primary">Create Profile</button>
+          <button type="button" id="skipBtn">Skip (use default)</button>
+        </div>
+
+        <p class="small muted">
+          Your profile is stored only in your browser (localStorage).
+        </p>
+      </form>
+    </div>
+  </div>
+
+  <!-- MAIN APP -->
+  <div class="app" id="appRoot">
+    <header class="app-header">
+      <div class="header-left">
+        <div class="app-badge">WCE</div>
+        <div class="header-text">
+          <h1>Wrestling Coaching Experience</h1>
+          <div class="meta" id="userMeta">Athlete View</div>
+          <div class="mini-meta" id="roleMeta">Training Focus: Mat Technique</div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button id="editProfileBtn" title="Edit profile">👤</button>
+        <button id="muteBtn" aria-label="Mute audio">🔊</button>
+      </div>
+    </header>
+
+    <main class="app-content">
+      <nav class="tabs" aria-label="Main tabs">
+        <button class="tab active" data-tab="today" data-role="athlete">Today</button>
+        <button class="tab" data-tab="athlete-profile" data-role="athlete">Profile</button>
+        <button class="tab" data-tab="training" data-role="athlete">Training Plan</button>
+        <button class="tab" data-tab="calendar" data-role="athlete coach">Calendar</button>
+        <button class="tab" data-tab="media" data-role="athlete coach">Media</button>
+        <button class="tab" data-tab="journal" data-role="athlete">Journal</button>
+        <button class="tab" data-tab="favorites" data-role="athlete">Favorites</button>
+        <button class="tab" data-tab="announcements" data-role="athlete coach">Announcements</button>
+
+        <button class="tab" data-tab="dashboard" data-role="coach">Dashboard</button>
+        <button class="tab" data-tab="coach-profile" data-role="coach">Coach Profile</button>
+        <button class="tab" data-tab="athletes" data-role="coach">Athletes</button>
+        <button class="tab" data-tab="plans" data-role="coach">Create Plans</button>
+        <button class="tab" data-tab="calendar-manager" data-role="coach">Calendar Manager</button>
+        <button class="tab" data-tab="media-library" data-role="coach">Media Library</button>
+        <button class="tab" data-tab="athlete-notes" data-role="coach">Athlete Notes</button>
+        <button class="tab" data-tab="skills" data-role="coach">Skills Tracker</button>
+        <button class="tab" data-tab="journal-monitor" data-role="coach">Journal Monitor</button>
+        <button class="tab" data-tab="reports" data-role="coach">Reports</button>
+        <button class="tab" data-tab="permissions" data-role="coach">Permissions</button>
+        <button class="tab" data-tab="future" data-role="coach">Future</button>
+      </nav>
+
+      <!-- ATHLETE: TODAY -->
+      <section class="panel" id="panel-today">
+        <div class="card hero-card">
+          <div class="hero-header">
+            <div>
+              <p class="eyebrow">Today's Focus</p>
+              <h2 id="todayTitle">Mat Technique</h2>
+              <p class="muted" id="todaySubtitle">Total time: 90 min - Intensity: Medium</p>
+            </div>
+            <div class="pill" id="todayType">Mat Technique</div>
+          </div>
+
+          <div class="session-grid" id="sessionBlocks"></div>
+
+          <div class="row">
+            <button id="startSessionBtn" class="primary">Start Session</button>
+            <button id="watchFilmBtn">Watch Assigned Film</button>
+            <button id="logCompletionBtn">Log Completion</button>
+          </div>
+
+          <div class="checkin">
+            <p class="small">How do you feel today?</p>
+            <div class="row" id="feelingScale"></div>
+          </div>
+
+          <p class="small" id="dailyStatus"></p>
+        </div>
+      </section>
+
+      <!-- ATHLETE: TRAINING PLAN -->
+      <section class="panel hidden" id="panel-training">
+        <div class="card">
+          <div class="card-header">
+            <h2>Training Plan</h2>
+            <div class="chip">Week 3 - Pre-Tournament</div>
+          </div>
+          <div class="plan-grid" id="planGrid"></div>
+          <div class="plan-detail">
+            <h3 id="planDayTitle">Select a day</h3>
+            <ul id="planDayDetail"></ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ATHLETE: PROFILE -->
+      <section class="panel hidden" id="panel-athlete-profile">
+        <div class="card">
+          <div class="card-header">
+            <h2>Athlete Profile</h2>
+            <div class="chip">Create & Edit</div>
+          </div>
+          <form id="athleteProfileForm" class="form">
+            <div class="grid">
+              <label>
+                <span>Full name</span>
+                <input id="aName" type="text" required />
+              </label>
+              <label>
+                <span>Profile photo (optional)</span>
+                <input id="aPhoto" type="text" placeholder="Add a photo URL" />
+              </label>
+              <label>
+                <span>Country (optional)</span>
+                <input id="aCountry" type="text" />
+              </label>
+              <label>
+                <span>City/State (optional)</span>
+                <input id="aCity" type="text" />
+              </label>
+              <label>
+                <span>School or club?</span>
+                <select id="aSchoolClub">
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </label>
+              <label>
+                <span>School name (optional)</span>
+                <input id="aSchool" type="text" />
+              </label>
+              <label>
+                <span>Club name (optional)</span>
+                <input id="aClub" type="text" />
+              </label>
+              <label>
+                <span>Primary wrestling style</span>
+                <select id="aStyle" required>
+                  <option value="freestyle">Freestyle</option>
+                  <option value="greco-roman">Greco-Roman</option>
+                  <option value="folkstyle">Folkstyle</option>
+                </select>
+              </label>
+              <label>
+                <span>Current weight</span>
+                <input id="aWeight" type="text" placeholder="e.g., 157 lb" />
+              </label>
+              <label>
+                <span>Weight class</span>
+                <input id="aWeightClass" type="text" placeholder="e.g., 157" />
+              </label>
+              <label>
+                <span>Years of experience</span>
+                <input id="aYears" type="number" min="0" max="30" />
+              </label>
+              <label>
+                <span>Experience level</span>
+                <select id="aLevel">
+                  <option value="beginner">Beginner</option>
+                  <option value="intermediate">Intermediate</option>
+                  <option value="advanced">Advanced</option>
+                </select>
+              </label>
+              <label>
+                <span>Preferred position</span>
+                <select id="aPosition">
+                  <option value="neutral">Neutral</option>
+                  <option value="top">Top</option>
+                  <option value="bottom">Bottom</option>
+                </select>
+              </label>
+              <label>
+                <span>Match strategy preference</span>
+                <select id="aStrategy">
+                  <option value="balanced">Balanced</option>
+                  <option value="offensive">Offensive</option>
+                  <option value="defensive">Defensive</option>
+                  <option value="counter">Counter-based</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="form-section">
+              <h3>Preferred Techniques</h3>
+              <p class="small muted">Pick 2-4 per position.</p>
+              <div class="tech-grid">
+                <div class="mini-card">
+                  <h4>Neutral</h4>
+                  <label class="check"><input type="checkbox" value="Single Leg" class="a-tech-neutral"> Single Leg</label>
+                  <label class="check"><input type="checkbox" value="Double Leg" class="a-tech-neutral"> Double Leg</label>
+                  <label class="check"><input type="checkbox" value="High Crotch" class="a-tech-neutral"> High Crotch</label>
+                  <label class="check"><input type="checkbox" value="Snap Down" class="a-tech-neutral"> Snap Down</label>
+                  <input id="aNeutralOther" type="text" placeholder="Other (optional)" />
+                </div>
+                <div class="mini-card">
+                  <h4>Top</h4>
+                  <label class="check"><input type="checkbox" value="Half Nelson" class="a-tech-top"> Half Nelson</label>
+                  <label class="check"><input type="checkbox" value="Breakdown" class="a-tech-top"> Breakdown</label>
+                  <label class="check"><input type="checkbox" value="Tilt" class="a-tech-top"> Tilt</label>
+                  <input id="aTopOther" type="text" placeholder="Other (optional)" />
+                </div>
+                <div class="mini-card">
+                  <h4>Bottom</h4>
+                  <label class="check"><input type="checkbox" value="Stand-Up" class="a-tech-bottom"> Stand-Up</label>
+                  <label class="check"><input type="checkbox" value="Switch" class="a-tech-bottom"> Switch</label>
+                  <label class="check"><input type="checkbox" value="Sit-Out" class="a-tech-bottom"> Sit-Out</label>
+                  <input id="aBottomOther" type="text" placeholder="Other (optional)" />
+                </div>
+                <div class="mini-card">
+                  <h4>Defense</h4>
+                  <label class="check"><input type="checkbox" value="Sprawl" class="a-tech-defense"> Sprawl</label>
+                  <label class="check"><input type="checkbox" value="Whizzer" class="a-tech-defense"> Whizzer</label>
+                  <label class="check"><input type="checkbox" value="Hand Fighting" class="a-tech-defense"> Hand Fighting</label>
+                  <input id="aDefenseOther" type="text" placeholder="Other (optional)" />
+                </div>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <h3>International Experience</h3>
+              <div class="grid">
+                <label>
+                  <span>International competition?</span>
+                  <select id="aInternational">
+                    <option value="no">No</option>
+                    <option value="yes">Yes</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Countries / events (optional)</span>
+                  <input id="aInternationalEvents" type="text" />
+                </label>
+                <label>
+                  <span>Years (optional)</span>
+                  <input id="aInternationalYears" type="text" />
+                </label>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <h3>Competition Notes</h3>
+              <div class="grid">
+                <label>
+                  <span>Coach cue preference</span>
+                  <select id="aCoachCues">
+                    <option value="short">Short cues only</option>
+                    <option value="calm">Stay calm tone</option>
+                    <option value="energy">High energy cues</option>
+                    <option value="specific">Specific instruction only</option>
+                  </select>
+                </label>
+                <label>
+                  <span>What helps you most? (optional)</span>
+                  <input id="aCueNotes" type="text" />
+                </label>
+                <label>
+                  <span>Injuries or limitations (optional)</span>
+                  <input id="aInjuryNotes" type="text" />
+                </label>
+              </div>
+            </div>
+
+            <div class="row">
+              <button type="submit" class="primary">Save Profile</button>
+              <button type="button" id="previewProfileBtn">Preview Competition Summary</button>
+            </div>
+
+            <p class="small muted">
+              You can edit your profile fields and preferred techniques at any time.
+            </p>
+          </form>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3>Athlete Can</h3>
+              <ul class="list">
+                <li>Edit own profile fields</li>
+                <li>Edit preferred techniques</li>
+                <li>Update experience and style</li>
+                <li>Update optional competition notes</li>
+              </ul>
+            </div>
+            <div class="mini-card">
+              <h3>Athlete Cannot</h3>
+              <ul class="list">
+                <li>Edit coach-only notes</li>
+                <li>Edit coach strategy plans</li>
+                <li>Edit other athlete accounts</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ATHLETE: COMPETITION SUMMARY PREVIEW -->
+      <section class="panel hidden" id="panel-competition-preview">
+        <div class="card">
+          <div class="card-header">
+            <h2>Competition Summary Preview</h2>
+            <div class="chip">Coach view</div>
+          </div>
+          <div class="section-grid" id="competitionPreview"></div>
+          <div class="row">
+            <button id="backToProfileBtn">Back to Profile</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- SHARED: CALENDAR -->
+      <section class="panel hidden" id="panel-calendar">
+        <div class="card">
+          <div class="card-header">
+            <h2>Calendar</h2>
+            <div class="chip">Next tournament in 12 days</div>
+          </div>
+          <div class="calendar-grid" id="calendarGrid"></div>
+          <hr class="sep" />
+          <h3 id="calTitle">Select a day</h3>
+          <ol id="calDrills"></ol>
+        </div>
+      </section>
+
+      <!-- SHARED: MEDIA -->
+      <section class="panel hidden" id="panel-media">
+        <div class="card">
+          <div class="card-header">
+            <h2>Media</h2>
+            <div class="chip">Assigned for Today</div>
+          </div>
+          <div class="media-grid" id="mediaGrid"></div>
+        </div>
+      </section>
+
+      <!-- ATHLETE: JOURNAL -->
+      <section class="panel hidden" id="panel-journal">
+        <div class="card">
+          <h2>Daily Check-in</h2>
+          <div class="checkin-grid">
+            <label>
+              <span>Sleep (hours)</span>
+              <input id="sleepInput" type="number" min="0" max="12" placeholder="7.5" />
+            </label>
+            <label>
+              <span>Energy (1-5)</span>
+              <input id="energyInput" type="number" min="1" max="5" placeholder="4" />
+            </label>
+            <label>
+              <span>Soreness (1-5)</span>
+              <input id="sorenessInput" type="number" min="1" max="5" placeholder="2" />
+            </label>
+            <label>
+              <span>Weight (optional)</span>
+              <input id="weightInput" type="text" placeholder="157 lb" />
+            </label>
+            <label>
+              <span>Mood / Stress (1-5)</span>
+              <input id="moodInput" type="number" min="1" max="5" placeholder="3" />
+            </label>
+            <label>
+              <span>Injury / Pain report</span>
+              <input id="injuryInput" type="text" placeholder="Knee soreness, right side" />
+            </label>
+          </div>
+          <textarea id="journalInput" placeholder="Notes (text or voice summary)..." rows="6"></textarea>
+
+          <div class="row">
+            <button id="saveJournalBtn">Save</button>
+            <button id="clearJournalBtn">Clear</button>
+          </div>
+
+          <p class="small" id="journalStatus"></p>
+        </div>
+      </section>
+
+      <!-- ATHLETE: FAVORITES -->
+      <section class="panel hidden" id="panel-favorites">
+        <div class="card">
+          <h2>Favorites</h2>
+          <ul id="favoritesList"></ul>
+        </div>
+      </section>
+
+      <!-- SHARED: ANNOUNCEMENTS -->
+      <section class="panel hidden" id="panel-announcements">
+        <div class="card">
+          <div class="card-header">
+            <h2>Messages & Announcements</h2>
+            <div class="chip">Coach Broadcast</div>
+          </div>
+          <ul class="timeline" id="announcementList"></ul>
+        </div>
+      </section>
+
+      <!-- COACH: DASHBOARD -->
+      <section class="panel hidden" id="panel-dashboard">
+        <div class="card">
+          <div class="card-header">
+            <h2>Team Dashboard</h2>
+            <div class="chip">Alerts: 3</div>
+          </div>
+          <div class="stat-grid" id="teamStats"></div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3>Overview</h3>
+              <ul class="list" id="teamOverview"></ul>
+            </div>
+            <div class="mini-card">
+              <h3>Quick Actions</h3>
+              <div class="action-grid" id="quickActions"></div>
+            </div>
+          </div>
+          <div class="alert-list" id="alertList"></div>
+        </div>
+      </section>
+
+      <!-- COACH: COACH PROFILE -->
+      <section class="panel hidden" id="panel-coach-profile">
+        <div class="card">
+          <div class="card-header">
+            <h2>Coach Account & Profile</h2>
+            <div class="chip">Secure access</div>
+          </div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3>Account</h3>
+              <ul class="list" id="coachAccount"></ul>
+            </div>
+            <div class="mini-card">
+              <h3>Profile</h3>
+              <ul class="list" id="coachProfile"></ul>
+            </div>
+          </div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3>Discipline</h3>
+              <div class="tag-row" id="coachDiscipline"></div>
+            </div>
+            <div class="mini-card">
+              <h3>Coaching Style</h3>
+              <div class="tag-row" id="coachStyle"></div>
+            </div>
+          </div>
+          <div class="mini-card">
+            <h3>International Experience</h3>
+            <ul class="list" id="coachInternational"></ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- COACH: ATHLETE MANAGEMENT -->
+      <section class="panel hidden" id="panel-athletes">
+        <div class="card">
+          <div class="card-header">
+            <h2>Athlete Management</h2>
+            <div class="chip">Roster</div>
+          </div>
+          <div class="filter-row" id="athleteFilters"></div>
+          <input class="search-input" type="text" placeholder="Search athletes by name" aria-label="Search athletes" />
+          <div class="athlete-grid" id="athleteList"></div>
+        </div>
+      </section>
+
+      <!-- COACH: CREATE PLANS -->
+      <section class="panel hidden" id="panel-plans">
+        <div class="card">
+          <div class="card-header">
+            <h2>Create Training Plans</h2>
+            <div class="chip">Templates</div>
+          </div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3>Week Template</h3>
+              <ul class="list">
+                <li>Goal: Build chain wrestling</li>
+                <li>Intensity: High</li>
+                <li>Live rounds: 6 x 1:00</li>
+                <li>Strength: 5x5 squat + pull</li>
+                <li>Conditioning: 10 x 30s sprint</li>
+                <li>Homework: Watch "Single Leg Finish"</li>
+              </ul>
+            </div>
+            <div class="mini-card">
+              <h3>Assign Plan</h3>
+              <ul class="list">
+                <li>Copy / paste week</li>
+                <li>Assign to athlete or group</li>
+                <li>Adjust for weight cut week</li>
+                <li>Auto-tag with training type</li>
+              </ul>
+            </div>
+          </div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3>Daily Structure</h3>
+              <ul class="list">
+                <li>Warm-up and technique focus</li>
+                <li>Drilling and situations</li>
+                <li>Neutral, top, bottom emphasis</li>
+                <li>Live rounds with time and quantity</li>
+                <li>Strength or conditioning block</li>
+                <li>Cooldown and recovery</li>
+              </ul>
+            </div>
+            <div class="mini-card">
+              <h3>Tools</h3>
+              <ul class="list">
+                <li>Pre-built templates by discipline</li>
+                <li>Copy and duplicate weeks</li>
+                <li>Assign to athlete or group</li>
+                <li>Assign by date and training type</li>
+              </ul>
+            </div>
+          </div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3>Training Types</h3>
+              <ul class="list">
+                <li>Mat technique</li>
+                <li>Live wrestling</li>
+                <li>Strength training</li>
+                <li>Conditioning</li>
+                <li>Recovery</li>
+                <li>Film study</li>
+                <li>Rest day</li>
+              </ul>
+            </div>
+            <div class="mini-card">
+              <h3>Intensity Levels</h3>
+              <ul class="list">
+                <li>Low</li>
+                <li>Medium</li>
+                <li>High</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- COACH: CALENDAR MANAGER -->
+      <section class="panel hidden" id="panel-calendar-manager">
+        <div class="card">
+          <div class="card-header">
+            <h2>Calendar Manager</h2>
+            <div class="chip">Create events + reminders</div>
+          </div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3>Upcoming Events</h3>
+              <ul class="list">
+                <li>Team practice - 3:30 PM</li>
+                <li>Travel day - Friday</li>
+                <li>Weigh-ins - Saturday 7:00 AM</li>
+              </ul>
+            </div>
+            <div class="mini-card">
+              <h3>Coach Actions</h3>
+              <ul class="list">
+                <li>Invite athletes/groups</li>
+                <li>Attach location + checklist</li>
+                <li>Push notifications</li>
+              </ul>
+            </div>
+          </div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3>Event Types</h3>
+              <ul class="list">
+                <li>Practice</li>
+                <li>Tournament</li>
+                <li>Weigh-in</li>
+                <li>Travel</li>
+                <li>Team meeting</li>
+              </ul>
+            </div>
+            <div class="mini-card">
+              <h3>Event Details</h3>
+              <ul class="list">
+                <li>Date and time</li>
+                <li>Location and map link</li>
+                <li>Notes and reminders</li>
+                <li>Equipment checklist</li>
+                <li>Assigned athletes or groups</li>
+              </ul>
+            </div>
+          </div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3>Notifications</h3>
+              <ul class="list">
+                <li>Push notifications</li>
+                <li>Event updates</li>
+                <li>Automated reminders</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- COACH: MEDIA LIBRARY -->
+      <section class="panel hidden" id="panel-media-library">
+        <div class="card">
+          <div class="card-header">
+            <h2>Media Library</h2>
+            <div class="chip">Upload - Tag - Assign</div>
+          </div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3>Tags</h3>
+              <div class="tag-row">
+                <span class="tag">Freestyle</span>
+                <span class="tag">Greco-Roman</span>
+                <span class="tag">Folkstyle</span>
+                <span class="tag">Neutral</span>
+                <span class="tag">Top</span>
+                <span class="tag">Bottom</span>
+                <span class="tag">Single Leg</span>
+                <span class="tag">Defense</span>
+                <span class="tag">Half Nelson</span>
+                <span class="tag">Bottom Escapes</span>
+              </div>
+            </div>
+            <div class="mini-card">
+              <h3>Assignments</h3>
+              <ul class="list">
+                <li>Assign to today or a date</li>
+                <li>Assign to athlete or group</li>
+                <li>Track watch history</li>
+                <li>Mark as required or optional</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- COACH: ATHLETE NOTES -->
+      <section class="panel hidden" id="panel-athlete-notes">
+        <div class="card">
+          <div class="card-header">
+            <h2>Athlete Notes</h2>
+            <div class="chip">Private coach notes</div>
+          </div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3>Next Focus</h3>
+              <ul class="list">
+                <li>Improve bottom: switch + sit-out</li>
+                <li>Hand fight pressure</li>
+                <li>Finish single leg to shelf</li>
+              </ul>
+            </div>
+            <div class="mini-card">
+              <h3>Recent Notes</h3>
+              <ul class="list">
+                <li>10/12: Great pace in live</li>
+                <li>10/10: Needs tighter half</li>
+                <li>10/08: Weight on track</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- COACH: SKILLS TRACKER -->
+      <section class="panel hidden" id="panel-skills">
+        <div class="card">
+          <div class="card-header">
+            <h2>Skills Tracker</h2>
+            <div class="chip">Best clips by move</div>
+          </div>
+          <div class="skills-grid" id="skillsGrid"></div>
+        </div>
+      </section>
+
+      <!-- COACH: JOURNAL MONITOR -->
+      <section class="panel hidden" id="panel-journal-monitor">
+        <div class="card">
+          <div class="card-header">
+            <h2>Athlete Journal Monitoring</h2>
+            <div class="chip">Readiness signals</div>
+          </div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3>Insights</h3>
+              <ul class="list" id="journalInsights"></ul>
+            </div>
+            <div class="mini-card">
+              <h3>Risk Flags</h3>
+              <ul class="list" id="journalFlags"></ul>
+            </div>
+          </div>
+          <div class="athlete-grid" id="journalAthletes"></div>
+        </div>
+      </section>
+
+      <!-- COACH: REPORTS -->
+      <section class="panel hidden" id="panel-reports">
+        <div class="card">
+          <div class="card-header">
+            <h2>Weekly Reports</h2>
+            <div class="chip">Compliance - Progress</div>
+          </div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3>Completion</h3>
+              <ul class="list">
+                <li>Sessions completed: 18/21</li>
+                <li>Film watched: 6 hrs</li>
+                <li>Average energy: 3.8</li>
+              </ul>
+            </div>
+            <div class="mini-card">
+              <h3>Progress</h3>
+              <ul class="list">
+                <li>Single Leg rating: +1</li>
+                <li>Bottom escapes: steady</li>
+                <li>Conditioning test: +10%</li>
+              </ul>
+            </div>
+          </div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3>Time Frames</h3>
+              <ul class="list">
+                <li>Weekly</li>
+                <li>Monthly</li>
+                <li>Custom range</li>
+              </ul>
+            </div>
+            <div class="mini-card">
+              <h3>Reports Included</h3>
+              <ul class="list">
+                <li>Attendance and compliance</li>
+                <li>Skill progression</li>
+                <li>Strength and conditioning trends</li>
+                <li>Tournament readiness</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- COACH: PERMISSIONS -->
+      <section class="panel hidden" id="panel-permissions">
+        <div class="card">
+          <div class="card-header">
+            <h2>Permissions & Control</h2>
+            <div class="chip">Role based access</div>
+          </div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3>Coach Can</h3>
+              <ul class="list" id="permissionsCan"></ul>
+            </div>
+            <div class="mini-card">
+              <h3>Coach Cannot</h3>
+              <ul class="list" id="permissionsCannot"></ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- COACH: FUTURE EXPANSION -->
+      <section class="panel hidden" id="panel-future">
+        <div class="card">
+          <div class="card-header">
+            <h2>Future Expansion</h2>
+            <div class="chip">Coach ready</div>
+          </div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3>Planned Add-ons</h3>
+              <ul class="list" id="futureAddons"></ul>
+            </div>
+            <div class="mini-card">
+              <h3>Design Principles</h3>
+              <ul class="list" id="coachDesign"></ul>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,57 @@
+{
+  "0": {
+    "title": "Sunday: Recovery",
+    "drills": [
+      "Light stretch + mobility 20 min",
+      "Breathing + visualization 5 min"
+    ]
+  },
+  "1": {
+    "title": "Monday: Stance & Motion",
+    "drills": [
+      "Stance drill 3x2min",
+      "Motion + level change 3x2min",
+      "2 finishes: double-leg + single-leg"
+    ]
+  },
+  "2": {
+    "title": "Tuesday: Bottom escapes",
+    "drills": [
+      "Stand-up series 4x",
+      "Switch 3x each side",
+      "Granby/roll 3x each side"
+    ]
+  },
+  "3": {
+    "title": "Wednesday: Top control",
+    "drills": [
+      "Breakdowns 3x",
+      "Tight waist + chop 3x",
+      "2 turns: half + bar-arm"
+    ]
+  },
+  "4": {
+    "title": "Thursday: Neutral offense",
+    "drills": [
+      "Hand-fight 3x2min",
+      "Setups to single 4x",
+      "Re-attack drill 3x"
+    ]
+  },
+  "5": {
+    "title": "Friday: Live + conditioning",
+    "drills": [
+      "Situational live 6 rounds",
+      "Sprints 8x",
+      "Core finisher 6 min"
+    ]
+  },
+  "6": {
+    "title": "Saturday: Review + technique",
+    "drills": [
+      "Film review 15 min",
+      "Favorite moves reps 10 min",
+      "Cool-down stretch 10 min"
+    ]
+  }
+}
