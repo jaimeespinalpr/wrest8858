@@ -4,7 +4,7 @@
 // ==============================
 
 // ---------- PROFILE / ONBOARDING ----------
-const PROFILE_KEY = "wce_profile";
+const PROFILE_KEY = "wpl_profile";
 
 const onboarding = document.getElementById("onboarding");
 const appRoot = document.getElementById("appRoot");
@@ -866,7 +866,7 @@ if (backToProfileBtn) {
 }
 
 // ---------- FAVORITES ----------
-const FAV_KEY = "wce_favorites";
+const FAV_KEY = "wpl_favorites";
 const favoritesList = document.getElementById("favoritesList");
 
 function getFavorites() {
@@ -1348,7 +1348,7 @@ const weightInput = document.getElementById("weightInput");
 const moodInput = document.getElementById("moodInput");
 const injuryInput = document.getElementById("injuryInput");
 
-const JOURNAL_KEY = "wce_journal";
+const JOURNAL_KEY = "wpl_journal";
 
 function loadJournal() {
   const saved = localStorage.getItem(JOURNAL_KEY);
