@@ -218,8 +218,9 @@
           <input id="pGoal" type="text" placeholder="e.g., Improve bottom escapes / get in shape" required />
         </label>
 
-        <div class="row">
+        <div class="row onboarding-actions">
           <button type="submit" class="primary">Create Profile</button>
+          <button type="button" id="doneProfileBtn">Done</button>
           <button type="button" id="skipBtn">Skip (use default)</button>
         </div>
 
@@ -269,6 +270,7 @@
         <button class="tab" data-tab="dashboard" data-role="coach">Dashboard</button>
         <button class="tab" data-tab="coach-profile" data-role="coach">Coach Profile</button>
         <button class="tab" data-tab="athletes" data-role="coach">Athletes</button>
+        <button class="tab" data-tab="one-pager" data-role="coach">One-Pager</button>
         <button class="tab" data-tab="plans" data-role="coach">Create Plans</button>
         <button class="tab" data-tab="calendar-manager" data-role="coach">Calendar Manager</button>
         <button class="tab" data-tab="media-library" data-role="coach">Media Library</button>
@@ -276,6 +278,7 @@
         <button class="tab" data-tab="skills" data-role="coach">Skills Tracker</button>
         <button class="tab" data-tab="journal-monitor" data-role="coach">Journal Monitor</button>
         <button class="tab" data-tab="reports" data-role="coach">Reports</button>
+        <button class="tab" data-tab="messages" data-role="coach">Messages</button>
         <button class="tab" data-tab="permissions" data-role="coach">Permissions</button>
         <button class="tab" data-tab="future" data-role="coach">Future</button>
       </nav>
@@ -690,77 +693,506 @@
         </div>
       </section>
 
+      <!-- COACH: ATHLETE ONE-PAGER -->
+      <section class="panel hidden" id="panel-one-pager">
+        <div class="card">
+          <div class="card-header">
+            <h2>Athlete One-Pager</h2>
+            <div class="chip">Competition view</div>
+          </div>
+          <div class="row">
+            <label class="inline-field">
+              <span>Select athlete</span>
+              <select id="onePagerSelect"></select>
+            </label>
+          </div>
+
+          <div class="onepager-header" id="onePagerHeader"></div>
+
+          <div class="onepager-grid">
+            <div class="mini-card" id="onePagerIdentity"></div>
+            <div class="mini-card" id="onePagerTechniques"></div>
+          </div>
+
+          <div class="onepager-grid">
+            <div class="mini-card">
+              <h3>Go-To Plan (Coach)</h3>
+              <textarea id="onePagerPlan" rows="3" placeholder="Score first with single leg. Stay heavy on top."></textarea>
+              <button id="saveOnePagerPlan">Save Plan</button>
+            </div>
+            <div class="mini-card">
+              <h3>Do / Don't</h3>
+              <div class="grid">
+                <label>
+                  <span>Do</span>
+                  <textarea id="onePagerDo" rows="3" placeholder="Push pace early. Keep elbows tight."></textarea>
+                </label>
+                <label>
+                  <span>Don't</span>
+                  <textarea id="onePagerDont" rows="3" placeholder="Overextend on shots."></textarea>
+                </label>
+              </div>
+              <button id="saveOnePagerDos">Save Do/Don't</button>
+            </div>
+          </div>
+
+          <div class="onepager-grid">
+            <div class="mini-card">
+              <h3>Mat-Side Coaching Cues</h3>
+              <select id="onePagerCues">
+                <option value="short">Short cues only</option>
+                <option value="calm">Calm tone</option>
+                <option value="energy">High energy push</option>
+                <option value="specific">Specific instruction only</option>
+              </select>
+              <input id="onePagerCueNotes" type="text" placeholder="Optional: responds to simple commands" />
+              <button id="saveOnePagerCues">Save Cues</button>
+            </div>
+            <div class="mini-card">
+              <h3>Safety & Limitations</h3>
+              <textarea id="onePagerSafety" rows="3" placeholder="Left shoulder caution. Avoid deep shots."></textarea>
+              <button id="saveOnePagerSafety">Save Safety Notes</button>
+            </div>
+          </div>
+
+          <div class="quick-actions">
+            <button id="messageAthleteBtn">Message Athlete</button>
+            <button id="openTrainingBtn">Open Today's Training</button>
+            <button id="openTournamentBtn">Open Tournament Event</button>
+            <button id="addQuickNoteBtn">Add Quick Note</button>
+          </div>
+        </div>
+      </section>
+
       <!-- COACH: CREATE PLANS -->
       <section class="panel hidden" id="panel-plans">
         <div class="card">
           <div class="card-header">
             <h2>Create Training Plans</h2>
-            <div class="chip">Templates</div>
+            <button type="button" id="templatesBtn" class="chip chip-button">Templates</button>
           </div>
-          <div class="section-grid">
-            <div class="mini-card">
-              <h3>Week Template</h3>
-              <ul class="list">
-                <li>Goal: Build chain wrestling</li>
-                <li>Intensity: High</li>
-                <li>Live rounds: 6 x 1:00</li>
-                <li>Strength: 5x5 squat + pull</li>
-                <li>Conditioning: 10 x 30s sprint</li>
-                <li>Homework: Watch "Single Leg Finish"</li>
-              </ul>
-            </div>
-            <div class="mini-card">
-              <h3>Assign Plan</h3>
-              <ul class="list">
-                <li>Copy / paste week</li>
-                <li>Assign to athlete or group</li>
-                <li>Adjust for weight cut week</li>
-                <li>Auto-tag with training type</li>
-              </ul>
+          <div class="template-confirm hidden" id="templateConfirm">
+            <p class="small">Upload a fillable PDF template? Your document should include most of the section labels listed under Template.</p>
+            <div class="row">
+              <button type="button" id="templateGoBtn" class="confirm-yes">Go ahead</button>
+              <button type="button" id="templateNoBtn" class="confirm-no">Nevermind</button>
             </div>
           </div>
-          <div class="section-grid">
-            <div class="mini-card">
-              <h3>Daily Structure</h3>
-              <ul class="list">
-                <li>Warm-up and technique focus</li>
-                <li>Drilling and situations</li>
-                <li>Neutral, top, bottom emphasis</li>
-                <li>Live rounds with time and quantity</li>
-                <li>Strength or conditioning block</li>
-                <li>Cooldown and recovery</li>
-              </ul>
+          <div class="subtabs" role="tablist" aria-label="Plan scope">
+            <button class="subtab active" data-subtab="plan-daily">Daily</button>
+            <button class="subtab" data-subtab="plan-weekly">Weekly</button>
+            <button class="subtab" data-subtab="plan-monthly">Monthly</button>
+            <button class="subtab" data-subtab="plan-season">Season</button>
+          </div>
+
+          <div class="subpanel" id="plan-daily">
+            <div class="form-section">
+              <h3>Select Date</h3>
+              <div id="daily-calendar-container" class="calendar-container"></div>
             </div>
-            <div class="mini-card">
-              <h3>Tools</h3>
-              <ul class="list">
-                <li>Pre-built templates by discipline</li>
-                <li>Copy and duplicate weeks</li>
-                <li>Assign to athlete or group</li>
-                <li>Assign by date and training type</li>
-              </ul>
+            <div class="accordion">
+              <div class="accordion-item">
+                <button class="accordion-toggle active" data-accordion="intro">Introduction</button>
+                <div class="accordion-panel" id="intro">
+                  <div class="selection-block" data-block="intro">
+                    <div class="selection-options">
+                      <p class="small muted">Options</p>
+                      <ul class="option-list">
+                        <li data-value="Joke or story of the day">Joke or story of the day</li>
+                        <li data-value="Talk through today's plan">Talk through today's plan</li>
+                        <li data-value="Review last dual meet">Review last dual meet</li>
+                        <li data-value="Review last competition">Review last competition</li>
+                        <li data-value="Call out a key moment or lesson">Call out a key moment or lesson</li>
+                        <li data-value="Team focus or mindset cue">Team focus or mindset cue</li>
+                        <li data-value="Highlight athlete effort">Highlight athlete effort</li>
+                      </ul>
+                      <div class="row">
+                        <input type="text" class="custom-input" placeholder="Other (optional)" />
+                        <button type="button" class="add-custom-btn">Add</button>
+                      </div>
+                    </div>
+                    <div class="selection-chosen">
+                      <p class="small muted">Selected</p>
+                      <ul class="chosen-list"></ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="accordion-item">
+                <button class="accordion-toggle" data-accordion="warmup">Warm-up</button>
+                <div class="accordion-panel hidden" id="warmup">
+                  <div class="selection-block" data-block="warmup">
+                    <div class="selection-options">
+                      <p class="small muted">Options</p>
+                      <ul class="option-list">
+                        <li data-value="Dynamic movement and mobility">Dynamic movement and mobility</li>
+                        <li data-value="Stance motion and footwork">Stance motion and footwork</li>
+                        <li data-value="Hip and shoulder activation">Hip and shoulder activation</li>
+                        <li data-value="Light hand-fighting">Light hand-fighting</li>
+                        <li data-value="Speed ladder or cones">Speed ladder or cones</li>
+                      </ul>
+                      <div class="row">
+                        <input type="text" class="custom-input" placeholder="Other (optional)" />
+                        <button type="button" class="add-custom-btn">Add</button>
+                      </div>
+                    </div>
+                    <div class="selection-chosen">
+                      <p class="small muted">Selected</p>
+                      <ul class="chosen-list"></ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="accordion-item">
+                <button class="accordion-toggle" data-accordion="drills">Drills + Technique Intro</button>
+                <div class="accordion-panel hidden" id="drills">
+                  <div class="selection-block" data-block="drills">
+                    <div class="selection-options">
+                      <p class="small muted">Options</p>
+                      <ul class="option-list">
+                        <li data-value="Technique teaching">Technique teaching</li>
+                        <li data-value="Drilling reps">Drilling reps</li>
+                        <li data-value="Situational focus">Situational focus</li>
+                        <li data-value="Neutral entries">Neutral entries</li>
+                        <li data-value="Top control series">Top control series</li>
+                        <li data-value="Bottom escapes">Bottom escapes</li>
+                      </ul>
+                      <div class="row">
+                        <input type="text" class="custom-input" placeholder="Other (optional)" />
+                        <button type="button" class="add-custom-btn">Add</button>
+                      </div>
+                    </div>
+                    <div class="selection-chosen">
+                      <p class="small muted">Selected</p>
+                      <ul class="chosen-list"></ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="accordion-item">
+                <button class="accordion-toggle" data-accordion="live">Live / Hard Pace + Conditioning</button>
+                <div class="accordion-panel hidden" id="live">
+                  <div class="selection-block" data-block="live">
+                    <div class="selection-options">
+                      <p class="small muted">Options</p>
+                      <ul class="option-list">
+                        <li data-value="Live goes">Live goes</li>
+                        <li data-value="Hard pace drill">Hard pace drill</li>
+                        <li data-value="Shark tank rounds">Shark tank rounds</li>
+                        <li data-value="Short go sprints">Short go sprints</li>
+                        <li data-value="Conditioning finisher">Conditioning finisher</li>
+                      </ul>
+                      <div class="row">
+                        <input type="text" class="custom-input" placeholder="Other (optional)" />
+                        <button type="button" class="add-custom-btn">Add</button>
+                      </div>
+                    </div>
+                    <div class="selection-chosen">
+                      <p class="small muted">Selected</p>
+                      <ul class="chosen-list"></ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="accordion-item">
+                <button class="accordion-toggle" data-accordion="cooldown">Visualization + Cool Down</button>
+                <div class="accordion-panel hidden" id="cooldown">
+                  <div class="selection-block" data-block="cooldown">
+                    <div class="selection-options">
+                      <p class="small muted">Options</p>
+                      <ul class="option-list">
+                        <li data-value="Visualization and breathing">Visualization and breathing</li>
+                        <li data-value="Stretching and recovery">Stretching and recovery</li>
+                        <li data-value="Mobility reset">Mobility reset</li>
+                        <li data-value="Guided breathing">Guided breathing</li>
+                      </ul>
+                      <div class="row">
+                        <input type="text" class="custom-input" placeholder="Other (optional)" />
+                        <button type="button" class="add-custom-btn">Add</button>
+                      </div>
+                    </div>
+                    <div class="selection-chosen">
+                      <p class="small muted">Selected</p>
+                      <ul class="chosen-list"></ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="accordion-item">
+                <button class="accordion-toggle" data-accordion="announcements">Announcements</button>
+                <div class="accordion-panel hidden" id="announcements">
+                  <div class="selection-block" data-block="announcements">
+                    <div class="selection-options">
+                      <p class="small muted">Options</p>
+                      <ul class="option-list">
+                        <li data-value="Upcoming events and reminders">Upcoming events and reminders</li>
+                        <li data-value="Gear checklist">Gear checklist</li>
+                        <li data-value="Coach notes for tomorrow">Coach notes for tomorrow</li>
+                        <li data-value="Tournament travel info">Tournament travel info</li>
+                        <li data-value="Weight check reminder">Weight check reminder</li>
+                      </ul>
+                      <div class="row">
+                        <input type="text" class="custom-input" placeholder="Other (optional)" />
+                        <button type="button" class="add-custom-btn">Add</button>
+                      </div>
+                    </div>
+                    <div class="selection-chosen">
+                      <p class="small muted">Selected</p>
+                      <ul class="chosen-list"></ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="row plan-actions">
+              <button type="button" id="doneDailyPlan" class="primary">Done</button>
+              <button type="button" id="saveDailyPlan">Save</button>
+              <button type="button" id="shareDailyPlan">Share</button>
+              <button type="button" id="printTemplatePlan">Print from Template</button>
             </div>
           </div>
-          <div class="section-grid">
-            <div class="mini-card">
-              <h3>Training Types</h3>
-              <ul class="list">
-                <li>Mat technique</li>
-                <li>Live wrestling</li>
-                <li>Strength training</li>
-                <li>Conditioning</li>
-                <li>Recovery</li>
-                <li>Film study</li>
-                <li>Rest day</li>
-              </ul>
+
+          <div class="subpanel hidden" id="plan-weekly">
+            <div class="section-grid">
+              <div class="mini-card">
+                <h3>Week Template</h3>
+                <ul class="list">
+                  <li>Goal: Build chain wrestling</li>
+                  <li>Intensity: High</li>
+                  <li>Live rounds: 6 x 1:00</li>
+                  <li>Strength: 5x5 squat + pull</li>
+                  <li>Conditioning: 10 x 30s sprint</li>
+                  <li>Homework: Watch "Single Leg Finish"</li>
+                </ul>
+              </div>
+              <div class="mini-card">
+                <h3>Tools</h3>
+                <ul class="list">
+                  <li>Pre-built templates by discipline</li>
+                  <li>Copy and duplicate weeks</li>
+                  <li>Assign to athlete or group</li>
+                  <li>Assign by date and training type</li>
+                </ul>
+              </div>
             </div>
-            <div class="mini-card">
-              <h3>Intensity Levels</h3>
-              <ul class="list">
-                <li>Low</li>
-                <li>Medium</li>
-                <li>High</li>
-              </ul>
+            <div class="section-grid">
+              <div class="mini-card">
+                <h3>Template Upload (AcroForm PDF)</h3>
+                <p class="small muted">Upload a fillable PDF with field names:</p>
+                <div class="tag-row">
+                  <span class="tag">intro</span>
+                  <span class="tag">warmup</span>
+                  <span class="tag">drills</span>
+                  <span class="tag">live</span>
+                  <span class="tag">cooldown</span>
+                  <span class="tag">announcements</span>
+                  <span class="tag">date</span>
+                </div>
+                <div class="row">
+                  <input type="file" id="templateFile" accept=".pdf" disabled />
+                  <button type="button" id="uploadTemplateBtn" disabled>Upload PDF</button>
+                </div>
+                <div class="dropzone" id="templateDropzone">
+                  <p class="small">Drag and drop your PDF here</p>
+                </div>
+                <div class="row">
+                  <button type="button" id="generateTemplateBtn" class="primary" disabled>Fill PDF Template</button>
+                  <button type="button" id="templateHelpBtn">Template</button>
+                </div>
+                <div class="template-preview hidden" id="templatePreview">
+                  <iframe id="templatePreviewFrame" title="Filled template preview"></iframe>
+                </div>
+                <div class="template-help hidden" id="templateHelpPanel">
+                  <p class="small muted">Your PDF should use most of these section labels:</p>
+                  <div class="template-help-grid">
+                    <div>
+                      <strong>Introduction / Opening</strong>
+                      <ul class="list">
+                        <li>Introduction</li>
+                        <li>Opening</li>
+                        <li>Daily Introduction</li>
+                        <li>Session Introduction</li>
+                        <li>Team Talk</li>
+                        <li>Coach Talk</li>
+                        <li>Opening Talk</li>
+                        <li>Announcements</li>
+                        <li>Daily Brief</li>
+                        <li>Session Overview</li>
+                      </ul>
+                    </div>
+                    <div>
+                      <strong>Warm-Up</strong>
+                      <ul class="list">
+                        <li>Warmup</li>
+                        <li>General Warm-Up</li>
+                        <li>Dynamic Warm-Up</li>
+                        <li>Dynamic Mobility</li>
+                        <li>Activation</li>
+                        <li>Movement Prep</li>
+                        <li>Wrestling-Specific Warm-Up</li>
+                      </ul>
+                    </div>
+                    <div>
+                      <strong>Drills & Technique</strong>
+                      <ul class="list">
+                        <li>Technique</li>
+                        <li>Technique Introduction</li>
+                        <li>Skill Introduction</li>
+                        <li>Technical Instruction</li>
+                        <li>Teaching Points</li>
+                        <li>Demonstration</li>
+                        <li>Drills</li>
+                        <li>Technical Drills</li>
+                        <li>Static Drills</li>
+                        <li>Motion Drills</li>
+                        <li>Partner Drills</li>
+                        <li>Chain Drills</li>
+                        <li>Repetition Drills</li>
+                      </ul>
+                    </div>
+                    <div>
+                      <strong>Live / Hard Pace</strong>
+                      <ul class="list">
+                        <li>Live</li>
+                        <li>Live Wrestling</li>
+                        <li>Situational Live</li>
+                        <li>Situational Wrestling</li>
+                        <li>Hard Pace</li>
+                        <li>High Intensity</li>
+                        <li>Resistance Work</li>
+                        <li>Rounds</li>
+                        <li>Go's</li>
+                        <li>Scenarios</li>
+                        <li>Position Work</li>
+                        <li>Neutral Live</li>
+                        <li>Top Live</li>
+                        <li>Bottom Live</li>
+                      </ul>
+                    </div>
+                    <div>
+                      <strong>Conditioning</strong>
+                      <ul class="list">
+                        <li>Conditioning</li>
+                        <li>Wrestling Conditioning</li>
+                        <li>Physical Conditioning</li>
+                        <li>Circuit</li>
+                        <li>Interval Training</li>
+                        <li>Match Conditioning</li>
+                        <li>Endurance</li>
+                        <li>Work Capacity</li>
+                      </ul>
+                    </div>
+                    <div>
+                      <strong>Cool Down / Recovery</strong>
+                      <ul class="list">
+                        <li>Cool Down</li>
+                        <li>Cooldown</li>
+                        <li>Recovery</li>
+                        <li>Active Recovery</li>
+                        <li>Stretching</li>
+                        <li>Mobility</li>
+                        <li>Breathing</li>
+                      </ul>
+                    </div>
+                    <div>
+                      <strong>Visualization / Mental</strong>
+                      <ul class="list">
+                        <li>Visualization</li>
+                        <li>Mental Training</li>
+                        <li>Mental Prep</li>
+                        <li>Focus</li>
+                        <li>Mindset Training</li>
+                        <li>Match Visualization</li>
+                        <li>Breathing Exercises</li>
+                      </ul>
+                    </div>
+                    <div>
+                      <strong>Closing / End of Session</strong>
+                      <ul class="list">
+                        <li>Closing</li>
+                        <li>Wrap-Up</li>
+                        <li>Session Close</li>
+                        <li>Team Closing</li>
+                        <li>Final Message</li>
+                        <li>Announcements</li>
+                        <li>Reminders</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+                <p class="small" id="templateStatus"></p>
+              </div>
+              <div class="mini-card">
+                <h3>Template Notes</h3>
+                <ul class="list">
+                  <li>Use your own logo, colors, and fonts</li>
+                  <li>PDF must be AcroForm with matching field names</li>
+                  <li>Selections will be joined into each field</li>
+                  <li>Download and share the filled PDF</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="subpanel hidden" id="plan-monthly">
+            <div class="form-section">
+                <h3>Select Month and Year</h3>
+                <div class="row">
+                    <select id="monthly-month-select"></select>
+                    <select id="monthly-year-select"></select>
+                </div>
+            </div>
+            <div class="section-grid">
+              <div class="mini-card">
+                <h3>Monthly Focus</h3>
+                <ul class="list">
+                  <li>Define phase goals</li>
+                  <li>Build weekly load pattern</li>
+                  <li>Track recovery deloads</li>
+                  <li>Assign by athlete or group</li>
+                </ul>
+              </div>
+              <div class="mini-card">
+                <h3>Review</h3>
+                <ul class="list">
+                  <li>Progress checkpoints</li>
+                  <li>Competition readiness</li>
+                  <li>Compliance summary</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="subpanel hidden" id="plan-season">
+            <div class="form-section">
+                <h3>Select Season Year</h3>
+                <div class="row">
+                    <select id="season-year-select"></select>
+                </div>
+            </div>
+            <div class="section-grid">
+              <div class="mini-card">
+                <h3>Season Build</h3>
+                <ul class="list">
+                  <li>Pre-season, in-season, post-season</li>
+                  <li>Peak timing for tournaments</li>
+                  <li>Strength and conditioning phases</li>
+                </ul>
+              </div>
+              <div class="mini-card">
+                <h3>Milestones</h3>
+                <ul class="list">
+                  <li>Key tournaments and travel</li>
+                  <li>Weight management blocks</li>
+                  <li>Coach review checkpoints</li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>
@@ -969,6 +1401,17 @@
         </div>
       </section>
 
+      <!-- COACH: MESSAGES -->
+      <section class="panel hidden" id="panel-messages">
+        <div class="card">
+          <div class="card-header">
+            <h2>Coach Messages</h2>
+            <div class="chip">1:1 + tags</div>
+          </div>
+          <div class="message-list" id="messageList"></div>
+        </div>
+      </section>
+
       <!-- COACH: PERMISSIONS -->
       <section class="panel hidden" id="panel-permissions">
         <div class="card">
@@ -1011,6 +1454,7 @@
     </main>
   </div>
 
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

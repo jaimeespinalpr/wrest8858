@@ -10,6 +10,7 @@ const onboarding = document.getElementById("onboarding");
 const appRoot = document.getElementById("appRoot");
 const profileForm = document.getElementById("profileForm");
 const skipBtn = document.getElementById("skipBtn");
+const doneProfileBtn = document.getElementById("doneProfileBtn");
 const userMeta = document.getElementById("userMeta");
 const roleMeta = document.getElementById("roleMeta");
 const editProfileBtn = document.getElementById("editProfileBtn");
@@ -55,7 +56,7 @@ function setProfile(profile) {
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
 }
 
-function applyProfile(profile) {
+async function applyProfile(profile) {
   if (!profile) {
     userMeta.textContent = "Athlete View";
     roleMeta.textContent = "Training Focus: Mat Technique";
@@ -74,6 +75,9 @@ function applyProfile(profile) {
   if (role === "athlete") {
     fillAthleteProfileForm(profile);
     renderCompetitionPreview(profile);
+  }
+  if (role === "coach") {
+    await loadSavedPdfTemplate();
   }
   setHeaderLang(profile.lang || "en");
 }
@@ -147,18 +151,18 @@ function hideOnboarding() {
   appRoot.classList.remove("blurred");
 }
 
-function bootProfile() {
+async function bootProfile() {
   const existing = getProfile();
   if (!existing) {
     showOnboarding(null);
   } else {
     hideOnboarding();
-    applyProfile(existing);
+    await applyProfile(existing);
   }
 }
 
 // Create profile
-profileForm.addEventListener("submit", (e) => {
+profileForm.addEventListener("submit", async (e) => {
   e.preventDefault();
 
   const neutral = Array.from(document.querySelectorAll(".tech-neutral:checked")).map((el) => el.value);
@@ -207,12 +211,12 @@ profileForm.addEventListener("submit", (e) => {
   if (!profile.name || !profile.goal) return;
 
   setProfile(profile);
-  applyProfile(profile);
+  await applyProfile(profile);
   hideOnboarding();
 });
 
 // Skip profile (use default)
-skipBtn.addEventListener("click", () => {
+skipBtn.addEventListener("click", async () => {
   const profile = {
     name: "Guest",
     role: "athlete",
@@ -235,9 +239,21 @@ skipBtn.addEventListener("click", () => {
     coachCues: "specific"
   };
   setProfile(profile);
-  applyProfile(profile);
+  await applyProfile(profile);
   hideOnboarding();
 });
+
+if (doneProfileBtn) {
+  doneProfileBtn.addEventListener("click", () => {
+    if (!pName.value.trim()) pName.value = "Athlete";
+    if (!pGoal.value.trim()) pGoal.value = "Get better every day";
+    if (profileForm.requestSubmit) {
+      profileForm.requestSubmit();
+    } else {
+      profileForm.dispatchEvent(new Event("submit", { cancelable: true }));
+    }
+  });
+}
 
 // Edit profile later
 editProfileBtn.addEventListener("click", () => {
@@ -444,15 +460,15 @@ const ANNOUNCEMENTS = [
 ];
 
 const TEAM_STATS = [
-  { title: "Check-ins Today", value: "14/18", note: "2 athletes missing" },
-  { title: "Average Energy", value: "3.8", note: "Up from last week" },
-  { title: "Compliance Rate", value: "86%", note: "Goal: 90%" },
+  { title: "Check-ins Today", value: "5/7", note: "2 athletes missing" },
+  { title: "Average Energy", value: "3.6", note: "Steady from last week" },
+  { title: "Compliance Rate", value: "84%", note: "Goal: 90%" },
   { title: "Upcoming Events", value: "4", note: "2 in next 7 days" }
 ];
 
 const TEAM_OVERVIEW = [
-  "Athletes: 18 active",
-  "Training plans: 6 running",
+  "Athletes: 7 active",
+  "Training plans: 3 running",
   "Upcoming tournaments: 2",
   "Alerts flagged: 3"
 ];
@@ -509,6 +525,17 @@ const ATHLETES = [
     preferred: "Single leg, snap down",
     international: "Pan-Am events",
     history: "Training history: 4 years",
+    currentWeight: "157 lb",
+    weightClass: "157",
+    level: "Advanced",
+    position: "Neutral",
+    strategy: "Offensive",
+    techniques: {
+      neutral: ["Single Leg", "High Crotch", "Snap Down"],
+      top: ["Half Nelson", "Tilt"],
+      bottom: ["Stand-Up", "Switch"],
+      defense: ["Sprawl", "Whizzer"]
+    },
     notes: "Focus: Single leg chain"
   },
   {
@@ -519,6 +546,17 @@ const ATHLETES = [
     preferred: "Ankle pick, switch",
     international: "None",
     history: "Training history: 2 years",
+    currentWeight: "123 lb",
+    weightClass: "123",
+    level: "Intermediate",
+    position: "Bottom",
+    strategy: "Balanced",
+    techniques: {
+      neutral: ["Double Leg", "Snap Down"],
+      top: ["Breakdown"],
+      bottom: ["Switch", "Sit-Out"],
+      defense: ["Hand Fighting"]
+    },
     notes: "Injury: ankle rehab"
   },
   {
@@ -529,6 +567,17 @@ const ATHLETES = [
     preferred: "Body lock, arm throw",
     international: "U23 camp",
     history: "Training history: 5 years",
+    currentWeight: "141 lb",
+    weightClass: "141",
+    level: "Advanced",
+    position: "Top",
+    strategy: "Counter-based",
+    techniques: {
+      neutral: ["Snap Down"],
+      top: ["Half Nelson", "Breakdown"],
+      bottom: ["Stand-Up"],
+      defense: ["Whizzer", "Hand Fighting"]
+    },
     notes: "Top control emphasis"
   },
   {
@@ -539,7 +588,81 @@ const ATHLETES = [
     preferred: "Double leg, half nelson",
     international: "Junior Worlds",
     history: "Training history: 6 years",
+    currentWeight: "170 lb",
+    weightClass: "170",
+    level: "Advanced",
+    position: "Neutral",
+    strategy: "Balanced",
+    techniques: {
+      neutral: ["Double Leg", "Single Leg"],
+      top: ["Half Nelson"],
+      bottom: ["Stand-Up"],
+      defense: ["Sprawl", "Whizzer"]
+    },
     notes: "Tournament prep"
+  },
+  {
+    name: "Carlos Vega",
+    weight: "133 lb",
+    style: "Folkstyle",
+    availability: "Available",
+    preferred: "Single leg, ankle pick",
+    international: "None",
+    history: "Training history: 3 years",
+    currentWeight: "133 lb",
+    weightClass: "133",
+    level: "Intermediate",
+    position: "Neutral",
+    strategy: "Balanced",
+    techniques: {
+      neutral: ["Single Leg", "Double Leg"],
+      top: ["Breakdown"],
+      bottom: ["Stand-Up", "Switch"],
+      defense: ["Sprawl"]
+    },
+    notes: "Focus: chain attacks"
+  },
+  {
+    name: "Sophia Reyes",
+    weight: "115 lb",
+    style: "Freestyle",
+    availability: "Available",
+    preferred: "High crotch, snap down",
+    international: "Cadet camp",
+    history: "Training history: 4 years",
+    currentWeight: "115 lb",
+    weightClass: "115",
+    level: "Intermediate",
+    position: "Top",
+    strategy: "Offensive",
+    techniques: {
+      neutral: ["High Crotch", "Snap Down"],
+      top: ["Half Nelson", "Tilt"],
+      bottom: ["Sit-Out"],
+      defense: ["Whizzer", "Hand Fighting"]
+    },
+    notes: "Improve top turns"
+  },
+  {
+    name: "Ethan Brooks",
+    weight: "189 lb",
+    style: "Greco-Roman",
+    availability: "Limited",
+    preferred: "Body lock, arm throw",
+    international: "Pan-Am trials",
+    history: "Training history: 5 years",
+    currentWeight: "189 lb",
+    weightClass: "189",
+    level: "Advanced",
+    position: "Top",
+    strategy: "Counter-based",
+    techniques: {
+      neutral: ["Snap Down"],
+      top: ["Breakdown"],
+      bottom: ["Stand-Up"],
+      defense: ["Whizzer"]
+    },
+    notes: "Manage conditioning load"
   }
 ];
 
@@ -589,6 +712,30 @@ const JOURNAL_ATHLETES = [
     soreness: "3/5",
     mood: "3/5",
     weight: "Cut plan"
+  },
+  {
+    name: "Carlos Vega",
+    sleep: "7.0 hrs",
+    energy: "4/5",
+    soreness: "2/5",
+    mood: "4/5",
+    weight: "Stable"
+  },
+  {
+    name: "Sophia Reyes",
+    sleep: "6.6 hrs",
+    energy: "3/5",
+    soreness: "3/5",
+    mood: "3/5",
+    weight: "On track"
+  },
+  {
+    name: "Ethan Brooks",
+    sleep: "6.2 hrs",
+    energy: "3/5",
+    soreness: "4/5",
+    mood: "2/5",
+    weight: "Stable"
   }
 ];
 
@@ -606,12 +753,14 @@ const PERMISSIONS = {
     "Create and edit training plans",
     "View athlete profiles and journals",
     "Assign media and evaluate skills",
-    "Send announcements and updates"
+    "Send announcements and updates",
+    "Edit competition one-pager coaching notes"
   ],
   cannot: [
     "Edit athlete self-reported journal entries",
     "Edit athlete account credentials",
-    "Access other teams without permission"
+    "Access other teams without permission",
+    "Edit athlete core profile data"
   ]
 };
 
@@ -630,6 +779,27 @@ const COACH_DESIGN = [
   "Minimal friction for daily work"
 ];
 
+const COACH_MESSAGES = [
+  {
+    athlete: "Jaime Espinal",
+    tag: "Tournament Info",
+    text: "Weigh-ins at 7:00 AM. Bring singlet and ID.",
+    time: "Today"
+  },
+  {
+    athlete: "Maya Cruz",
+    tag: "Training Update",
+    text: "Recovery session after school. 30 minutes bike + stretch.",
+    time: "Yesterday"
+  },
+  {
+    athlete: "Liam Park",
+    tag: "Reminder",
+    text: "Watch single leg finish video before practice.",
+    time: "Today"
+  }
+];
+
 // ---------- TABS ----------
 const tabBtns = Array.from(document.querySelectorAll(".tab"));
 const panels = {
@@ -644,6 +814,7 @@ const panels = {
   dashboard: document.getElementById("panel-dashboard"),
   "coach-profile": document.getElementById("panel-coach-profile"),
   athletes: document.getElementById("panel-athletes"),
+  "one-pager": document.getElementById("panel-one-pager"),
   plans: document.getElementById("panel-plans"),
   "calendar-manager": document.getElementById("panel-calendar-manager"),
   "media-library": document.getElementById("panel-media-library"),
@@ -651,17 +822,22 @@ const panels = {
   skills: document.getElementById("panel-skills"),
   "journal-monitor": document.getElementById("panel-journal-monitor"),
   reports: document.getElementById("panel-reports"),
+  messages: document.getElementById("panel-messages"),
   permissions: document.getElementById("panel-permissions"),
   future: document.getElementById("panel-future"),
   "competition-preview": document.getElementById("panel-competition-preview")
 };
 
-function showTab(name) {
+async function showTab(name) {
   tabBtns.forEach(b => b.classList.toggle("active", b.dataset.tab === name));
   Object.entries(panels).forEach(([k, el]) => {
     if (!el) return;
     el.classList.toggle("hidden", k !== name);
   });
+
+  if (name === "plans" && templatePdfBytes && window.PDFLib) {
+    await generateFilledPdf({ download: false });
+  }
 }
 
 function setRoleUI(role) {
@@ -683,8 +859,594 @@ function setRoleUI(role) {
 
 tabBtns.forEach(btn => btn.addEventListener("click", () => showTab(btn.dataset.tab)));
 
+// ---------- PLAN SUBTABS ----------
+const subtabButtons = Array.from(document.querySelectorAll(".subtab"));
+const subpanels = Array.from(document.querySelectorAll(".subpanel"));
+
+function showSubtab(name) {
+  subtabButtons.forEach((btn) => btn.classList.toggle("active", btn.dataset.subtab === name));
+  subpanels.forEach((panel) => panel.classList.toggle("hidden", panel.id !== name));
+}
+
+subtabButtons.forEach((btn) => {
+  btn.addEventListener("click", () => showSubtab(btn.dataset.subtab));
+});
+
+if (subtabButtons.length) {
+  showSubtab(subtabButtons[0].dataset.subtab);
+}
+
 // initial boot after tabs are ready
 bootProfile();
+
+// ---------- DAILY PLAN SELECTIONS ----------
+const selectionBlocks = Array.from(document.querySelectorAll(".selection-block"));
+const accordionToggles = Array.from(document.querySelectorAll(".accordion-toggle"));
+const accordionPanels = Array.from(document.querySelectorAll(".accordion-panel"));
+const doneDailyPlan = document.getElementById("doneDailyPlan");
+const saveDailyPlan = document.getElementById("saveDailyPlan");
+const shareDailyPlan = document.getElementById("shareDailyPlan");
+const printDailyPlan = document.getElementById("printDailyPlan");
+const templateFile = document.getElementById("templateFile");
+const uploadTemplateBtn = document.getElementById("uploadTemplateBtn");
+const generateTemplateBtn = document.getElementById("generateTemplateBtn");
+const printTemplatePlan = document.getElementById("printTemplatePlan");
+const templateStatus = document.getElementById("templateStatus");
+const templateHelpBtn = document.getElementById("templateHelpBtn");
+const templateHelpPanel = document.getElementById("templateHelpPanel");
+const templatePreview = document.getElementById("templatePreview");
+const templatePreviewFrame = document.getElementById("templatePreviewFrame");
+const templatesBtn = document.getElementById("templatesBtn");
+const templateConfirm = document.getElementById("templateConfirm");
+const templateGoBtn = document.getElementById("templateGoBtn");
+const templateNoBtn = document.getElementById("templateNoBtn");
+const templateDropzone = document.getElementById("templateDropzone");
+let templatePdfBytes = null;
+let lastFilledPdfUrl = null;
+let pendingTemplatePrint = false;
+
+const dailyCalendarContainer = document.getElementById('daily-calendar-container');
+const monthlyMonthSelect = document.getElementById('monthly-month-select');
+const monthlyYearSelect = document.getElementById('monthly-year-select');
+const seasonYearSelect = document.getElementById('season-year-select');
+
+function populateYearSelects() {
+    if (!monthlyYearSelect || !seasonYearSelect) return;
+    const currentYear = new Date().getFullYear();
+    const years = Array.from({
+        length: 10
+    }, (_, i) => currentYear - 5 + i);
+
+    monthlyYearSelect.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+    monthlyYearSelect.value = currentYear;
+
+    seasonYearSelect.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+    seasonYearSelect.value = currentYear;
+}
+
+function populateMonthSelect() {
+    if (!monthlyMonthSelect) return;
+    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    monthlyMonthSelect.innerHTML = months.map((m, i) => `<option value="${i}">${m}</option>`).join('');
+    monthlyMonthSelect.value = new Date().getMonth();
+}
+
+function renderCalendar(year, month) {
+    if (!dailyCalendarContainer) return;
+
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const numDays = lastDay.getDate();
+    const startDayOfWeek = firstDay.getDay();
+
+    let html = `
+    <div class="calendar-header">
+      <button id="prev-month">&lt;</button>
+      <span>${monthNames[month]} ${year}</span>
+      <button id="next-month">&gt;</button>
+    </div>
+    <div class="calendar-grid-days">
+  `;
+    daysOfWeek.forEach(day => {
+        html += `<div class="calendar-day-name">${day}</div>`;
+    });
+
+    for (let i = 0; i < startDayOfWeek; i++) {
+        html += `<div></div>`;
+    }
+
+    for (let i = 1; i <= numDays; i++) {
+        const isToday = (year === new Date().getFullYear() && month === new Date().getMonth() && i === new Date().getDate()) ? 'today' : '';
+        html += `<div class="calendar-day ${isToday}" data-day="${i}">${i}</div>`;
+    }
+
+    html += '</div>';
+    dailyCalendarContainer.innerHTML = html;
+
+    document.getElementById('prev-month').addEventListener('click', () => {
+        const newDate = new Date(year, month - 1, 1);
+        renderCalendar(newDate.getFullYear(), newDate.getMonth());
+    });
+    document.getElementById('next-month').addEventListener('click', () => {
+        const newDate = new Date(year, month + 1, 1);
+        renderCalendar(newDate.getFullYear(), newDate.getMonth());
+    });
+    dailyCalendarContainer.querySelectorAll('.calendar-day').forEach(dayEl => {
+        dayEl.addEventListener('click', () => {
+            dailyCalendarContainer.querySelectorAll('.calendar-day').forEach(d => d.classList.remove('selected'));
+            dayEl.classList.add('selected');
+        });
+    });
+}
+
+function initializePlanSelectors() {
+    if (!document.getElementById('panel-plans')) return;
+    populateMonthSelect();
+    populateYearSelects();
+    const today = new Date();
+    renderCalendar(today.getFullYear(), today.getMonth());
+}
+
+function addChosenItem(listEl, value) {
+  if (!value) return;
+  const exists = Array.from(listEl.children).some((li) => li.dataset.value === value);
+  if (exists) return;
+  const li = document.createElement("li");
+  li.dataset.value = value;
+  li.textContent = value;
+  listEl.appendChild(li);
+}
+
+function getCoachKey() {
+  const profile = getProfile();
+  if (!profile || profile.role !== "coach") return "coach";
+  return (profile.name || "coach").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+}
+
+function getCustomOptions() {
+  const key = `wpl_custom_options_${getCoachKey()}`;
+  try { return JSON.parse(localStorage.getItem(key) || "{}"); }
+  catch { return {}; }
+}
+
+function setCustomOptions(data) {
+  const key = `wpl_custom_options_${getCoachKey()}`;
+  localStorage.setItem(key, JSON.stringify(data));
+}
+
+function addCustomOption(blockKey, value) {
+  if (!blockKey || !value) return;
+  const data = getCustomOptions();
+  const list = data[blockKey] || [];
+  if (!list.includes(value)) {
+    data[blockKey] = [...list, value];
+    setCustomOptions(data);
+  }
+}
+
+function loadCustomOptions() {
+  const data = getCustomOptions();
+  selectionBlocks.forEach((block) => {
+    const blockKey = block.dataset.block;
+    const options = block.querySelector(".option-list");
+    const customList = data[blockKey] || [];
+    customList.forEach((value) => {
+      const exists = Array.from(options.children).some((li) => li.dataset.value === value);
+      if (exists) return;
+      const li = document.createElement("li");
+      li.dataset.value = value;
+      li.textContent = value;
+      options.appendChild(li);
+    });
+  });
+}
+
+loadCustomOptions();
+
+selectionBlocks.forEach((block) => {
+  const options = block.querySelector(".option-list");
+  const chosen = block.querySelector(".chosen-list");
+  const customInput = block.querySelector(".custom-input");
+  const addBtn = block.querySelector(".add-custom-btn");
+
+  if (options && chosen) {
+    options.addEventListener("click", (e) => {
+      const target = e.target.closest("li");
+      if (!target) return;
+      addChosenItem(chosen, target.dataset.value || target.textContent.trim());
+    });
+
+    chosen.addEventListener("click", (e) => {
+      const target = e.target.closest("li");
+      if (!target) return;
+      target.remove();
+    });
+  }
+
+  if (addBtn && customInput && chosen) {
+    addBtn.addEventListener("click", () => {
+      const value = customInput.value.trim();
+      if (!value) return;
+      addChosenItem(chosen, value);
+      addCustomOption(block.dataset.block, value);
+      const optionsList = block.querySelector(".option-list");
+      const exists = Array.from(optionsList.children).some((li) => li.dataset.value === value);
+      if (!exists) {
+        const li = document.createElement("li");
+        li.dataset.value = value;
+        li.textContent = value;
+        optionsList.appendChild(li);
+      }
+      customInput.value = "";
+    });
+  }
+});
+
+function showAccordion(name) {
+  accordionToggles.forEach((btn) => btn.classList.toggle("active", btn.dataset.accordion === name));
+  accordionPanels.forEach((panel) => panel.classList.toggle("hidden", panel.id !== name));
+}
+
+accordionToggles.forEach((btn) => {
+  btn.addEventListener("click", () => showAccordion(btn.dataset.accordion));
+});
+
+if (accordionToggles.length) {
+  showAccordion(accordionToggles[0].dataset.accordion);
+}
+
+function collectDailySelections() {
+  const data = {};
+  selectionBlocks.forEach((block) => {
+    const key = block.dataset.block;
+    const chosen = Array.from(block.querySelectorAll(".chosen-list li")).map((li) => li.textContent.trim());
+    data[key] = chosen;
+  });
+  return data;
+}
+
+function getDailyPlanData() {
+  const data = collectDailySelections();
+  const hasSelections = Object.values(data).some((items) => items && items.length);
+  if (hasSelections) return data;
+  try {
+    return JSON.parse(localStorage.getItem("wpl_daily_plan") || "null") || data;
+  } catch {
+    return data;
+  }
+}
+
+function formatPdfField(items) {
+  if (!items || !items.length) return "";
+  return items.join("\n");
+}
+
+function updateTemplatePrintButton() {
+  if (printTemplatePlan) printTemplatePlan.disabled = !templatePdfBytes;
+}
+
+function showTemplatePreview(url) {
+  if (!templatePreview || !templatePreviewFrame) return;
+  templatePreviewFrame.src = url;
+  templatePreview.classList.remove("hidden");
+}
+
+function getPdfTemplateKey() {
+  return `wpl_pdf_template_${getCoachKey()}`;
+}
+
+function savePdfTemplate(dataUrl) {
+  localStorage.setItem(getPdfTemplateKey(), dataUrl);
+}
+
+function getPdfTemplate() {
+  return localStorage.getItem(getPdfTemplateKey());
+}
+
+async function dataURLToArrayBuffer(dataUrl) {
+  const res = await fetch(dataUrl);
+  return res.arrayBuffer();
+}
+
+async function loadSavedPdfTemplate() {
+  const savedTemplate = getPdfTemplate();
+  if (savedTemplate) {
+    try {
+      templatePdfBytes = await dataURLToArrayBuffer(savedTemplate);
+      if (templateStatus) templateStatus.textContent = "Saved PDF template loaded.";
+      updateTemplatePrintButton();
+    } catch (e) {
+      console.error("Failed to load saved PDF template:", e);
+      if (templateStatus) templateStatus.textContent = "Could not load saved template.";
+    }
+  }
+}
+
+function handleTemplateFile(file) {
+  if (!file) {
+    if (templateStatus) templateStatus.textContent = "Select a PDF file first.";
+    return;
+  }
+  if (file.type !== "application/pdf") {
+    if (templateStatus) templateStatus.textContent = "Only PDF files are allowed.";
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const dataUrl = e.target.result;
+    savePdfTemplate(dataUrl); // Save to localStorage
+    templatePdfBytes = await dataURLToArrayBuffer(dataUrl);
+
+    if (templateStatus) templateStatus.textContent = "PDF template loaded and saved.";
+    if (pendingTemplatePrint) {
+      pendingTemplatePrint = false;
+      await generateFilledPdf({ download: false });
+      await printFilledPdf();
+    } else {
+      await generateFilledPdf({ download: false });
+    }
+  };
+  reader.onerror = () => {
+    if (templateStatus) templateStatus.textContent = "Could not read file.";
+  };
+  reader.readAsDataURL(file);
+}
+
+async function generateFilledPdf({ download } = {}) {
+  if (!templatePdfBytes) {
+    if (templateStatus) templateStatus.textContent = "Upload a PDF template first.";
+    return null;
+  }
+  if (!window.PDFLib) {
+    if (templateStatus) templateStatus.textContent = "PDF library not available.";
+    return null;
+  }
+  const data = getDailyPlanData();
+  const pdfDoc = await PDFLib.PDFDocument.load(templatePdfBytes);
+  const form = pdfDoc.getForm();
+  const fields = {
+    intro: formatPdfField(data.intro),
+    warmup: formatPdfField(data.warmup),
+    drills: formatPdfField(data.drills),
+    live: formatPdfField(data.live),
+    cooldown: formatPdfField(data.cooldown),
+    announcements: formatPdfField(data.announcements),
+    date: new Date().toLocaleDateString()
+  };
+
+  Object.entries(fields).forEach(([key, value]) => {
+    try {
+      form.getTextField(key).setText(value);
+    } catch {
+      // ignore missing fields
+    }
+  });
+
+  const bytes = await pdfDoc.save();
+  const blob = new Blob([bytes], { type: "application/pdf" });
+  if (lastFilledPdfUrl) URL.revokeObjectURL(lastFilledPdfUrl);
+  lastFilledPdfUrl = URL.createObjectURL(blob);
+  updateTemplatePrintButton();
+  showTemplatePreview(lastFilledPdfUrl);
+
+  if (download) {
+    const link = document.createElement("a");
+    link.href = lastFilledPdfUrl;
+    link.download = "daily-training-plan.pdf";
+    link.click();
+  }
+  return lastFilledPdfUrl;
+}
+
+function formatDailyPlanText(data) {
+  const titleMap = {
+    intro: "Introduction",
+    warmup: "Warm-up",
+    drills: "Drills + Technique Intro",
+    live: "Live / Hard Pace + Conditioning",
+    cooldown: "Visualization + Cool Down",
+    announcements: "Announcements"
+  };
+  const lines = ["Daily Training Plan"];
+  Object.keys(titleMap).forEach((key) => {
+    const items = data[key] || [];
+    lines.push(`\n${titleMap[key]}:`);
+    if (!items.length) {
+      lines.push("- (none selected)");
+    } else {
+      items.forEach((item) => lines.push(`- ${item}`));
+    }
+  });
+  return lines.join("\n");
+}
+
+if (saveDailyPlan) {
+  saveDailyPlan.addEventListener("click", () => {
+    const data = collectDailySelections();
+    localStorage.setItem("wpl_daily_plan", JSON.stringify(data));
+    toast("Daily plan saved.");
+  });
+}
+
+if (doneDailyPlan) {
+  doneDailyPlan.addEventListener("click", async () => {
+    const data = collectDailySelections();
+    localStorage.setItem("wpl_daily_plan", JSON.stringify(data));
+    if (templatePdfBytes && window.PDFLib) {
+      await generateFilledPdf({ download: false });
+      toast("Daily plan saved. Template ready.");
+    } else {
+      toast("Daily plan saved.");
+    }
+    const role = (getProfile() || {}).role || "athlete";
+    showTab(role === "coach" ? "dashboard" : "today");
+  });
+}
+
+if (shareDailyPlan) {
+  shareDailyPlan.addEventListener("click", async () => {
+    const data = collectDailySelections();
+    const text = formatDailyPlanText(data);
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Daily Training Plan", text });
+        toast("Shared.");
+        return;
+      } catch {
+        // fall through
+      }
+    }
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(text);
+      toast("Copied to clipboard.");
+    } else {
+      toast("Copy not supported on this device.");
+    }
+  });
+}
+
+if (printDailyPlan) {
+  printDailyPlan.addEventListener("click", () => {
+    const data = collectDailySelections();
+    const text = formatDailyPlanText(data);
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(`<pre>${text}</pre>`);
+    win.document.close();
+    win.focus();
+    win.print();
+  });
+}
+
+// ---------- TEMPLATE UPLOAD ----------
+if (uploadTemplateBtn && templateFile) {
+  uploadTemplateBtn.addEventListener("click", () => {
+    const file = templateFile.files && templateFile.files[0];
+    handleTemplateFile(file);
+  });
+}
+
+if (generateTemplateBtn) {
+  generateTemplateBtn.addEventListener("click", async () => {
+    const url = await generateFilledPdf({ download: true });
+    if (url && templateStatus) templateStatus.textContent = "Filled PDF downloaded.";
+  });
+}
+
+if (templateHelpBtn && templateHelpPanel) {
+  templateHelpBtn.addEventListener("click", () => {
+    templateHelpPanel.classList.toggle("hidden");
+  });
+}
+
+function setTemplateControlsEnabled(enabled) {
+  if (templateFile) templateFile.disabled = !enabled;
+  if (uploadTemplateBtn) uploadTemplateBtn.disabled = !enabled;
+  if (generateTemplateBtn) generateTemplateBtn.disabled = !enabled;
+  updateTemplatePrintButton();
+}
+
+if (templatesBtn && templateConfirm) {
+  templatesBtn.addEventListener("click", () => {
+    templateConfirm.classList.toggle("hidden");
+  });
+}
+
+if (templateGoBtn) {
+  templateGoBtn.addEventListener("click", () => {
+    setTemplateControlsEnabled(true);
+    if (templateConfirm) templateConfirm.classList.add("hidden");
+    if (templateFile) templateFile.click();
+  });
+}
+
+if (templateNoBtn) {
+  templateNoBtn.addEventListener("click", () => {
+    setTemplateControlsEnabled(false);
+    if (templateConfirm) templateConfirm.classList.add("hidden");
+  });
+}
+
+if (templateDropzone) {
+  const setActive = (active) => templateDropzone.classList.toggle("active", active);
+  templateDropzone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    setActive(true);
+  });
+  templateDropzone.addEventListener("dragleave", () => setActive(false));
+  templateDropzone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    setActive(false);
+    const file = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!file) return;
+    if (file.type !== "application/pdf") {
+      if (templateStatus) templateStatus.textContent = "Only PDF files are allowed.";
+      return;
+    }
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    if (templateFile) templateFile.files = dt.files;
+    if (templateStatus) templateStatus.textContent = `Selected: ${file.name}`;
+    handleTemplateFile(file);
+  });
+}
+
+if (templateFile) {
+  templateFile.addEventListener("change", () => {
+    const file = templateFile.files && templateFile.files[0];
+    handleTemplateFile(file);
+  });
+}
+
+async function printFilledPdf() {
+  if (!lastFilledPdfUrl) {
+    toast("No filled PDF to print.");
+    return;
+  }
+
+  // Clean up any previous iframe
+  const oldFrame = document.getElementById("print-frame");
+  if (oldFrame) oldFrame.remove();
+
+  const iframe = document.createElement("iframe");
+  iframe.id = "print-frame";
+  iframe.style.position = "absolute";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  iframe.src = lastFilledPdfUrl;
+
+  iframe.onload = () => {
+    try {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    } catch (e) {
+      console.error("Print failed:", e);
+      toast("Could not open print dialog. Please try printing from the preview.");
+    }
+  };
+
+  document.body.appendChild(iframe);
+}
+
+if (printTemplatePlan) {
+  printTemplatePlan.addEventListener("click", async () => {
+    if (!templatePdfBytes) {
+      if (templateStatus) templateStatus.textContent = "Upload a PDF template first.";
+      setTemplateControlsEnabled(true);
+      if (templateConfirm) templateConfirm.classList.add("hidden");
+      pendingTemplatePrint = true;
+      if (templateFile) templateFile.click();
+      return;
+    }
+    const url = await generateFilledPdf({ download: false });
+    if (!url) return;
+    await printFilledPdf();
+  });
+}
 
 // ---------- ATHLETE PROFILE ----------
 const athleteProfileForm = document.getElementById("athleteProfileForm");
@@ -1247,6 +2009,13 @@ function renderAthleteManagement() {
       <div class="small">${athlete.history}</div>
       <div class="small">${athlete.notes}</div>
     `;
+    const btn = document.createElement("button");
+    btn.textContent = "Open One-Pager";
+    btn.addEventListener("click", () => {
+      selectOnePagerAthlete(athlete.name);
+      showTab("one-pager");
+    });
+    card.appendChild(btn);
     athleteList.appendChild(card);
   });
 }
@@ -1333,6 +2102,224 @@ function renderFuture() {
 
 renderFuture();
 
+// ---------- ONE-PAGER ----------
+const onePagerSelect = document.getElementById("onePagerSelect");
+const onePagerHeader = document.getElementById("onePagerHeader");
+const onePagerIdentity = document.getElementById("onePagerIdentity");
+const onePagerTechniques = document.getElementById("onePagerTechniques");
+const onePagerPlan = document.getElementById("onePagerPlan");
+const onePagerDo = document.getElementById("onePagerDo");
+const onePagerDont = document.getElementById("onePagerDont");
+const onePagerCues = document.getElementById("onePagerCues");
+const onePagerCueNotes = document.getElementById("onePagerCueNotes");
+const onePagerSafety = document.getElementById("onePagerSafety");
+const saveOnePagerPlan = document.getElementById("saveOnePagerPlan");
+const saveOnePagerDos = document.getElementById("saveOnePagerDos");
+const saveOnePagerCues = document.getElementById("saveOnePagerCues");
+const saveOnePagerSafety = document.getElementById("saveOnePagerSafety");
+const messageAthleteBtn = document.getElementById("messageAthleteBtn");
+const openTrainingBtn = document.getElementById("openTrainingBtn");
+const openTournamentBtn = document.getElementById("openTournamentBtn");
+const addQuickNoteBtn = document.getElementById("addQuickNoteBtn");
+
+function onePagerStorageKey(name) {
+  return `wpl_onepager_${name || "athlete"}`;
+}
+
+function getOnePagerData(name) {
+  try {
+    return JSON.parse(localStorage.getItem(onePagerStorageKey(name)) || "null");
+  } catch {
+    return null;
+  }
+}
+
+function setOnePagerData(name, data) {
+  localStorage.setItem(onePagerStorageKey(name), JSON.stringify(data));
+}
+
+function buildOnePagerBase(athlete) {
+  if (!athlete) return null;
+  return {
+    name: athlete.name,
+    photo: athlete.photo || "",
+    style: athlete.style,
+    currentWeight: athlete.currentWeight || athlete.weight,
+    weightClass: athlete.weightClass || athlete.weight,
+    school: athlete.schoolName || "",
+    club: athlete.clubName || "",
+    years: athlete.years || athlete.level || "N/A",
+    international: athlete.international || "No",
+    internationalEvents: athlete.internationalEvents || "",
+    position: athlete.position || "Neutral",
+    strategy: athlete.strategy || "Balanced",
+    techniques: athlete.techniques || {
+      neutral: [],
+      top: [],
+      bottom: [],
+      defense: []
+    },
+    coachCues: athlete.coachCues || "specific",
+    cueNotes: athlete.cueNotes || "",
+    injuryNotes: athlete.injuryNotes || ""
+  };
+}
+
+function renderOnePager(athleteName) {
+  const athlete = ATHLETES.find((a) => a.name === athleteName) || getProfile();
+  if (!athlete) return;
+  const base = buildOnePagerBase(athlete);
+  const saved = getOnePagerData(base.name) || {};
+  const merged = {
+    ...base,
+    plan: saved.plan || "Score first with single leg. Stay heavy on top.",
+    do: saved.do || "Push pace early. Keep elbows tight.",
+    dont: saved.dont || "Overextend on shots. Hang in underhook.",
+    coachCues: saved.coachCues || base.coachCues,
+    cueNotes: saved.cueNotes || base.cueNotes,
+    injuryNotes: saved.injuryNotes || base.injuryNotes
+  };
+
+  if (onePagerHeader) {
+    const initials = merged.name ? merged.name.split(" ").map((n) => n[0]).join("").slice(0, 2) : "AT";
+    onePagerHeader.innerHTML = `
+      <div class="onepager-avatar">${initials}</div>
+      <div>
+        <h3>${merged.name}</h3>
+        <div class="small">${merged.style} - ${merged.currentWeight} (${merged.weightClass})</div>
+        <div class="small">${merged.school || "School N/A"} ${merged.club ? "- " + merged.club : ""}</div>
+      </div>
+    `;
+  }
+
+  if (onePagerIdentity) {
+    onePagerIdentity.innerHTML = `
+      <h3>Experience & Identity</h3>
+      <ul class="list">
+        <li>Experience: ${merged.years}</li>
+        <li>International: ${merged.international}</li>
+        <li>${merged.internationalEvents || "No international events listed"}</li>
+        <li>Preferred position: ${merged.position}</li>
+        <li>Strategy: ${merged.strategy}</li>
+      </ul>
+    `;
+  }
+
+  if (onePagerTechniques) {
+    onePagerTechniques.innerHTML = `
+      <h3>Preferred Techniques</h3>
+      <ul class="list">
+        <li>Neutral: ${(merged.techniques.neutral || []).join(", ") || "N/A"}</li>
+        <li>Top: ${(merged.techniques.top || []).join(", ") || "N/A"}</li>
+        <li>Bottom: ${(merged.techniques.bottom || []).join(", ") || "N/A"}</li>
+        <li>Defense: ${(merged.techniques.defense || []).join(", ") || "N/A"}</li>
+      </ul>
+    `;
+  }
+
+  if (onePagerPlan) onePagerPlan.value = merged.plan;
+  if (onePagerDo) onePagerDo.value = merged.do;
+  if (onePagerDont) onePagerDont.value = merged.dont;
+  if (onePagerCues) onePagerCues.value = merged.coachCues;
+  if (onePagerCueNotes) onePagerCueNotes.value = merged.cueNotes;
+  if (onePagerSafety) onePagerSafety.value = merged.injuryNotes;
+}
+
+function selectOnePagerAthlete(name) {
+  if (onePagerSelect) onePagerSelect.value = name;
+  renderOnePager(name);
+}
+
+if (onePagerSelect) {
+  onePagerSelect.innerHTML = "";
+  ATHLETES.forEach((athlete) => {
+    const option = document.createElement("option");
+    option.value = athlete.name;
+    option.textContent = athlete.name;
+    onePagerSelect.appendChild(option);
+  });
+  onePagerSelect.addEventListener("change", () => renderOnePager(onePagerSelect.value));
+  selectOnePagerAthlete(ATHLETES[0]?.name);
+}
+
+function saveOnePagerField(field, value) {
+  const name = onePagerSelect?.value || "Athlete";
+  const current = getOnePagerData(name) || {};
+  setOnePagerData(name, { ...current, [field]: value });
+  toast("One-pager saved.");
+}
+
+if (saveOnePagerPlan) {
+  saveOnePagerPlan.addEventListener("click", () => {
+    saveOnePagerField("plan", onePagerPlan.value.trim());
+  });
+}
+
+if (saveOnePagerDos) {
+  saveOnePagerDos.addEventListener("click", () => {
+    saveOnePagerField("do", onePagerDo.value.trim());
+    saveOnePagerField("dont", onePagerDont.value.trim());
+  });
+}
+
+if (saveOnePagerCues) {
+  saveOnePagerCues.addEventListener("click", () => {
+    saveOnePagerField("coachCues", onePagerCues.value);
+    saveOnePagerField("cueNotes", onePagerCueNotes.value.trim());
+  });
+}
+
+if (saveOnePagerSafety) {
+  saveOnePagerSafety.addEventListener("click", () => {
+    saveOnePagerField("injuryNotes", onePagerSafety.value.trim());
+  });
+}
+
+if (messageAthleteBtn) {
+  messageAthleteBtn.addEventListener("click", () => {
+    showTab("messages");
+  });
+}
+
+if (openTrainingBtn) {
+  openTrainingBtn.addEventListener("click", () => {
+    showTab("plans");
+  });
+}
+
+if (openTournamentBtn) {
+  openTournamentBtn.addEventListener("click", () => {
+    showTab("calendar-manager");
+  });
+}
+
+if (addQuickNoteBtn) {
+  addQuickNoteBtn.addEventListener("click", () => {
+    showTab("athlete-notes");
+  });
+}
+
+// ---------- MESSAGES ----------
+const messageList = document.getElementById("messageList");
+
+function renderMessages() {
+  if (!messageList) return;
+  messageList.innerHTML = "";
+  COACH_MESSAGES.forEach((msg) => {
+    const card = document.createElement("div");
+    card.className = "message-card";
+    card.innerHTML = `
+      <div class="tag-pill">${msg.tag}</div>
+      <h4>${msg.athlete}</h4>
+      <div class="small">${msg.text}</div>
+      <div class="small">${msg.time}</div>
+    `;
+    messageList.appendChild(card);
+  });
+}
+
+renderMessages();
+
 // ---------- SKILLS ----------
 const skillsGrid = document.getElementById("skillsGrid");
 
@@ -1415,3 +2402,6 @@ clearJournalBtn.addEventListener("click", () => {
   journalStatus.textContent = "Cleared.";
   setTimeout(() => (journalStatus.textContent = ""), 1200);
 });
+
+// Initialize the new plan selectors
+initializePlanSelectors();
