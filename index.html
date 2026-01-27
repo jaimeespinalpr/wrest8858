@@ -87,7 +87,6 @@
         <button class="tab" data-tab="dashboard" data-role="coach" data-views="coach admin">Dashboard</button>
         <button class="tab" data-tab="coach-profile" data-role="coach" data-views="coach admin">Coach Profile</button>
         <button class="tab" data-tab="athletes" data-role="coach" data-views="coach admin">Athletes</button>
-        <button class="tab" data-tab="one-pager" data-role="coach" data-views="coach admin parent">One-Pager</button>
         <button class="tab" data-tab="coach-match" data-role="coach" data-views="coach admin">Athlete Summary</button>
         <button class="tab" data-tab="plans" data-role="coach" data-views="coach admin">Create Plans</button>
         <button class="tab" data-tab="calendar-manager" data-role="coach" data-views="coach admin">Calendar Manager</button>
@@ -783,77 +782,6 @@
         </div>
       </section>
 
-      <!-- COACH: ATHLETE ONE-PAGER -->
-      <section class="panel hidden" id="panel-one-pager">
-        <div class="card">
-          <div class="card-header">
-            <h2>Athlete One-Pager</h2>
-            <div class="chip">Competition view</div>
-          </div>
-          <div class="row">
-            <label class="inline-field">
-              <span>Select athlete</span>
-              <select id="onePagerSelect"></select>
-            </label>
-          </div>
-
-          <div class="onepager-header" id="onePagerHeader"></div>
-
-          <div class="onepager-grid">
-            <div class="mini-card" id="onePagerIdentity"></div>
-            <div class="mini-card" id="onePagerTechniques"></div>
-          </div>
-
-          <div class="onepager-grid">
-            <div class="mini-card">
-              <h3>Go-To Plan (Coach)</h3>
-              <textarea id="onePagerPlan" rows="3" placeholder="Score first with single leg. Stay heavy on top."></textarea>
-              <button id="saveOnePagerPlan">Save Plan</button>
-            </div>
-            <div class="mini-card">
-              <h3>Do / Don't</h3>
-              <div class="grid">
-                <label>
-                  <span>Do</span>
-                  <textarea id="onePagerDo" rows="3" placeholder="Push pace early. Keep elbows tight."></textarea>
-                </label>
-                <label>
-                  <span>Don't</span>
-                  <textarea id="onePagerDont" rows="3" placeholder="Overextend on shots."></textarea>
-                </label>
-              </div>
-              <button id="saveOnePagerDos">Save Do/Don't</button>
-            </div>
-          </div>
-
-          <div class="onepager-grid">
-            <div class="mini-card">
-              <h3>Mat-Side Coaching Cues</h3>
-              <select id="onePagerCues">
-                <option value="short">Short cues only</option>
-                <option value="calm">Calm tone</option>
-                <option value="energy">High energy push</option>
-                <option value="specific">Specific instruction only</option>
-              </select>
-              <input id="onePagerCueNotes" type="text" placeholder="Optional: responds to simple commands" />
-              <button id="saveOnePagerCues">Save Cues</button>
-            </div>
-            <div class="mini-card">
-              <h3>Safety & Limitations</h3>
-              <textarea id="onePagerSafety" rows="3" placeholder="Left shoulder caution. Avoid deep shots."></textarea>
-              <button id="saveOnePagerSafety">Save Safety Notes</button>
-            </div>
-          </div>
-
-          <div class="quick-actions">
-            <button id="messageAthleteBtn">Message Athlete</button>
-            <button id="openTrainingBtn">Open Today's Training</button>
-            <button id="openTournamentBtn">Open Tournament Event</button>
-            <button id="addQuickNoteBtn">Add Quick Note</button>
-          </div>
-        </div>
-      </section>
-
       <section class="panel hidden" id="panel-coach-match">
         <div class="card coach-match-card">
           <div class="card-header">
@@ -884,6 +812,62 @@
               <div class="match-card emphasis" id="coachMatchCueWords"></div>
               <div class="match-card emphasis" id="coachMatchGoal"></div>
               <div class="match-card emphasis" id="coachMatchCue"></div>
+            </div>
+          </div>
+          <div class="onepager-section">
+            <div class="onepager-header" id="onePagerHeader"></div>
+
+            <div class="onepager-grid">
+              <div class="mini-card" id="onePagerIdentity"></div>
+              <div class="mini-card" id="onePagerTechniques"></div>
+            </div>
+
+            <div class="onepager-grid">
+              <div class="mini-card">
+                <h3>Go-To Plan (Coach)</h3>
+                <textarea id="onePagerPlan" rows="3" placeholder="Score first with single leg. Stay heavy on top."></textarea>
+                <button id="saveOnePagerPlan">Save Plan</button>
+              </div>
+              <div class="mini-card">
+                <h3>Do / Don't</h3>
+                <div class="grid">
+                  <label>
+                    <span>Do</span>
+                    <textarea id="onePagerDo" rows="3" placeholder="Push pace early. Keep elbows tight."></textarea>
+                  </label>
+                  <label>
+                    <span>Don't</span>
+                    <textarea id="onePagerDont" rows="3" placeholder="Overextend on shots."></textarea>
+                  </label>
+                </div>
+                <button id="saveOnePagerDos">Save Do/Don't</button>
+              </div>
+            </div>
+
+            <div class="onepager-grid">
+              <div class="mini-card">
+                <h3>Mat-Side Coaching Cues</h3>
+                <select id="onePagerCues">
+                  <option value="short">Short cues only</option>
+                  <option value="calm">Calm tone</option>
+                  <option value="energy">High energy push</option>
+                  <option value="specific">Specific instruction only</option>
+                </select>
+                <input id="onePagerCueNotes" type="text" placeholder="Optional: responds to simple commands" />
+                <button id="saveOnePagerCues">Save Cues</button>
+              </div>
+              <div class="mini-card">
+                <h3>Safety & Limitations</h3>
+                <textarea id="onePagerSafety" rows="3" placeholder="Left shoulder caution. Avoid deep shots."></textarea>
+                <button id="saveOnePagerSafety">Save Safety Notes</button>
+              </div>
+            </div>
+
+            <div class="quick-actions">
+              <button id="messageAthleteBtn">Message Athlete</button>
+              <button id="openTrainingBtn">Open Today's Training</button>
+              <button id="openTournamentBtn">Open Tournament Event</button>
+              <button id="addQuickNoteBtn">Add Quick Note</button>
             </div>
           </div>
         </div>

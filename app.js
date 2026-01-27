@@ -467,9 +467,6 @@ function refreshLanguageUI() {
   renderFuture();
   renderMessages();
   renderSkills();
-  if (typeof onePagerSelect !== "undefined" && onePagerSelect && onePagerSelect.value) {
-    renderOnePager(onePagerSelect.value);
-  }
   if (typeof coachMatchSelect !== "undefined" && coachMatchSelect && coachMatchSelect.value) {
     renderCoachMatchView(coachMatchSelect.value);
   }
@@ -1100,7 +1097,6 @@ const TAB_COPY = {
   dashboard: { en: "Dashboard", es: "Panel" },
   "coach-profile": { en: "Coach Profile", es: "Perfil entrenador" },
   athletes: { en: "Athletes", es: "Atletas" },
-  "one-pager": { en: "One-Pager", es: "Resumen" },
   "coach-match": { en: "Athlete Summary", es: "Resumen atleta" },
   plans: { en: "Create Plans", es: "Crear planes" },
   "calendar-manager": { en: "Calendar Manager", es: "Gestion calendario" },
@@ -1186,10 +1182,6 @@ const PANEL_COPY = {
   "panel-athletes": {
     title: { en: "Athlete Management", es: "Gestion de atletas" },
     chip: { en: "Roster", es: "Plantel" }
-  },
-  "panel-one-pager": {
-    title: { en: "Athlete One-Pager", es: "Resumen del atleta" },
-    chip: { en: "Competition view", es: "Vista competencia" }
   },
   "panel-coach-match": {
     title: { en: "Athlete Summary", es: "Resumen atleta" },
@@ -2673,7 +2665,7 @@ const PERMISSIONS = {
     "View athlete profiles and journals",
     "Assign media and evaluate skills",
     "Send announcements and updates",
-    "Edit competition one-pager coaching notes"
+    "Edit competition summary coaching notes"
   ],
   cannot: [
     "Edit athlete self-reported journal entries",
@@ -3175,7 +3167,6 @@ const panels = {
   dashboard: document.getElementById("panel-dashboard"),
   "coach-profile": document.getElementById("panel-coach-profile"),
   athletes: document.getElementById("panel-athletes"),
-  "one-pager": document.getElementById("panel-one-pager"),
   "coach-match": document.getElementById("panel-coach-match"),
   plans: document.getElementById("panel-plans"),
   "calendar-manager": document.getElementById("panel-calendar-manager"),
@@ -5745,7 +5736,7 @@ function renderAthleteManagement() {
   const statusLabel = currentLang === "es" ? "Estado" : "Status";
   const preferredLabel = currentLang === "es" ? "Preferido" : "Preferred";
   const intlLabel = currentLang === "es" ? "Internacional" : "International";
-  const onePagerLabel = currentLang === "es" ? "Abrir resumen" : "Open One-Pager";
+  const athleteSummaryLabel = currentLang === "es" ? "Abrir resumen" : "Open athlete summary";
   const emptyLabel = currentLang === "es"
     ? "No hay atletas con esos tags."
     : "No athletes match those tags.";
@@ -5780,10 +5771,10 @@ function renderAthleteManagement() {
       ${tagRow}
     `;
     const btn = document.createElement("button");
-    btn.textContent = onePagerLabel;
+    btn.textContent = athleteSummaryLabel;
     btn.addEventListener("click", () => {
-      selectOnePagerAthlete(athlete.name);
-      showTab("one-pager");
+      selectCoachMatchAthlete(athlete.name);
+      showTab("coach-match");
     });
     card.appendChild(btn);
     athleteList.appendChild(card);
@@ -5871,7 +5862,6 @@ function renderFuture() {
 }
 
 // ---------- ONE-PAGER ----------
-const onePagerSelect = document.getElementById("onePagerSelect");
 const onePagerHeader = document.getElementById("onePagerHeader");
 const onePagerIdentity = document.getElementById("onePagerIdentity");
 const onePagerTechniques = document.getElementById("onePagerTechniques");
@@ -5934,7 +5924,11 @@ function buildOnePagerBase(athlete) {
 }
 
 function renderOnePager(athleteName) {
-  const athlete = getAthletesData().find((a) => a.name === athleteName) || getProfile();
+  const defaultName = athleteName
+    || (typeof coachMatchSelect !== "undefined" ? coachMatchSelect?.value : undefined)
+    || getProfile()?.name
+    || getAthletesData()[0]?.name;
+  const athlete = getAthletesData().find((a) => a.name === defaultName) || getProfile();
   if (!athlete) return;
   const base = buildOnePagerBase(athlete);
   const saved = getOnePagerData(base.name) || {};
@@ -6022,25 +6016,8 @@ function renderOnePager(athleteName) {
   if (onePagerSafety) onePagerSafety.value = merged.injuryNotes;
 }
 
-function selectOnePagerAthlete(name) {
-  if (onePagerSelect) onePagerSelect.value = name;
-  renderOnePager(name);
-}
-
-if (onePagerSelect) {
-  onePagerSelect.innerHTML = "";
-  getAthletesData().forEach((athlete) => {
-    const option = document.createElement("option");
-    option.value = athlete.name;
-    option.textContent = athlete.name;
-    onePagerSelect.appendChild(option);
-  });
-  onePagerSelect.addEventListener("change", () => renderOnePager(onePagerSelect.value));
-  selectOnePagerAthlete(getAthletesData()[0]?.name);
-}
-
 function saveOnePagerField(field, value) {
-  const name = onePagerSelect?.value || "Athlete";
+  const name = coachMatchSelect?.value || "Athlete";
   const current = getOnePagerData(name) || {};
   setOnePagerData(name, { ...current, [field]: value });
   toast(pickCopy({ en: "One-pager saved.", es: "Resumen guardado." }));
@@ -6401,6 +6378,7 @@ function renderCoachMatchView(athleteName) {
       <div class="match-cue">${cueDisplay}</div>
     `;
   }
+  renderOnePager(data.name);
 }
 
 function selectCoachMatchAthlete(name) {
@@ -6418,7 +6396,7 @@ if (coachMatchSelect) {
     coachMatchSelect.appendChild(option);
   });
   coachMatchSelect.addEventListener("change", () => renderCoachMatchView(coachMatchSelect.value));
-  const defaultName = onePagerSelect?.value || getAthletesData()[0]?.name;
+  const defaultName = getAthletesData()[0]?.name;
   if (defaultName) selectCoachMatchAthlete(defaultName);
 }
 
