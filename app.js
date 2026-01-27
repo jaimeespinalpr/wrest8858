@@ -1759,7 +1759,11 @@ if (viewSwitchBtn) {
 if (viewMenu) {
   viewMenu.addEventListener("click", (event) => {
     event.stopPropagation();
-    const view = event.target?.dataset?.view;
+    const targetElement = event.target instanceof Element
+      ? event.target
+      : event.target?.parentElement;
+    const targetBtn = targetElement?.closest("button[data-view]");
+    const view = targetBtn?.dataset?.view;
     if (view) {
       setView(view);
       closeViewMenu();
