@@ -14,220 +14,18 @@
       <div class="brand">
         <div class="brand-mark">WPL</div>
         <div>
-          <h2>Create your profile</h2>
-          <p class="small">This takes 30 seconds. You can edit it later.</p>
+          <h2>Jump right in</h2>
+          <p class="small">No account required. Choose the view you want to explore.</p>
         </div>
       </div>
 
-      <form id="profileForm" class="form">
-        <div class="grid">
-          <label>
-            <span>Full name</span>
-            <input id="pName" type="text" placeholder="e.g., Jaime Espinal" required />
-          </label>
-
-          <label>
-            <span>Role</span>
-            <select id="pRole" required>
-              <option value="athlete">Athlete</option>
-              <option value="coach">Coach</option>
-            </select>
-          </label>
-
-          <label>
-            <span>Profile photo (optional)</span>
-            <input id="pPhoto" type="text" placeholder="Add a photo URL" />
-          </label>
-
-          <label>
-            <span>Country (optional)</span>
-            <input id="pCountry" type="text" placeholder="e.g., United States" />
-          </label>
-
-          <label>
-            <span>City/State (optional)</span>
-            <input id="pCity" type="text" placeholder="e.g., Lincoln, NE" />
-          </label>
-
-          <label>
-            <span>School or club?</span>
-            <select id="pSchoolClub" required>
-              <option value="no" selected>No</option>
-              <option value="yes">Yes</option>
-            </select>
-          </label>
-
-          <label>
-            <span>School name (optional)</span>
-            <input id="pSchool" type="text" placeholder="e.g., Lincoln West" />
-          </label>
-
-          <label>
-            <span>Club name (optional)</span>
-            <input id="pClub" type="text" placeholder="e.g., Midwest Grapplers" />
-          </label>
-
-          <label>
-            <span>Team / School (optional)</span>
-            <input id="pTeam" type="text" placeholder="e.g., Penn State / Archmere" />
-          </label>
-
-          <label>
-            <span>Level</span>
-            <select id="pLevel" required>
-              <option value="beginner">Beginner</option>
-              <option value="intermediate" selected>Intermediate</option>
-              <option value="advanced">Advanced</option>
-            </select>
-          </label>
-
-          <label>
-            <span>Primary wrestling style</span>
-            <select id="pStyle" required>
-              <option value="freestyle">Freestyle</option>
-              <option value="greco-roman">Greco-Roman</option>
-              <option value="folkstyle">Folkstyle</option>
-            </select>
-          </label>
-
-          <label>
-            <span>Preferred position</span>
-            <select id="pPosition" required>
-              <option value="neutral">Neutral</option>
-              <option value="top">Top</option>
-              <option value="bottom">Bottom</option>
-            </select>
-          </label>
-
-          <label>
-            <span>Match strategy preference</span>
-            <select id="pStrategy">
-              <option value="balanced" selected>Balanced</option>
-              <option value="offensive">Offensive</option>
-              <option value="defensive">Defensive</option>
-              <option value="counter">Counter-based</option>
-            </select>
-          </label>
-
-          <label>
-            <span>Years of experience</span>
-            <input id="pYears" type="number" min="0" max="30" placeholder="e.g., 4" />
-          </label>
-
-          <label>
-            <span>Weight class (optional)</span>
-            <input id="pWeight" type="text" placeholder="e.g., 157 / 72kg" />
-          </label>
-
-          <label>
-            <span>Current weight (optional)</span>
-            <input id="pCurrentWeight" type="text" placeholder="e.g., 157 lb" />
-          </label>
-
-          <label>
-            <span>Language</span>
-            <select id="pLang" required>
-              <option value="en" selected>English</option>
-              <option value="es">Spanish</option>
-            </select>
-          </label>
+      <div class="guest-choice">
+        <p class="small muted">Pick the athlete or coach experience to enter the app immediately.</p>
+        <div class="guest-buttons">
+          <button id="guestAthleteBtn" class="primary full">Enter Athlete View</button>
+          <button id="guestCoachBtn" class="ghost full">Enter Coach View</button>
         </div>
-
-        <div class="form-section">
-          <h3>Preferred Techniques</h3>
-          <p class="small muted">Pick 2-4 per position.</p>
-          <div class="tech-grid">
-            <div class="mini-card">
-              <h4>Neutral</h4>
-              <label class="check"><input type="checkbox" value="Single Leg" class="tech-neutral"> Single Leg</label>
-              <label class="check"><input type="checkbox" value="Double Leg" class="tech-neutral"> Double Leg</label>
-              <label class="check"><input type="checkbox" value="High Crotch" class="tech-neutral"> High Crotch</label>
-              <label class="check"><input type="checkbox" value="Snap Down" class="tech-neutral"> Snap Down</label>
-              <input id="pNeutralOther" type="text" placeholder="Other (optional)" />
-            </div>
-            <div class="mini-card">
-              <h4>Top</h4>
-              <label class="check"><input type="checkbox" value="Half Nelson" class="tech-top"> Half Nelson</label>
-              <label class="check"><input type="checkbox" value="Breakdown" class="tech-top"> Breakdown</label>
-              <label class="check"><input type="checkbox" value="Tilt" class="tech-top"> Tilt</label>
-              <input id="pTopOther" type="text" placeholder="Other (optional)" />
-            </div>
-            <div class="mini-card">
-              <h4>Bottom</h4>
-              <label class="check"><input type="checkbox" value="Stand-Up" class="tech-bottom"> Stand-Up</label>
-              <label class="check"><input type="checkbox" value="Switch" class="tech-bottom"> Switch</label>
-              <label class="check"><input type="checkbox" value="Sit-Out" class="tech-bottom"> Sit-Out</label>
-              <input id="pBottomOther" type="text" placeholder="Other (optional)" />
-            </div>
-            <div class="mini-card">
-              <h4>Defense</h4>
-              <label class="check"><input type="checkbox" value="Sprawl" class="tech-defense"> Sprawl</label>
-              <label class="check"><input type="checkbox" value="Whizzer" class="tech-defense"> Whizzer</label>
-              <label class="check"><input type="checkbox" value="Hand Fighting" class="tech-defense"> Hand Fighting</label>
-              <input id="pDefenseOther" type="text" placeholder="Other (optional)" />
-            </div>
-          </div>
-        </div>
-
-        <div class="form-section">
-          <h3>International Experience</h3>
-          <div class="grid">
-            <label>
-              <span>International competition?</span>
-              <select id="pInternational">
-                <option value="no" selected>No</option>
-                <option value="yes">Yes</option>
-              </select>
-            </label>
-            <label>
-              <span>Countries / events (optional)</span>
-              <input id="pInternationalEvents" type="text" placeholder="e.g., Pan-Am, Canada Open" />
-            </label>
-            <label>
-              <span>Years (optional)</span>
-              <input id="pInternationalYears" type="text" placeholder="e.g., 2 years" />
-            </label>
-          </div>
-        </div>
-
-        <div class="form-section">
-          <h3>Competition Notes</h3>
-          <div class="grid">
-            <label>
-              <span>Coach cue preference</span>
-              <select id="pCoachCues">
-                <option value="short">Short cues only</option>
-                <option value="calm">Stay calm tone</option>
-                <option value="energy">High energy cues</option>
-                <option value="specific" selected>Specific instruction only</option>
-              </select>
-            </label>
-            <label>
-              <span>What helps you most? (optional)</span>
-              <input id="pCueNotes" type="text" placeholder="e.g., Simple reminders between periods" />
-            </label>
-            <label>
-              <span>Injuries or limitations (optional)</span>
-              <input id="pInjuryNotes" type="text" placeholder="e.g., Left shoulder caution" />
-            </label>
-          </div>
-        </div>
-
-        <label>
-          <span>Main goal</span>
-          <input id="pGoal" type="text" placeholder="e.g., Improve bottom escapes / get in shape" required />
-        </label>
-
-        <div class="row onboarding-actions">
-          <button type="submit" class="primary">Create Profile</button>
-          <button type="button" id="doneProfileBtn">Done</button>
-          <button type="button" id="skipBtn">Skip (use default)</button>
-        </div>
-
-        <p class="small muted">
-          Your profile is stored only in your browser (localStorage).
-        </p>
-      </form>
+      </div>
     </div>
   </div>
 
@@ -240,6 +38,7 @@
           <h1>Wrestling Performance Lab</h1>
           <div class="meta" id="userMeta">Athlete View</div>
           <div class="mini-meta" id="roleMeta">Training Focus: Mat Technique</div>
+          <div class="mini-meta now-meta" id="nowMeta">Today: --</div>
         </div>
       </div>
 
@@ -251,36 +50,56 @@
             <option value="es">Spanish</option>
           </select>
         </div>
-        <button id="editProfileBtn" title="Edit profile">👤</button>
+        <div class="view-switch">
+          <button id="viewSwitchBtn" class="ghost" type="button">
+            <span id="currentViewLabel">Athlete view</span>
+            <span class="caret">▾</span>
+          </button>
+          <div id="viewMenu" class="view-menu hidden">
+            <button type="button" data-view="athlete">Athlete view</button>
+            <button type="button" data-view="coach">Coach view</button>
+            <button type="button" data-view="admin">Administrative view</button>
+            <button type="button" data-view="parent">Parent view</button>
+          </div>
+        </div>
+        <div class="header-profile">
+          <button id="editProfileBtn" title="User menu">👤</button>
+          <div id="headerMenu" class="header-menu hidden">
+            <button type="button" data-action="profile">Profile</button>
+            <button type="button" data-action="logout">Log out</button>
+            <button type="button" data-action="switch">Switch user</button>
+          </div>
+        </div>
         <button id="muteBtn" aria-label="Mute audio">🔊</button>
       </div>
     </header>
 
     <main class="app-content">
       <nav class="tabs" aria-label="Main tabs">
-        <button class="tab active" data-tab="today" data-role="athlete">Today</button>
-        <button class="tab" data-tab="athlete-profile" data-role="athlete">Profile</button>
-        <button class="tab" data-tab="training" data-role="athlete">Training Plan</button>
-        <button class="tab" data-tab="calendar" data-role="athlete coach">Calendar</button>
-        <button class="tab" data-tab="media" data-role="athlete coach">Media</button>
-        <button class="tab" data-tab="journal" data-role="athlete">Journal</button>
+        <button class="tab active" data-tab="today" data-role="athlete" data-views="athlete parent">Today</button>
+        <button class="tab" data-tab="athlete-profile" data-role="athlete" data-views="athlete parent">Profile</button>
+        <button class="tab" data-tab="training" data-role="athlete" data-views="athlete parent">Training Plan</button>
+        <button class="tab" data-tab="calendar" data-role="athlete coach" data-views="athlete coach parent">Calendar</button>
+        <button class="tab" data-tab="media" data-role="athlete coach" data-views="athlete coach parent">Media</button>
+        <button class="tab" data-tab="journal" data-role="athlete" data-views="athlete parent">Journal</button>
         <button class="tab" data-tab="favorites" data-role="athlete">Favorites</button>
-        <button class="tab" data-tab="announcements" data-role="athlete coach">Announcements</button>
+        <button class="tab" data-tab="announcements" data-role="athlete coach" data-views="athlete coach parent admin">Announcements</button>
 
-        <button class="tab" data-tab="dashboard" data-role="coach">Dashboard</button>
-        <button class="tab" data-tab="coach-profile" data-role="coach">Coach Profile</button>
-        <button class="tab" data-tab="athletes" data-role="coach">Athletes</button>
-        <button class="tab" data-tab="one-pager" data-role="coach">One-Pager</button>
-        <button class="tab" data-tab="plans" data-role="coach">Create Plans</button>
-        <button class="tab" data-tab="calendar-manager" data-role="coach">Calendar Manager</button>
-        <button class="tab" data-tab="media-library" data-role="coach">Media Library</button>
-        <button class="tab" data-tab="athlete-notes" data-role="coach">Athlete Notes</button>
-        <button class="tab" data-tab="skills" data-role="coach">Skills Tracker</button>
-        <button class="tab" data-tab="journal-monitor" data-role="coach">Journal Monitor</button>
-        <button class="tab" data-tab="reports" data-role="coach">Reports</button>
-        <button class="tab" data-tab="messages" data-role="coach">Messages</button>
-        <button class="tab" data-tab="permissions" data-role="coach">Permissions</button>
-        <button class="tab" data-tab="future" data-role="coach">Future</button>
+        <button class="tab" data-tab="dashboard" data-role="coach" data-views="coach admin">Dashboard</button>
+        <button class="tab" data-tab="coach-profile" data-role="coach" data-views="coach admin">Coach Profile</button>
+        <button class="tab" data-tab="athletes" data-role="coach" data-views="coach admin">Athletes</button>
+        <button class="tab" data-tab="one-pager" data-role="coach" data-views="coach admin parent">One-Pager</button>
+        <button class="tab" data-tab="coach-match" data-role="coach" data-views="coach admin">Athlete Summary</button>
+        <button class="tab" data-tab="plans" data-role="coach" data-views="coach admin">Create Plans</button>
+        <button class="tab" data-tab="calendar-manager" data-role="coach" data-views="coach admin">Calendar Manager</button>
+        <button class="tab" data-tab="media-library" data-role="coach" data-views="coach admin">Media Library</button>
+        <button class="tab" data-tab="athlete-notes" data-role="coach" data-views="coach parent">Athlete Notes</button>
+        <button class="tab" data-tab="skills" data-role="coach" data-views="coach admin">Skills Tracker</button>
+        <button class="tab" data-tab="journal-monitor" data-role="coach" data-views="coach parent">Journal Monitor</button>
+        <button class="tab" data-tab="reports" data-role="coach" data-views="coach admin">Reports</button>
+        <button class="tab" data-tab="messages" data-role="coach" data-views="coach admin">Messages</button>
+        <button class="tab" data-tab="permissions" data-role="coach" data-views="coach admin">Permissions</button>
+        <button class="tab" data-tab="future" data-role="coach" data-views="coach admin">Future</button>
       </nav>
 
       <!-- ATHLETE: TODAY -->
@@ -335,162 +154,384 @@
             <div class="chip">Create & Edit</div>
           </div>
           <form id="athleteProfileForm" class="form">
-            <div class="grid">
-              <label>
-                <span>Full name</span>
-                <input id="aName" type="text" required />
-              </label>
-              <label>
-                <span>Profile photo (optional)</span>
-                <input id="aPhoto" type="text" placeholder="Add a photo URL" />
-              </label>
-              <label>
-                <span>Country (optional)</span>
-                <input id="aCountry" type="text" />
-              </label>
-              <label>
-                <span>City/State (optional)</span>
-                <input id="aCity" type="text" />
-              </label>
-              <label>
-                <span>School or club?</span>
-                <select id="aSchoolClub">
-                  <option value="no">No</option>
-                  <option value="yes">Yes</option>
-                </select>
-              </label>
-              <label>
-                <span>School name (optional)</span>
-                <input id="aSchool" type="text" />
-              </label>
-              <label>
-                <span>Club name (optional)</span>
-                <input id="aClub" type="text" />
-              </label>
-              <label>
-                <span>Primary wrestling style</span>
-                <select id="aStyle" required>
-                  <option value="freestyle">Freestyle</option>
-                  <option value="greco-roman">Greco-Roman</option>
-                  <option value="folkstyle">Folkstyle</option>
-                </select>
-              </label>
-              <label>
-                <span>Current weight</span>
-                <input id="aWeight" type="text" placeholder="e.g., 157 lb" />
-              </label>
-              <label>
-                <span>Weight class</span>
-                <input id="aWeightClass" type="text" placeholder="e.g., 157" />
-              </label>
-              <label>
-                <span>Years of experience</span>
-                <input id="aYears" type="number" min="0" max="30" />
-              </label>
-              <label>
-                <span>Experience level</span>
-                <select id="aLevel">
-                  <option value="beginner">Beginner</option>
-                  <option value="intermediate">Intermediate</option>
-                  <option value="advanced">Advanced</option>
-                </select>
-              </label>
-              <label>
-                <span>Preferred position</span>
-                <select id="aPosition">
-                  <option value="neutral">Neutral</option>
-                  <option value="top">Top</option>
-                  <option value="bottom">Bottom</option>
-                </select>
-              </label>
-              <label>
-                <span>Match strategy preference</span>
-                <select id="aStrategy">
-                  <option value="balanced">Balanced</option>
-                  <option value="offensive">Offensive</option>
-                  <option value="defensive">Defensive</option>
-                  <option value="counter">Counter-based</option>
-                </select>
-              </label>
+            <div class="profile-subtabs" role="tablist" aria-label="Athlete profile focus">
+              <button type="button" class="profile-subtab active" data-profile-tab="training" id="profileSubtabTraining">Training</button>
+              <button type="button" class="profile-subtab" data-profile-tab="competition" id="profileSubtabCompetition">Competition</button>
+              <button type="button" class="profile-subtab" data-profile-tab="coaching" id="profileSubtabCoaching">Coaching Quick</button>
             </div>
 
-            <div class="form-section">
-              <h3>Preferred Techniques</h3>
-              <p class="small muted">Pick 2-4 per position.</p>
-              <div class="tech-grid">
-                <div class="mini-card">
-                  <h4>Neutral</h4>
-                  <label class="check"><input type="checkbox" value="Single Leg" class="a-tech-neutral"> Single Leg</label>
-                  <label class="check"><input type="checkbox" value="Double Leg" class="a-tech-neutral"> Double Leg</label>
-                  <label class="check"><input type="checkbox" value="High Crotch" class="a-tech-neutral"> High Crotch</label>
-                  <label class="check"><input type="checkbox" value="Snap Down" class="a-tech-neutral"> Snap Down</label>
-                  <input id="aNeutralOther" type="text" placeholder="Other (optional)" />
+            <div class="profile-subpanel" data-profile-panel="training">
+              <div class="grid profile-grid">
+                <label>
+                  <span>Full name</span>
+                  <input id="aName" type="text" required />
+                </label>
+                <label>
+                  <span>Age</span>
+                  <input id="aAge" type="number" min="10" max="60" placeholder="e.g., 19" />
+                </label>
+                <label>
+                  <span>Profile photo (optional)</span>
+                  <input id="aPhoto" type="text" placeholder="Add a photo URL" />
+                </label>
+                <label>
+                  <span>Country (optional)</span>
+                  <input id="aCountry" type="text" />
+                </label>
+                <label>
+                  <span>City/State (optional)</span>
+                  <input id="aCity" type="text" />
+                </label>
+                <label>
+                  <span>Current weight</span>
+                  <input id="aWeight" type="text" placeholder="e.g., 157 lb" />
+                </label>
+                <label>
+                  <span>School name (optional)</span>
+                  <input id="aSchool" type="text" />
+                </label>
+                <label>
+                  <span>Club name (optional)</span>
+                  <input id="aClub" type="text" />
+                </label>
+                <label>
+                  <span>School grade / level</span>
+                  <input id="aSchoolGrade" type="text" placeholder="e.g., 11th grade" />
+                </label>
+                <label>
+                  <span>Training routines</span>
+                  <textarea id="aTrainingRoutines" rows="3" placeholder="e.g., AM lift, PM mat, recovery"></textarea>
+                </label>
+                <label>
+                  <span>Weekly volume</span>
+                  <input id="aTrainingVolume" type="text" placeholder="e.g., 6 sessions, 10 hours" />
+                </label>
+                <label>
+                  <span>Technique worked most</span>
+                  <input id="aTrainingFocus" type="text" placeholder="e.g., Single leg finish chain" />
+                </label>
+              </div>
+
+              <div class="form-section default-tech-questions">
+                <h3>Default Techniques</h3>
+                <p class="small muted">Answer the four core signals so the coach understands your starting point.</p>
+                <div class="grid">
+                  <label>
+                    <span>Lead leg (left or right)</span>
+                    <select id="aLeadLeg">
+                      <option value="left">Left</option>
+                      <option value="right">Right</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Left-side attack</span>
+                    <input id="aLeftAttack" type="text" placeholder="Primary left-side entry" />
+                  </label>
+                  <label>
+                    <span>Right-side attack</span>
+                    <input id="aRightAttack" type="text" placeholder="Primary right-side entry" />
+                  </label>
+                  <label>
+                    <span>Preferred ties</span>
+                    <input id="aPreferredTies" type="text" placeholder="e.g., underhooks, wrist control" />
+                  </label>
                 </div>
-                <div class="mini-card">
-                  <h4>Top</h4>
-                  <label class="check"><input type="checkbox" value="Half Nelson" class="a-tech-top"> Half Nelson</label>
-                  <label class="check"><input type="checkbox" value="Breakdown" class="a-tech-top"> Breakdown</label>
-                  <label class="check"><input type="checkbox" value="Tilt" class="a-tech-top"> Tilt</label>
-                  <input id="aTopOther" type="text" placeholder="Other (optional)" />
-                </div>
-                <div class="mini-card">
-                  <h4>Bottom</h4>
-                  <label class="check"><input type="checkbox" value="Stand-Up" class="a-tech-bottom"> Stand-Up</label>
-                  <label class="check"><input type="checkbox" value="Switch" class="a-tech-bottom"> Switch</label>
-                  <label class="check"><input type="checkbox" value="Sit-Out" class="a-tech-bottom"> Sit-Out</label>
-                  <input id="aBottomOther" type="text" placeholder="Other (optional)" />
-                </div>
-                <div class="mini-card">
-                  <h4>Defense</h4>
-                  <label class="check"><input type="checkbox" value="Sprawl" class="a-tech-defense"> Sprawl</label>
-                  <label class="check"><input type="checkbox" value="Whizzer" class="a-tech-defense"> Whizzer</label>
-                  <label class="check"><input type="checkbox" value="Hand Fighting" class="a-tech-defense"> Hand Fighting</label>
-                  <input id="aDefenseOther" type="text" placeholder="Other (optional)" />
+                <label class="miscellaneous">
+                  <span>Miscellaneous / anything else we should know</span>
+                  <textarea id="aMiscNotes" rows="3" placeholder="Notes for the coach" ></textarea>
+                </label>
+              </div>
+              <div class="form-section current-challenges">
+                <h3>Current Challenges</h3>
+                <p class="small muted">Share three focus areas your coach should know about.</p>
+                <div class="grid">
+                  <label>
+                    <span>Challenge #1</span>
+                    <input id="aChallengeOne" type="text" placeholder="First challenge" />
+                  </label>
+                  <label>
+                    <span>Challenge #2</span>
+                    <input id="aChallengeTwo" type="text" placeholder="Second challenge" />
+                  </label>
+                  <label>
+                    <span>Challenge #3</span>
+                    <input id="aChallengeThree" type="text" placeholder="Third challenge" />
+                  </label>
                 </div>
               </div>
             </div>
 
-            <div class="form-section">
-              <h3>International Experience</h3>
-              <div class="grid">
+            <div class="profile-subpanel hidden" data-profile-panel="competition">
+              <div class="grid profile-grid">
                 <label>
-                  <span>International competition?</span>
-                  <select id="aInternational">
-                    <option value="no">No</option>
-                    <option value="yes">Yes</option>
+                  <span>Primary wrestling style</span>
+                  <select id="aStyle" required>
+                    <option value="freestyle">Freestyle</option>
+                    <option value="greco-roman">Greco-Roman</option>
+                    <option value="folkstyle">Folkstyle</option>
                   </select>
                 </label>
                 <label>
-                  <span>Countries / events (optional)</span>
-                  <input id="aInternationalEvents" type="text" />
+                  <span>Weight class</span>
+                  <input id="aWeightClass" type="text" placeholder="e.g., 157" />
                 </label>
                 <label>
-                  <span>Years (optional)</span>
-                  <input id="aInternationalYears" type="text" />
+                  <span>Years of experience</span>
+                  <input id="aYears" type="number" min="0" max="30" />
+                </label>
+                <label>
+                  <span>Experience level</span>
+                  <select id="aLevel">
+                    <option value="beginner">Beginner</option>
+                    <option value="intermediate">Intermediate</option>
+                    <option value="advanced">Advanced</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Preferred position</span>
+                  <select id="aPosition">
+                    <option value="neutral">Neutral</option>
+                    <option value="top">Top</option>
+                    <option value="bottom">Bottom</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Archetype</span>
+                  <select id="aArchetype">
+                    <option value="">Select archetype</option>
+                    <option value="technician">Technician</option>
+                    <option value="scrambler">Scrambler</option>
+                    <option value="pummler">Pummeler</option>
+                    <option value="counter-wrestler">Counter-wrestler</option>
+                    <option value="chain-wrestler">Chain-wrestler</option>
+                  </select>
+                </label>
+                <div class="select-details">
+                  <strong>Archetype (choose one):</strong>
+                  <ul>
+                    <li><strong>Technician</strong> – Precise, disciplined, and detail-oriented. Wins through clean execution and positional mastery.</li>
+                    <li><strong>Scrambler</strong> – Creative, flexible, and unorthodox. Thrives in chaos and transitional positions.</li>
+                    <li><strong>Pummeler</strong> – Physical, relentless, and hand-fight heavy. Controls ties and wears opponents down.</li>
+                    <li><strong>Counter-wrestler</strong> – Patient, reactive, and opportunistic. Excels at re-attacks and defensive scoring.</li>
+                    <li><strong>Chain-wrestler</strong> – Constant motion, seamless transitions, and layered attacks. Overwhelms opponents with pace.</li>
+                  </ul>
+                </div>
+                <label>
+                  <span>Body type</span>
+                  <select id="aBodyType">
+                    <option value="">Select body type</option>
+                    <option value="compact">Compact/Powerful</option>
+                    <option value="long">Long/Lanky</option>
+                    <option value="balanced">Balanced/Athletic</option>
+                  </select>
+                </label>
+                <div class="select-details">
+                  <strong>Body Type (choose one):</strong>
+                  <ul>
+                    <li><strong>Compact/Powerful</strong> – Strong hips, explosive movements, excels in short-offense and upper-body ties.</li>
+                    <li><strong>Long/Lanky</strong> – Uses reach effectively, strong in rides, cradles, and leverage-based attacks.</li>
+                    <li><strong>Balanced/Athletic</strong> – Versatile mover with no extreme strengths or limitations; adaptable to many styles.</li>
+                  </ul>
+                </div>
+                <label>
+                  <span>Match strategy preference</span>
+                  <select id="aStrategy">
+                    <option value="balanced">Balanced</option>
+                    <option value="offensive">Offensive</option>
+                    <option value="defensive">Defensive</option>
+                    <option value="counter">Counter-based</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="form-section">
+                <h3 id="aStrategyPlansHeading">Strategy A / B / C</h3>
+                <p class="small muted" id="aStrategyPlansHint">Have a primary plan plus two adjustments.</p>
+                <div class="grid">
+                  <label>
+                    <span>Strategy A</span>
+                    <textarea id="aStrategyA" rows="3" placeholder="Primary scoring plan"></textarea>
+                  </label>
+                  <label>
+                    <span>Strategy B</span>
+                    <textarea id="aStrategyB" rows="3" placeholder="Adjustment if plan A stalls"></textarea>
+                  </label>
+                  <label>
+                    <span>Strategy C</span>
+                    <textarea id="aStrategyC" rows="3" placeholder="Emergency plan / late match"></textarea>
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h3 id="aRiskHeading">Safe vs Risky Moves</h3>
+                <div class="grid">
+                  <label>
+                    <span>Safe moves</span>
+                    <textarea id="aSafeMoves" rows="3" placeholder="Moves you can trust under pressure"></textarea>
+                  </label>
+                  <label>
+                    <span>Risky moves</span>
+                    <textarea id="aRiskyMoves" rows="3" placeholder="High reward but high risk"></textarea>
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h3 id="aResultsHeading">Results History</h3>
+                <label>
+                  <span>Recent results / key notes</span>
+                  <textarea id="aResultsHistory" rows="4" placeholder="e.g., 3-1 at State. Lost to lefty single leg."></textarea>
+                </label>
+              </div>
+
+              <div class="form-section">
+                <h3>International Experience</h3>
+                <div class="grid">
+                  <label>
+                    <span>International competition?</span>
+                    <select id="aInternational">
+                      <option value="no">No</option>
+                      <option value="yes">Yes</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Countries / events (optional)</span>
+                    <input id="aInternationalEvents" type="text" />
+                  </label>
+                  <label>
+                    <span>Years (optional)</span>
+                    <input id="aInternationalYears" type="text" />
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h3>Competition Notes</h3>
+                <div class="grid">
+                  <label>
+                    <span>Coach cue preference</span>
+                    <select id="aCoachCues">
+                      <option value="short">Short cues only</option>
+                      <option value="calm">Stay calm tone</option>
+                      <option value="energy">High energy cues</option>
+                      <option value="specific">Specific instruction only</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>What helps you most? (optional)</span>
+                    <input id="aCueNotes" type="text" />
+                  </label>
+                  <label>
+                    <span>Injuries or limitations (optional)</span>
+                    <input id="aInjuryNotes" type="text" />
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h3 id="aTagsHeading">Smart Tags</h3>
+                <p class="small muted" id="aTagsHint">Coaches can filter athletes by these tags.</p>
+                <div class="tag-picker" id="aTags"></div>
+              </div>
+            </div>
+
+            <div class="profile-subpanel hidden" data-profile-panel="coaching">
+            <div class="form-section">
+              <h3 id="aCoachQuickHeading">Coaching Quick</h3>
+              <p class="small muted" id="aCoachQuickHint">Build a match-side cheat sheet for the corner.</p>
+              <div class="grid">
+                <label>
+                    <span>Favorite competition position</span>
+                    <select id="aFavoritePosition">
+                      <option value="neutral">Neutral</option>
+                      <option value="top">Top</option>
+                      <option value="bottom">Bottom</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Psychological tendency</span>
+                    <select id="aPsychTendency">
+                      <option value="aggressive">Aggressive</option>
+                      <option value="conservative">Conservative</option>
+                      <option value="counterattack">Counterattack</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Common error under pressure</span>
+                    <input id="aPressureError" type="text" placeholder="e.g., Reaching on ties" />
+                  </label>
+                  <label>
+                    <span>Coach key signal</span>
+                  <textarea id="aCoachSignal" rows="3" placeholder="If X happens -> do Y"></textarea>
+                </label>
+              </div>
+            </div>
+
+            <div class="form-section cue-words">
+              <h3>Cue Words</h3>
+              <p class="small muted">
+                Short, intentional reminders that help the athlete focus, reset, or return to core principles.
+              </p>
+              <div class="grid">
+                <label>
+                  <span>Cue word #1</span>
+                  <input id="aCueWord1" type="text" placeholder="e.g., Breathe" />
+                </label>
+                <label>
+                  <span>Cue word #2</span>
+                  <input id="aCueWord2" type="text" placeholder="e.g., Stay tight" />
+                </label>
+                <label>
+                  <span>Cue word #3</span>
+                  <input id="aCueWord3" type="text" placeholder="e.g., Attack quick" />
                 </label>
               </div>
             </div>
 
             <div class="form-section">
-              <h3>Competition Notes</h3>
-              <div class="grid">
-                <label>
-                  <span>Coach cue preference</span>
-                  <select id="aCoachCues">
-                    <option value="short">Short cues only</option>
-                    <option value="calm">Stay calm tone</option>
-                    <option value="energy">High energy cues</option>
-                    <option value="specific">Specific instruction only</option>
-                  </select>
-                </label>
-                <label>
-                  <span>What helps you most? (optional)</span>
-                  <input id="aCueNotes" type="text" />
-                </label>
-                <label>
-                  <span>Injuries or limitations (optional)</span>
-                  <input id="aInjuryNotes" type="text" />
-                </label>
+              <h3 id="aTopMovesHeading">Top 3 Moves</h3>
+              <div class="section-grid coach-move-grid">
+                  <div class="mini-card">
+                    <h4 id="aOffenseHeading">Offense</h4>
+                    <label>
+                      <span>Offense 1</span>
+                      <input id="aOffense1" type="text" placeholder="Primary attack" />
+                    </label>
+                    <label>
+                      <span>Offense 2</span>
+                      <input id="aOffense2" type="text" placeholder="Secondary attack" />
+                    </label>
+                    <label>
+                      <span>Offense 3</span>
+                      <input id="aOffense3" type="text" placeholder="Counter score" />
+                    </label>
+                  </div>
+                  <div class="mini-card">
+                    <h4 id="aDefenseHeading">Defense</h4>
+                    <label>
+                      <span>Defense 1</span>
+                      <input id="aDefense1" type="text" placeholder="Primary defense" />
+                    </label>
+                    <label>
+                      <span>Defense 2</span>
+                      <input id="aDefense2" type="text" placeholder="Secondary defense" />
+                    </label>
+                    <label>
+                      <span>Defense 3</span>
+                      <input id="aDefense3" type="text" placeholder="Emergency defense" />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h3 id="coachQuickPreviewHeading">Coaching Quick Summary</h3>
+                <div class="coach-quick-preview" id="coachQuickPreview"></div>
+                <div class="row">
+                  <button type="button" id="openCoachMatchBtn">Open Athlete Summary</button>
+                  <button type="button" id="openCompetitionPreviewBtn" class="ghost">Open Competition Preview</button>
+                </div>
               </div>
             </div>
 
@@ -500,7 +541,7 @@
             </div>
 
             <p class="small muted">
-              You can edit your profile fields and preferred techniques at any time.
+              You can edit training, competition, and coaching quick details at any time.
             </p>
           </form>
           <div class="section-grid">
@@ -543,13 +584,42 @@
       <section class="panel hidden" id="panel-calendar">
         <div class="card">
           <div class="card-header">
-            <h2>Calendar</h2>
-            <div class="chip">Next tournament in 12 days</div>
+            <h2 id="calendarTitle">Calendar</h2>
+            <div class="chip" id="calendarChip">Next tournament in 12 days</div>
           </div>
-          <div class="calendar-grid" id="calendarGrid"></div>
+          <div class="month-calendar">
+            <div class="month-calendar-header">
+              <button type="button" id="calendarPrevBtn" class="ghost-nav" aria-label="Previous month">&lt;</button>
+              <div id="calendarMonthLabel" class="month-label">Month</div>
+              <button type="button" id="calendarNextBtn" class="ghost-nav" aria-label="Next month">&gt;</button>
+            </div>
+            <div class="month-day-names" id="calendarDayNames"></div>
+            <div class="month-grid" id="calendarMonthGrid"></div>
+          </div>
           <hr class="sep" />
-          <h3 id="calTitle">Select a day</h3>
+          <h3 id="calTitle">Select a date</h3>
           <ol id="calDrills"></ol>
+          <p id="calAudience" class="small muted"></p>
+
+          <div id="calendarCoachEditor" class="calendar-coach-editor hidden">
+            <h4 id="calendarCoachTitle">Coach plan for this day</h4>
+            <p id="calendarCoachHint" class="small muted">Add the plan, then assign athletes or send to the full team.</p>
+            <label for="calendarCoachItems" id="calendarCoachItemsLabel">Training plan (one item per line)</label>
+            <textarea id="calendarCoachItems" rows="5" placeholder="Warm-up - 15 min&#10;Technique - Single leg chain"></textarea>
+
+            <div class="calendar-audience">
+              <label class="check" for="calendarCoachAll">
+                <input type="checkbox" id="calendarCoachAll" />
+                <span id="calendarCoachAllLabel">Send to entire team</span>
+              </label>
+              <div id="calendarCoachAthletes" class="calendar-athlete-list"></div>
+            </div>
+
+            <div class="form-actions">
+              <button type="button" id="calendarCoachSaveBtn" class="primary">Save day plan</button>
+              <button type="button" id="calendarCoachClearBtn" class="ghost">Clear day</button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -560,48 +630,69 @@
             <h2>Media</h2>
             <div class="chip">Assigned for Today</div>
           </div>
-          <div class="media-grid" id="mediaGrid"></div>
+          <div class="media-layout">
+            <div class="media-nav">
+              <div id="mediaBreadcrumb" class="media-breadcrumb"></div>
+              <div id="mediaSectionList" class="media-section-list"></div>
+            </div>
+            <div class="media-content">
+              <p id="mediaEmpty" class="small muted"></p>
+              <div id="mediaItemList" class="media-item-list"></div>
+              <div id="mediaCoachTools" class="media-tools hidden">
+                <div class="media-tool-card">
+                  <h3 id="mediaAddSectionTitle">Add Section</h3>
+                  <label for="mediaNewSectionName" id="mediaNewSectionLabel">Section name</label>
+                  <input id="mediaNewSectionName" type="text" placeholder="e.g., Double leg" />
+                  <div class="form-actions">
+                    <button type="button" id="mediaAddSectionBtn" class="primary">Add section</button>
+                  </div>
+                </div>
+                <div class="media-tool-card">
+                  <h3 id="mediaAddItemTitle">Add Video</h3>
+                  <label for="mediaNewItemTitle" id="mediaNewItemLabel">Video title</label>
+                  <input id="mediaNewItemTitle" type="text" placeholder="e.g., Double leg finish" />
+                  <label for="mediaNewItemType" id="mediaNewItemTypeLabel">Type</label>
+                  <select id="mediaNewItemType">
+                    <option value="Video">Video</option>
+                    <option value="Clip">Clip</option>
+                    <option value="Link">Link</option>
+                  </select>
+                  <label for="mediaNewItemAssigned" id="mediaNewItemAssignedLabel">Assigned</label>
+                  <input id="mediaNewItemAssigned" type="text" placeholder="Today" />
+                  <label for="mediaNewItemNote" id="mediaNewItemNoteLabel">Notes</label>
+                  <input id="mediaNewItemNote" type="text" placeholder="Optional note" />
+                  <div class="form-actions">
+                    <button type="button" id="mediaAddItemBtn" class="primary">Add video</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
       <!-- ATHLETE: JOURNAL -->
       <section class="panel hidden" id="panel-journal">
         <div class="card">
-          <h2>Daily Check-in</h2>
-          <div class="checkin-grid">
-            <label>
-              <span>Sleep (hours)</span>
-              <input id="sleepInput" type="number" min="0" max="12" placeholder="7.5" />
-            </label>
-            <label>
-              <span>Energy (1-5)</span>
-              <input id="energyInput" type="number" min="1" max="5" placeholder="4" />
-            </label>
-            <label>
-              <span>Soreness (1-5)</span>
-              <input id="sorenessInput" type="number" min="1" max="5" placeholder="2" />
-            </label>
-            <label>
-              <span>Weight (optional)</span>
-              <input id="weightInput" type="text" placeholder="157 lb" />
-            </label>
-            <label>
-              <span>Mood / Stress (1-5)</span>
-              <input id="moodInput" type="number" min="1" max="5" placeholder="3" />
-            </label>
-            <label>
-              <span>Injury / Pain report</span>
-              <input id="injuryInput" type="text" placeholder="Knee soreness, right side" />
-            </label>
+          <div class="card-header">
+            <h2>Journal</h2>
+            <div class="chip">Write freely</div>
           </div>
-          <textarea id="journalInput" placeholder="Notes (text or voice summary)..." rows="6"></textarea>
-
-          <div class="row">
-            <button id="saveJournalBtn">Save</button>
-            <button id="clearJournalBtn">Clear</button>
+          <div class="form-section">
+            <label>
+              <span>Entry</span>
+              <textarea
+                id="journalInput"
+                rows="6"
+                placeholder="Capture today’s thoughts, reminders, or reflections."
+              ></textarea>
+            </label>
+            <div class="row" style="gap: 10px; align-items: center;">
+              <button id="saveJournalBtn" class="primary">Save entry</button>
+              <span class="small muted" id="journalStatus"></span>
+            </div>
           </div>
-
-          <p class="small" id="journalStatus"></p>
+          <div class="journal-entries" id="journalEntries"></div>
         </div>
       </section>
 
@@ -760,6 +851,41 @@
             <button id="openTrainingBtn">Open Today's Training</button>
             <button id="openTournamentBtn">Open Tournament Event</button>
             <button id="addQuickNoteBtn">Add Quick Note</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel hidden" id="panel-coach-match">
+        <div class="card coach-match-card">
+          <div class="card-header">
+            <h2>Athlete Summary</h2>
+            <div class="chip">Real-time corner view</div>
+          </div>
+          <div class="row">
+            <label class="inline-field">
+              <span id="coachMatchSelectLabel">Select athlete</span>
+              <select id="coachMatchSelect"></select>
+            </label>
+          </div>
+
+          <div class="coach-match-shell">
+            <div class="coach-match-photo" id="coachMatchPhoto">
+              <div class="coach-match-avatar" id="coachMatchAvatar">AT</div>
+              <div class="coach-match-name" id="coachMatchName">Athlete</div>
+              <div class="small muted" id="coachMatchMeta"></div>
+            </div>
+            <div class="coach-match-grid">
+              <div class="match-card" id="coachMatchBasics"></div>
+              <div class="match-card" id="coachMatchPosition"></div>
+              <div class="match-card" id="coachMatchOffense"></div>
+              <div class="match-card" id="coachMatchDefense"></div>
+              <div class="match-card" id="coachMatchPsych"></div>
+              <div class="match-card emphasis" id="coachMatchArchetype"></div>
+              <div class="match-card emphasis" id="coachMatchBodyType"></div>
+              <div class="match-card emphasis" id="coachMatchCueWords"></div>
+              <div class="match-card emphasis" id="coachMatchGoal"></div>
+              <div class="match-card emphasis" id="coachMatchCue"></div>
+            </div>
           </div>
         </div>
       </section>
@@ -1202,20 +1328,44 @@
       <section class="panel hidden" id="panel-calendar-manager">
         <div class="card">
           <div class="card-header">
-            <h2>Calendar Manager</h2>
-            <div class="chip">Create events + reminders</div>
+            <h2 id="calendarManagerTitle">Calendar Manager</h2>
+            <div class="chip" id="calendarManagerChip">Create events + reminders</div>
           </div>
           <div class="section-grid">
             <div class="mini-card">
-              <h3>Upcoming Events</h3>
-              <ul class="list">
-                <li>Team practice - 3:30 PM</li>
-                <li>Travel day - Friday</li>
-                <li>Weigh-ins - Saturday 7:00 AM</li>
-              </ul>
+              <h3 id="calendarManagerFormTitle">Create Event</h3>
+              <form id="calendarManagerForm" class="form compact-form">
+                <div class="form-row">
+                  <label for="calendarManagerDate" id="calendarManagerDateLabel">Date</label>
+                  <input id="calendarManagerDate" type="date" required />
+                </div>
+                <div class="form-row">
+                  <label for="calendarManagerTitleInput" id="calendarManagerEventLabel">Event</label>
+                  <input id="calendarManagerTitleInput" type="text" placeholder="Team practice" required />
+                </div>
+                <div class="form-row two-cols">
+                  <div>
+                    <label for="calendarManagerTimeInput" id="calendarManagerTimeLabel">Time</label>
+                    <input id="calendarManagerTimeInput" type="text" placeholder="3:30 PM" />
+                  </div>
+                  <div>
+                    <label for="calendarManagerNoteInput" id="calendarManagerNoteLabel">Note</label>
+                    <input id="calendarManagerNoteInput" type="text" placeholder="Mat 2" />
+                  </div>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" id="calendarManagerAddBtn">Add event</button>
+                  <button type="button" class="ghost" id="calendarManagerClearBtn">Clear day</button>
+                </div>
+              </form>
+              <div class="mini-card" style="margin-top:12px;">
+                <h3 id="calendarManagerListTitle">Events this day</h3>
+                <p class="small muted" id="calendarManagerEmpty">No events yet.</p>
+                <ul class="list" id="calendarManagerList"></ul>
+              </div>
             </div>
             <div class="mini-card">
-              <h3>Coach Actions</h3>
+              <h3 id="calendarManagerActionsTitle">Coach Actions</h3>
               <ul class="list">
                 <li>Invite athletes/groups</li>
                 <li>Attach location + checklist</li>
@@ -1225,7 +1375,7 @@
           </div>
           <div class="section-grid">
             <div class="mini-card">
-              <h3>Event Types</h3>
+              <h3 id="calendarManagerTypesTitle">Event Types</h3>
               <ul class="list">
                 <li>Practice</li>
                 <li>Tournament</li>
@@ -1235,7 +1385,7 @@
               </ul>
             </div>
             <div class="mini-card">
-              <h3>Event Details</h3>
+              <h3 id="calendarManagerDetailsTitle">Event Details</h3>
               <ul class="list">
                 <li>Date and time</li>
                 <li>Location and map link</li>
@@ -1247,7 +1397,7 @@
           </div>
           <div class="section-grid">
             <div class="mini-card">
-              <h3>Notifications</h3>
+              <h3 id="calendarManagerNotificationsTitle">Notifications</h3>
               <ul class="list">
                 <li>Push notifications</li>
                 <li>Event updates</li>

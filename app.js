@@ -5,22 +5,257 @@
 
 // ---------- PROFILE / ONBOARDING ----------
 const PROFILE_KEY = "wpl_profile";
+const AUTH_USER_KEY = "wpl_auth_user";
+const DEFAULT_LANG = "en";
+const SUPPORTED_LANGS = new Set(["en", "es"]);
+let currentLang = DEFAULT_LANG;
+let langChangeLocked = false;
+
+// ---------- STORAGE SYNC ----------
+const STORAGE_PREFIX = "wpl_";
+const STORAGE_API = "api/storage.php";
+let storageSyncEnabled = true;
+let storageHydrated = false;
+let suppressStorageSync = false;
+let storageSyncAttached = false;
+
+function shouldSyncKey(key) {
+  return typeof key === "string" && key.startsWith(STORAGE_PREFIX);
+}
+
+function syncStorageSet(key, value) {
+  if (!storageSyncEnabled || !storageHydrated || suppressStorageSync || !shouldSyncKey(key)) return;
+  fetch(STORAGE_API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key, value })
+  }).catch(() => {});
+}
+
+function syncStorageDelete(key) {
+  if (!storageSyncEnabled || !storageHydrated || suppressStorageSync || !shouldSyncKey(key)) return;
+  fetch(STORAGE_API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "delete", key })
+  }).catch(() => {});
+}
+
+async function syncAllLocalToServer() {
+  if (!storageSyncEnabled) return;
+  const entries = {};
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (!shouldSyncKey(key)) continue;
+    entries[key] = localStorage.getItem(key);
+  }
+  if (!Object.keys(entries).length) return;
+  try {
+    await fetch(STORAGE_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entries })
+    });
+  } catch {
+    storageSyncEnabled = false;
+  }
+}
+
+function attachStorageSync() {
+  if (storageSyncAttached || typeof localStorage === "undefined") return;
+  const rawSetItem = localStorage.setItem.bind(localStorage);
+  const rawRemoveItem = localStorage.removeItem.bind(localStorage);
+
+  localStorage.setItem = (key, value) => {
+    rawSetItem(key, value);
+    syncStorageSet(key, value);
+  };
+
+  localStorage.removeItem = (key) => {
+    rawRemoveItem(key);
+    syncStorageDelete(key);
+  };
+
+  storageSyncAttached = true;
+}
+
+async function initServerStorage() {
+  attachStorageSync();
+  if (!storageSyncEnabled) {
+    storageHydrated = true;
+    return;
+  }
+
+  try {
+    const res = await fetch(`${STORAGE_API}?all=1`, { cache: "no-store" });
+    if (!res.ok) throw new Error("storage_fetch_failed");
+    const payload = await res.json();
+    const serverData = payload && payload.data && typeof payload.data === "object" ? payload.data : {};
+    const hasServerData = Object.keys(serverData).length > 0;
+
+    if (hasServerData) {
+      suppressStorageSync = true;
+      const serverKeys = new Set(Object.keys(serverData));
+      for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+        const key = localStorage.key(i);
+        if (shouldSyncKey(key) && !serverKeys.has(key)) {
+          localStorage.removeItem(key);
+        }
+      }
+      Object.entries(serverData).forEach(([key, value]) => {
+        if (shouldSyncKey(key)) {
+          localStorage.setItem(key, value);
+        }
+      });
+    } else {
+      await syncAllLocalToServer();
+    }
+  } catch (err) {
+    storageSyncEnabled = false;
+    console.warn("Storage sync disabled:", err);
+  } finally {
+    suppressStorageSync = false;
+    storageHydrated = true;
+  }
+}
 
 const onboarding = document.getElementById("onboarding");
 const appRoot = document.getElementById("appRoot");
+const onboardingCard = document.querySelector(".onboarding-card");
 const profileForm = document.getElementById("profileForm");
+const loginForm = document.getElementById("loginForm");
 const skipBtn = document.getElementById("skipBtn");
 const doneProfileBtn = document.getElementById("doneProfileBtn");
+const quickContinueBtn = document.getElementById("quickContinueBtn");
+const quickSkipBtn = document.getElementById("quickSkipBtn");
+const guestAthleteBtn = document.getElementById("guestAthleteBtn");
+const guestCoachBtn = document.getElementById("guestCoachBtn");
+const viewSwitchBtn = document.getElementById("viewSwitchBtn");
+const viewMenu = document.getElementById("viewMenu");
+const currentViewLabel = document.getElementById("currentViewLabel");
+const headerMenu = document.getElementById("headerMenu");
 const userMeta = document.getElementById("userMeta");
 const roleMeta = document.getElementById("roleMeta");
+const nowMeta = document.getElementById("nowMeta");
 const editProfileBtn = document.getElementById("editProfileBtn");
+const muteBtn = document.getElementById("muteBtn");
 const headerLang = document.getElementById("headerLang");
 const headerFlag = document.getElementById("headerFlag");
+const authTabs = Array.from(document.querySelectorAll(".auth-tab"));
+const authTitle = document.getElementById("authTitle");
+const authSubtitle = document.getElementById("authSubtitle");
+const loginEmail = document.getElementById("loginEmail");
+const loginPassword = document.getElementById("loginPassword");
+const loginRole = document.getElementById("loginRole");
+const authToggle = document.querySelector(".auth-toggle");
+const AUTH_STRICT = false;
+let welcomeScreen = null;
+let welcomeCreateBtn = null;
+let welcomeLoginBtn = null;
+let headerMenuOpen = false;
+let viewMenuOpen = false;
+let currentView = "athlete";
 
-// form fields
+const VIEW_OPTIONS = ["athlete", "coach", "admin", "parent"];
+const VIEW_LABELS = {
+  athlete: { en: "Athlete view", es: "Vista atleta" },
+  coach: { en: "Coach view", es: "Vista entrenador" },
+  admin: { en: "Administrative view", es: "Vista administrativa" },
+  parent: { en: "Parent view", es: "Vista padres" }
+};
+const VIEW_META_TEXT = {
+  athlete: { en: "Athlete View", es: "Vista atleta" },
+  coach: { en: "Coach Dashboard", es: "Panel entrenador" },
+  admin: { en: "Administrative Desk", es: "Mesa administrativa" },
+  parent: { en: "Parent View", es: "Vista padres" }
+};
+const VIEW_ROLE_MAP = {
+  athlete: "athlete",
+  coach: "coach",
+  admin: "coach",
+  parent: "athlete"
+};
+
+function enforceStrictAuthUI() {
+  if (!AUTH_STRICT) return;
+  [skipBtn, quickSkipBtn].forEach((btn) => {
+    if (!btn) return;
+    btn.hidden = true;
+    btn.disabled = true;
+  });
+}
+
+function toggleHeaderMenu(forceState) {
+  if (!headerMenu) return;
+  if (typeof forceState === "boolean") {
+    headerMenuOpen = forceState;
+  } else {
+    headerMenuOpen = !headerMenuOpen;
+  }
+  headerMenu.classList.toggle("hidden", !headerMenuOpen);
+}
+
+function closeHeaderMenu() {
+  if (!headerMenuOpen) return;
+  toggleHeaderMenu(false);
+}
+
+function handleHeaderMenuAction(action) {
+  if (!action) return;
+  closeHeaderMenu();
+  if (action === "profile") {
+    const role = getProfile()?.role || "athlete";
+    showTab(role === "coach" ? "coach-profile" : "athlete-profile");
+    return;
+  }
+  if (action === "logout") {
+    setProfile(null);
+    setAuthUser(null);
+    showOnboarding(null);
+    setView("athlete");
+    return;
+  }
+  if (action === "switch") {
+    setProfile(null);
+    setAuthUser(null);
+    showOnboarding(null);
+    setView("athlete");
+  }
+}
+
+function toggleViewMenu(forceState) {
+  if (!viewMenu) return;
+  if (typeof forceState === "boolean") {
+    viewMenuOpen = forceState;
+  } else {
+    viewMenuOpen = !viewMenuOpen;
+  }
+  viewMenu.classList.toggle("hidden", !viewMenuOpen);
+}
+
+function closeViewMenu() {
+  if (!viewMenuOpen) return;
+  toggleViewMenu(false);
+}
+
+function updateViewMenuLabel(view) {
+  if (!currentViewLabel) return;
+  currentViewLabel.textContent = pickCopy(VIEW_LABELS[view]) || VIEW_LABELS.athlete.en;
+  viewSwitchBtn?.setAttribute("aria-label", currentViewLabel.textContent);
+}
+
+function setView(view) {
+  const normalized = VIEW_OPTIONS.includes(view) ? view : "athlete";
+  currentView = normalized;
+  updateViewMenuLabel(normalized);
+  const roleName = VIEW_ROLE_MAP[normalized] || "athlete";
+  setRoleUI(roleName, normalized);
+}
+
+const pEmail = document.getElementById("pEmail");
+const pPassword = document.getElementById("pPassword");
 const pName = document.getElementById("pName");
 const pRole = document.getElementById("pRole");
-const pTeam = document.getElementById("pTeam");
 const pLevel = document.getElementById("pLevel");
 const pWeight = document.getElementById("pWeight");
 const pCurrentWeight = document.getElementById("pCurrentWeight");
@@ -30,8 +265,7 @@ const pPhoto = document.getElementById("pPhoto");
 const pCountry = document.getElementById("pCountry");
 const pCity = document.getElementById("pCity");
 const pSchoolClub = document.getElementById("pSchoolClub");
-const pSchool = document.getElementById("pSchool");
-const pClub = document.getElementById("pClub");
+const pInstitution = document.getElementById("pInstitution");
 const pStyle = document.getElementById("pStyle");
 const pPosition = document.getElementById("pPosition");
 const pStrategy = document.getElementById("pStrategy");
@@ -46,211 +280,1559 @@ const pInternationalYears = document.getElementById("pInternationalYears");
 const pCoachCues = document.getElementById("pCoachCues");
 const pCueNotes = document.getElementById("pCueNotes");
 const pInjuryNotes = document.getElementById("pInjuryNotes");
+const athleteOnlySections = Array.from(document.querySelectorAll(".role-athlete"));
+const athleteOnlyControls = Array.from(
+  document.querySelectorAll(".role-athlete input, .role-athlete select, .role-athlete textarea")
+);
+
+athleteOnlyControls.forEach((control) => {
+  if (control.required) control.dataset.wasRequired = "true";
+});
+
+function updateRoleSections(role) {
+  if (!athleteOnlySections.length) return;
+  const isAthlete = role !== "coach";
+  athleteOnlySections.forEach((section) => section.classList.toggle("hidden", !isAthlete));
+  athleteOnlyControls.forEach((control) => {
+    control.disabled = !isAthlete;
+    control.required = isAthlete && control.dataset.wasRequired === "true";
+  });
+}
+
+const LANG_KEY = "wpl_lang_pref";
+const LANG_RESET_KEY = "wpl_lang_reset_v1";
+
+const ROLE_LABELS = {
+  en: { athlete: "Athlete", coach: "Coach" },
+  es: { athlete: "Atleta", coach: "Entrenador" }
+};
+
+const LEVEL_LABELS = {
+  en: { beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced" },
+  es: { beginner: "Principiante", intermediate: "Intermedio", advanced: "Avanzado" }
+};
+
+const INTENSITY_LABELS = {
+  en: { Low: "Low", Medium: "Medium", High: "High" },
+  es: { Low: "Baja", Medium: "Media", High: "Alta" }
+};
+
+const LANGUAGE_CONFIRM = {
+  es: "Cambiar toda la aplicacion a Espanol?"
+};
+
+const GUEST_COPY = {
+  athlete: {
+    name: { en: "Guest", es: "Invitado" },
+    goal: { en: "Get better every day", es: "Mejorar cada día" },
+    routines: { en: "AM mat, PM film", es: "Mañana en tapiz, tarde film" },
+    focus: { en: "Mat technique", es: "Técnica en el tapiz" },
+    volume: { en: "6 sessions / 10 hours weekly", es: "6 sesiones / 10 horas semanales" }
+  },
+  coach: {
+    name: { en: "Coach Guest", es: "Coach Invitado" },
+    goal: { en: "Plan training sessions and watch film", es: "Planifica sesiones y revisa film" },
+    routines: { en: "Review film, build sessions", es: "Revisar film, planear sesiones" },
+    focus: { en: "Team planning & match prep", es: "Planificación y preparación" },
+    volume: { en: "Design 6 sessions per week", es: "Diseña 6 sesiones por semana" },
+    tactics: { en: "Control the mat, pressure transitions", es: "Controla el tapiz y transiciones" }
+  }
+};
+
+function resolveLang(lang) {
+  return SUPPORTED_LANGS.has(lang) ? lang : DEFAULT_LANG;
+}
+
+function getPreferredLang() {
+  const authUser = getAuthUser?.();
+  const stored = localStorage.getItem(LANG_KEY);
+  if (!authUser) {
+    const resetDone = localStorage.getItem(LANG_RESET_KEY) === "1";
+    if (!resetDone && stored && stored !== DEFAULT_LANG) {
+      localStorage.setItem(LANG_KEY, DEFAULT_LANG);
+      localStorage.setItem(LANG_RESET_KEY, "1");
+      return DEFAULT_LANG;
+    }
+  }
+  const profileLang = getProfile()?.lang;
+  if (profileLang && SUPPORTED_LANGS.has(profileLang)) return profileLang;
+  return stored && SUPPORTED_LANGS.has(stored) ? stored : DEFAULT_LANG;
+}
+
+function getRoleLabel(role, lang = currentLang) {
+  const table = ROLE_LABELS[resolveLang(lang)] || ROLE_LABELS.en;
+  return table[role] || table.athlete;
+}
+
+function getLevelLabel(level, lang = currentLang) {
+  if (!level) return "";
+  const key = String(level).toLowerCase();
+  const table = LEVEL_LABELS[resolveLang(lang)] || LEVEL_LABELS.en;
+  return table[key] || level;
+}
+
+function getIntensityLabel(intensity, lang = currentLang) {
+  const table = INTENSITY_LABELS[resolveLang(lang)] || INTENSITY_LABELS.en;
+  return table[intensity] || intensity;
+}
+
+function renderUserMeta(profile) {
+  if (!profile) {
+    userMeta.textContent = currentLang === "es" ? "Vista atleta" : "Athlete View";
+    roleMeta.textContent =
+      currentLang === "es" ? "Enfoque: Tecnica en el tapiz" : "Training Focus: Mat Technique";
+    return;
+  }
+  const name = profile.name || (currentLang === "es" ? "Usuario" : "User");
+  const role = profile.role || "athlete";
+  const team = profile.team ? ` - ${profile.team}` : "";
+  const levelValue = getLevelLabel(profile.level, currentLang);
+  const level = levelValue ? ` - ${levelValue}` : "";
+  userMeta.textContent = `${name} - ${getRoleLabel(role, currentLang)}${level}${team}`;
+}
+
+let clockStarted = false;
+let lastClockDayKey = toDateKey(new Date());
+
+function formatNowLabel(date) {
+  const locale = currentLang === "es" ? "es-ES" : "en-US";
+  const datePart = date.toLocaleDateString(locale, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric"
+  });
+  const timePart = date.toLocaleTimeString(locale, {
+    hour: "numeric",
+    minute: "2-digit"
+  });
+  const label = currentLang === "es" ? "Hoy" : "Today";
+  return `${label}: ${datePart} - ${timePart}`;
+}
+
+function refreshNowMeta() {
+  const now = new Date();
+  if (nowMeta) {
+    nowMeta.textContent = formatNowLabel(now);
+  }
+
+  const dayKey = toDateKey(now);
+  if (dayKey === lastClockDayKey) return;
+  lastClockDayKey = dayKey;
+
+  renderToday(now.getDay());
+  renderPlanGrid(now.getDay());
+  renderCalendar(dayKey);
+  if (getProfile()?.role === "coach") {
+    renderCalendarManager();
+  }
+}
+
+function startClock() {
+  if (clockStarted) return;
+  refreshNowMeta();
+  const msToNextMinute = 60000 - (Date.now() % 60000);
+  setTimeout(() => {
+    refreshNowMeta();
+    setInterval(refreshNowMeta, 60000);
+  }, msToNextMinute);
+  clockStarted = true;
+}
+
+function refreshLanguageUI() {
+  const profile = getProfile();
+  renderUserMeta(profile);
+  const activeRole = profile?.role || "athlete";
+  updateViewMenuLabel(currentView);
+  refreshNowMeta();
+  enforceStrictAuthUI();
+  applyStaticTranslations();
+  if (profile?.role === "athlete") {
+    fillAthleteProfileForm(profile);
+    renderCompetitionPreview(profile);
+  }
+  const role = (profile || {}).role || "athlete";
+  updateRoleSections(role);
+  renderToday();
+  renderFeelingScale();
+  renderPlanGrid();
+  renderCalendar();
+  renderCalendarManager();
+  renderMedia();
+  renderAnnouncements();
+  renderDashboard();
+  renderCoachProfile();
+  renderAthleteManagement();
+  renderJournalMonitor();
+  renderPermissions();
+  renderFuture();
+  renderMessages();
+  renderSkills();
+  if (typeof onePagerSelect !== "undefined" && onePagerSelect && onePagerSelect.value) {
+    renderOnePager(onePagerSelect.value);
+  }
+  if (typeof coachMatchSelect !== "undefined" && coachMatchSelect && coachMatchSelect.value) {
+    renderCoachMatchView(coachMatchSelect.value);
+  }
+  initializePlanSelectors();
+}
+
+function setLanguage(lang, { source = "system", skipConfirm = false, refresh = true } = {}) {
+  const nextLang = resolveLang(lang);
+  if (nextLang === currentLang && !skipConfirm) {
+    setHeaderLang(nextLang);
+    return true;
+  }
+
+  if (!skipConfirm && source === "header" && nextLang !== "en" && nextLang !== currentLang) {
+    const confirmMsg = LANGUAGE_CONFIRM[nextLang] || LANGUAGE_CONFIRM.es;
+    if (!window.confirm(confirmMsg)) {
+      langChangeLocked = true;
+      setHeaderLang(currentLang);
+      langChangeLocked = false;
+      return false;
+    }
+  }
+
+  currentLang = nextLang;
+  document.documentElement.lang = nextLang;
+  localStorage.setItem(LANG_KEY, nextLang);
+  setHeaderLang(nextLang);
+
+  const profile = getProfile();
+  if (profile) {
+    profile.lang = nextLang;
+    setProfile(profile);
+  }
+
+  if (refresh) refreshLanguageUI();
+  return true;
+}
+
+function parseStoredJson(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function getAuthUser() {
+  const auth = parseStoredJson(AUTH_USER_KEY);
+  if (!auth || typeof auth !== "object") return null;
+  const id = Number.parseInt(auth.id, 10);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  return {
+    id,
+    email: String(auth.email || ""),
+    role: auth.role === "coach" ? "coach" : "athlete"
+  };
+}
+
+function setAuthUser(authUser) {
+  if (!authUser) {
+    localStorage.removeItem(AUTH_USER_KEY);
+    return;
+  }
+  const payload = {
+    id: Number.parseInt(authUser.id, 10),
+    email: String(authUser.email || ""),
+    role: authUser.role === "coach" ? "coach" : "athlete"
+  };
+  localStorage.setItem(AUTH_USER_KEY, JSON.stringify(payload));
+}
+
+function profileStorageKey(userId) {
+  const id = Number.parseInt(userId, 10);
+  if (!Number.isFinite(id) || id <= 0) return PROFILE_KEY;
+  return `wpl_profile_user_${id}`;
+}
+
+function normalizeProfileForAuth(profile, authUser) {
+  const base = profile && typeof profile === "object" ? { ...profile } : {};
+  if (authUser?.id) base.user_id = authUser.id;
+  if (authUser?.email) base.email = authUser.email;
+  if (authUser?.role) base.role = authUser.role;
+  if (!base.lang) {
+    const storedLang = localStorage.getItem(LANG_KEY);
+    base.lang = storedLang && SUPPORTED_LANGS.has(storedLang) ? storedLang : DEFAULT_LANG;
+  }
+  return base;
+}
 
 function getProfile() {
-  try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || "null"); }
-  catch { return null; }
+  const authUser = getAuthUser();
+  if (authUser?.id) {
+    const userProfile = parseStoredJson(profileStorageKey(authUser.id));
+    if (userProfile) {
+      return normalizeProfileForAuth(userProfile, authUser);
+    }
+  }
+  const fallback = parseStoredJson(PROFILE_KEY);
+  return fallback ? normalizeProfileForAuth(fallback, authUser) : null;
 }
 
 function setProfile(profile) {
-  localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  const authUser = getAuthUser();
+  const normalized = normalizeProfileForAuth(profile, authUser);
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(normalized));
+  if (authUser?.id) {
+    localStorage.setItem(profileStorageKey(authUser.id), JSON.stringify(normalized));
+  }
 }
 
 async function applyProfile(profile) {
   if (!profile) {
-    userMeta.textContent = "Athlete View";
-    roleMeta.textContent = "Training Focus: Mat Technique";
-    setRoleUI("athlete");
-    setHeaderLang("en");
+    setLanguage(getPreferredLang(), { skipConfirm: true, refresh: false });
+    setView("athlete");
+    refreshLanguageUI();
     return;
   }
 
-  const name = profile.name || "User";
-  const role = profile.role || "athlete";
-  const team = profile.team ? ` - ${profile.team}` : "";
-  const level = profile.level ? ` - ${profile.level}` : "";
-  const roleTitle = role === "coach" ? "Coach" : "Athlete";
-  userMeta.textContent = `${name} - ${roleTitle}${level}${team}`;
-  setRoleUI(role);
-  if (role === "athlete") {
-    fillAthleteProfileForm(profile);
-    renderCompetitionPreview(profile);
-  }
-  if (role === "coach") {
+  const view = profile.view || (profile.role === "coach" ? "coach" : "athlete");
+  setLanguage(profile.lang || getPreferredLang(), { skipConfirm: true, refresh: false });
+  setView(view);
+  if (view === "coach") {
     await loadSavedPdfTemplate();
   }
-  setHeaderLang(profile.lang || "en");
+  refreshLanguageUI();
 }
 
 function setHeaderLang(lang) {
   if (!headerLang || !headerFlag) return;
-  headerLang.value = lang;
-  headerFlag.textContent = lang === "es" ? "🇪🇸" : "🇺🇸";
+  const nextLang = resolveLang(lang);
+  headerLang.value = nextLang;
+  headerFlag.textContent = nextLang === "es" ? "🇵🇷" : "🇺🇸";
+}
+
+const AUTH_TEXT = {
+  en: {
+    createTab: "Create",
+    loginTab: "Log In",
+    createTitle: "Create your profile",
+    createSubtitle: "This takes 30 seconds. You can edit it later.",
+    loginTitle: "Log in",
+    loginSubtitle: "Use your email to continue.",
+    welcomeTitle: "Welcome",
+    welcomeSubtitle: "Log in or create your account to continue.",
+    welcomeCardTitle: "Welcome to Wrestling Performance Lab",
+    welcomeCardSubtitle: "Choose how you want to continue.",
+    createAccount: "Create account",
+    logIn: "Log in",
+    welcomeFootnote: "Your info is stored in the app database."
+  },
+  es: {
+    createTab: "Crear",
+    loginTab: "Entrar",
+    createTitle: "Crea tu perfil",
+    createSubtitle: "Esto toma 30 segundos. Puedes editarlo luego.",
+    loginTitle: "Iniciar sesion",
+    loginSubtitle: "Usa tu correo para continuar.",
+    welcomeTitle: "Bienvenido",
+    welcomeSubtitle: "Inicia sesion o crea tu cuenta para continuar.",
+    welcomeCardTitle: "Bienvenido a Wrestling Performance Lab",
+    welcomeCardSubtitle: "Elige como quieres continuar.",
+    createAccount: "Crear cuenta",
+    logIn: "Iniciar sesion",
+    welcomeFootnote: "Tu informacion se guarda en la base de datos."
+  }
+};
+
+function authText(key) {
+  const table = AUTH_TEXT[resolveLang(currentLang)] || AUTH_TEXT.en;
+  return table[key] || AUTH_TEXT.en[key] || "";
+}
+
+function setAuthMode(mode, { updateView = true } = {}) {
+  const isLogin = mode === "login";
+  authTabs.forEach((btn) => {
+    if (btn.dataset.auth === "create") btn.textContent = authText("createTab");
+    if (btn.dataset.auth === "login") btn.textContent = authText("loginTab");
+    if (updateView) btn.classList.toggle("active", btn.dataset.auth === mode);
+  });
+  if (updateView) {
+    if (profileForm) profileForm.classList.toggle("hidden", isLogin);
+    if (loginForm) loginForm.classList.toggle("hidden", !isLogin);
+  }
+  if (authTitle) authTitle.textContent = isLogin ? authText("loginTitle") : authText("createTitle");
+  if (authSubtitle) {
+    authSubtitle.textContent = isLogin ? authText("loginSubtitle") : authText("createSubtitle");
+  }
+}
+
+function ensureWelcomeScreen() {
+  if (!onboardingCard) return;
+  if (!welcomeScreen) {
+    welcomeScreen = document.createElement("div");
+    welcomeScreen.id = "welcomeScreen";
+    welcomeScreen.className = "welcome-screen";
+    const insertBefore = authToggle || profileForm;
+    onboardingCard.insertBefore(welcomeScreen, insertBefore);
+  }
+}
+
+function renderWelcomeScreen() {
+  ensureWelcomeScreen();
+  if (!welcomeScreen) return;
+  welcomeScreen.innerHTML = `
+    <h3>${authText("welcomeCardTitle")}</h3>
+    <p class="small muted">${authText("welcomeCardSubtitle")}</p>
+    <div class="row">
+      <button type="button" class="primary" id="welcomeCreateBtn">${authText("createAccount")}</button>
+      <button type="button" id="welcomeLoginBtn">${authText("logIn")}</button>
+    </div>
+    <p class="small muted">${authText("welcomeFootnote")}</p>
+  `;
+  welcomeCreateBtn = welcomeScreen.querySelector("#welcomeCreateBtn");
+  welcomeLoginBtn = welcomeScreen.querySelector("#welcomeLoginBtn");
+  if (welcomeCreateBtn) {
+    welcomeCreateBtn.addEventListener("click", () => showAuthPanel("create"));
+  }
+  if (welcomeLoginBtn) {
+    welcomeLoginBtn.addEventListener("click", () => showAuthPanel("login"));
+  }
+}
+
+function showWelcome() {
+  renderWelcomeScreen();
+  if (welcomeScreen) welcomeScreen.classList.remove("hidden");
+  if (authToggle) authToggle.classList.add("hidden");
+  if (profileForm) profileForm.classList.add("hidden");
+  if (loginForm) loginForm.classList.add("hidden");
+  if (authTitle) authTitle.textContent = authText("welcomeTitle");
+  if (authSubtitle) authSubtitle.textContent = authText("welcomeSubtitle");
+}
+
+function showAuthPanel(mode) {
+  ensureWelcomeScreen();
+  if (welcomeScreen) welcomeScreen.classList.add("hidden");
+  if (authToggle) authToggle.classList.remove("hidden");
+  setAuthMode(mode);
 }
 
 function showOnboarding(prefillProfile = null) {
   onboarding.classList.remove("hidden");
-  appRoot.classList.add("blurred");
-
-  // prefill if editing
-  if (prefillProfile) {
-    pName.value = prefillProfile.name || "";
-    pRole.value = prefillProfile.role || "athlete";
-    pTeam.value = prefillProfile.team || "";
-    pLevel.value = prefillProfile.level || "intermediate";
-    pWeight.value = prefillProfile.weightClass || "";
-    pCurrentWeight.value = prefillProfile.currentWeight || "";
-    pGoal.value = prefillProfile.goal || "";
-    pLang.value = prefillProfile.lang || "en";
-    pPhoto.value = prefillProfile.photo || "";
-    pCountry.value = prefillProfile.country || "";
-    pCity.value = prefillProfile.city || "";
-    pSchoolClub.value = prefillProfile.schoolClub || "no";
-    pSchool.value = prefillProfile.schoolName || "";
-    pClub.value = prefillProfile.clubName || "";
-    pStyle.value = prefillProfile.style || "freestyle";
-    pPosition.value = prefillProfile.position || "neutral";
-    pStrategy.value = prefillProfile.strategy || "balanced";
-    pYears.value = prefillProfile.years || "";
-    pNeutralOther.value = prefillProfile.techniques?.neutralOther || "";
-    pTopOther.value = prefillProfile.techniques?.topOther || "";
-    pBottomOther.value = prefillProfile.techniques?.bottomOther || "";
-    pDefenseOther.value = prefillProfile.techniques?.defenseOther || "";
-    pInternational.value = prefillProfile.international || "no";
-    pInternationalEvents.value = prefillProfile.internationalEvents || "";
-    pInternationalYears.value = prefillProfile.internationalYears || "";
-    pCoachCues.value = prefillProfile.coachCues || "specific";
-    pCueNotes.value = prefillProfile.cueNotes || "";
-    pInjuryNotes.value = prefillProfile.injuryNotes || "";
-
-    fillTechniques(".tech-neutral", prefillProfile.techniques?.neutral || []);
-    fillTechniques(".tech-top", prefillProfile.techniques?.top || []);
-    fillTechniques(".tech-bottom", prefillProfile.techniques?.bottom || []);
-    fillTechniques(".tech-defense", prefillProfile.techniques?.defense || []);
-  } else {
-    // defaults
-    pRole.value = "athlete";
-    pLevel.value = "intermediate";
-    pLang.value = "en";
-    pStyle.value = "freestyle";
-    pPosition.value = "neutral";
-    pStrategy.value = "balanced";
-    pSchoolClub.value = "no";
-    pInternational.value = "no";
-    pCoachCues.value = "specific";
-    pCurrentWeight.value = "";
-    fillTechniques(".tech-neutral", []);
-    fillTechniques(".tech-top", []);
-    fillTechniques(".tech-bottom", []);
-    fillTechniques(".tech-defense", []);
-  }
+  appRoot.classList.add("blurred", "hidden");
 }
 
 function hideOnboarding() {
   onboarding.classList.add("hidden");
   appRoot.classList.remove("blurred");
+  appRoot.classList.remove("hidden");
 }
 
 async function bootProfile() {
-  const existing = getProfile();
-  if (!existing) {
-    showOnboarding(null);
-  } else {
-    hideOnboarding();
-    await applyProfile(existing);
+  showOnboarding(null);
+}
+
+const HEADER_COPY = {
+  en: "Wrestling Performance Lab",
+  es: "Laboratorio de Rendimiento de Lucha"
+};
+
+const LANG_NAME_COPY = {
+  en: { en: "English", es: "Spanish" },
+  es: { en: "Ingles", es: "Espanol" }
+};
+
+const QUICK_HELP_COPY = {
+  en: "Only name and main goal are required.",
+  es: "Solo el nombre y la meta principal son obligatorios."
+};
+
+const PROFILE_FOOTNOTE_COPY = {
+  en: "Your profile is stored in the app database.",
+  es: "Tu perfil se guarda en la base de datos de la app."
+};
+
+const LOGIN_FOOTNOTE_COPY = {
+  en: "Use a registered email and password to log in.",
+  es: "Usa un correo y contrasena registrados para entrar."
+};
+
+const FIELD_COPY = {
+  pName: {
+    label: { en: "Full name", es: "Nombre completo" },
+    placeholder: { en: "e.g., Jaime Espinal", es: "ej., Jaime Espinal" }
+  },
+  pRole: { label: { en: "Role", es: "Rol" } },
+  pPhoto: {
+    label: { en: "Profile photo (optional)", es: "Foto de perfil (opcional)" },
+    placeholder: { en: "Add a photo URL", es: "Agrega una URL de foto" }
+  },
+  pCountry: {
+    label: { en: "Country (optional)", es: "Pais (opcional)" },
+    placeholder: { en: "e.g., United States", es: "ej., Estados Unidos" }
+  },
+  pCity: {
+    label: { en: "City/State (optional)", es: "Ciudad/Estado (opcional)" },
+    placeholder: { en: "e.g., Lincoln, NE", es: "ej., Lincoln, NE" }
+  },
+  pSchoolClub: { label: { en: "School or club?", es: "Escuela o club?" } },
+  pInstitution: {
+    label: { en: "School, club or institution", es: "Nombre de escuela, club o institucion" },
+    placeholder: { en: "e.g., Lincoln West / Midwest Grapplers", es: "ej., Lincoln West / Midwest Grapplers" }
+  },
+  pLevel: { label: { en: "Level", es: "Nivel" } },
+  pStyle: { label: { en: "Primary wrestling style", es: "Estilo principal de lucha" } },
+  pPosition: { label: { en: "Preferred position", es: "Posicion preferida" } },
+  pStrategy: { label: { en: "Match strategy preference", es: "Estrategia preferida" } },
+  pYears: {
+    label: { en: "Years of experience", es: "Anos de experiencia" },
+    placeholder: { en: "e.g., 4", es: "ej., 4" }
+  },
+  pWeight: {
+    label: { en: "Weight class (optional)", es: "Categoria de peso (opcional)" },
+    placeholder: { en: "e.g., 157 / 72kg", es: "ej., 157 / 72kg" }
+  },
+  pCurrentWeight: {
+    label: { en: "Current weight (optional)", es: "Peso actual (opcional)" },
+    placeholder: { en: "e.g., 157 lb", es: "ej., 157 lb" }
+  },
+  pLang: { label: { en: "Language", es: "Idioma" } },
+  pGoal: {
+    label: { en: "Main goal", es: "Meta principal" },
+    placeholder: { en: "e.g., Improve bottom escapes / get in shape", es: "ej., Mejorar escapes / estar en forma" }
+  },
+  pNeutralOther: {
+    placeholder: { en: "Other (optional)", es: "Otro (opcional)" }
+  },
+  pTopOther: {
+    placeholder: { en: "Other (optional)", es: "Otro (opcional)" }
+  },
+  pBottomOther: {
+    placeholder: { en: "Other (optional)", es: "Otro (opcional)" }
+  },
+  pDefenseOther: {
+    placeholder: { en: "Other (optional)", es: "Otro (opcional)" }
+  },
+  pInternational: { label: { en: "International competition?", es: "Competencia internacional?" } },
+  pInternationalEvents: {
+    label: { en: "Countries / events (optional)", es: "Paises / eventos (opcional)" },
+    placeholder: { en: "e.g., Pan-Am, Canada Open", es: "ej., Pan-Am, Canada Open" }
+  },
+  pInternationalYears: {
+    label: { en: "Years (optional)", es: "Anos (opcional)" },
+    placeholder: { en: "e.g., 2 years", es: "ej., 2 anos" }
+  },
+  pCoachCues: { label: { en: "Coach cue preference", es: "Preferencia de indicaciones" } },
+  pCueNotes: {
+    label: { en: "What helps you most? (optional)", es: "Que te ayuda mas? (opcional)" },
+    placeholder: { en: "e.g., Simple reminders between periods", es: "ej., Recordatorios simples" }
+  },
+  pInjuryNotes: {
+    label: { en: "Injuries or limitations (optional)", es: "Lesiones o limitaciones (opcional)" },
+    placeholder: { en: "e.g., Left shoulder caution", es: "ej., Cuidar hombro izquierdo" }
+  },
+  loginEmail: {
+    label: { en: "Email", es: "Correo" },
+    placeholder: { en: "you@email.com", es: "tu@correo.com" }
+  },
+  loginPassword: {
+    label: { en: "Password", es: "Contrasena" },
+    placeholder: { en: "••••••••", es: "••••••••" }
+  },
+  loginRole: { label: { en: "Role", es: "Rol" } },
+  aName: { label: { en: "Full name", es: "Nombre completo" } },
+  aPhoto: {
+    label: { en: "Profile photo (optional)", es: "Foto de perfil (opcional)" },
+    placeholder: { en: "Add a photo URL", es: "Agrega una URL de foto" }
+  },
+  aCountry: { label: { en: "Country (optional)", es: "Pais (opcional)" } },
+  aCity: { label: { en: "City/State (optional)", es: "Ciudad/Estado (opcional)" } },
+  aSchoolClub: { label: { en: "School or club?", es: "Escuela o club?" } },
+  aSchool: { label: { en: "School name (optional)", es: "Nombre de escuela (opcional)" } },
+  aClub: { label: { en: "Club name (optional)", es: "Nombre de club (opcional)" } },
+  aTrainingRoutines: {
+    label: { en: "Training routines", es: "Rutinas de entrenamiento" },
+    placeholder: { en: "e.g., AM lift, PM mat, recovery", es: "ej., Pesas AM, lucha PM, recuperacion" }
+  },
+  aTrainingVolume: {
+    label: { en: "Weekly volume", es: "Volumen semanal" },
+    placeholder: { en: "e.g., 6 sessions, 10 hours", es: "ej., 6 sesiones, 10 horas" }
+  },
+  aTrainingFocus: {
+    label: { en: "Technique worked most", es: "Tecnica mas trabajada" },
+    placeholder: { en: "e.g., Single leg finish chain", es: "ej., Cadena de finalizacion de pierna simple" }
+  },
+  aStyle: { label: { en: "Primary wrestling style", es: "Estilo principal de lucha" } },
+  aWeight: {
+    label: { en: "Current weight", es: "Peso actual" },
+    placeholder: { en: "e.g., 157 lb", es: "ej., 157 lb" }
+  },
+  aWeightClass: {
+    label: { en: "Weight class", es: "Categoria de peso" },
+    placeholder: { en: "e.g., 157", es: "ej., 157" }
+  },
+  aYears: { label: { en: "Years of experience", es: "Anos de experiencia" } },
+  aLevel: { label: { en: "Experience level", es: "Nivel de experiencia" } },
+  aPosition: { label: { en: "Preferred position", es: "Posicion preferida" } },
+  aStrategy: { label: { en: "Match strategy preference", es: "Estrategia preferida" } },
+  aStrategyA: {
+    label: { en: "Strategy A", es: "Estrategia A" },
+    placeholder: { en: "Primary scoring plan", es: "Plan principal para puntuar" }
+  },
+  aStrategyB: {
+    label: { en: "Strategy B", es: "Estrategia B" },
+    placeholder: { en: "Adjustment if plan A stalls", es: "Ajuste si el plan A se estanca" }
+  },
+  aStrategyC: {
+    label: { en: "Strategy C", es: "Estrategia C" },
+    placeholder: { en: "Emergency plan / late match", es: "Plan de emergencia / final del combate" }
+  },
+  aSafeMoves: {
+    label: { en: "Safe moves", es: "Movimientos seguros" },
+    placeholder: { en: "Moves you can trust under pressure", es: "Movimientos confiables bajo presion" }
+  },
+  aRiskyMoves: {
+    label: { en: "Risky moves", es: "Movimientos arriesgados" },
+    placeholder: { en: "High reward but high risk", es: "Alta recompensa pero alto riesgo" }
+  },
+  aResultsHistory: {
+    label: { en: "Recent results / key notes", es: "Resultados recientes / notas clave" },
+    placeholder: { en: "e.g., 3-1 at State. Lost to lefty single leg.", es: "ej., 3-1 en estatal. Perdio con pierna simple zurda." }
+  },
+  aInternational: { label: { en: "International competition?", es: "Competencia internacional?" } },
+  aInternationalEvents: {
+    label: { en: "Countries / events (optional)", es: "Paises / eventos (opcional)" },
+    placeholder: { en: "e.g., Pan-Am, Canada Open", es: "ej., Pan-Am, Canada Open" }
+  },
+  aInternationalYears: {
+    label: { en: "Years (optional)", es: "Anos (opcional)" },
+    placeholder: { en: "e.g., 2 years", es: "ej., 2 anos" }
+  },
+  aCoachCues: { label: { en: "Coach cue preference", es: "Preferencia de indicaciones" } },
+  aCueNotes: {
+    label: { en: "What helps you most? (optional)", es: "Que te ayuda mas? (opcional)" },
+    placeholder: { en: "e.g., Simple reminders between periods", es: "ej., Recordatorios simples" }
+  },
+  aInjuryNotes: {
+    label: { en: "Injuries or limitations (optional)", es: "Lesiones o limitaciones (opcional)" },
+    placeholder: { en: "e.g., Left shoulder caution", es: "ej., Cuidar hombro izquierdo" }
+  },
+  aFavoritePosition: { label: { en: "Favorite competition position", es: "Posicion favorita en competencia" } },
+  aPsychTendency: { label: { en: "Psychological tendency", es: "Tendencia psicologica" } },
+  aPressureError: {
+    label: { en: "Common error under pressure", es: "Error comun bajo presion" },
+    placeholder: { en: "e.g., Reaching on ties", es: "ej., Alcanzar en los amarres" }
+  },
+  aCoachSignal: {
+    label: { en: "Coach key signal", es: "Senal clave del coach" },
+    placeholder: { en: "If X happens -> do Y", es: "Si pasa X -> haz Y" }
+  },
+  aArchetype: { label: { en: "Archetype", es: "Arquetipo" } },
+  aBodyType: { label: { en: "Body type", es: "Tipo de cuerpo" } }
+};
+
+const SELECT_COPY = {
+  headerLang: {
+    en: { en: "English", es: "Spanish" },
+    es: { en: "Ingles", es: "Espanol" }
+  },
+  pRole: {
+    en: { athlete: "Athlete", coach: "Coach" },
+    es: { athlete: "Atleta", coach: "Entrenador" }
+  },
+  loginRole: {
+    en: { athlete: "Athlete", coach: "Coach" },
+    es: { athlete: "Atleta", coach: "Entrenador" }
+  },
+  pSchoolClub: {
+    en: { no: "No", yes: "Yes" },
+    es: { no: "No", yes: "Si" }
+  },
+  aSchoolClub: {
+    en: { no: "No", yes: "Yes" },
+    es: { no: "No", yes: "Si" }
+  },
+  pLevel: {
+    en: { beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced" },
+    es: { beginner: "Principiante", intermediate: "Intermedio", advanced: "Avanzado" }
+  },
+  aLevel: {
+    en: { beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced" },
+    es: { beginner: "Principiante", intermediate: "Intermedio", advanced: "Avanzado" }
+  },
+  pStyle: {
+    en: { freestyle: "Freestyle", "greco-roman": "Greco-Roman", folkstyle: "Folkstyle" },
+    es: { freestyle: "Estilo libre", "greco-roman": "Greco-Romana", folkstyle: "Folkstyle" }
+  },
+  aStyle: {
+    en: { freestyle: "Freestyle", "greco-roman": "Greco-Roman", folkstyle: "Folkstyle" },
+    es: { freestyle: "Estilo libre", "greco-roman": "Greco-Romana", folkstyle: "Folkstyle" }
+  },
+  pPosition: {
+    en: { neutral: "Neutral", top: "Top", bottom: "Bottom" },
+    es: { neutral: "Neutral", top: "Arriba", bottom: "Abajo" }
+  },
+  aPosition: {
+    en: { neutral: "Neutral", top: "Top", bottom: "Bottom" },
+    es: { neutral: "Neutral", top: "Arriba", bottom: "Abajo" }
+  },
+  pStrategy: {
+    en: { balanced: "Balanced", offensive: "Offensive", defensive: "Defensive", counter: "Counter-based" },
+    es: { balanced: "Balanceado", offensive: "Ofensivo", defensive: "Defensivo", counter: "Contraataque" }
+  },
+  aStrategy: {
+    en: { balanced: "Balanced", offensive: "Offensive", defensive: "Defensive", counter: "Counter-based" },
+    es: { balanced: "Balanceado", offensive: "Ofensivo", defensive: "Defensivo", counter: "Contraataque" }
+  },
+  aFavoritePosition: {
+    en: { neutral: "Neutral", top: "Top", bottom: "Bottom" },
+    es: { neutral: "Neutral", top: "Arriba", bottom: "Abajo" }
+  },
+  aPsychTendency: {
+    en: { aggressive: "Aggressive", conservative: "Conservative", counterattack: "Counterattack" },
+    es: { aggressive: "Agresivo", conservative: "Conservador", counterattack: "Contraataque" }
+  },
+  pInternational: {
+    en: { no: "No", yes: "Yes" },
+    es: { no: "No", yes: "Si" }
+  },
+  aInternational: {
+    en: { no: "No", yes: "Yes" },
+    es: { no: "No", yes: "Si" }
+  },
+  pCoachCues: {
+    en: {
+      short: "Short cues only",
+      calm: "Stay calm tone",
+      energy: "High energy cues",
+      specific: "Specific instruction only"
+    },
+    es: {
+      short: "Solo indicaciones cortas",
+      calm: "Tono calmado",
+      energy: "Indicaciones con energia",
+      specific: "Solo instrucciones especificas"
+    }
+  },
+  aCoachCues: {
+    en: {
+      short: "Short cues only",
+      calm: "Stay calm tone",
+      energy: "High energy cues",
+      specific: "Specific instruction only"
+    },
+    es: {
+      short: "Solo indicaciones cortas",
+      calm: "Tono calmado",
+      energy: "Indicaciones con energia",
+      specific: "Solo instrucciones especificas"
+    }
+  },
+  onePagerCues: {
+    en: {
+      short: "Short cues only",
+      calm: "Stay calm tone",
+      energy: "High energy push",
+      specific: "Specific instruction only"
+    },
+    es: {
+      short: "Solo indicaciones cortas",
+      calm: "Tono calmado",
+      energy: "Impulso con energia",
+      specific: "Solo instrucciones especificas"
+    }
+  },
+  aArchetype: {
+    en: {
+      "": "Select archetype",
+      technician: "Technician",
+      scrambler: "Scrambler",
+      pummler: "Pummeler",
+      "counter-wrestler": "Counter-wrestler",
+      "chain-wrestler": "Chain-wrestler"
+    },
+    es: {
+      "": "Selecciona arquetipo",
+      technician: "Técnico",
+      scrambler: "Scrambler",
+      pummler: "Pummeler",
+      "counter-wrestler": "Contraatacante",
+      "chain-wrestler": "Cadena"
+    }
+  },
+  aBodyType: {
+    en: {
+      "": "Select body type",
+      compact: "Compact/Powerful",
+      long: "Long/Lanky",
+      balanced: "Balanced/Athletic"
+    },
+    es: {
+      "": "Selecciona tipo de cuerpo",
+      compact: "Compacto/potente",
+      long: "Largo/atlético",
+      balanced: "Equilibrado/atlético"
+    }
+  }
+};
+
+const TECHNIQUE_LABELS = {
+  "Single Leg": { en: "Single Leg", es: "Pierna simple" },
+  "Double Leg": { en: "Double Leg", es: "Doble pierna" },
+  "High Crotch": { en: "High Crotch", es: "High crotch" },
+  "Snap Down": { en: "Snap Down", es: "Snap down" },
+  "Body Lock": { en: "Body Lock", es: "Body lock" },
+  "Arm Throw": { en: "Arm Throw", es: "Proyeccion de brazo" },
+  "Ankle Pick": { en: "Ankle Pick", es: "Ankle pick" },
+  "Half Nelson": { en: "Half Nelson", es: "Medio nelson" },
+  Breakdown: { en: "Breakdown", es: "Breakdown" },
+  Tilt: { en: "Tilt", es: "Giro" },
+  "Stand-Up": { en: "Stand-Up", es: "Pararse" },
+  Switch: { en: "Switch", es: "Switch" },
+  "Sit-Out": { en: "Sit-Out", es: "Sit-out" },
+  Sprawl: { en: "Sprawl", es: "Sprawl" },
+  Whizzer: { en: "Whizzer", es: "Whizzer" },
+  "Hand Fighting": { en: "Hand Fighting", es: "Pelea de manos" }
+};
+
+const TAB_COPY = {
+  today: { en: "Today", es: "Hoy" },
+  "athlete-profile": { en: "Profile", es: "Perfil" },
+  training: { en: "Training Plan", es: "Plan de entrenamiento" },
+  calendar: { en: "Calendar", es: "Calendario" },
+  media: { en: "Media", es: "Multimedia" },
+  journal: { en: "Journal", es: "Diario" },
+  favorites: { en: "Favorites", es: "Favoritos" },
+  announcements: { en: "Announcements", es: "Avisos" },
+  dashboard: { en: "Dashboard", es: "Panel" },
+  "coach-profile": { en: "Coach Profile", es: "Perfil entrenador" },
+  athletes: { en: "Athletes", es: "Atletas" },
+  "one-pager": { en: "One-Pager", es: "Resumen" },
+  "coach-match": { en: "Athlete Summary", es: "Resumen atleta" },
+  plans: { en: "Create Plans", es: "Crear planes" },
+  "calendar-manager": { en: "Calendar Manager", es: "Gestion calendario" },
+  "media-library": { en: "Media Library", es: "Biblioteca" },
+  "athlete-notes": { en: "Athlete Notes", es: "Notas atletas" },
+  skills: { en: "Skills Tracker", es: "Tecnicas" },
+  "journal-monitor": { en: "Journal Monitor", es: "Monitor diario" },
+  reports: { en: "Reports", es: "Reportes" },
+  messages: { en: "Messages", es: "Mensajes" },
+  permissions: { en: "Permissions", es: "Permisos" },
+  future: { en: "Future", es: "Futuro" }
+};
+
+const PROFILE_SUBTAB_COPY = {
+  training: { en: "Training", es: "Entrenamiento" },
+  competition: { en: "Competition", es: "Competencia" },
+  coaching: { en: "Coaching Quick", es: "Coaching rapido" }
+};
+
+const PROFILE_SECTION_COPY = {
+  aStrategyPlansHeading: { en: "Strategy A / B / C", es: "Estrategia A / B / C" },
+  aStrategyPlansHint: {
+    en: "Have a primary plan plus two adjustments.",
+    es: "Ten un plan principal y dos ajustes."
+  },
+  aRiskHeading: { en: "Safe vs Risky Moves", es: "Movimientos seguros vs arriesgados" },
+  aResultsHeading: { en: "Results History", es: "Historial de resultados" },
+  aTagsHeading: { en: "Smart Tags", es: "Tags inteligentes" },
+  aTagsHint: {
+    en: "Coaches can filter athletes by these tags.",
+    es: "Los coaches pueden filtrar atletas por estos tags."
+  },
+  aCoachQuickHeading: { en: "Coaching Quick", es: "Coaching rapido" },
+  aCoachQuickHint: {
+    en: "Build a match-side cheat sheet for the corner.",
+    es: "Crea un cheat sheet rapido para la esquina."
+  },
+  aTopMovesHeading: { en: "Top 3 Moves", es: "Top 3 movimientos" },
+  aOffenseHeading: { en: "Offense", es: "Ofensiva" },
+  aDefenseHeading: { en: "Defense", es: "Defensa" },
+  coachQuickPreviewHeading: { en: "Coaching Quick Summary", es: "Resumen rapido" }
+};
+
+const PANEL_COPY = {
+  "panel-training": {
+    title: { en: "Training Plan", es: "Plan de entrenamiento" },
+    chip: { en: "Week 3 - Pre-Tournament", es: "Semana 3 - Pre torneo" }
+  },
+  "panel-athlete-profile": {
+    title: { en: "Athlete Profile", es: "Perfil atleta" },
+    chip: { en: "Create & Edit", es: "Crear y editar" }
+  },
+  "panel-competition-preview": {
+    title: { en: "Competition Summary Preview", es: "Resumen de competencia" },
+    chip: { en: "Coach view", es: "Vista entrenador" }
+  },
+  "panel-calendar": {
+    title: { en: "Calendar", es: "Calendario" },
+    chip: { en: "Next tournament in 12 days", es: "Proximo torneo en 12 dias" }
+  },
+  "panel-media": {
+    title: { en: "Media", es: "Multimedia" },
+    chip: { en: "Assigned for Today", es: "Asignado para hoy" }
+  },
+  "panel-journal": {
+    title: { en: "Daily Check-in", es: "Chequeo diario" }
+  },
+  "panel-favorites": {
+    title: { en: "Favorites", es: "Favoritos" }
+  },
+  "panel-announcements": {
+    title: { en: "Messages & Announcements", es: "Mensajes y avisos" },
+    chip: { en: "Coach Broadcast", es: "Aviso entrenador" }
+  },
+  "panel-dashboard": {
+    title: { en: "Team Dashboard", es: "Panel del equipo" },
+    chip: { en: "Alerts: 3", es: "Alertas: 3" }
+  },
+  "panel-coach-profile": {
+    title: { en: "Coach Account & Profile", es: "Cuenta y perfil entrenador" },
+    chip: { en: "Secure access", es: "Acceso seguro" }
+  },
+  "panel-athletes": {
+    title: { en: "Athlete Management", es: "Gestion de atletas" },
+    chip: { en: "Roster", es: "Plantel" }
+  },
+  "panel-one-pager": {
+    title: { en: "Athlete One-Pager", es: "Resumen del atleta" },
+    chip: { en: "Competition view", es: "Vista competencia" }
+  },
+  "panel-coach-match": {
+    title: { en: "Athlete Summary", es: "Resumen atleta" },
+    chip: { en: "Real-time corner view", es: "Vista en tiempo real" }
+  },
+  "panel-plans": {
+    title: { en: "Create Training Plans", es: "Crear planes de entrenamiento" }
+  },
+  "panel-calendar-manager": {
+    title: { en: "Calendar Manager", es: "Gestion de calendario" },
+    chip: { en: "Create events + reminders", es: "Crear eventos y recordatorios" }
+  },
+  "panel-media-library": {
+    title: { en: "Media Library", es: "Biblioteca multimedia" },
+    chip: { en: "Upload - Tag - Assign", es: "Subir - Etiquetar - Asignar" }
+  },
+  "panel-athlete-notes": {
+    title: { en: "Athlete Notes", es: "Notas de atletas" },
+    chip: { en: "Private coach notes", es: "Notas privadas" }
+  },
+  "panel-skills": {
+    title: { en: "Skills Tracker", es: "Seguimiento de tecnicas" },
+    chip: { en: "Best clips by move", es: "Mejores clips por tecnica" }
+  },
+  "panel-journal-monitor": {
+    title: { en: "Athlete Journal Monitoring", es: "Monitoreo del diario" },
+    chip: { en: "Readiness signals", es: "Senales de disponibilidad" }
+  },
+  "panel-reports": {
+    title: { en: "Weekly Reports", es: "Reportes semanales" },
+    chip: { en: "Compliance - Progress", es: "Cumplimiento - Progreso" }
+  },
+  "panel-messages": {
+    title: { en: "Coach Messages", es: "Mensajes del entrenador" },
+    chip: { en: "1:1 + tags", es: "1:1 + etiquetas" }
+  },
+  "panel-permissions": {
+    title: { en: "Permissions & Control", es: "Permisos y control" },
+    chip: { en: "Role based access", es: "Acceso por rol" }
+  },
+  "panel-future": {
+    title: { en: "Future Expansion", es: "Expansion futura" },
+    chip: { en: "Coach ready", es: "Listo para entrenador" }
+  }
+};
+
+const BUTTON_COPY = {
+  quickContinueBtn: { en: "Save & Continue", es: "Guardar y continuar" },
+  quickSkipBtn: { en: "Skip", es: "Omitir" },
+  doneProfileBtn: { en: "Done", es: "Listo" },
+  skipBtn: { en: "Skip (use default)", es: "Omitir (usar por defecto)" },
+  loginGuestBtn: { en: "Continue as Guest", es: "Continuar como invitado" },
+  startSessionBtn: { en: "Start Session", es: "Iniciar sesion" },
+  watchFilmBtn: { en: "Watch Assigned Film", es: "Ver video asignado" },
+  logCompletionBtn: { en: "Log Completion", es: "Registrar completado" },
+  previewProfileBtn: { en: "Preview Competition Summary", es: "Ver resumen de competencia" },
+  openCoachMatchBtn: { en: "Open Athlete Summary", es: "Abrir resumen atleta" },
+  openCompetitionPreviewBtn: { en: "Open Competition Preview", es: "Abrir resumen de competencia" },
+  backToProfileBtn: { en: "Back to Profile", es: "Volver al perfil" },
+  saveJournalBtn: { en: "Save entry", es: "Guardar entrada" },
+  saveOnePagerPlan: { en: "Save Plan", es: "Guardar plan" },
+  saveOnePagerDos: { en: "Save Do/Don't", es: "Guardar hacer/no hacer" },
+  saveOnePagerCues: { en: "Save Cues", es: "Guardar indicaciones" },
+  saveOnePagerSafety: { en: "Save Safety Notes", es: "Guardar notas de seguridad" },
+  messageAthleteBtn: { en: "Message Athlete", es: "Mensaje al atleta" },
+  openTrainingBtn: { en: "Open Today's Training", es: "Abrir entrenamiento de hoy" },
+  openTournamentBtn: { en: "Open Tournament Event", es: "Abrir evento de torneo" },
+  addQuickNoteBtn: { en: "Add Quick Note", es: "Agregar nota rapida" },
+  templatesBtn: { en: "Templates", es: "Plantillas" },
+  templateGoBtn: { en: "Go ahead", es: "Continuar" },
+  templateNoBtn: { en: "Nevermind", es: "Cancelar" },
+  doneDailyPlan: { en: "Done", es: "Listo" },
+  saveDailyPlan: { en: "Save", es: "Guardar" },
+  shareDailyPlan: { en: "Share", es: "Compartir" },
+  printTemplatePlan: { en: "Print from Template", es: "Imprimir desde plantilla" },
+  uploadTemplateBtn: { en: "Upload PDF", es: "Subir PDF" },
+  generateTemplateBtn: { en: "Fill PDF Template", es: "Llenar plantilla PDF" },
+  templateHelpBtn: { en: "Template", es: "Plantilla" }
+};
+
+const PLACEHOLDER_COPY = [
+  {
+    selector: ".search-input",
+    value: { en: "Search athletes by name", es: "Buscar atletas por nombre" }
+  },
+  {
+    selector: "#journalInput",
+    value: { en: "Notes (text or voice summary)...", es: "Notas (texto o voz)..." }
+  },
+  {
+    selector: "#injuryInput",
+    value: { en: "Knee soreness, right side", es: "Dolor de rodilla, lado derecho" }
+  }
+];
+
+const MONTH_NAMES_BY_LANG = {
+  en: [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December"
+  ],
+  es: [
+    "Enero",
+    "Febrero",
+    "Marzo",
+    "Abril",
+    "Mayo",
+    "Junio",
+    "Julio",
+    "Agosto",
+    "Septiembre",
+    "Octubre",
+    "Noviembre",
+    "Diciembre"
+  ]
+};
+
+const DAY_ABBR_BY_LANG = {
+  en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+  es: ["Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab"]
+};
+
+function pickCopy(copy) {
+  if (!copy) return "";
+  if (typeof copy === "string") return copy;
+  return copy[currentLang] || copy.en || "";
+}
+
+function setTextContent(selector, copy) {
+  const el = typeof selector === "string" ? document.querySelector(selector) : selector;
+  if (!el) return;
+  el.textContent = pickCopy(copy);
+}
+
+function setLabelAndPlaceholder(id, copy) {
+  const input = document.getElementById(id);
+  if (!input || !copy) return;
+  const labelSpan = input.closest("label")?.querySelector("span");
+  if (labelSpan && copy.label) labelSpan.textContent = pickCopy(copy.label);
+  if (copy.placeholder && "placeholder" in input) {
+    input.placeholder = pickCopy(copy.placeholder);
   }
 }
 
-// Create profile
-profileForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
+function updateSelectOptions(id, valuesByLang) {
+  const select = document.getElementById(id);
+  if (!select || !valuesByLang) return;
+  const map = valuesByLang[currentLang] || valuesByLang.en || {};
+  Array.from(select.options).forEach((opt) => {
+    if (map[opt.value]) opt.textContent = map[opt.value];
+  });
+}
 
-  const neutral = Array.from(document.querySelectorAll(".tech-neutral:checked")).map((el) => el.value);
-  const top = Array.from(document.querySelectorAll(".tech-top:checked")).map((el) => el.value);
-  const bottom = Array.from(document.querySelectorAll(".tech-bottom:checked")).map((el) => el.value);
-  const defense = Array.from(document.querySelectorAll(".tech-defense:checked")).map((el) => el.value);
+function updateTechniqueLabels(selector) {
+  const inputs = Array.from(document.querySelectorAll(selector));
+  inputs.forEach((input) => {
+    const label = input.closest("label");
+    if (!label) return;
+    const copy = TECHNIQUE_LABELS[input.value];
+    if (!copy) return;
+    const target = pickCopy(copy);
+    const textNode = Array.from(label.childNodes).find((node) => node.nodeType === Node.TEXT_NODE);
+    if (textNode) {
+      textNode.nodeValue = ` ${target}`;
+    } else {
+      label.appendChild(document.createTextNode(` ${target}`));
+    }
+  });
+}
 
+function updateTechniqueSection(neutralOtherId, topOtherId, bottomOtherId, defenseOtherId) {
+  const neutralOther = document.getElementById(neutralOtherId);
+  const section = neutralOther?.closest(".form-section");
+  if (!section) return;
+  const heading = section.querySelector("h3");
+  const hint = section.querySelector("p.small");
+  if (heading) heading.textContent = currentLang === "es" ? "Tecnicas predeterminadas" : "Default Techniques";
+  if (hint) hint.textContent = currentLang === "es" ? "Elige 2-4 por posicion." : "Pick 2-4 per position.";
+
+  const cards = section.querySelectorAll(".mini-card");
+  const titles = currentLang === "es"
+    ? ["Neutral", "Arriba", "Abajo", "Defensa"]
+    : ["Neutral", "Top", "Bottom", "Defense"];
+  cards.forEach((card, idx) => {
+    const h4 = card.querySelector("h4");
+    if (h4 && titles[idx]) h4.textContent = titles[idx];
+  });
+
+  setLabelAndPlaceholder(neutralOtherId, FIELD_COPY[neutralOtherId]);
+  setLabelAndPlaceholder(topOtherId, FIELD_COPY[topOtherId]);
+  setLabelAndPlaceholder(bottomOtherId, FIELD_COPY[bottomOtherId]);
+  setLabelAndPlaceholder(defenseOtherId, FIELD_COPY[defenseOtherId]);
+}
+
+function updateSectionHeading(inputId, headingCopy) {
+  const input = document.getElementById(inputId);
+  const section = input?.closest(".form-section");
+  if (!section) return;
+  const heading = section.querySelector("h3");
+  if (heading) heading.textContent = pickCopy(headingCopy);
+}
+
+function applyStaticTranslations() {
+  const headerTitle = document.querySelector(".header-text h1");
+  setTextContent(headerTitle, HEADER_COPY);
+  document.title = pickCopy(HEADER_COPY);
+
+  updateSelectOptions("headerLang", SELECT_COPY.headerLang);
+  setTextContent(".quick-help", QUICK_HELP_COPY);
+
+  const profileFootnote = document.querySelector("#profileForm > p.small.muted:last-of-type");
+  setTextContent(profileFootnote, PROFILE_FOOTNOTE_COPY);
+  const loginFootnote = document.querySelector("#loginForm > p.small.muted:last-of-type");
+  setTextContent(loginFootnote, LOGIN_FOOTNOTE_COPY);
+
+  const profileSubmit = document.querySelector('#profileForm button[type="submit"]');
+  if (profileSubmit) {
+    profileSubmit.textContent = currentLang === "es" ? "Crear perfil" : "Create Profile";
+  }
+
+  Object.entries(FIELD_COPY).forEach(([id, copy]) => setLabelAndPlaceholder(id, copy));
+  Object.entries(SELECT_COPY).forEach(([id, copy]) => updateSelectOptions(id, copy));
+  PLACEHOLDER_COPY.forEach(({ selector, value }) => {
+    const el = document.querySelector(selector);
+    if (el && "placeholder" in el) el.placeholder = pickCopy(value);
+  });
+
+  updateTechniqueSection("pNeutralOther", "pTopOther", "pBottomOther", "pDefenseOther");
+  updateTechniqueSection("aNeutralOther", "aTopOther", "aBottomOther", "aDefenseOther");
+  updateTechniqueLabels(".tech-grid .check input");
+  updateTechniqueLabels(".a-tech-grid input, .tech-grid input");
+
+  updateSectionHeading("pInternational", {
+    en: "International Experience",
+    es: "Experiencia internacional"
+  });
+  updateSectionHeading("aInternational", {
+    en: "International Experience",
+    es: "Experiencia internacional"
+  });
+  updateSectionHeading("pCoachCues", {
+    en: "Competition Notes",
+    es: "Notas de competencia"
+  });
+  updateSectionHeading("aCoachCues", {
+    en: "Competition Notes",
+    es: "Notas de competencia"
+  });
+
+  setTextContent("#profileSubtabTraining", PROFILE_SUBTAB_COPY.training);
+  setTextContent("#profileSubtabCompetition", PROFILE_SUBTAB_COPY.competition);
+  setTextContent("#profileSubtabCoaching", PROFILE_SUBTAB_COPY.coaching);
+  Object.entries(PROFILE_SECTION_COPY).forEach(([id, copy]) => {
+    setTextContent(`#${id}`, copy);
+  });
+  if (typeof renderProfileTagPicker === "function") {
+    renderProfileTagPicker();
+  }
+
+  document.querySelectorAll(".tab").forEach((tab) => {
+    const key = tab.dataset.tab;
+    if (key && TAB_COPY[key]) tab.textContent = pickCopy(TAB_COPY[key]);
+  });
+
+  Object.entries(PANEL_COPY).forEach(([panelId, copy]) => {
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+    const h2 = panel.querySelector("h2");
+    if (h2 && copy.title) h2.textContent = pickCopy(copy.title);
+    const chip = panel.querySelector(".chip");
+    if (chip && copy.chip) chip.textContent = pickCopy(copy.chip);
+  });
+
+  Object.entries(BUTTON_COPY).forEach(([id, copy]) => {
+    const btn = document.getElementById(id);
+    if (btn) btn.textContent = pickCopy(copy);
+  });
+
+  if (editProfileBtn) {
+    editProfileBtn.title = currentLang === "es" ? "Editar perfil" : "Edit profile";
+  }
+  if (muteBtn) {
+    muteBtn.setAttribute("aria-label", currentLang === "es" ? "Silenciar audio" : "Mute audio");
+  }
+
+  const welcomeVisible = welcomeScreen && !welcomeScreen.classList.contains("hidden");
+  if (!welcomeVisible) {
+    const active = authTabs.find((btn) => btn.classList.contains("active"));
+    const mode = active?.dataset.auth || (loginForm && !loginForm.classList.contains("hidden") ? "login" : "create");
+    setAuthMode(mode, { updateView: true });
+  }
+}
+
+function authErrorMessage(code, fallback = "") {
+  const map = currentLang === "es"
+    ? {
+        invalid_credentials: "Correo o contrasena incorrectos.",
+        role_mismatch: "Ese usuario no tiene ese rol.",
+        email_exists: "Ese correo ya esta registrado.",
+        password_too_short: "La contrasena debe tener al menos 8 caracteres.",
+        missing_fields: "Faltan campos obligatorios.",
+        invalid_email: "Correo invalido.",
+        db_error: "Error de base de datos."
+      }
+    : {
+        invalid_credentials: "Incorrect email or password.",
+        role_mismatch: "That account does not match the selected role.",
+        email_exists: "That email is already registered.",
+        password_too_short: "Password must be at least 8 characters.",
+        missing_fields: "Required fields are missing.",
+        invalid_email: "Invalid email.",
+        db_error: "Database error."
+      };
+  return map[code] || fallback || String(code || "");
+}
+
+function blankAthleteFields(profile) {
+  profile.weightClass = "";
+  profile.currentWeight = "";
+  profile.style = "";
+  profile.position = "";
+  profile.strategy = "";
+  profile.years = "";
+  profile.trainingRoutines = "";
+  profile.trainingVolume = "";
+  profile.trainingFocus = "";
+  profile.strategyA = "";
+  profile.strategyB = "";
+  profile.strategyC = "";
+  profile.safeMoves = "";
+  profile.riskyMoves = "";
+  profile.resultsHistory = "";
+  profile.tags = [];
+  profile.favoritePosition = "";
+  profile.psychTendency = "";
+  profile.pressureError = "";
+  profile.coachSignal = "";
+  profile.offenseTop3 = [];
+  profile.defenseTop3 = [];
+  profile.international = "no";
+  profile.internationalEvents = "";
+  profile.internationalYears = "";
+  profile.coachCues = "";
+  profile.cueNotes = "";
+  profile.injuryNotes = "";
+  profile.techniques = {
+    neutral: [],
+    top: [],
+    bottom: [],
+    defense: [],
+    neutralOther: "",
+    topOther: "",
+    bottomOther: "",
+    defenseOther: ""
+  };
+}
+
+function buildProfileFromForm({ email, role, userId = null } = {}) {
+  const neutralTech = collectTechniques(".tech-neutral");
+  const topTech = collectTechniques(".tech-top");
+  const bottomTech = collectTechniques(".tech-bottom");
+  const defenseTech = collectTechniques(".tech-defense");
   const profile = {
+    user_id: userId,
+    email: email || pEmail.value.trim(),
     name: pName.value.trim(),
-    role: pRole.value,
-    team: pTeam.value.trim(),
+    role: role || pRole.value,
+    team: pInstitution?.value.trim(),
+    institution: pInstitution?.value.trim(),
     level: pLevel.value,
     weightClass: pWeight.value.trim(),
-    currentWeight: pCurrentWeight.value.trim(),
     goal: pGoal.value.trim(),
-    lang: pLang.value,
+    lang: resolveLang(pLang.value || getPreferredLang()),
+    currentWeight: pCurrentWeight.value.trim(),
+    style: pStyle.value,
+    position: pPosition.value,
+    strategy: pStrategy.value,
+    years: pYears.value.trim(),
     photo: pPhoto.value.trim(),
     country: pCountry.value.trim(),
     city: pCity.value.trim(),
     schoolClub: pSchoolClub.value,
-    schoolName: pSchool.value.trim(),
-    clubName: pClub.value.trim(),
-    style: pStyle.value,
-    position: pPosition.value,
-    strategy: pStrategy.value,
-    years: pYears.value,
-    techniques: {
-      neutral,
-      top,
-      bottom,
-      defense,
-      neutralOther: pNeutralOther.value.trim(),
-      topOther: pTopOther.value.trim(),
-      bottomOther: pBottomOther.value.trim(),
-      defenseOther: pDefenseOther.value.trim()
-    },
+    schoolName: pInstitution?.value.trim(),
+    clubName: pInstitution?.value.trim(),
     international: pInternational.value,
     internationalEvents: pInternationalEvents.value.trim(),
     internationalYears: pInternationalYears.value.trim(),
     coachCues: pCoachCues.value,
     cueNotes: pCueNotes.value.trim(),
-    injuryNotes: pInjuryNotes.value.trim()
+    injuryNotes: pInjuryNotes.value.trim(),
+    trainingRoutines: "",
+    trainingVolume: "",
+    trainingFocus: "",
+    strategyA: "",
+    strategyB: "",
+    strategyC: "",
+    safeMoves: "",
+    riskyMoves: "",
+    resultsHistory: "",
+    tags: [],
+    favoritePosition: pPosition.value,
+    archetype: aArchetype?.value || "",
+    bodyType: aBodyType?.value || "",
+    psychTendency: strategyToTendency(pStrategy.value),
+    pressureError: "",
+    coachSignal: "",
+    cueWords: [aCueWord1?.value.trim(), aCueWord2?.value.trim(), aCueWord3?.value.trim()].filter(Boolean),
+    offenseTop3: neutralTech.slice(0, 3),
+    defenseTop3: defenseTech.slice(0, 3),
+    techniques: {
+      neutral: neutralTech,
+      top: topTech,
+      bottom: bottomTech,
+      defense: defenseTech,
+      neutralOther: pNeutralOther.value.trim(),
+      topOther: pTopOther.value.trim(),
+      bottomOther: pBottomOther.value.trim(),
+      defenseOther: pDefenseOther.value.trim()
+    },
+    defaultTechniques: {
+      leadLeg: aLeadLeg?.value || "",
+      leftAttack: aLeftAttack?.value.trim() || "",
+      rightAttack: aRightAttack?.value.trim() || "",
+      preferredTies: aPreferredTies?.value.trim() || "",
+      miscNotes: aMiscNotes?.value.trim() || ""
+    }
   };
 
-  // minimal sanity
-  if (!profile.name || !profile.goal) return;
+  if (profile.role !== "athlete") {
+    blankAthleteFields(profile);
+  }
 
-  setProfile(profile);
-  await applyProfile(profile);
-  hideOnboarding();
-});
+  return profile;
+}
 
-// Skip profile (use default)
-skipBtn.addEventListener("click", async () => {
+function buildGuestProfile(role) {
+  const isCoach = role === "coach";
+  const copy = GUEST_COPY[role] || GUEST_COPY.athlete;
   const profile = {
-    name: "Guest",
-    role: "athlete",
-    team: "",
+    name: pickCopy(copy.name),
+    role,
+    team: isCoach ? pickCopy({ en: "Guest Team", es: "Equipo invitado" }) : "",
     level: "intermediate",
-    weightClass: "",
-    goal: "Get better every day",
-    lang: "en",
-    currentWeight: "",
-    style: "freestyle",
-    position: "neutral",
-    strategy: "balanced",
+    lang: currentLang,
+    goal: pickCopy(copy.goal),
+    trainingRoutines: pickCopy(copy.routines),
+    trainingVolume: pickCopy(copy.volume),
+    trainingFocus: pickCopy(copy.focus),
+    international: "no",
+    coachCues: "specific",
+    tags: [],
     techniques: {
+      neutral: [],
+      top: [],
+      bottom: [],
+    defense: [],
+    neutralOther: "",
+    topOther: "",
+    bottomOther: "",
+    defenseOther: ""
+  }
+};
+  profile.view = role;
+  profile.archetype = "technician";
+  profile.bodyType = "balanced";
+  profile.defaultTechniques = {
+  leadLeg: "left",
+  leftAttack: "",
+  rightAttack: "",
+  preferredTies: ""
+};
+
+  if (!isCoach) {
+    profile.position = "neutral";
+    profile.style = "freestyle";
+    profile.currentWeight = "";
+    profile.weightClass = "";
+    profile.goal = pickCopy(copy.goal) || "Get better every day";
+    profile.techniques = {
       neutral: ["Single Leg", "Double Leg"],
       top: ["Half Nelson"],
       bottom: ["Stand-Up"],
-      defense: ["Sprawl"]
-    },
-    international: "no",
-    coachCues: "specific"
-  };
+      defense: ["Sprawl"],
+      neutralOther: "",
+      topOther: "",
+      bottomOther: "",
+      defenseOther: ""
+    };
+  } else {
+    profile.strategy = "planning";
+    profile.strategyA = pickCopy({ en: "Attack high crotch", es: "Ataca con high crotch" });
+    profile.strategyB = pickCopy({ en: "Control the pace", es: "Controla el ritmo" });
+    profile.strategyC = pickCopy({ en: "Pressure transitions", es: "Presiona transiciones" });
+    profile.safeMoves = pickCopy({ en: "Maintain base and claw ties", es: "Mantén base y controla muñecas" });
+    profile.riskyMoves = pickCopy({ en: "Explosive throws", es: "Tiradas explosivas" });
+    profile.resultsHistory = pickCopy({ en: "Demo summary: 3-0", es: "Resumen demo: 3-0" });
+    profile.team = profile.team || pickCopy({ en: "Guest Team", es: "Equipo invitado" });
+    profile.notes = pickCopy({ en: "Review sessions scheduled for later", es: "Revisa las sesiones planeadas" });
+    profile.tags = ["planning", "match-prep", "guest"];
+    profile.trainingFocus = pickCopy(copy.focus);
+    profile.techniques = {
+      neutral: [],
+      top: [],
+      bottom: [],
+      defense: [],
+      neutralOther: "",
+      topOther: "",
+      bottomOther: "",
+      defenseOther: ""
+    };
+  }
+
+  return profile;
+}
+
+async function continueAsGuest(role) {
+  const profile = buildGuestProfile(role);
+  setAuthUser(null);
   setProfile(profile);
   await applyProfile(profile);
   hideOnboarding();
+}
+
+if (guestAthleteBtn) {
+  guestAthleteBtn.addEventListener("click", async () => {
+    await continueAsGuest("athlete");
+  });
+}
+
+if (guestCoachBtn) {
+  guestCoachBtn.addEventListener("click", async () => {
+    await continueAsGuest("coach");
+  });
+}
+if (editProfileBtn) {
+  editProfileBtn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleHeaderMenu();
+  });
+}
+
+if (headerMenu) {
+  headerMenu.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const action = event.target?.dataset?.action;
+    handleHeaderMenuAction(action);
+  });
+}
+
+if (viewSwitchBtn) {
+  viewSwitchBtn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleViewMenu();
+  });
+}
+
+if (viewMenu) {
+  viewMenu.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const view = event.target?.dataset?.view;
+    if (view) {
+      setView(view);
+      closeViewMenu();
+    }
+  });
+}
+
+document.addEventListener("click", () => {
+  closeHeaderMenu();
+  closeViewMenu();
 });
 
-if (doneProfileBtn) {
-  doneProfileBtn.addEventListener("click", () => {
-    if (!pName.value.trim()) pName.value = "Athlete";
-    if (!pGoal.value.trim()) pGoal.value = "Get better every day";
-    if (profileForm.requestSubmit) {
-      profileForm.requestSubmit();
-    } else {
-      profileForm.dispatchEvent(new Event("submit", { cancelable: true }));
+function buildAuthUser(userPayload) {
+  if (!userPayload) return null;
+  const id = Number.parseInt(userPayload.id, 10);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  return {
+    id,
+    email: String(userPayload.email || ""),
+    role: userPayload.user_type === "coach" ? "coach" : "athlete"
+  };
+}
+
+async function loginWithCredentials({ email, password, role }) {
+  const response = await fetch("api/login.php", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password, user_type: role })
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload.success) {
+    const code = payload.error || payload.message || response.status;
+    throw new Error(authErrorMessage(code, response.statusText));
+  }
+  return payload;
+}
+
+if (pRole) {
+  pRole.addEventListener("change", () => updateRoleSections(pRole.value));
+}
+
+if (authTabs.length) {
+  authTabs.forEach((btn) => {
+    btn.addEventListener("click", () => setAuthMode(btn.dataset.auth));
+  });
+}
+
+if (loginForm) {
+  loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = loginEmail.value.trim();
+    const password = loginPassword.value.trim();
+    const role = loginRole.value;
+
+    if (!email || !password) {
+      alert("Please enter email and password.");
+      return;
+    }
+
+    try {
+      const result = await loginWithCredentials({ email, password, role });
+      const authUser = buildAuthUser(result.user);
+      if (!authUser) {
+        alert(authErrorMessage("invalid_credentials", "Login failed."));
+        return;
+      }
+      setAuthUser(authUser);
+      const profile = normalizeProfileForAuth(result.profile || {}, authUser);
+      setProfile(profile);
+      await applyProfile(profile);
+      hideOnboarding();
+    } catch (err) {
+      alert(err.message || String(err));
     }
   });
 }
@@ -264,8 +1846,6 @@ editProfileBtn.addEventListener("click", () => {
 // ---------- AUDIO ----------
 let muted = false;
 let voices = [];
-
-const muteBtn = document.getElementById("muteBtn");
 
 function loadVoices() {
   voices = speechSynthesis.getVoices();
@@ -302,10 +1882,9 @@ muteBtn.addEventListener("click", () => {
 
 if (headerLang) {
   headerLang.addEventListener("change", () => {
-    const profile = getProfile() || { role: "athlete" };
-    profile.lang = headerLang.value;
-    setProfile(profile);
-    setHeaderLang(profile.lang);
+    if (langChangeLocked) return;
+    const selected = resolveLang(headerLang.value);
+    setLanguage(selected, { source: "header" });
   });
 }
 
@@ -437,18 +2016,150 @@ const WEEK_PLAN = [
   }
 ];
 
-const CALENDAR_EVENTS = {
-  1: ["Team practice - 3:30 PM", "Lift session - 6:00 PM"],
-  3: ["Team meeting - 4:15 PM"],
-  5: ["Travel day - Bus at 2:00 PM"],
-  6: ["Weigh-ins - 7:00 AM", "Tournament - 9:00 AM"]
-};
+const WEEK_PLAN_ES = [
+  {
+    day: "Domingo",
+    focus: "Recuperacion activa",
+    intensity: "Low",
+    total: "60 min",
+    blocks: [
+      { label: "Calentamiento", detail: "10 min flujo + movilidad de cadera" },
+      { label: "Recuperacion", detail: "20 min bici + estiramientos" },
+      { label: "Estudio de video", detail: "20 min: Entradas a pierna simple" },
+      { label: "Vuelta a la calma", detail: "10 min respiracion + reset" }
+    ],
+    details: [
+      "Objetivo: Restaurar el cuerpo y afinar tecnica",
+      "Repeticiones: Sombras + movimiento de postura",
+      "Acondicionamiento: Intervalos ligeros en bici",
+      "Tarea: Ver \"Final de pierna simple\""
+    ]
+  },
+  {
+    day: "Lunes",
+    focus: "Tecnica en el tapiz",
+    intensity: "Medium",
+    total: "90 min",
+    blocks: [
+      { label: "Calentamiento", detail: "15 min dinamico + movimiento de postura" },
+      { label: "Tecnica", detail: "25 min: Pierna simple a la repisa" },
+      { label: "Repeticiones", detail: "20 min: Cadena de lucha" },
+      { label: "Situaciones", detail: "15 min: Arriba/abajo desde posiciones" },
+      { label: "Vuelta a la calma", detail: "15 min estirar + respirar" }
+    ],
+    details: [
+      "Objetivo: Construir la cadena de pierna simple",
+      "Rondas en vivo: 4 x 2:00",
+      "Fuerza: 4x6 sentadilla + jalon",
+      "Tarea: Ver \"Final a la repisa\""
+    ]
+  },
+  {
+    day: "Martes",
+    focus: "Entrenamiento de fuerza",
+    intensity: "High",
+    total: "75 min",
+    blocks: [
+      { label: "Calentamiento", detail: "10 min activacion con banda" },
+      { label: "Fuerza", detail: "35 min: Sentadilla + bisagra" },
+      { label: "Accesorios", detail: "15 min: Core + agarre" },
+      { label: "Vuelta a la calma", detail: "15 min movilidad" }
+    ],
+    details: [
+      "Objetivo: Construir potencia de piernas",
+      "Fuerza: 5x5 sentadilla + RDL",
+      "Acondicionamiento: 6 x 30s assault bike",
+      "Tarea: 10 min movilidad de cadera"
+    ]
+  },
+  {
+    day: "Miercoles",
+    focus: "Acondicionamiento",
+    intensity: "High",
+    total: "70 min",
+    blocks: [
+      { label: "Calentamiento", detail: "10 min cuerda + movimiento" },
+      { label: "Intervalos", detail: "25 min: 10 x 30s sprint" },
+      { label: "Rondas en el tapiz", detail: "20 min: Shark tank" },
+      { label: "Vuelta a la calma", detail: "15 min estirar" }
+    ],
+    details: [
+      "Objetivo: Ritmo de combate por 3 periodos",
+      "Rondas en vivo: 6 x 1:00",
+      "Acondicionamiento: 10 x 30s sprint",
+      "Tarea: Ver \"Pressure ride\""
+    ]
+  },
+  {
+    day: "Jueves",
+    focus: "Tecnica en el tapiz",
+    intensity: "Medium",
+    total: "90 min",
+    blocks: [
+      { label: "Calentamiento", detail: "15 min movimiento de postura" },
+      { label: "Tecnica", detail: "25 min: Serie de medio nelson" },
+      { label: "Repeticiones", detail: "20 min: Desarmes arriba" },
+      { label: "Situaciones", detail: "15 min: Mantener control" },
+      { label: "Vuelta a la calma", detail: "15 min estirar" }
+    ],
+    details: [
+      "Objetivo: Mejorar el control arriba",
+      "Rondas en vivo: 4 x 2:00",
+      "Tarea: Ver \"Final de medio nelson\""
+    ]
+  },
+  {
+    day: "Viernes",
+    focus: "Estudio de video",
+    intensity: "Low",
+    total: "50 min",
+    blocks: [
+      { label: "Video", detail: "30 min: Tendencias del oponente" },
+      { label: "Repaso", detail: "15 min: Preparaciones clave" },
+      { label: "Vuelta a la calma", detail: "5 min respiracion" }
+    ],
+    details: [
+      "Objetivo: Prepararse para el torneo",
+      "Tarea: Visualizar 3 aperturas",
+      "Checklist: Empacar equipo + ID"
+    ]
+  },
+  {
+    day: "Sabado",
+    focus: "Dia de torneo",
+    intensity: "High",
+    total: "Todo el dia",
+    blocks: [
+      { label: "Pesaje", detail: "Registro + hidratacion" },
+      { label: "Calentamiento", detail: "20 min movimiento + tiros" },
+      { label: "Combates", detail: "Mantente listo entre peleas" },
+      { label: "Recuperacion", detail: "Bajar ritmo + recargar" }
+    ],
+    details: [
+      "Objetivo: Competir con ritmo",
+      "Recordatorio: Trae singlet + ID",
+      "Notas del coach: Enfocate en el primer contacto"
+    ]
+  }
+];
+
+const CALENDAR_EVENTS = {};
+const CALENDAR_EVENTS_ES = {};
+const CALENDAR_EVENTS_KEY = "wpl_calendar_events";
+const MEDIA_TREE_KEY = "wpl_media_tree";
 
 const MEDIA_ITEMS = [
   { title: "Single Leg Finish", type: "Video", tag: "Single Leg", assigned: "Today" },
   { title: "Half Nelson Series", type: "Video", tag: "Top Control", assigned: "This week" },
   { title: "Bottom Escape Drill", type: "Clip", tag: "Bottom", assigned: "Today" },
   { title: "Hand Fight Notes", type: "Link", tag: "Neutral", assigned: "Optional" }
+];
+
+const MEDIA_ITEMS_ES = [
+  { title: "Final de pierna simple", type: "Video", tag: "Pierna simple", assigned: "Hoy" },
+  { title: "Serie de medio nelson", type: "Video", tag: "Control arriba", assigned: "Esta semana" },
+  { title: "Drill de escape abajo", type: "Clip", tag: "Abajo", assigned: "Hoy" },
+  { title: "Notas de pelea de manos", type: "Enlace", tag: "Neutral", assigned: "Opcional" }
 ];
 
 const ANNOUNCEMENTS = [
@@ -459,11 +2170,26 @@ const ANNOUNCEMENTS = [
   { title: "Motivation", detail: "Win the first contact today.", time: "Tonight" }
 ];
 
+const ANNOUNCEMENTS_ES = [
+  { title: "Reunion del equipo a las 3:30 PM", detail: "Trae tu libreta.", time: "Hoy" },
+  { title: "Cambio de horario", detail: "La practica pasa a las 5:00 PM.", time: "Manana" },
+  { title: "Actualizacion urgente", detail: "El bus sale a la 1:30 PM en punto.", time: "Viernes" },
+  { title: "Chequeo de equipo para torneo", detail: "Singlet, zapatos, ID.", time: "Viernes" },
+  { title: "Motivacion", detail: "Gana el primer contacto hoy.", time: "Esta noche" }
+];
+
 const TEAM_STATS = [
   { title: "Check-ins Today", value: "5/7", note: "2 athletes missing" },
   { title: "Average Energy", value: "3.6", note: "Steady from last week" },
   { title: "Compliance Rate", value: "84%", note: "Goal: 90%" },
   { title: "Upcoming Events", value: "4", note: "2 in next 7 days" }
+];
+
+const TEAM_STATS_ES = [
+  { title: "Chequeos hoy", value: "5/7", note: "Faltan 2 atletas" },
+  { title: "Energia promedio", value: "3.6", note: "Estable desde la semana pasada" },
+  { title: "Tasa de cumplimiento", value: "84%", note: "Meta: 90%" },
+  { title: "Eventos proximos", value: "4", note: "2 en los proximos 7 dias" }
 ];
 
 const TEAM_OVERVIEW = [
@@ -473,11 +2199,25 @@ const TEAM_OVERVIEW = [
   "Alerts flagged: 3"
 ];
 
+const TEAM_OVERVIEW_ES = [
+  "Atletas: 7 activos",
+  "Planes de entrenamiento: 3 en curso",
+  "Torneos proximos: 2",
+  "Alertas marcadas: 3"
+];
+
 const QUICK_ACTIONS = [
   "Create training plan",
   "Add calendar event",
   "Upload media",
   "View athlete profiles"
+];
+
+const QUICK_ACTIONS_ES = [
+  "Crear plan de entrenamiento",
+  "Agregar evento al calendario",
+  "Subir multimedia",
+  "Ver perfiles de atletas"
 ];
 
 const ALERTS = [
@@ -486,11 +2226,24 @@ const ALERTS = [
   "Weight check needed for 125 lb class."
 ];
 
+const ALERTS_ES = [
+  "2 atletas reportaron dolor alto (4+).",
+  "Se detecto poco sueno en 3 atletas.",
+  "Se necesita chequeo de peso para 125 lb."
+];
+
 const COACH_ACCOUNT = [
   "Email: coach@wrestlingapp.com",
   "Password: ********",
   "Role: Coach (fixed)",
   "Secure access: Role-based permissions"
+];
+
+const COACH_ACCOUNT_ES = [
+  "Correo: coach@wrestlingapp.com",
+  "Contrasena: ********",
+  "Rol: Entrenador (fijo)",
+  "Acceso seguro: Permisos por rol"
 ];
 
 const COACH_PROFILE = [
@@ -504,8 +2257,21 @@ const COACH_PROFILE = [
   "Club: Midwest Grapplers (optional)"
 ];
 
+const COACH_PROFILE_ES = [
+  "Nombre: Coach Morgan Hill",
+  "Foto de perfil: Subida",
+  "Pais: Estados Unidos",
+  "Ciudad/Estado: Lincoln, NE",
+  "Tipo de equipo: Escuela y club",
+  "Disciplina principal: Mixto",
+  "Escuela: Lincoln West (opcional)",
+  "Club: Midwest Grapplers (opcional)"
+];
+
 const COACH_DISCIPLINE = ["Freestyle", "Greco-Roman", "Folkstyle", "Mixed"];
+const COACH_DISCIPLINE_ES = ["Estilo libre", "Greco-Romana", "Folkstyle", "Mixto"];
 const COACH_STYLE = ["Technical", "Conditioning", "Strategy", "Balanced"];
+const COACH_STYLE_ES = ["Tecnico", "Acondicionamiento", "Estrategia", "Balanceado"];
 
 const COACH_INTERNATIONAL = [
   "International coaching: Yes",
@@ -514,7 +2280,24 @@ const COACH_INTERNATIONAL = [
   "Experience: 6 years"
 ];
 
+const COACH_INTERNATIONAL_ES = [
+  "Coaching internacional: Si",
+  "Paises: Japon, Turquia, Canada",
+  "Eventos: Mundiales U23, Pan-Am",
+  "Experiencia: 6 anos"
+];
+
 const ATHLETE_FILTERS = ["Weight class", "Wrestling style", "Availability", "Search by name"];
+
+const ATHLETE_FILTERS_ES = ["Categoria de peso", "Estilo de lucha", "Disponibilidad", "Buscar por nombre"];
+
+const SMART_TAGS = [
+  { id: "aggressive", icon: "🔥", label: { en: "Aggressive", es: "Agresivo" } },
+  { id: "solid-defense", icon: "🧱", label: { en: "Solid defense", es: "Defensa solida" } },
+  { id: "fast", icon: "⚡", label: { en: "Fast", es: "Rapido" } },
+  { id: "tires-opponent", icon: "⏱️", label: { en: "Tires opponent", es: "Cansa al rival" } },
+  { id: "avoid-scramble", icon: "❌", label: { en: "Avoid scramble", es: "Evita scramble" } }
+];
 
 const ATHLETES = [
   {
@@ -530,6 +2313,14 @@ const ATHLETES = [
     level: "Advanced",
     position: "Neutral",
     strategy: "Offensive",
+    experienceYears: 8,
+    favoritePosition: "neutral",
+    offenseTop3: ["Single Leg", "High Crotch", "Snap Down"],
+    defenseTop3: ["Sprawl", "Whizzer", "Hand Fighting"],
+    psychTendency: "aggressive",
+    tags: ["aggressive", "fast", "tires-opponent"],
+    pressureError: "Reaching with the lead hand",
+    coachSignal: "If they stall -> fake, snap, and re-attack",
     techniques: {
       neutral: ["Single Leg", "High Crotch", "Snap Down"],
       top: ["Half Nelson", "Tilt"],
@@ -551,6 +2342,14 @@ const ATHLETES = [
     level: "Intermediate",
     position: "Bottom",
     strategy: "Balanced",
+    experienceYears: 4,
+    favoritePosition: "bottom",
+    offenseTop3: ["Double Leg", "Switch", "Snap Down"],
+    defenseTop3: ["Hand Fighting", "Sprawl", "Whizzer"],
+    psychTendency: "conservative",
+    tags: ["solid-defense", "avoid-scramble"],
+    pressureError: "Backing straight up on shots",
+    coachSignal: "If they shoot deep -> hip down and circle",
     techniques: {
       neutral: ["Double Leg", "Snap Down"],
       top: ["Breakdown"],
@@ -572,6 +2371,14 @@ const ATHLETES = [
     level: "Advanced",
     position: "Top",
     strategy: "Counter-based",
+    experienceYears: 7,
+    favoritePosition: "top",
+    offenseTop3: ["Snap Down", "Body Lock", "Arm Throw"],
+    defenseTop3: ["Whizzer", "Hand Fighting", "Sprawl"],
+    psychTendency: "counterattack",
+    tags: ["solid-defense", "avoid-scramble"],
+    pressureError: "Waiting too long on ties",
+    coachSignal: "If they pressure in -> lock and throw",
     techniques: {
       neutral: ["Snap Down"],
       top: ["Half Nelson", "Breakdown"],
@@ -593,6 +2400,14 @@ const ATHLETES = [
     level: "Advanced",
     position: "Neutral",
     strategy: "Balanced",
+    experienceYears: 9,
+    favoritePosition: "neutral",
+    offenseTop3: ["Double Leg", "Single Leg", "Snap Down"],
+    defenseTop3: ["Sprawl", "Whizzer", "Hand Fighting"],
+    psychTendency: "aggressive",
+    tags: ["aggressive", "fast"],
+    pressureError: "Shooting from too far out",
+    coachSignal: "If score is tied -> control center and score late",
     techniques: {
       neutral: ["Double Leg", "Single Leg"],
       top: ["Half Nelson"],
@@ -614,6 +2429,14 @@ const ATHLETES = [
     level: "Intermediate",
     position: "Neutral",
     strategy: "Balanced",
+    experienceYears: 5,
+    favoritePosition: "neutral",
+    offenseTop3: ["Single Leg", "Double Leg", "Ankle Pick"],
+    defenseTop3: ["Sprawl", "Hand Fighting", "Whizzer"],
+    psychTendency: "conservative",
+    tags: ["fast", "tires-opponent"],
+    pressureError: "Overcommitting on the first shot",
+    coachSignal: "If first shot fails -> immediately reshoot",
     techniques: {
       neutral: ["Single Leg", "Double Leg"],
       top: ["Breakdown"],
@@ -635,6 +2458,14 @@ const ATHLETES = [
     level: "Intermediate",
     position: "Top",
     strategy: "Offensive",
+    experienceYears: 6,
+    favoritePosition: "top",
+    offenseTop3: ["High Crotch", "Snap Down", "Tilt"],
+    defenseTop3: ["Whizzer", "Hand Fighting", "Sprawl"],
+    psychTendency: "aggressive",
+    tags: ["aggressive", "fast"],
+    pressureError: "Forcing turns without control",
+    coachSignal: "If you get to top -> secure wrist, then turn",
     techniques: {
       neutral: ["High Crotch", "Snap Down"],
       top: ["Half Nelson", "Tilt"],
@@ -656,6 +2487,14 @@ const ATHLETES = [
     level: "Advanced",
     position: "Top",
     strategy: "Counter-based",
+    experienceYears: 8,
+    favoritePosition: "top",
+    offenseTop3: ["Body Lock", "Snap Down", "Arm Throw"],
+    defenseTop3: ["Whizzer", "Sprawl", "Hand Fighting"],
+    psychTendency: "counterattack",
+    tags: ["solid-defense", "tires-opponent"],
+    pressureError: "Pausing after defending",
+    coachSignal: "If they reset slow -> go right away",
     techniques: {
       neutral: ["Snap Down"],
       top: ["Breakdown"],
@@ -672,12 +2511,26 @@ const JOURNAL_INSIGHTS = [
   "Sleep trend: down 0.6 hours"
 ];
 
+const JOURNAL_INSIGHTS_ES = [
+  "Promedio de disponibilidad: 3.7/5 esta semana",
+  "Tendencia de dolor: baja 8%",
+  "Tendencia de sueno: baja 0.6 horas"
+];
+
 const JOURNAL_FLAGS = [
   "2 athletes with soreness 4+",
   "Low sleep alert for 3 athletes",
   "Weight cut week flag for 125 lb class",
   "Overtraining risk: 1 athlete",
   "Readiness dip ahead of tournament"
+];
+
+const JOURNAL_FLAGS_ES = [
+  "2 atletas con dolor 4+",
+  "Alerta de poco sueno para 3 atletas",
+  "Semana de corte de peso para 125 lb",
+  "Riesgo de sobreentrenamiento: 1 atleta",
+  "Baja de disponibilidad antes del torneo"
 ];
 
 const JOURNAL_ATHLETES = [
@@ -739,6 +2592,65 @@ const JOURNAL_ATHLETES = [
   }
 ];
 
+const JOURNAL_ATHLETES_ES = [
+  {
+    name: "Jaime Espinal",
+    sleep: "7.2 hrs",
+    energy: "4/5",
+    soreness: "2/5",
+    mood: "3/5",
+    weight: "Estable"
+  },
+  {
+    name: "Maya Cruz",
+    sleep: "6.0 hrs",
+    energy: "3/5",
+    soreness: "4/5",
+    mood: "2/5",
+    weight: "Bajo 1.5 lb"
+  },
+  {
+    name: "Liam Park",
+    sleep: "7.8 hrs",
+    energy: "4/5",
+    soreness: "3/5",
+    mood: "4/5",
+    weight: "Estable"
+  },
+  {
+    name: "Olivia Chen",
+    sleep: "6.4 hrs",
+    energy: "3/5",
+    soreness: "3/5",
+    mood: "3/5",
+    weight: "Plan de corte"
+  },
+  {
+    name: "Carlos Vega",
+    sleep: "7.0 hrs",
+    energy: "4/5",
+    soreness: "2/5",
+    mood: "4/5",
+    weight: "Estable"
+  },
+  {
+    name: "Sophia Reyes",
+    sleep: "6.6 hrs",
+    energy: "3/5",
+    soreness: "3/5",
+    mood: "3/5",
+    weight: "En camino"
+  },
+  {
+    name: "Ethan Brooks",
+    sleep: "6.2 hrs",
+    energy: "3/5",
+    soreness: "4/5",
+    mood: "2/5",
+    weight: "Estable"
+  }
+];
+
 const SKILLS = [
   { name: "Single Leg", rating: "Strong", updated: "2 days ago", clip: "Finish to shelf", notes: "Keep head tight to hip." },
   { name: "Half Nelson", rating: "Developing", updated: "1 week ago", clip: "Top control series", notes: "Improve hand placement." },
@@ -746,6 +2658,15 @@ const SKILLS = [
   { name: "Sprawl", rating: "Needs work", updated: "5 days ago", clip: "Defense drill", notes: "Drop hips faster." },
   { name: "Hand Fight", rating: "Developing", updated: "Yesterday", clip: "Inside control", notes: "Win wrist control first." },
   { name: "Double Leg", rating: "Developing", updated: "4 days ago", clip: "Finish to corner", notes: "Cut the corner earlier." }
+];
+
+const SKILLS_ES = [
+  { name: "Pierna simple", rating: "Fuerte", updated: "Hace 2 dias", clip: "Final a la repisa", notes: "Mantener la cabeza pegada a la cadera." },
+  { name: "Medio nelson", rating: "En desarrollo", updated: "Hace 1 semana", clip: "Serie de control arriba", notes: "Mejorar la colocacion de manos." },
+  { name: "Pararse", rating: "Fuerte", updated: "Hace 3 dias", clip: "Parada explosiva", notes: "Explota al silbato." },
+  { name: "Sprawl", rating: "Necesita trabajo", updated: "Hace 5 dias", clip: "Drill de defensa", notes: "Bajar la cadera mas rapido." },
+  { name: "Pelea de manos", rating: "En desarrollo", updated: "Ayer", clip: "Control interno", notes: "Ganar el control de muneca primero." },
+  { name: "Doble pierna", rating: "En desarrollo", updated: "Hace 4 dias", clip: "Final a la esquina", notes: "Cortar la esquina antes." }
 ];
 
 const PERMISSIONS = {
@@ -764,6 +2685,22 @@ const PERMISSIONS = {
   ]
 };
 
+const PERMISSIONS_ES = {
+  can: [
+    "Crear y editar planes de entrenamiento",
+    "Ver perfiles y diarios de atletas",
+    "Asignar multimedia y evaluar tecnicas",
+    "Enviar avisos y actualizaciones",
+    "Editar notas del resumen de competencia"
+  ],
+  cannot: [
+    "Editar entradas del diario reportadas por el atleta",
+    "Editar credenciales de la cuenta del atleta",
+    "Acceder a otros equipos sin permiso",
+    "Editar datos base del perfil del atleta"
+  ]
+};
+
 const FUTURE_ADDONS = [
   "Web-only advanced dashboard",
   "Video annotation tools",
@@ -772,11 +2709,26 @@ const FUTURE_ADDONS = [
   "Multi-coach collaboration"
 ];
 
+const FUTURE_ADDONS_ES = [
+  "Panel avanzado solo web",
+  "Herramientas de anotacion de video",
+  "Reportes de scouting de combates",
+  "Metricas de comparacion entre equipos",
+  "Colaboracion multi entrenador"
+];
+
 const COACH_DESIGN = [
   "Desktop-first efficiency",
   "Fast navigation",
   "Data-rich but clean UI",
   "Minimal friction for daily work"
+];
+
+const COACH_DESIGN_ES = [
+  "Eficiencia primero en escritorio",
+  "Navegacion rapida",
+  "UI con muchos datos pero limpia",
+  "Minima friccion para el trabajo diario"
 ];
 
 const COACH_MESSAGES = [
@@ -800,6 +2752,417 @@ const COACH_MESSAGES = [
   }
 ];
 
+const COACH_MESSAGES_ES = [
+  {
+    athlete: "Jaime Espinal",
+    tag: "Info de torneo",
+    text: "Pesajes a las 7:00 AM. Trae singlet y ID.",
+    time: "Hoy"
+  },
+  {
+    athlete: "Maya Cruz",
+    tag: "Actualizacion de entrenamiento",
+    text: "Sesion de recuperacion despues de clases. 30 minutos bici + estirar.",
+    time: "Ayer"
+  },
+  {
+    athlete: "Liam Park",
+    tag: "Recordatorio",
+    text: "Mira el video de final de pierna simple antes de la practica.",
+    time: "Hoy"
+  }
+];
+
+const VALUE_TRANSLATIONS_ES = {
+  Freestyle: "Estilo libre",
+  "Greco-Roman": "Greco-Romana",
+  Folkstyle: "Folkstyle",
+  Mixed: "Mixto",
+  Available: "Disponible",
+  Limited: "Limitado",
+  Travel: "Viaje",
+  "Single leg, snap down": "Pierna simple, snap down",
+  "Ankle pick, switch": "Ankle pick, switch",
+  "Body lock, arm throw": "Body lock, arm throw",
+  "Double leg, half nelson": "Doble pierna, medio nelson",
+  "Single leg, ankle pick": "Pierna simple, ankle pick",
+  "High crotch, snap down": "High crotch, snap down",
+  "Pan-Am events": "Eventos Pan-Am",
+  None: "Ninguna",
+  "U23 camp": "Campamento U23",
+  "Junior Worlds": "Mundiales junior",
+  "Cadet camp": "Campamento cadete",
+  "Pan-Am trials": "Pruebas Pan-Am",
+  "Training history: 4 years": "Historial de entrenamiento: 4 anos",
+  "Training history: 2 years": "Historial de entrenamiento: 2 anos",
+  "Training history: 5 years": "Historial de entrenamiento: 5 anos",
+  "Training history: 6 years": "Historial de entrenamiento: 6 anos",
+  "Training history: 3 years": "Historial de entrenamiento: 3 anos",
+  "Focus: Single leg chain": "Enfoque: Cadena de pierna simple",
+  "Injury: ankle rehab": "Lesion: rehab de tobillo",
+  "Top control emphasis": "Enfoque: Control arriba",
+  "Tournament prep": "Preparacion para torneo",
+  "Focus: chain attacks": "Enfoque: Ataques en cadena",
+  "Improve top turns": "Mejorar giros arriba",
+  "Manage conditioning load": "Manejar carga de acondicionamiento",
+  Strong: "Fuerte",
+  Developing: "En desarrollo",
+  "Needs work": "Necesita trabajo",
+  Yesterday: "Ayer",
+  Today: "Hoy",
+  Tomorrow: "Manana",
+  Tonight: "Esta noche",
+  Stable: "Estable",
+  Aggressive: "Agresivo",
+  Conservative: "Conservador",
+  Counterattack: "Contraataque",
+  aggressive: "Agresivo",
+  conservative: "Conservador",
+  counterattack: "Contraataque"
+};
+
+function translateOptionValue(selectId, value) {
+  if (!value) return value;
+  const table = SELECT_COPY[selectId];
+  if (!table) return value;
+  const map = table[currentLang] || table.en;
+  return map?.[value] || value;
+}
+
+function translateValue(value) {
+  if (currentLang !== "es") return value;
+  return VALUE_TRANSLATIONS_ES[value] || value;
+}
+
+function translateTechnique(name) {
+  const copy = TECHNIQUE_LABELS[name];
+  if (!copy) return name;
+  return pickCopy(copy);
+}
+
+function translateTechniqueList(list) {
+  return (list || []).map((item) => translateTechnique(item));
+}
+
+function getWeekPlanData() {
+  return currentLang === "es" ? WEEK_PLAN_ES : WEEK_PLAN;
+}
+
+function toDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function isDateKey(key) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(key);
+}
+
+function startOfWeek(date) {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  d.setDate(d.getDate() - d.getDay());
+  return d;
+}
+
+function addDays(date, days) {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function normalizeName(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function uniqueNames(list) {
+  const seen = new Set();
+  const result = [];
+  (list || []).forEach((name) => {
+    const key = normalizeName(name);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    result.push(String(name).trim());
+  });
+  return result;
+}
+
+function defaultAudience() {
+  return { all: false, athletes: [] };
+}
+
+function normalizeAudience(audience) {
+  const base = defaultAudience();
+  if (!audience || typeof audience !== "object") return base;
+  return {
+    all: audience.all === true,
+    athletes: uniqueNames(audience.athletes)
+  };
+}
+
+function normalizeCalendarEntry(entry) {
+  if (Array.isArray(entry)) {
+    return {
+      items: entry.map((item) => String(item).trim()).filter(Boolean),
+      audience: { all: true, athletes: [] }
+    };
+  }
+
+  if (!entry || typeof entry !== "object") {
+    return { items: [], audience: defaultAudience() };
+  }
+
+  const items = Array.isArray(entry.items)
+    ? entry.items.map((item) => String(item).trim()).filter(Boolean)
+    : [];
+  const audience = normalizeAudience(entry.audience);
+  return { items, audience };
+}
+
+function mergeCalendarEntries(a, b) {
+  const left = normalizeCalendarEntry(a);
+  const right = normalizeCalendarEntry(b);
+  const items = [...left.items, ...right.items];
+  const audience = {
+    all: left.audience.all || right.audience.all,
+    athletes: uniqueNames([...(left.audience.athletes || []), ...(right.audience.athletes || [])])
+  };
+  return { items, audience };
+}
+
+function migrateLegacyCalendarEvents(events) {
+  if (!events || typeof events !== "object") return { events: {}, changed: false };
+  const next = {};
+  let changed = false;
+  const weekStart = startOfWeek(new Date());
+
+  Object.entries(events).forEach(([key, value]) => {
+    if (isDateKey(key)) {
+      const normalized = normalizeCalendarEntry(value);
+      if (normalized.items.length) {
+        next[key] = next[key] ? mergeCalendarEntries(next[key], normalized) : normalized;
+      } else {
+        changed = true;
+      }
+      return;
+    }
+
+    const dayIdx = Number.parseInt(key, 10);
+    if (Number.isFinite(dayIdx) && dayIdx >= 0 && dayIdx < 7) {
+      const dateKey = toDateKey(addDays(weekStart, dayIdx));
+      const normalized = normalizeCalendarEntry(value);
+      if (normalized.items.length) {
+        next[dateKey] = next[dateKey] ? mergeCalendarEntries(next[dateKey], normalized) : normalized;
+      }
+      changed = true;
+      return;
+    }
+
+    changed = true;
+  });
+
+  return { events: next, changed };
+}
+
+function getStoredCalendarEvents() {
+  try {
+    const raw = localStorage.getItem(CALENDAR_EVENTS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    const { events, changed } = migrateLegacyCalendarEvents(parsed);
+    if (changed) setStoredCalendarEvents(events);
+    return events;
+  } catch {
+    return {};
+  }
+}
+
+function setStoredCalendarEvents(events) {
+  localStorage.setItem(CALENDAR_EVENTS_KEY, JSON.stringify(events || {}));
+}
+
+function getCalendarEventsData() {
+  const stored = getStoredCalendarEvents();
+  if (Object.keys(stored).length) return stored;
+  return currentLang === "es" ? CALENDAR_EVENTS_ES : CALENDAR_EVENTS;
+}
+
+function getMediaItemsData() {
+  return currentLang === "es" ? MEDIA_ITEMS_ES : MEDIA_ITEMS;
+}
+
+function getAnnouncementsData() {
+  return currentLang === "es" ? ANNOUNCEMENTS_ES : ANNOUNCEMENTS;
+}
+
+function getTeamStatsData() {
+  return currentLang === "es" ? TEAM_STATS_ES : TEAM_STATS;
+}
+
+function getTeamOverviewData() {
+  return currentLang === "es" ? TEAM_OVERVIEW_ES : TEAM_OVERVIEW;
+}
+
+function getQuickActionsData() {
+  return currentLang === "es" ? QUICK_ACTIONS_ES : QUICK_ACTIONS;
+}
+
+function getAlertsData() {
+  return currentLang === "es" ? ALERTS_ES : ALERTS;
+}
+
+function getCoachAccountData() {
+  return currentLang === "es" ? COACH_ACCOUNT_ES : COACH_ACCOUNT;
+}
+
+function getCoachProfileData() {
+  return currentLang === "es" ? COACH_PROFILE_ES : COACH_PROFILE;
+}
+
+function getCoachDisciplineData() {
+  return currentLang === "es" ? COACH_DISCIPLINE_ES : COACH_DISCIPLINE;
+}
+
+function getCoachStyleData() {
+  return currentLang === "es" ? COACH_STYLE_ES : COACH_STYLE;
+}
+
+function getCoachInternationalData() {
+  return currentLang === "es" ? COACH_INTERNATIONAL_ES : COACH_INTERNATIONAL;
+}
+
+function getAthleteFiltersData() {
+  return currentLang === "es" ? ATHLETE_FILTERS_ES : ATHLETE_FILTERS;
+}
+
+function getSmartTagDef(tagId) {
+  return SMART_TAGS.find((tag) => tag.id === tagId) || null;
+}
+
+function smartTagLabel(tagId) {
+  const def = getSmartTagDef(tagId);
+  if (!def) return tagId;
+  return pickCopy(def.label);
+}
+
+function formatSmartTag(tagId) {
+  const def = getSmartTagDef(tagId);
+  if (!def) return tagId;
+  return `${def.icon} ${pickCopy(def.label)}`;
+}
+
+function normalizeSmartTags(tags) {
+  if (!Array.isArray(tags)) return [];
+  const allowed = new Set(SMART_TAGS.map((tag) => tag.id));
+  return tags.filter((tag) => allowed.has(tag));
+}
+
+function localizeAthlete(athlete) {
+  if (currentLang !== "es") return athlete;
+  return {
+    ...athlete,
+    style: translateValue(athlete.style),
+    availability: translateValue(athlete.availability),
+    preferred: translateValue(athlete.preferred),
+    international: translateValue(athlete.international),
+    history: translateValue(athlete.history),
+    level: getLevelLabel(athlete.level),
+    position: translateOptionValue("pPosition", athlete.position),
+    strategy: translateOptionValue("pStrategy", athlete.strategy),
+    notes: translateValue(athlete.notes),
+    tags: normalizeSmartTags(athlete.tags)
+  };
+}
+
+function getAthletesData() {
+  const profile = getProfile();
+  const merged = ATHLETES.map((athlete) => {
+    if (!profile || profile.role !== "athlete" || !profile.name || profile.name !== athlete.name) {
+      return { ...athlete, tags: normalizeSmartTags(athlete.tags) };
+    }
+    const profileTags = normalizeSmartTags(profile.tags);
+    return {
+      ...athlete,
+      ...profile,
+      tags: profileTags.length ? profileTags : normalizeSmartTags(athlete.tags),
+      favoritePosition: profile.favoritePosition || athlete.favoritePosition,
+      psychTendency: profile.psychTendency || athlete.psychTendency,
+      offenseTop3: Array.isArray(profile.offenseTop3) && profile.offenseTop3.length
+        ? profile.offenseTop3
+        : athlete.offenseTop3,
+      defenseTop3: Array.isArray(profile.defenseTop3) && profile.defenseTop3.length
+        ? profile.defenseTop3
+        : athlete.defenseTop3
+    };
+  });
+  const profileName = profile?.role === "athlete" ? profile.name : "";
+  const hasProfileMatch = profileName && merged.some((athlete) => athlete.name === profileName);
+  if (profileName && !hasProfileMatch) {
+    const profileTags = normalizeSmartTags(profile.tags);
+    const styleEnglish = SELECT_COPY.aStyle?.en?.[profile.style] || profile.style || "";
+    const preferred = profile.trainingFocus || profile.offenseTop3?.[0] || "";
+    const years = profile.years ? String(profile.years) : "";
+    merged.push({
+      ...profile,
+      name: profileName,
+      weight: profile.currentWeight || "",
+      style: styleEnglish,
+      availability: "Available",
+      preferred,
+      international: profile.internationalEvents || (profile.international === "yes" ? "International" : "None"),
+      history: years ? `Training history: ${years} years` : "",
+      notes: profile.resultsHistory || "",
+      experienceYears: years || profile.experienceYears || "",
+      favoritePosition: profile.favoritePosition || profile.position || "neutral",
+      psychTendency: profile.psychTendency || strategyToTendency(profile.strategy),
+      offenseTop3: Array.isArray(profile.offenseTop3) ? profile.offenseTop3 : [],
+      defenseTop3: Array.isArray(profile.defenseTop3) ? profile.defenseTop3 : [],
+      tags: profileTags
+    });
+  }
+  return currentLang === "es" ? merged.map((athlete) => localizeAthlete(athlete)) : merged;
+}
+
+function getJournalInsightsData() {
+  return currentLang === "es" ? JOURNAL_INSIGHTS_ES : JOURNAL_INSIGHTS;
+}
+
+function getJournalFlagsData() {
+  return currentLang === "es" ? JOURNAL_FLAGS_ES : JOURNAL_FLAGS;
+}
+
+function getJournalAthletesData() {
+  return currentLang === "es" ? JOURNAL_ATHLETES_ES : JOURNAL_ATHLETES;
+}
+
+function getSkillsData() {
+  return currentLang === "es" ? SKILLS_ES : SKILLS;
+}
+
+function getPermissionsData() {
+  return currentLang === "es" ? PERMISSIONS_ES : PERMISSIONS;
+}
+
+function getFutureAddonsData() {
+  return currentLang === "es" ? FUTURE_ADDONS_ES : FUTURE_ADDONS;
+}
+
+function getCoachDesignData() {
+  return currentLang === "es" ? COACH_DESIGN_ES : COACH_DESIGN;
+}
+
+function getCoachMessagesData() {
+  return currentLang === "es" ? COACH_MESSAGES_ES : COACH_MESSAGES;
+}
+
+function getMonthNames() {
+  return MONTH_NAMES_BY_LANG[currentLang] || MONTH_NAMES_BY_LANG.en;
+}
+
+function getDayAbbr() {
+  return DAY_ABBR_BY_LANG[currentLang] || DAY_ABBR_BY_LANG.en;
+}
+
 // ---------- TABS ----------
 const tabBtns = Array.from(document.querySelectorAll(".tab"));
 const panels = {
@@ -815,6 +3178,7 @@ const panels = {
   "coach-profile": document.getElementById("panel-coach-profile"),
   athletes: document.getElementById("panel-athletes"),
   "one-pager": document.getElementById("panel-one-pager"),
+  "coach-match": document.getElementById("panel-coach-match"),
   plans: document.getElementById("panel-plans"),
   "calendar-manager": document.getElementById("panel-calendar-manager"),
   "media-library": document.getElementById("panel-media-library"),
@@ -838,26 +3202,55 @@ async function showTab(name) {
   if (name === "plans" && templatePdfBytes && window.PDFLib) {
     await generateFilledPdf({ download: false });
   }
+
+  if (name === "coach-match" && coachMatchSelect?.value) {
+    renderCoachMatchView(coachMatchSelect.value);
+  }
+
+  if (name === "calendar-manager") {
+    renderCalendarManager();
+  }
 }
 
-function setRoleUI(role) {
+function setRoleUI(role, view = "athlete") {
   const roleName = role === "coach" ? "coach" : "athlete";
   tabBtns.forEach((btn) => {
-    const allowedRoles = (btn.dataset.role || "").split(" ");
-    const allowed = allowedRoles.includes(roleName);
-    btn.hidden = !allowed;
-    if (!allowed) btn.classList.remove("active");
+    const viewAttr = btn.dataset.views;
+    let visible = true;
+    if (viewAttr) {
+      const allowedViews = viewAttr.split(/[\s,]+/).map((item) => item.trim()).filter(Boolean);
+      visible = allowedViews.includes(view);
+    } else if (btn.dataset.role) {
+      const allowedRoles = (btn.dataset.role || "").split(" ");
+      visible = allowedRoles.includes(roleName);
+    }
+    btn.hidden = !visible;
+    if (!visible) btn.classList.remove("active");
   });
 
-  roleMeta.textContent = roleName === "coach"
-    ? "Coach Dashboard - Team overview"
-    : roleMeta.textContent;
+  if (view === "admin" || view === "parent" || roleName === "coach") {
+    const key = view === "admin" ? "admin" : view === "parent" ? "parent" : "coach";
+    const text =
+      currentLang === "es" ? VIEW_META_TEXT[key].es : VIEW_META_TEXT[key].en;
+    roleMeta.textContent = text;
+  } else {
+    roleMeta.textContent = currentLang === "es"
+      ? VIEW_META_TEXT.athlete.es
+      : VIEW_META_TEXT.athlete.en;
+  }
 
-  const defaultTab = roleName === "coach" ? "dashboard" : "today";
+  const defaultTab = view === "admin"
+    ? "reports"
+    : view === "parent"
+      ? "athlete-notes"
+      : roleName === "coach"
+        ? "dashboard"
+        : "today";
   showTab(defaultTab);
 }
 
 tabBtns.forEach(btn => btn.addEventListener("click", () => showTab(btn.dataset.tab)));
+setView(currentView);
 
 // ---------- PLAN SUBTABS ----------
 const subtabButtons = Array.from(document.querySelectorAll(".subtab"));
@@ -875,9 +3268,6 @@ subtabButtons.forEach((btn) => {
 if (subtabButtons.length) {
   showSubtab(subtabButtons[0].dataset.subtab);
 }
-
-// initial boot after tabs are ready
-bootProfile();
 
 // ---------- DAILY PLAN SELECTIONS ----------
 const selectionBlocks = Array.from(document.querySelectorAll(".selection-block"));
@@ -926,16 +3316,16 @@ function populateYearSelects() {
 
 function populateMonthSelect() {
     if (!monthlyMonthSelect) return;
-    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const months = getMonthNames();
     monthlyMonthSelect.innerHTML = months.map((m, i) => `<option value="${i}">${m}</option>`).join('');
     monthlyMonthSelect.value = new Date().getMonth();
 }
 
-function renderCalendar(year, month) {
+function renderPlanCalendar(year, month) {
     if (!dailyCalendarContainer) return;
 
-    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const monthNames = getMonthNames();
+    const daysOfWeek = getDayAbbr();
 
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
@@ -968,11 +3358,11 @@ function renderCalendar(year, month) {
 
     document.getElementById('prev-month').addEventListener('click', () => {
         const newDate = new Date(year, month - 1, 1);
-        renderCalendar(newDate.getFullYear(), newDate.getMonth());
+        renderPlanCalendar(newDate.getFullYear(), newDate.getMonth());
     });
     document.getElementById('next-month').addEventListener('click', () => {
         const newDate = new Date(year, month + 1, 1);
-        renderCalendar(newDate.getFullYear(), newDate.getMonth());
+        renderPlanCalendar(newDate.getFullYear(), newDate.getMonth());
     });
     dailyCalendarContainer.querySelectorAll('.calendar-day').forEach(dayEl => {
         dayEl.addEventListener('click', () => {
@@ -987,7 +3377,7 @@ function initializePlanSelectors() {
     populateMonthSelect();
     populateYearSelects();
     const today = new Date();
-    renderCalendar(today.getFullYear(), today.getMonth());
+    renderPlanCalendar(today.getFullYear(), today.getMonth());
 }
 
 function addChosenItem(listEl, value) {
@@ -1043,8 +3433,6 @@ function loadCustomOptions() {
     });
   });
 }
-
-loadCustomOptions();
 
 selectionBlocks.forEach((block) => {
   const options = block.querySelector(".option-list");
@@ -1156,22 +3544,42 @@ async function loadSavedPdfTemplate() {
   if (savedTemplate) {
     try {
       templatePdfBytes = await dataURLToArrayBuffer(savedTemplate);
-      if (templateStatus) templateStatus.textContent = "Saved PDF template loaded.";
+      if (templateStatus) {
+        templateStatus.textContent = pickCopy({
+          en: "Saved PDF template loaded.",
+          es: "Plantilla PDF guardada cargada."
+        });
+      }
       updateTemplatePrintButton();
     } catch (e) {
       console.error("Failed to load saved PDF template:", e);
-      if (templateStatus) templateStatus.textContent = "Could not load saved template.";
+      if (templateStatus) {
+        templateStatus.textContent = pickCopy({
+          en: "Could not load saved template.",
+          es: "No se pudo cargar la plantilla guardada."
+        });
+      }
     }
   }
 }
 
 function handleTemplateFile(file) {
   if (!file) {
-    if (templateStatus) templateStatus.textContent = "Select a PDF file first.";
+    if (templateStatus) {
+      templateStatus.textContent = pickCopy({
+        en: "Select a PDF file first.",
+        es: "Selecciona un PDF primero."
+      });
+    }
     return;
   }
   if (file.type !== "application/pdf") {
-    if (templateStatus) templateStatus.textContent = "Only PDF files are allowed.";
+    if (templateStatus) {
+      templateStatus.textContent = pickCopy({
+        en: "Only PDF files are allowed.",
+        es: "Solo se permiten archivos PDF."
+      });
+    }
     return;
   }
   const reader = new FileReader();
@@ -1180,7 +3588,12 @@ function handleTemplateFile(file) {
     savePdfTemplate(dataUrl); // Save to localStorage
     templatePdfBytes = await dataURLToArrayBuffer(dataUrl);
 
-    if (templateStatus) templateStatus.textContent = "PDF template loaded and saved.";
+    if (templateStatus) {
+      templateStatus.textContent = pickCopy({
+        en: "PDF template loaded and saved.",
+        es: "Plantilla PDF cargada y guardada."
+      });
+    }
     if (pendingTemplatePrint) {
       pendingTemplatePrint = false;
       await generateFilledPdf({ download: false });
@@ -1190,18 +3603,33 @@ function handleTemplateFile(file) {
     }
   };
   reader.onerror = () => {
-    if (templateStatus) templateStatus.textContent = "Could not read file.";
+    if (templateStatus) {
+      templateStatus.textContent = pickCopy({
+        en: "Could not read file.",
+        es: "No se pudo leer el archivo."
+      });
+    }
   };
   reader.readAsDataURL(file);
 }
 
 async function generateFilledPdf({ download } = {}) {
   if (!templatePdfBytes) {
-    if (templateStatus) templateStatus.textContent = "Upload a PDF template first.";
+    if (templateStatus) {
+      templateStatus.textContent = pickCopy({
+        en: "Upload a PDF template first.",
+        es: "Sube una plantilla PDF primero."
+      });
+    }
     return null;
   }
   if (!window.PDFLib) {
-    if (templateStatus) templateStatus.textContent = "PDF library not available.";
+    if (templateStatus) {
+      templateStatus.textContent = pickCopy({
+        en: "PDF library not available.",
+        es: "La libreria PDF no esta disponible."
+      });
+    }
     return null;
   }
   const data = getDailyPlanData();
@@ -1242,20 +3670,29 @@ async function generateFilledPdf({ download } = {}) {
 }
 
 function formatDailyPlanText(data) {
-  const titleMap = {
-    intro: "Introduction",
-    warmup: "Warm-up",
-    drills: "Drills + Technique Intro",
-    live: "Live / Hard Pace + Conditioning",
-    cooldown: "Visualization + Cool Down",
-    announcements: "Announcements"
-  };
-  const lines = ["Daily Training Plan"];
+  const titleMap = currentLang === "es"
+    ? {
+        intro: "Introduccion",
+        warmup: "Calentamiento",
+        drills: "Repeticiones + introduccion tecnica",
+        live: "En vivo / ritmo alto + acondicionamiento",
+        cooldown: "Visualizacion + vuelta a la calma",
+        announcements: "Avisos"
+      }
+    : {
+        intro: "Introduction",
+        warmup: "Warm-up",
+        drills: "Drills + Technique Intro",
+        live: "Live / Hard Pace + Conditioning",
+        cooldown: "Visualization + Cool Down",
+        announcements: "Announcements"
+      };
+  const lines = [currentLang === "es" ? "Plan diario de entrenamiento" : "Daily Training Plan"];
   Object.keys(titleMap).forEach((key) => {
     const items = data[key] || [];
     lines.push(`\n${titleMap[key]}:`);
     if (!items.length) {
-      lines.push("- (none selected)");
+      lines.push(currentLang === "es" ? "- (nada seleccionado)" : "- (none selected)");
     } else {
       items.forEach((item) => lines.push(`- ${item}`));
     }
@@ -1267,7 +3704,7 @@ if (saveDailyPlan) {
   saveDailyPlan.addEventListener("click", () => {
     const data = collectDailySelections();
     localStorage.setItem("wpl_daily_plan", JSON.stringify(data));
-    toast("Daily plan saved.");
+    toast(pickCopy({ en: "Daily plan saved.", es: "Plan diario guardado." }));
   });
 }
 
@@ -1277,9 +3714,14 @@ if (doneDailyPlan) {
     localStorage.setItem("wpl_daily_plan", JSON.stringify(data));
     if (templatePdfBytes && window.PDFLib) {
       await generateFilledPdf({ download: false });
-      toast("Daily plan saved. Template ready.");
+      toast(
+        pickCopy({
+          en: "Daily plan saved. Template ready.",
+          es: "Plan diario guardado. Plantilla lista."
+        })
+      );
     } else {
-      toast("Daily plan saved.");
+      toast(pickCopy({ en: "Daily plan saved.", es: "Plan diario guardado." }));
     }
     const role = (getProfile() || {}).role || "athlete";
     showTab(role === "coach" ? "dashboard" : "today");
@@ -1292,8 +3734,11 @@ if (shareDailyPlan) {
     const text = formatDailyPlanText(data);
     if (navigator.share) {
       try {
-        await navigator.share({ title: "Daily Training Plan", text });
-        toast("Shared.");
+        await navigator.share({
+          title: currentLang === "es" ? "Plan diario de entrenamiento" : "Daily Training Plan",
+          text
+        });
+        toast(pickCopy({ en: "Shared.", es: "Compartido." }));
         return;
       } catch {
         // fall through
@@ -1301,9 +3746,14 @@ if (shareDailyPlan) {
     }
     if (navigator.clipboard) {
       await navigator.clipboard.writeText(text);
-      toast("Copied to clipboard.");
+      toast(pickCopy({ en: "Copied to clipboard.", es: "Copiado al portapapeles." }));
     } else {
-      toast("Copy not supported on this device.");
+      toast(
+        pickCopy({
+          en: "Copy not supported on this device.",
+          es: "Copiar no es compatible en este dispositivo."
+        })
+      );
     }
   });
 }
@@ -1383,13 +3833,21 @@ if (templateDropzone) {
     const file = e.dataTransfer.files && e.dataTransfer.files[0];
     if (!file) return;
     if (file.type !== "application/pdf") {
-      if (templateStatus) templateStatus.textContent = "Only PDF files are allowed.";
+      if (templateStatus) {
+        templateStatus.textContent = pickCopy({
+          en: "Only PDF files are allowed.",
+          es: "Solo se permiten archivos PDF."
+        });
+      }
       return;
     }
     const dt = new DataTransfer();
     dt.items.add(file);
     if (templateFile) templateFile.files = dt.files;
-    if (templateStatus) templateStatus.textContent = `Selected: ${file.name}`;
+    if (templateStatus) {
+      const selectedLabel = currentLang === "es" ? "Seleccionado" : "Selected";
+      templateStatus.textContent = `${selectedLabel}: ${file.name}`;
+    }
     handleTemplateFile(file);
   });
 }
@@ -1403,7 +3861,7 @@ if (templateFile) {
 
 async function printFilledPdf() {
   if (!lastFilledPdfUrl) {
-    toast("No filled PDF to print.");
+    toast(pickCopy({ en: "No filled PDF to print.", es: "No hay PDF lleno para imprimir." }));
     return;
   }
 
@@ -1425,7 +3883,12 @@ async function printFilledPdf() {
       iframe.contentWindow.print();
     } catch (e) {
       console.error("Print failed:", e);
-      toast("Could not open print dialog. Please try printing from the preview.");
+      toast(
+        pickCopy({
+          en: "Could not open print dialog. Please try printing from the preview.",
+          es: "No se pudo abrir el dialogo de impresion. Intenta imprimir desde la vista previa."
+        })
+      );
     }
   };
 
@@ -1435,7 +3898,12 @@ async function printFilledPdf() {
 if (printTemplatePlan) {
   printTemplatePlan.addEventListener("click", async () => {
     if (!templatePdfBytes) {
-      if (templateStatus) templateStatus.textContent = "Upload a PDF template first.";
+      if (templateStatus) {
+        templateStatus.textContent = pickCopy({
+          en: "Upload a PDF template first.",
+          es: "Sube una plantilla PDF primero."
+        });
+      }
       setTemplateControlsEnabled(true);
       if (templateConfirm) templateConfirm.classList.add("hidden");
       pendingTemplatePrint = true;
@@ -1453,6 +3921,13 @@ const athleteProfileForm = document.getElementById("athleteProfileForm");
 const previewProfileBtn = document.getElementById("previewProfileBtn");
 const backToProfileBtn = document.getElementById("backToProfileBtn");
 const competitionPreview = document.getElementById("competitionPreview");
+const openCoachMatchBtn = document.getElementById("openCoachMatchBtn");
+const openCompetitionPreviewBtn = document.getElementById("openCompetitionPreviewBtn");
+const coachQuickPreview = document.getElementById("coachQuickPreview");
+
+const profileSubtabButtons = Array.from(document.querySelectorAll(".profile-subtab"));
+const profileSubpanels = Array.from(document.querySelectorAll(".profile-subpanel"));
+let currentProfileSubtab = "training";
 
 const aName = document.getElementById("aName");
 const aPhoto = document.getElementById("aPhoto");
@@ -1461,6 +3936,9 @@ const aCity = document.getElementById("aCity");
 const aSchoolClub = document.getElementById("aSchoolClub");
 const aSchool = document.getElementById("aSchool");
 const aClub = document.getElementById("aClub");
+const aTrainingRoutines = document.getElementById("aTrainingRoutines");
+const aTrainingVolume = document.getElementById("aTrainingVolume");
+const aTrainingFocus = document.getElementById("aTrainingFocus");
 const aStyle = document.getElementById("aStyle");
 const aWeight = document.getElementById("aWeight");
 const aWeightClass = document.getElementById("aWeightClass");
@@ -1468,16 +3946,45 @@ const aYears = document.getElementById("aYears");
 const aLevel = document.getElementById("aLevel");
 const aPosition = document.getElementById("aPosition");
 const aStrategy = document.getElementById("aStrategy");
+const aStrategyA = document.getElementById("aStrategyA");
+const aStrategyB = document.getElementById("aStrategyB");
+const aStrategyC = document.getElementById("aStrategyC");
+const aSafeMoves = document.getElementById("aSafeMoves");
+const aRiskyMoves = document.getElementById("aRiskyMoves");
+const aResultsHistory = document.getElementById("aResultsHistory");
+const aTags = document.getElementById("aTags");
+const aFavoritePosition = document.getElementById("aFavoritePosition");
+const aPsychTendency = document.getElementById("aPsychTendency");
+const aPressureError = document.getElementById("aPressureError");
+const aCoachSignal = document.getElementById("aCoachSignal");
+const aOffense1 = document.getElementById("aOffense1");
+const aOffense2 = document.getElementById("aOffense2");
+const aOffense3 = document.getElementById("aOffense3");
+const aDefense1 = document.getElementById("aDefense1");
+const aDefense2 = document.getElementById("aDefense2");
+const aDefense3 = document.getElementById("aDefense3");
 const aNeutralOther = document.getElementById("aNeutralOther");
 const aTopOther = document.getElementById("aTopOther");
 const aBottomOther = document.getElementById("aBottomOther");
 const aDefenseOther = document.getElementById("aDefenseOther");
+const aLeadLeg = document.getElementById("aLeadLeg");
+const aLeftAttack = document.getElementById("aLeftAttack");
+const aRightAttack = document.getElementById("aRightAttack");
+const aPreferredTies = document.getElementById("aPreferredTies");
+const aMiscNotes = document.getElementById("aMiscNotes");
 const aInternational = document.getElementById("aInternational");
 const aInternationalEvents = document.getElementById("aInternationalEvents");
 const aInternationalYears = document.getElementById("aInternationalYears");
 const aCoachCues = document.getElementById("aCoachCues");
 const aCueNotes = document.getElementById("aCueNotes");
 const aInjuryNotes = document.getElementById("aInjuryNotes");
+const aArchetype = document.getElementById("aArchetype");
+const aBodyType = document.getElementById("aBodyType");
+const aCueWord1 = document.getElementById("aCueWord1");
+const aCueWord2 = document.getElementById("aCueWord2");
+const aCueWord3 = document.getElementById("aCueWord3");
+
+let profileTagState = new Set();
 
 function collectTechniques(selector) {
   return Array.from(document.querySelectorAll(selector))
@@ -1491,6 +3998,167 @@ function fillTechniques(selector, values = []) {
   });
 }
 
+function normalizeTopThree(list = []) {
+  return list.filter(Boolean).map((item) => String(item).trim()).filter(Boolean).slice(0, 3);
+}
+
+function topThreeFromInputs(inputs = []) {
+  return normalizeTopThree(inputs.map((input) => input?.value || ""));
+}
+
+function showProfileSubtab(name) {
+  if (!profileSubtabButtons.length || !profileSubpanels.length) return;
+  const next = name || currentProfileSubtab || "training";
+  currentProfileSubtab = next;
+  profileSubtabButtons.forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.profileTab === next);
+  });
+  profileSubpanels.forEach((panel) => {
+    const isActive = panel.dataset.profilePanel === next;
+    panel.classList.toggle("hidden", !isActive);
+  });
+}
+
+function renderProfileTagPicker(tags = profileTagState) {
+  if (!aTags) return;
+  const selected = new Set(normalizeSmartTags(Array.from(tags)));
+  aTags.innerHTML = "";
+  SMART_TAGS.forEach((tag) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "tag-chip";
+    btn.dataset.tagId = tag.id;
+    btn.textContent = `${tag.icon} ${pickCopy(tag.label)}`;
+    btn.classList.toggle("active", selected.has(tag.id));
+    btn.addEventListener("click", () => {
+      if (selected.has(tag.id)) selected.delete(tag.id);
+      else selected.add(tag.id);
+      profileTagState = selected;
+      renderProfileTagPicker(selected);
+      renderCoachQuickPreview(readAthleteProfileForm(getProfile() || {}));
+    });
+    aTags.appendChild(btn);
+  });
+  profileTagState = selected;
+}
+
+function setProfileTags(tags) {
+  profileTagState = new Set(normalizeSmartTags(tags));
+  renderProfileTagPicker(profileTagState);
+}
+
+function getProfileTags() {
+  return normalizeSmartTags(Array.from(profileTagState));
+}
+
+function tendencyFallback(strategy) {
+  return strategyToTendency(strategy);
+}
+
+function readAthleteProfileForm(existing = {}) {
+  const neutralTech = collectTechniques(".a-tech-neutral");
+  const defenseTech = collectTechniques(".a-tech-defense");
+  const offenseTop3 = topThreeFromInputs([aOffense1, aOffense2, aOffense3]);
+  const defenseTop3 = topThreeFromInputs([aDefense1, aDefense2, aDefense3]);
+  const tendency = aPsychTendency?.value || tendencyFallback(aStrategy?.value);
+  return {
+    ...existing,
+    name: aName?.value.trim() || "",
+    photo: aPhoto?.value.trim() || "",
+    country: aCountry?.value.trim() || "",
+    city: aCity?.value.trim() || "",
+    schoolClub: aSchoolClub?.value || "no",
+    schoolName: aSchool?.value.trim() || "",
+    clubName: aClub?.value.trim() || "",
+    trainingRoutines: aTrainingRoutines?.value.trim() || "",
+    trainingVolume: aTrainingVolume?.value.trim() || "",
+    trainingFocus: aTrainingFocus?.value.trim() || "",
+    style: aStyle?.value || "freestyle",
+    currentWeight: aWeight?.value.trim() || "",
+    weightClass: aWeightClass?.value.trim() || "",
+    years: aYears?.value.trim() || "",
+    level: aLevel?.value || "intermediate",
+    position: aPosition?.value || "neutral",
+    strategy: aStrategy?.value || "balanced",
+    strategyA: aStrategyA?.value.trim() || "",
+    strategyB: aStrategyB?.value.trim() || "",
+    strategyC: aStrategyC?.value.trim() || "",
+    safeMoves: aSafeMoves?.value.trim() || "",
+    riskyMoves: aRiskyMoves?.value.trim() || "",
+    resultsHistory: aResultsHistory?.value.trim() || "",
+    tags: getProfileTags(),
+    favoritePosition: aFavoritePosition?.value || aPosition?.value || "neutral",
+    psychTendency: tendency || tendencyFallback(aStrategy?.value),
+    pressureError: aPressureError?.value.trim() || "",
+    coachSignal: aCoachSignal?.value.trim() || "",
+    offenseTop3: offenseTop3.length ? offenseTop3 : neutralTech.slice(0, 3),
+    defenseTop3: defenseTop3.length ? defenseTop3 : defenseTech.slice(0, 3),
+    techniques: {
+      neutral: neutralTech,
+      top: collectTechniques(".a-tech-top"),
+      bottom: collectTechniques(".a-tech-bottom"),
+      defense: defenseTech,
+      neutralOther: aNeutralOther?.value.trim() || "",
+      topOther: aTopOther?.value.trim() || "",
+      bottomOther: aBottomOther?.value.trim() || "",
+      defenseOther: aDefenseOther?.value.trim() || ""
+    },
+    international: aInternational?.value || "no",
+    internationalEvents: aInternationalEvents?.value.trim() || "",
+    internationalYears: aInternationalYears?.value.trim() || "",
+    coachCues: aCoachCues?.value || "specific",
+    cueNotes: aCueNotes?.value.trim() || "",
+    injuryNotes: aInjuryNotes?.value.trim() || "",
+    archetype: aArchetype?.value || "",
+    bodyType: aBodyType?.value || ""
+  };
+}
+
+function renderCoachQuickPreview(profile) {
+  if (!coachQuickPreview) return;
+  if (!profile) {
+    coachQuickPreview.innerHTML = "";
+    return;
+  }
+  const na = currentLang === "es" ? "N/D" : "N/A";
+  const favoritePosition = translateOptionValue("aFavoritePosition", profile.favoritePosition || profile.position) || na;
+  const tendencyKey = profile.psychTendency || tendencyFallback(profile.strategy);
+  const tendency = translateOptionValue("aPsychTendency", tendencyKey) || translateValue(tendencyKey) || na;
+  const offense = translateTechniqueList(profile.offenseTop3 || []).join(", ") || na;
+  const defense = translateTechniqueList(profile.defenseTop3 || []).join(", ") || na;
+  const signal = profile.coachSignal || na;
+  const pressureError = profile.pressureError || na;
+  const tags = normalizeSmartTags(profile.tags).map((tag) => formatSmartTag(tag)).join(" • ") || na;
+  const labels = currentLang === "es"
+    ? {
+        position: "Posicion",
+        tendency: "Tendencia",
+        error: "Error bajo presion",
+        signal: "Senal clave",
+        offense: "Top ofensivo",
+        defense: "Top defensivo",
+        tags: "Tags"
+      }
+    : {
+        position: "Position",
+        tendency: "Tendency",
+        error: "Common error",
+        signal: "Coach signal",
+        offense: "Top offense",
+        defense: "Top defense",
+        tags: "Tags"
+      };
+  coachQuickPreview.innerHTML = `
+    <div class="coach-quick-line"><strong>${labels.position}:</strong> ${favoritePosition}</div>
+    <div class="coach-quick-line"><strong>${labels.tendency}:</strong> ${tendency}</div>
+    <div class="coach-quick-line"><strong>${labels.error}:</strong> ${pressureError}</div>
+    <div class="coach-quick-line"><strong>${labels.signal}:</strong> ${signal}</div>
+    <div class="coach-quick-line"><strong>${labels.offense}:</strong> ${offense}</div>
+    <div class="coach-quick-line"><strong>${labels.defense}:</strong> ${defense}</div>
+    <div class="coach-quick-line tags"><strong>${labels.tags}:</strong> ${tags}</div>
+  `;
+}
+
 function fillAthleteProfileForm(profile) {
   if (!athleteProfileForm || !profile) return;
   aName.value = profile.name || "";
@@ -1500,13 +4168,36 @@ function fillAthleteProfileForm(profile) {
   aSchoolClub.value = profile.schoolClub || "no";
   aSchool.value = profile.schoolName || "";
   aClub.value = profile.clubName || "";
+  if (aTrainingRoutines) aTrainingRoutines.value = profile.trainingRoutines || "";
+  if (aTrainingVolume) aTrainingVolume.value = profile.trainingVolume || "";
+  if (aTrainingFocus) aTrainingFocus.value = profile.trainingFocus || "";
   aStyle.value = profile.style || "freestyle";
   aWeight.value = profile.currentWeight || "";
   aWeightClass.value = profile.weightClass || "";
-  aYears.value = profile.years || "";
+  aYears.value = profile.years || profile.experienceYears || "";
   aLevel.value = profile.level || "intermediate";
   aPosition.value = profile.position || "neutral";
   aStrategy.value = profile.strategy || "balanced";
+  if (aStrategyA) aStrategyA.value = profile.strategyA || "";
+  if (aStrategyB) aStrategyB.value = profile.strategyB || "";
+  if (aStrategyC) aStrategyC.value = profile.strategyC || "";
+  if (aSafeMoves) aSafeMoves.value = profile.safeMoves || "";
+  if (aRiskyMoves) aRiskyMoves.value = profile.riskyMoves || "";
+  if (aResultsHistory) aResultsHistory.value = profile.resultsHistory || "";
+  if (aFavoritePosition) aFavoritePosition.value = profile.favoritePosition || profile.position || "neutral";
+  if (aArchetype) aArchetype.value = profile.archetype || "";
+  if (aBodyType) aBodyType.value = profile.bodyType || "";
+  if (aPsychTendency) aPsychTendency.value = profile.psychTendency || tendencyFallback(profile.strategy) || "conservative";
+  if (aPressureError) aPressureError.value = profile.pressureError || "";
+  if (aCoachSignal) aCoachSignal.value = profile.coachSignal || "";
+  const offense = normalizeTopThree(profile.offenseTop3 || profile.techniques?.neutral || []);
+  const defense = normalizeTopThree(profile.defenseTop3 || profile.techniques?.defense || []);
+  if (aOffense1) aOffense1.value = offense[0] || "";
+  if (aOffense2) aOffense2.value = offense[1] || "";
+  if (aOffense3) aOffense3.value = offense[2] || "";
+  if (aDefense1) aDefense1.value = defense[0] || "";
+  if (aDefense2) aDefense2.value = defense[1] || "";
+  if (aDefense3) aDefense3.value = defense[2] || "";
   aNeutralOther.value = profile.techniques?.neutralOther || "";
   aTopOther.value = profile.techniques?.topOther || "";
   aBottomOther.value = profile.techniques?.bottomOther || "";
@@ -1517,56 +4208,117 @@ function fillAthleteProfileForm(profile) {
   aCoachCues.value = profile.coachCues || "specific";
   aCueNotes.value = profile.cueNotes || "";
   aInjuryNotes.value = profile.injuryNotes || "";
+  if (aCueWord1) aCueWord1.value = (profile.cueWords || [])[0] || "";
+  if (aCueWord2) aCueWord2.value = (profile.cueWords || [])[1] || "";
+  if (aCueWord3) aCueWord3.value = (profile.cueWords || [])[2] || "";
+  if (aLeadLeg) aLeadLeg.value = profile.defaultTechniques?.leadLeg || "left";
+  if (aLeftAttack) aLeftAttack.value = profile.defaultTechniques?.leftAttack || "";
+  if (aRightAttack) aRightAttack.value = profile.defaultTechniques?.rightAttack || "";
+  if (aPreferredTies) aPreferredTies.value = profile.defaultTechniques?.preferredTies || "";
+  if (aMiscNotes) aMiscNotes.value = profile.defaultTechniques?.miscNotes || "";
 
   fillTechniques(".a-tech-neutral", profile.techniques?.neutral || []);
   fillTechniques(".a-tech-top", profile.techniques?.top || []);
   fillTechniques(".a-tech-bottom", profile.techniques?.bottom || []);
   fillTechniques(".a-tech-defense", profile.techniques?.defense || []);
+
+  setProfileTags(profile.tags || []);
+  renderCoachQuickPreview(profile);
 }
 
 function buildCompetitionPreview(profile) {
   if (!profile) return [];
+  const na = currentLang === "es" ? "N/D" : "N/A";
+  const none = currentLang === "es" ? "Ninguna" : "None";
+  const unknown = currentLang === "es" ? "Desconocido" : "Unknown";
+  const yearsLabel = currentLang === "es" ? "anos" : "years";
+  const style = profile.style
+    ? translateOptionValue("aStyle", profile.style) || translateValue(profile.style)
+    : na;
+  const weight = profile.currentWeight || na;
+  const weightClass = profile.weightClass || na;
+  const years = profile.years || profile.experienceYears || na;
+  const level = getLevelLabel(profile.level) || na;
+  const position = profile.position ? translateOptionValue("pPosition", profile.position) : na;
+  const strategy = profile.strategy ? translateOptionValue("pStrategy", profile.strategy) : na;
+  const intl = profile.international ? translateOptionValue("pInternational", profile.international) : na;
+  const coachCues = profile.coachCues ? translateOptionValue("pCoachCues", profile.coachCues) : na;
+  const neutralList = translateTechniqueList(profile.techniques?.neutral);
+  const topList = translateTechniqueList(profile.techniques?.top);
+  const bottomList = translateTechniqueList(profile.techniques?.bottom);
+  const defenseList = translateTechniqueList(profile.techniques?.defense);
+  const tendencyKey = profile.psychTendency || tendencyFallback(profile.strategy);
+  const tendency = translateOptionValue("aPsychTendency", tendencyKey) || translateValue(tendencyKey) || na;
+  const favoritePosition = translateOptionValue("aFavoritePosition", profile.favoritePosition || profile.position) || na;
+  const offense = translateTechniqueList(profile.offenseTop3 || []).join(", ") || na;
+  const defense = translateTechniqueList(profile.defenseTop3 || []).join(", ") || na;
+  const tags = normalizeSmartTags(profile.tags).map((tag) => formatSmartTag(tag)).join(" • ") || na;
+  const strategyPlans = [profile.strategyA, profile.strategyB, profile.strategyC].filter(Boolean);
   return [
     {
-      title: "Athlete Basics",
+      title: currentLang === "es" ? "Datos del atleta" : "Athlete Basics",
       lines: [
-        `Name: ${profile.name || "Unknown"}`,
-        `Style: ${profile.style || "N/A"}`,
-        `Weight: ${profile.currentWeight || "N/A"} (${profile.weightClass || "N/A"})`,
-        `Experience: ${profile.years || "N/A"} years - ${profile.level || "N/A"}`,
-        `Preferred position: ${profile.position || "N/A"}`,
-        `Strategy: ${profile.strategy || "N/A"}`
+        `${currentLang === "es" ? "Nombre" : "Name"}: ${profile.name || unknown}`,
+        `${currentLang === "es" ? "Estilo" : "Style"}: ${style}`,
+        `${currentLang === "es" ? "Peso" : "Weight"}: ${weight} (${weightClass})`,
+        `${currentLang === "es" ? "Experiencia" : "Experience"}: ${years} ${yearsLabel} - ${level}`,
+        `${currentLang === "es" ? "Posicion preferida" : "Preferred position"}: ${position}`,
+        `${currentLang === "es" ? "Estrategia" : "Strategy"}: ${strategy}`
       ]
     },
     {
-      title: "Preferred Techniques",
+      title: currentLang === "es" ? "Entrenamiento" : "Training",
       lines: [
-        `Neutral: ${(profile.techniques?.neutral || []).join(", ") || "N/A"}`,
-        `Top: ${(profile.techniques?.top || []).join(", ") || "N/A"}`,
-        `Bottom: ${(profile.techniques?.bottom || []).join(", ") || "N/A"}`,
-        `Defense: ${(profile.techniques?.defense || []).join(", ") || "N/A"}`,
-        `Other: ${[
+        `${currentLang === "es" ? "Rutinas" : "Routines"}: ${profile.trainingRoutines || na}`,
+        `${currentLang === "es" ? "Volumen" : "Volume"}: ${profile.trainingVolume || na}`,
+        `${currentLang === "es" ? "Tecnica foco" : "Technique focus"}: ${profile.trainingFocus || na}`
+      ]
+    },
+    {
+      title: currentLang === "es" ? "Plan de competencia" : "Competition Plan",
+      lines: [
+        `${currentLang === "es" ? "Estrategia A/B/C" : "Strategy A/B/C"}: ${strategyPlans.join(" | ") || na}`,
+        `${currentLang === "es" ? "Seguros" : "Safe moves"}: ${profile.safeMoves || na}`,
+        `${currentLang === "es" ? "Arriesgados" : "Risky moves"}: ${profile.riskyMoves || na}`,
+        `${currentLang === "es" ? "Resultados" : "Results"}: ${profile.resultsHistory || na}`
+      ]
+    },
+    {
+      title: currentLang === "es" ? "Tecnicas predeterminadas" : "Default Techniques",
+      lines: [
+        `${currentLang === "es" ? "Neutral" : "Neutral"}: ${neutralList.join(", ") || na}`,
+        `${currentLang === "es" ? "Arriba" : "Top"}: ${topList.join(", ") || na}`,
+        `${currentLang === "es" ? "Abajo" : "Bottom"}: ${bottomList.join(", ") || na}`,
+        `${currentLang === "es" ? "Defensa" : "Defense"}: ${defenseList.join(", ") || na}`,
+        `${currentLang === "es" ? "Otro" : "Other"}: ${[
           profile.techniques?.neutralOther,
           profile.techniques?.topOther,
           profile.techniques?.bottomOther,
           profile.techniques?.defenseOther
-        ].filter(Boolean).join(" - ") || "N/A"}`
+        ].filter(Boolean).join(" - ") || na}`
       ]
     },
     {
-      title: "International Experience",
+      title: currentLang === "es" ? "Coaching rapido" : "Coaching Quick",
       lines: [
-        `International competition: ${profile.international || "No"}`,
-        `Countries/events: ${profile.internationalEvents || "N/A"}`,
-        `Years: ${profile.internationalYears || "N/A"}`
+        `${currentLang === "es" ? "Posicion favorita" : "Favorite position"}: ${favoritePosition}`,
+        `${currentLang === "es" ? "Tendencia" : "Tendency"}: ${tendency}`,
+        `${currentLang === "es" ? "Error bajo presion" : "Common error"}: ${profile.pressureError || na}`,
+        `${currentLang === "es" ? "Senal clave" : "Coach signal"}: ${profile.coachSignal || na}`,
+        `${currentLang === "es" ? "Top ofensivo" : "Top offense"}: ${offense}`,
+        `${currentLang === "es" ? "Top defensivo" : "Top defense"}: ${defense}`,
+        `Tags: ${tags}`
       ]
     },
     {
-      title: "Competition Notes",
+      title: currentLang === "es" ? "Experiencia internacional" : "International Experience",
       lines: [
-        `Coach cues: ${profile.coachCues || "N/A"}`,
-        `What helps: ${profile.cueNotes || "N/A"}`,
-        `Injuries/limits: ${profile.injuryNotes || "None"}`
+        `${currentLang === "es" ? "Competencia internacional" : "International competition"}: ${intl}`,
+        `${currentLang === "es" ? "Paises/eventos" : "Countries/events"}: ${profile.internationalEvents || na}`,
+        `${currentLang === "es" ? "Anos" : "Years"}: ${profile.internationalYears || na}`,
+        `${currentLang === "es" ? "Indicaciones" : "Coach cues"}: ${coachCues}`,
+        `${currentLang === "es" ? "Que ayuda" : "What helps"}: ${profile.cueNotes || na}`,
+        `${currentLang === "es" ? "Lesiones/limites" : "Injuries/limits"}: ${profile.injuryNotes || none}`
       ]
     }
   ];
@@ -1592,59 +4344,87 @@ function renderCompetitionPreview(profile) {
   });
 }
 
+if (profileSubtabButtons.length) {
+  profileSubtabButtons.forEach((btn) => {
+    btn.addEventListener("click", () => showProfileSubtab(btn.dataset.profileTab));
+  });
+  showProfileSubtab(currentProfileSubtab);
+}
+
 if (athleteProfileForm) {
   athleteProfileForm.addEventListener("submit", (e) => {
     e.preventDefault();
     const existing = getProfile() || {};
-    const updated = {
-      ...existing,
-      name: aName.value.trim(),
-      photo: aPhoto.value.trim(),
-      country: aCountry.value.trim(),
-      city: aCity.value.trim(),
-      schoolClub: aSchoolClub.value,
-      schoolName: aSchool.value.trim(),
-      clubName: aClub.value.trim(),
-      style: aStyle.value,
-      currentWeight: aWeight.value.trim(),
-      weightClass: aWeightClass.value.trim(),
-      years: aYears.value.trim(),
-      level: aLevel.value,
-      position: aPosition.value,
-      strategy: aStrategy.value,
-      techniques: {
-        neutral: collectTechniques(".a-tech-neutral"),
-        top: collectTechniques(".a-tech-top"),
-        bottom: collectTechniques(".a-tech-bottom"),
-        defense: collectTechniques(".a-tech-defense"),
-        neutralOther: aNeutralOther.value.trim(),
-        topOther: aTopOther.value.trim(),
-        bottomOther: aBottomOther.value.trim(),
-        defenseOther: aDefenseOther.value.trim()
-      },
-      international: aInternational.value,
-      internationalEvents: aInternationalEvents.value.trim(),
-      internationalYears: aInternationalYears.value.trim(),
-      coachCues: aCoachCues.value,
-      cueNotes: aCueNotes.value.trim(),
-      injuryNotes: aInjuryNotes.value.trim()
-    };
+    const updated = readAthleteProfileForm(existing);
     setProfile(updated);
     applyProfile(updated);
-    toast("Profile saved.");
+    renderCoachQuickPreview(updated);
+    toast(pickCopy({ en: "Profile saved.", es: "Perfil guardado." }));
   });
 }
 
 if (previewProfileBtn) {
   previewProfileBtn.addEventListener("click", () => {
-    renderCompetitionPreview(getProfile());
+    const draft = readAthleteProfileForm(getProfile() || {});
+    renderCompetitionPreview(draft);
     showTab("competition-preview");
+  });
+}
+
+if (openCompetitionPreviewBtn) {
+  openCompetitionPreviewBtn.addEventListener("click", () => {
+    const draft = readAthleteProfileForm(getProfile() || {});
+    renderCompetitionPreview(draft);
+    showTab("competition-preview");
+  });
+}
+
+if (openCoachMatchBtn) {
+  openCoachMatchBtn.addEventListener("click", () => {
+    const draft = readAthleteProfileForm(getProfile() || {});
+    renderCoachQuickPreview(draft);
+    const role = (draft.role || getProfile()?.role || "athlete");
+    if (role === "coach") {
+      if (coachMatchSelect && draft.name) coachMatchSelect.value = draft.name;
+      renderCoachMatchView(coachMatchSelect?.value || draft.name);
+      showTab("coach-match");
+    } else {
+      renderCompetitionPreview(draft);
+      showTab("competition-preview");
+    }
   });
 }
 
 if (backToProfileBtn) {
   backToProfileBtn.addEventListener("click", () => showTab("athlete-profile"));
 }
+
+const coachQuickInputs = [
+  aFavoritePosition,
+  aPsychTendency,
+  aPressureError,
+  aCoachSignal,
+  aOffense1,
+  aOffense2,
+  aOffense3,
+  aDefense1,
+  aDefense2,
+  aDefense3,
+  aStrategyA,
+  aStrategyB,
+  aStrategyC,
+  aSafeMoves,
+  aRiskyMoves,
+  aResultsHistory
+].filter(Boolean);
+coachQuickInputs.forEach((input) => {
+  input.addEventListener("input", () => {
+    renderCoachQuickPreview(readAthleteProfileForm(getProfile() || {}));
+  });
+});
+
+renderProfileTagPicker(profileTagState);
+renderCoachQuickPreview(getProfile());
 
 // ---------- FAVORITES ----------
 const FAV_KEY = "wpl_favorites";
@@ -1665,7 +4445,7 @@ function renderFavorites() {
 
   if (favs.length === 0) {
     const li = document.createElement("li");
-    li.textContent = "No favorites yet.";
+    li.textContent = pickCopy({ en: "No favorites yet.", es: "Aun no hay favoritos." });
     favoritesList.appendChild(li);
     return;
   }
@@ -1675,7 +4455,7 @@ function renderFavorites() {
     li.textContent = f;
 
     const del = document.createElement("button");
-    del.textContent = "Remove";
+    del.textContent = pickCopy({ en: "Remove", es: "Eliminar" });
     del.style.marginLeft = "10px";
 
     del.addEventListener("click", () => {
@@ -1688,8 +4468,6 @@ function renderFavorites() {
     favoritesList.appendChild(li);
   });
 }
-renderFavorites();
-
 // ---------- TODAY ----------
 const todayTitle = document.getElementById("todayTitle");
 const todaySubtitle = document.getElementById("todaySubtitle");
@@ -1707,14 +4485,19 @@ function toast(msg) {
 }
 
 function renderToday(dayIndex = new Date().getDay()) {
-  const plan = WEEK_PLAN[dayIndex];
+  const weekPlan = getWeekPlanData();
+  const plan = weekPlan[dayIndex];
   if (!plan) return;
 
   todayTitle.textContent = plan.focus;
-  todaySubtitle.textContent = `Total time: ${plan.total} - Intensity: ${plan.intensity}`;
+  const totalLabel = currentLang === "es" ? "Tiempo total" : "Total time";
+  const intensityLabel = currentLang === "es" ? "Intensidad" : "Intensity";
+  const intensity = getIntensityLabel(plan.intensity);
+  todaySubtitle.textContent = `${totalLabel}: ${plan.total} - ${intensityLabel}: ${intensity}`;
   todayType.textContent = plan.focus;
   if (getProfile()?.role !== "coach") {
-    roleMeta.textContent = `Training Focus: ${plan.focus}`;
+    const focusLabel = currentLang === "es" ? "Enfoque" : "Training Focus";
+    roleMeta.textContent = `${focusLabel}: ${plan.focus}`;
   }
 
   sessionBlocks.innerHTML = "";
@@ -1732,29 +4515,29 @@ function renderFeelingScale() {
     const btn = document.createElement("button");
     btn.textContent = i;
     btn.addEventListener("click", () => {
-      toast(`Check-in saved: ${i}/5`);
+      const msg = currentLang === "es" ? `Chequeo guardado: ${i}/5` : `Check-in saved: ${i}/5`;
+      toast(msg);
     });
     feelingScale.appendChild(btn);
   }
 }
 
 startSessionBtn.addEventListener("click", () => {
-  const plan = WEEK_PLAN[new Date().getDay()];
-  const intro = `${plan.focus} session. ${plan.blocks[0]?.label || ""}.`;
+  const plan = getWeekPlanData()[new Date().getDay()];
+  const intro = currentLang === "es"
+    ? `Sesion de ${plan.focus}. ${plan.blocks[0]?.label || ""}.`
+    : `${plan.focus} session. ${plan.blocks[0]?.label || ""}.`;
   speak(intro);
-  toast("Session started. Stay focused.");
+  toast(currentLang === "es" ? "Sesion iniciada. Mantente enfocado." : "Session started. Stay focused.");
 });
 
 watchFilmBtn.addEventListener("click", () => {
-  toast("Film assigned: Single Leg Finish");
+  toast(currentLang === "es" ? "Video asignado: Final de pierna simple" : "Film assigned: Single Leg Finish");
 });
 
 logCompletionBtn.addEventListener("click", () => {
-  toast("Session logged. Great work.");
+  toast(currentLang === "es" ? "Sesion registrada. Buen trabajo." : "Session logged. Great work.");
 });
-
-renderToday();
-renderFeelingScale();
 
 // ---------- TRAINING PLAN ----------
 const planGrid = document.getElementById("planGrid");
@@ -1763,12 +4546,14 @@ const planDayDetail = document.getElementById("planDayDetail");
 
 function renderPlanGrid(selectedDay = new Date().getDay()) {
   planGrid.innerHTML = "";
-  WEEK_PLAN.forEach((plan, idx) => {
+  const weekPlan = getWeekPlanData();
+  weekPlan.forEach((plan, idx) => {
     const card = document.createElement("div");
     card.className = "plan-card" + (idx === selectedDay ? " active" : "");
+    const intensity = getIntensityLabel(plan.intensity);
     card.innerHTML = `
       <strong>${plan.day}</strong>
-      <div class="small">${plan.focus} - ${plan.intensity}</div>
+      <div class="small">${plan.focus} - ${intensity}</div>
     `;
     card.addEventListener("click", () => {
       renderPlanGrid(idx);
@@ -1780,9 +4565,9 @@ function renderPlanGrid(selectedDay = new Date().getDay()) {
 }
 
 function renderPlanDetails(dayIndex) {
-  const plan = WEEK_PLAN[dayIndex];
+  const plan = getWeekPlanData()[dayIndex];
   if (!plan) return;
-  planDayTitle.textContent = `${plan.day} Plan`;
+  planDayTitle.textContent = currentLang === "es" ? `Plan de ${plan.day}` : `${plan.day} Plan`;
   planDayDetail.innerHTML = "";
   plan.details.forEach((line) => {
     const li = document.createElement("li");
@@ -1791,82 +4576,913 @@ function renderPlanDetails(dayIndex) {
   });
 }
 
-renderPlanGrid();
-
 // ---------- CALENDAR ----------
-const calendarGrid = document.getElementById("calendarGrid");
+const calendarGrid = document.getElementById("calendarMonthGrid");
+const calendarDayNames = document.getElementById("calendarDayNames");
+const calendarMonthLabel = document.getElementById("calendarMonthLabel");
+const calendarPrevBtn = document.getElementById("calendarPrevBtn");
+const calendarNextBtn = document.getElementById("calendarNextBtn");
+const calendarTitle = document.getElementById("calendarTitle");
+const calendarChip = document.getElementById("calendarChip");
 const calTitle = document.getElementById("calTitle");
 const calDrills = document.getElementById("calDrills");
+const calAudience = document.getElementById("calAudience");
+const calendarCoachEditor = document.getElementById("calendarCoachEditor");
+const calendarCoachTitle = document.getElementById("calendarCoachTitle");
+const calendarCoachHint = document.getElementById("calendarCoachHint");
+const calendarCoachItemsLabel = document.getElementById("calendarCoachItemsLabel");
+const calendarCoachItems = document.getElementById("calendarCoachItems");
+const calendarCoachAll = document.getElementById("calendarCoachAll");
+const calendarCoachAllLabel = document.getElementById("calendarCoachAllLabel");
+const calendarCoachAthletes = document.getElementById("calendarCoachAthletes");
+const calendarCoachSaveBtn = document.getElementById("calendarCoachSaveBtn");
+const calendarCoachClearBtn = document.getElementById("calendarCoachClearBtn");
 
-function renderCalendar(selectedDay = new Date().getDay()) {
-  calendarGrid.innerHTML = "";
+const CALENDAR_COPY = {
+  title: { en: "Calendar", es: "Calendario" },
+  chip: { en: "Month view", es: "Vista mensual" }
+};
 
-  WEEK_PLAN.forEach((plan, idx) => {
-    const events = CALENDAR_EVENTS[idx] || [];
-    const btn = document.createElement("button");
-    btn.className = "day-btn" + (idx === selectedDay ? " active" : "");
-    btn.innerHTML = `
-      <strong>${plan.day}</strong>
-      <div class="small">${plan.focus} - ${events.length} events</div>
-    `;
+const CALENDAR_AUDIENCE_COPY = {
+  assigned: { en: "Assigned", es: "Asignado" },
+  team: { en: "Entire team", es: "Todo el equipo" },
+  you: { en: "You", es: "Tu" },
+  unset: { en: "No athletes assigned yet.", es: "Aun no hay atletas asignados." },
+  hidden: { en: "This day is not assigned to you yet.", es: "Este dia aun no esta asignado para ti." }
+};
 
-    btn.addEventListener("click", () => {
-      renderCalendar(idx);
-      renderCalendarDetails(idx);
-    });
+const CALENDAR_COACH_COPY = {
+  title: { en: "Coach plan for this day", es: "Plan del coach para este dia" },
+  hint: {
+    en: "Add the plan, then assign athletes or send to the full team.",
+    es: "Agrega el plan, luego asigna atletas o envialo a todo el equipo."
+  },
+  itemsLabel: {
+    en: "Training plan (one item per line)",
+    es: "Plan de entrenamiento (una linea por punto)"
+  },
+  allLabel: { en: "Send to entire team", es: "Enviar a todo el equipo" },
+  saveBtn: { en: "Save day plan", es: "Guardar plan del dia" },
+  clearBtn: { en: "Clear day", es: "Limpiar dia" },
+  saveToast: { en: "Day plan saved.", es: "Plan del dia guardado." },
+  clearToast: { en: "Day cleared.", es: "Dia limpiado." },
+  needAudience: {
+    en: "Select athletes or choose entire team.",
+    es: "Selecciona atletas o elige todo el equipo."
+  },
+  needItems: {
+    en: "Add at least one training item.",
+    es: "Agrega al menos un punto del entrenamiento."
+  },
+  clearConfirm: {
+    en: "Clear the plan and assignments for this date?",
+    es: "Borrar el plan y asignaciones de esta fecha?"
+  }
+};
 
-    calendarGrid.appendChild(btn);
-  });
+const CALENDAR_COACH_PLACEHOLDERS = {
+  en: "Warm-up - 15 min\nTechnique - Single leg chain\nLive - 4 x 2:00",
+  es: "Calentamiento - 15 min\nTecnica - Cadena de pierna simple\nEn vivo - 4 x 2:00"
+};
 
-  renderCalendarDetails(selectedDay);
+let calendarViewDate = new Date();
+let calendarSelectedKey = toDateKey(new Date());
+let calendarNavBound = false;
+let calendarCoachBound = false;
+
+function dateFromKey(key) {
+  if (!isDateKey(key)) return new Date();
+  const [year, month, day] = key.split("-").map((part) => Number.parseInt(part, 10));
+  if (!year || !month || !day) return new Date();
+  return new Date(year, month - 1, day);
 }
 
-function renderCalendarDetails(dayIndex) {
-  const plan = WEEK_PLAN[dayIndex];
-  const events = CALENDAR_EVENTS[dayIndex] || [];
+function normalizeDateKey(value) {
+  if (isDateKey(value)) return value;
+  return toDateKey(new Date());
+}
 
-  calTitle.textContent = `${plan.day} - ${plan.focus}`;
+function getAthleteNamesBase() {
+  return ATHLETES.map((athlete) => athlete.name);
+}
+
+function getCalendarEntry(dateKey) {
+  const key = normalizeDateKey(dateKey);
+  const events = getStoredCalendarEvents();
+  return normalizeCalendarEntry(events[key]);
+}
+
+function setCalendarEntry(dateKey, entry) {
+  const key = normalizeDateKey(dateKey);
+  const events = getStoredCalendarEvents();
+  const normalized = normalizeCalendarEntry(entry);
+  if (normalized.items.length) {
+    events[key] = normalized;
+  } else {
+    delete events[key];
+  }
+  setStoredCalendarEvents(events);
+  return normalized;
+}
+
+function getEventsForDateKey(dateKey) {
+  return getCalendarEntry(dateKey).items;
+}
+
+function setEventsForDateKey(dateKey, list) {
+  const key = normalizeDateKey(dateKey);
+  const entry = getCalendarEntry(key);
+  entry.items = Array.isArray(list) ? list.map((item) => String(item).trim()).filter(Boolean) : [];
+  setCalendarEntry(key, entry);
+}
+
+function nameListIncludes(list, name) {
+  const target = normalizeName(name);
+  if (!target) return false;
+  return (list || []).some((item) => normalizeName(item) === target);
+}
+
+function isEntryAssignedToProfile(entry, profile) {
+  if (!entry.items.length) return false;
+  if (!profile || profile.role === "coach") return true;
+  if (entry.audience.all) return true;
+  if (!entry.audience.athletes.length) return true;
+  return nameListIncludes(entry.audience.athletes, profile.name);
+}
+
+function getVisibleItemsForDate(dateKey, profile = getProfile()) {
+  const entry = getCalendarEntry(dateKey);
+  return isEntryAssignedToProfile(entry, profile) ? entry.items : [];
+}
+
+function getAudienceText(entry, profile) {
+  const isCoach = profile?.role === "coach";
+  if (entry.audience.all) return pickCopy(CALENDAR_AUDIENCE_COPY.team);
+  if (entry.audience.athletes.length) {
+    if (isCoach) return entry.audience.athletes.join(", ");
+    return nameListIncludes(entry.audience.athletes, profile?.name)
+      ? pickCopy(CALENDAR_AUDIENCE_COPY.you)
+      : pickCopy(CALENDAR_AUDIENCE_COPY.hidden);
+  }
+  return pickCopy(CALENDAR_AUDIENCE_COPY.unset);
+}
+
+function getAudienceLabel(entry, profile) {
+  const assigned = pickCopy(CALENDAR_AUDIENCE_COPY.assigned);
+  return `${assigned}: ${getAudienceText(entry, profile)}`;
+}
+
+function shiftCalendarMonth(delta) {
+  const next = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() + delta, 1);
+  calendarViewDate = next;
+  const selectedDate = dateFromKey(calendarSelectedKey);
+  if (selectedDate.getFullYear() !== next.getFullYear() || selectedDate.getMonth() !== next.getMonth()) {
+    calendarSelectedKey = toDateKey(next);
+  }
+  renderCalendar(calendarSelectedKey);
+}
+
+function bindCalendarNav() {
+  if (calendarNavBound) return;
+  if (calendarPrevBtn) {
+    calendarPrevBtn.addEventListener("click", () => shiftCalendarMonth(-1));
+  }
+  if (calendarNextBtn) {
+    calendarNextBtn.addEventListener("click", () => shiftCalendarMonth(1));
+  }
+  calendarNavBound = true;
+}
+
+function renderCalendar(selectedKey = calendarSelectedKey) {
+  if (!calendarGrid || !calendarDayNames || !calendarMonthLabel) return;
+  bindCalendarNav();
+
+  calendarSelectedKey = normalizeDateKey(selectedKey);
+  const selectedDate = dateFromKey(calendarSelectedKey);
+  calendarViewDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+
+  if (calendarTitle) calendarTitle.textContent = pickCopy(CALENDAR_COPY.title);
+  if (calendarChip) calendarChip.textContent = pickCopy(CALENDAR_COPY.chip);
+
+  const monthNames = getMonthNames();
+  const dayNames = getDayAbbr();
+  const year = calendarViewDate.getFullYear();
+  const month = calendarViewDate.getMonth();
+  const todayKey = toDateKey(new Date());
+  const profile = getProfile();
+
+  calendarMonthLabel.textContent = `${monthNames[month]} ${year}`;
+  calendarDayNames.innerHTML = dayNames.map((day) => `<div class="month-day-name">${day}</div>`).join("");
+  calendarGrid.innerHTML = "";
+
+  const firstDay = new Date(year, month, 1);
+  const startDayOfWeek = firstDay.getDay();
+  const numDays = new Date(year, month + 1, 0).getDate();
+
+  for (let i = 0; i < startDayOfWeek; i += 1) {
+    const empty = document.createElement("div");
+    empty.className = "month-cell empty";
+    calendarGrid.appendChild(empty);
+  }
+
+  for (let day = 1; day <= numDays; day += 1) {
+    const date = new Date(year, month, day);
+    const key = toDateKey(date);
+    const visibleCount = getVisibleItemsForDate(key, profile).length;
+    const cell = document.createElement("button");
+    cell.type = "button";
+    const isToday = key === todayKey;
+    const isSelected = key === calendarSelectedKey;
+    cell.className = `month-cell${isToday ? " today" : ""}${isSelected ? " selected" : ""}`;
+    cell.dataset.key = key;
+    cell.innerHTML = `
+      <div class="month-day-number">${day}</div>
+      ${visibleCount ? `<div class="month-count">${visibleCount}</div>` : ""}
+    `;
+    cell.addEventListener("click", () => {
+      calendarSelectedKey = key;
+      renderCalendar(key);
+      renderCalendarDetails(key);
+      if (calendarManagerDate) {
+        calendarManagerDate.value = key;
+        renderCalendarManager();
+      }
+    });
+    calendarGrid.appendChild(cell);
+  }
+
+  renderCalendarDetails(calendarSelectedKey);
+}
+
+function renderCalendarDetails(dateKey) {
+  const key = normalizeDateKey(dateKey);
+  const date = dateFromKey(key);
+  const profile = getProfile();
+  const entry = getCalendarEntry(key);
+  const visibleItems = getVisibleItemsForDate(key, profile);
+  const locale = currentLang === "es" ? "es-ES" : "en-US";
+  const label = date.toLocaleDateString(locale, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric"
+  });
+  const focus = getWeekPlanData()[date.getDay()]?.focus;
+  calTitle.textContent = focus ? `${label} - ${focus}` : label;
   calDrills.innerHTML = "";
 
-  const focusItem = document.createElement("li");
-  focusItem.textContent = `Training: ${plan.focus} (${plan.intensity})`;
-  calDrills.appendChild(focusItem);
-
-  if (events.length === 0) {
+  visibleItems.forEach((text) => {
     const li = document.createElement("li");
-    li.textContent = "No extra events scheduled.";
+    li.textContent = text;
     calDrills.appendChild(li);
+  });
+
+  if (calAudience) {
+    const assignedToProfile = isEntryAssignedToProfile(entry, profile);
+    const hasItems = entry.items.length > 0;
+    if (!hasItems) {
+      calAudience.textContent = "";
+      calAudience.hidden = true;
+    } else if (profile?.role === "coach") {
+      calAudience.textContent = getAudienceLabel(entry, profile);
+      calAudience.hidden = false;
+    } else if (assignedToProfile) {
+      calAudience.textContent = getAudienceLabel(entry, profile);
+      calAudience.hidden = false;
+    } else {
+      calAudience.textContent = pickCopy(CALENDAR_AUDIENCE_COPY.hidden);
+      calAudience.hidden = false;
+    }
+  }
+
+  renderCalendarCoachEditor(key, entry, profile);
+}
+
+function splitCoachItems(text) {
+  return String(text || "")
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function getSelectedCoachAthletes() {
+  if (!calendarCoachAthletes) return [];
+  const checked = Array.from(calendarCoachAthletes.querySelectorAll('input[type="checkbox"]:checked'));
+  return uniqueNames(checked.map((input) => input.value));
+}
+
+function setCoachAthleteDisabled(disabled) {
+  if (!calendarCoachAthletes) return;
+  calendarCoachAthletes.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+    input.disabled = disabled;
+    const label = input.closest("label");
+    if (label) label.classList.toggle("disabled", disabled);
+  });
+}
+
+function renderCoachAthleteList(entry) {
+  if (!calendarCoachAthletes) return;
+  const selected = new Set((entry.audience.athletes || []).map((name) => normalizeName(name)));
+  const names = getAthleteNamesBase();
+  calendarCoachAthletes.innerHTML = "";
+  names.forEach((name) => {
+    const label = document.createElement("label");
+    label.className = "calendar-athlete-item";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.value = name;
+    input.checked = selected.has(normalizeName(name));
+    const text = document.createElement("span");
+    text.textContent = name;
+    label.appendChild(input);
+    label.appendChild(text);
+    calendarCoachAthletes.appendChild(label);
+  });
+  setCoachAthleteDisabled(entry.audience.all);
+}
+
+function saveCalendarCoachPlan() {
+  const profile = getProfile();
+  if (profile?.role !== "coach") return;
+  const key = calendarSelectedKey;
+  const items = splitCoachItems(calendarCoachItems?.value);
+  if (!items.length) {
+    toast(pickCopy(CALENDAR_COACH_COPY.needItems));
+    return;
+  }
+  const sendAll = calendarCoachAll?.checked === true;
+  const athletes = sendAll ? [] : getSelectedCoachAthletes();
+  if (!sendAll && athletes.length === 0) {
+    toast(pickCopy(CALENDAR_COACH_COPY.needAudience));
     return;
   }
 
-  events.forEach((t) => {
+  const entry = {
+    items,
+    audience: {
+      all: sendAll,
+      athletes
+    }
+  };
+
+  setCalendarEntry(key, entry);
+  renderCalendar(key);
+  if (calendarManagerDate) {
+    calendarManagerDate.value = key;
+    renderCalendarManager();
+  }
+  toast(pickCopy(CALENDAR_COACH_COPY.saveToast));
+}
+
+function clearCalendarCoachPlan() {
+  const profile = getProfile();
+  if (profile?.role !== "coach") return;
+  if (!confirm(pickCopy(CALENDAR_COACH_COPY.clearConfirm))) return;
+  const key = calendarSelectedKey;
+  setCalendarEntry(key, { items: [], audience: defaultAudience() });
+  if (calendarCoachItems) calendarCoachItems.value = "";
+  if (calendarCoachAll) calendarCoachAll.checked = false;
+  renderCalendar(key);
+  if (calendarManagerDate) {
+    calendarManagerDate.value = key;
+    renderCalendarManager();
+  }
+  toast(pickCopy(CALENDAR_COACH_COPY.clearToast));
+}
+
+function bindCalendarCoachEditor() {
+  if (calendarCoachBound) return;
+  if (calendarCoachAll) {
+    calendarCoachAll.addEventListener("change", () => {
+      setCoachAthleteDisabled(calendarCoachAll.checked);
+    });
+  }
+  if (calendarCoachSaveBtn) {
+    calendarCoachSaveBtn.addEventListener("click", () => saveCalendarCoachPlan());
+  }
+  if (calendarCoachClearBtn) {
+    calendarCoachClearBtn.addEventListener("click", () => clearCalendarCoachPlan());
+  }
+  calendarCoachBound = true;
+}
+
+function renderCalendarCoachEditor(dateKey, entry, profile) {
+  if (!calendarCoachEditor) return;
+  const isCoach = profile?.role === "coach";
+  calendarCoachEditor.classList.toggle("hidden", !isCoach);
+  if (!isCoach) return;
+
+  bindCalendarCoachEditor();
+  const key = normalizeDateKey(dateKey);
+  calendarSelectedKey = key;
+
+  if (calendarCoachTitle) calendarCoachTitle.textContent = pickCopy(CALENDAR_COACH_COPY.title);
+  if (calendarCoachHint) calendarCoachHint.textContent = pickCopy(CALENDAR_COACH_COPY.hint);
+  if (calendarCoachItemsLabel) calendarCoachItemsLabel.textContent = pickCopy(CALENDAR_COACH_COPY.itemsLabel);
+  if (calendarCoachAllLabel) calendarCoachAllLabel.textContent = pickCopy(CALENDAR_COACH_COPY.allLabel);
+  if (calendarCoachSaveBtn) calendarCoachSaveBtn.textContent = pickCopy(CALENDAR_COACH_COPY.saveBtn);
+  if (calendarCoachClearBtn) calendarCoachClearBtn.textContent = pickCopy(CALENDAR_COACH_COPY.clearBtn);
+
+  if (calendarCoachItems) {
+    calendarCoachItems.placeholder = currentLang === "es"
+      ? CALENDAR_COACH_PLACEHOLDERS.es
+      : CALENDAR_COACH_PLACEHOLDERS.en;
+    calendarCoachItems.value = (entry.items || []).join("\n");
+  }
+
+  if (calendarCoachAll) {
+    calendarCoachAll.checked = entry.audience.all;
+  }
+
+  renderCoachAthleteList(entry);
+}
+
+// ---------- CALENDAR MANAGER ----------
+const calendarManagerTitle = document.getElementById("calendarManagerTitle");
+const calendarManagerChip = document.getElementById("calendarManagerChip");
+const calendarManagerFormTitle = document.getElementById("calendarManagerFormTitle");
+const calendarManagerForm = document.getElementById("calendarManagerForm");
+const calendarManagerDateLabel = document.getElementById("calendarManagerDateLabel");
+const calendarManagerDate = document.getElementById("calendarManagerDate");
+const calendarManagerEventLabel = document.getElementById("calendarManagerEventLabel");
+const calendarManagerTitleInput = document.getElementById("calendarManagerTitleInput");
+const calendarManagerTimeLabel = document.getElementById("calendarManagerTimeLabel");
+const calendarManagerTimeInput = document.getElementById("calendarManagerTimeInput");
+const calendarManagerNoteLabel = document.getElementById("calendarManagerNoteLabel");
+const calendarManagerNoteInput = document.getElementById("calendarManagerNoteInput");
+const calendarManagerAddBtn = document.getElementById("calendarManagerAddBtn");
+const calendarManagerClearBtn = document.getElementById("calendarManagerClearBtn");
+const calendarManagerListTitle = document.getElementById("calendarManagerListTitle");
+const calendarManagerEmpty = document.getElementById("calendarManagerEmpty");
+const calendarManagerList = document.getElementById("calendarManagerList");
+const calendarManagerActionsTitle = document.getElementById("calendarManagerActionsTitle");
+const calendarManagerTypesTitle = document.getElementById("calendarManagerTypesTitle");
+const calendarManagerDetailsTitle = document.getElementById("calendarManagerDetailsTitle");
+const calendarManagerNotificationsTitle = document.getElementById("calendarManagerNotificationsTitle");
+
+const CALENDAR_MANAGER_COPY = {
+  title: { en: "Calendar Manager", es: "Gestion de calendario" },
+  chip: { en: "Create events + reminders", es: "Crear eventos y recordatorios" },
+  formTitle: { en: "Create Event", es: "Crear evento" },
+  dateLabel: { en: "Date", es: "Fecha" },
+  eventLabel: { en: "Event", es: "Evento" },
+  timeLabel: { en: "Time", es: "Hora" },
+  noteLabel: { en: "Note", es: "Nota" },
+  addBtn: { en: "Add event", es: "Agregar evento" },
+  clearBtn: { en: "Clear date", es: "Limpiar fecha" },
+  listTitle: { en: "Events on this date", es: "Eventos en esta fecha" },
+  empty: { en: "No events yet.", es: "Aun no hay eventos." },
+  actionsTitle: { en: "Coach Actions", es: "Acciones del coach" },
+  typesTitle: { en: "Event Types", es: "Tipos de evento" },
+  detailsTitle: { en: "Event Details", es: "Detalles del evento" },
+  notificationsTitle: { en: "Notifications", es: "Notificaciones" },
+  removeBtn: { en: "Remove", es: "Quitar" },
+  clearConfirm: {
+    en: "Clear all events for this date?",
+    es: "Borrar todos los eventos de esta fecha?"
+  },
+  savedToast: { en: "Event saved.", es: "Evento guardado." },
+  clearedToast: { en: "Date cleared.", es: "Fecha limpiada." },
+  removedToast: { en: "Event removed.", es: "Evento quitado." }
+};
+
+const CALENDAR_MANAGER_PLACEHOLDERS = {
+  title: { en: "Team practice", es: "Practica del equipo" },
+  time: { en: "3:30 PM", es: "3:30 PM" },
+  note: { en: "Mat 2", es: "Tapiz 2" }
+};
+
+function calendarCopy(key) {
+  return pickCopy(CALENDAR_MANAGER_COPY[key] || { en: key, es: key });
+}
+
+function getManagerDateKey() {
+  const fallback = calendarSelectedKey || toDateKey(new Date());
+  return normalizeDateKey(calendarManagerDate?.value || fallback);
+}
+
+function setManagerDateKey(key) {
+  if (!calendarManagerDate) return;
+  calendarManagerDate.value = normalizeDateKey(key);
+}
+
+function formatCalendarEvent(title, time, note) {
+  const parts = [title];
+  if (time) parts.push(time);
+  if (note) parts.push(note);
+  return parts.join(" - ");
+}
+
+function removeCalendarEvent(dateKey, eventIndex) {
+  const key = normalizeDateKey(dateKey);
+  const entry = getCalendarEntry(key);
+  const list = [...entry.items];
+  if (eventIndex < 0 || eventIndex >= list.length) return;
+  list.splice(eventIndex, 1);
+  entry.items = list;
+  setCalendarEntry(key, entry);
+  calendarSelectedKey = key;
+  renderCalendar(key);
+  setManagerDateKey(key);
+  renderCalendarManager();
+  toast(calendarCopy("removedToast"));
+}
+
+function renderCalendarManager() {
+  if (!calendarManagerForm) return;
+
+  if (calendarManagerTitle) calendarManagerTitle.textContent = calendarCopy("title");
+  if (calendarManagerChip) calendarManagerChip.textContent = calendarCopy("chip");
+  if (calendarManagerFormTitle) calendarManagerFormTitle.textContent = calendarCopy("formTitle");
+  if (calendarManagerDateLabel) calendarManagerDateLabel.textContent = calendarCopy("dateLabel");
+  if (calendarManagerEventLabel) calendarManagerEventLabel.textContent = calendarCopy("eventLabel");
+  if (calendarManagerTimeLabel) calendarManagerTimeLabel.textContent = calendarCopy("timeLabel");
+  if (calendarManagerNoteLabel) calendarManagerNoteLabel.textContent = calendarCopy("noteLabel");
+  if (calendarManagerAddBtn) calendarManagerAddBtn.textContent = calendarCopy("addBtn");
+  if (calendarManagerClearBtn) calendarManagerClearBtn.textContent = calendarCopy("clearBtn");
+  if (calendarManagerListTitle) calendarManagerListTitle.textContent = calendarCopy("listTitle");
+  if (calendarManagerEmpty) calendarManagerEmpty.textContent = calendarCopy("empty");
+  if (calendarManagerActionsTitle) calendarManagerActionsTitle.textContent = calendarCopy("actionsTitle");
+  if (calendarManagerTypesTitle) calendarManagerTypesTitle.textContent = calendarCopy("typesTitle");
+  if (calendarManagerDetailsTitle) calendarManagerDetailsTitle.textContent = calendarCopy("detailsTitle");
+  if (calendarManagerNotificationsTitle) calendarManagerNotificationsTitle.textContent = calendarCopy("notificationsTitle");
+
+  if (calendarManagerTitleInput) {
+    calendarManagerTitleInput.placeholder = pickCopy(CALENDAR_MANAGER_PLACEHOLDERS.title);
+  }
+  if (calendarManagerTimeInput) {
+    calendarManagerTimeInput.placeholder = pickCopy(CALENDAR_MANAGER_PLACEHOLDERS.time);
+  }
+  if (calendarManagerNoteInput) {
+    calendarManagerNoteInput.placeholder = pickCopy(CALENDAR_MANAGER_PLACEHOLDERS.note);
+  }
+
+  const dateKey = getManagerDateKey();
+  setManagerDateKey(dateKey);
+  const entry = getCalendarEntry(dateKey);
+  const events = entry.items;
+  calendarManagerList.innerHTML = "";
+  if (calendarManagerEmpty) calendarManagerEmpty.hidden = events.length > 0;
+
+  events.forEach((text, idx) => {
     const li = document.createElement("li");
-    li.textContent = t;
-    calDrills.appendChild(li);
+    li.className = "manager-event";
+    const label = document.createElement("span");
+    label.textContent = text;
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.dataset.index = String(idx);
+    removeBtn.textContent = calendarCopy("removeBtn");
+    removeBtn.addEventListener("click", () => removeCalendarEvent(dateKey, idx));
+    li.appendChild(label);
+    li.appendChild(removeBtn);
+    calendarManagerList.appendChild(li);
   });
 }
 
-renderCalendar();
+if (calendarManagerDate) {
+  calendarManagerDate.addEventListener("change", () => {
+    const key = getManagerDateKey();
+    calendarSelectedKey = key;
+    renderCalendar(key);
+    renderCalendarManager();
+  });
+}
+
+if (calendarManagerForm) {
+  calendarManagerForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const dateKey = getManagerDateKey();
+    const title = calendarManagerTitleInput.value.trim();
+    const time = calendarManagerTimeInput.value.trim();
+    const note = calendarManagerNoteInput.value.trim();
+    if (!title) return;
+    const entry = getCalendarEntry(dateKey);
+    entry.items = [...entry.items, formatCalendarEvent(title, time, note)];
+    if (!entry.audience.all && entry.audience.athletes.length === 0) {
+      entry.audience.all = true;
+    }
+    setCalendarEntry(dateKey, entry);
+    calendarManagerForm.reset();
+    calendarSelectedKey = dateKey;
+    setManagerDateKey(dateKey);
+    renderCalendar(dateKey);
+    renderCalendarManager();
+    toast(calendarCopy("savedToast"));
+  });
+}
+
+if (calendarManagerClearBtn) {
+  calendarManagerClearBtn.addEventListener("click", () => {
+    const dateKey = getManagerDateKey();
+    if (!confirm(calendarCopy("clearConfirm"))) return;
+    setCalendarEntry(dateKey, { items: [], audience: defaultAudience() });
+    calendarSelectedKey = dateKey;
+    setManagerDateKey(dateKey);
+    renderCalendar(dateKey);
+    renderCalendarManager();
+    toast(calendarCopy("clearedToast"));
+  });
+}
 
 // ---------- MEDIA ----------
-const mediaGrid = document.getElementById("mediaGrid");
+const mediaBreadcrumb = document.getElementById("mediaBreadcrumb");
+const mediaSectionList = document.getElementById("mediaSectionList");
+const mediaItemList = document.getElementById("mediaItemList");
+const mediaEmpty = document.getElementById("mediaEmpty");
+const mediaCoachTools = document.getElementById("mediaCoachTools");
+const mediaAddSectionTitle = document.getElementById("mediaAddSectionTitle");
+const mediaNewSectionLabel = document.getElementById("mediaNewSectionLabel");
+const mediaNewSectionName = document.getElementById("mediaNewSectionName");
+const mediaAddSectionBtn = document.getElementById("mediaAddSectionBtn");
+const mediaAddItemTitle = document.getElementById("mediaAddItemTitle");
+const mediaNewItemLabel = document.getElementById("mediaNewItemLabel");
+const mediaNewItemTitle = document.getElementById("mediaNewItemTitle");
+const mediaNewItemTypeLabel = document.getElementById("mediaNewItemTypeLabel");
+const mediaNewItemType = document.getElementById("mediaNewItemType");
+const mediaNewItemAssignedLabel = document.getElementById("mediaNewItemAssignedLabel");
+const mediaNewItemAssigned = document.getElementById("mediaNewItemAssigned");
+const mediaNewItemNoteLabel = document.getElementById("mediaNewItemNoteLabel");
+const mediaNewItemNote = document.getElementById("mediaNewItemNote");
+const mediaAddItemBtn = document.getElementById("mediaAddItemBtn");
 
-function renderMedia() {
-  mediaGrid.innerHTML = "";
-  MEDIA_ITEMS.forEach((item) => {
+const MEDIA_COPY = {
+  root: { en: "All media", es: "Toda la multimedia" },
+  sectionsLabel: { en: "Sections", es: "Secciones" },
+  itemsLabel: { en: "Videos", es: "Videos" },
+  empty: {
+    en: "No media here yet. Create a section like \"Double leg\" and add videos inside.",
+    es: "Aun no hay contenido. Crea una seccion como \"Double leg\" y agrega videos dentro."
+  },
+  emptySections: { en: "No sections yet.", es: "Aun no hay secciones." },
+  emptyItems: { en: "No videos in this section yet.", es: "Aun no hay videos en esta seccion." },
+  addSectionTitle: { en: "Add Section", es: "Agregar seccion" },
+  addSectionLabel: { en: "Section name", es: "Nombre de la seccion" },
+  addSectionBtn: { en: "Add section", es: "Agregar seccion" },
+  addItemTitle: { en: "Add Video", es: "Agregar video" },
+  addItemLabel: { en: "Video title", es: "Titulo del video" },
+  addItemTypeLabel: { en: "Type", es: "Tipo" },
+  addItemAssignedLabel: { en: "Assigned", es: "Asignado" },
+  addItemNoteLabel: { en: "Notes", es: "Notas" },
+  addItemBtn: { en: "Add video", es: "Agregar video" },
+  assigned: { en: "Assigned", es: "Asignado" },
+  sectionsCount: { en: "sections", es: "secciones" },
+  itemsCount: { en: "videos", es: "videos" },
+  saveFav: { en: "Save to Favorites", es: "Guardar en favoritos" },
+  addSectionToast: { en: "Section added.", es: "Seccion agregada." },
+  addItemToast: { en: "Video added.", es: "Video agregado." },
+  needSectionName: { en: "Add a section name.", es: "Agrega un nombre de seccion." },
+  needItemTitle: { en: "Add a video title.", es: "Agrega un titulo de video." }
+};
+
+const MEDIA_PLACEHOLDERS = {
+  section: { en: "e.g., Double leg", es: "ej., Double leg" },
+  item: { en: "e.g., Double leg finish", es: "ej., Final de double leg" },
+  assigned: { en: "Today", es: "Hoy" },
+  note: { en: "Optional note", es: "Nota opcional" }
+};
+
+let mediaActiveSectionId = null;
+let mediaToolsBound = false;
+
+function mediaCopy(key) {
+  return pickCopy(MEDIA_COPY[key] || { en: key, es: key });
+}
+
+function makeMediaId(prefix) {
+  const seed = Math.random().toString(36).slice(2, 8);
+  return `${prefix}_${Date.now().toString(36)}_${seed}`;
+}
+
+function buildDefaultMediaTree() {
+  const items = getMediaItemsData();
+  const nodes = [];
+  const sectionIds = new Map();
+
+  items.forEach((item) => {
+    const sectionName = item.tag || mediaCopy("root");
+    let sectionId = sectionIds.get(sectionName);
+    if (!sectionId) {
+      sectionId = makeMediaId("sec");
+      sectionIds.set(sectionName, sectionId);
+      nodes.push({
+        id: sectionId,
+        type: "section",
+        name: sectionName,
+        parentId: null
+      });
+    }
+
+    nodes.push({
+      id: makeMediaId("item"),
+      type: "item",
+      title: item.title,
+      mediaType: item.type,
+      assigned: item.assigned,
+      note: "",
+      parentId: sectionId
+    });
+  });
+
+  return { nodes };
+}
+
+function normalizeMediaNode(node) {
+  if (!node || typeof node !== "object") return null;
+  const type = node.type === "item" ? "item" : "section";
+  const id = String(node.id || makeMediaId(type === "item" ? "item" : "sec"));
+  const parentId = node.parentId ? String(node.parentId) : null;
+
+  if (type === "section") {
+    const name = String(node.name || "").trim();
+    if (!name) return null;
+    return { id, type, name, parentId };
+  }
+
+  const title = String(node.title || "").trim();
+  if (!title) return null;
+  return {
+    id,
+    type,
+    title,
+    mediaType: String(node.mediaType || node.typeLabel || "Video"),
+    assigned: String(node.assigned || ""),
+    note: String(node.note || ""),
+    parentId
+  };
+}
+
+function normalizeMediaTree(tree) {
+  if (!tree || typeof tree !== "object") return { nodes: [] };
+  const rawNodes = Array.isArray(tree.nodes) ? tree.nodes : [];
+  const nodes = rawNodes.map((node) => normalizeMediaNode(node)).filter(Boolean);
+  return { nodes };
+}
+
+function getStoredMediaTree() {
+  try {
+    const raw = localStorage.getItem(MEDIA_TREE_KEY);
+    if (!raw) {
+      const seeded = buildDefaultMediaTree();
+      localStorage.setItem(MEDIA_TREE_KEY, JSON.stringify(seeded));
+      return seeded;
+    }
+    const parsed = JSON.parse(raw);
+    const normalized = normalizeMediaTree(parsed);
+    if (!normalized.nodes.length) {
+      const seeded = buildDefaultMediaTree();
+      localStorage.setItem(MEDIA_TREE_KEY, JSON.stringify(seeded));
+      return seeded;
+    }
+    return normalized;
+  } catch {
+    const seeded = buildDefaultMediaTree();
+    localStorage.setItem(MEDIA_TREE_KEY, JSON.stringify(seeded));
+    return seeded;
+  }
+}
+
+function setStoredMediaTree(tree) {
+  const normalized = normalizeMediaTree(tree);
+  localStorage.setItem(MEDIA_TREE_KEY, JSON.stringify(normalized));
+  return normalized;
+}
+
+function getMediaNodes() {
+  return getStoredMediaTree().nodes;
+}
+
+function setMediaNodes(nodes) {
+  return setStoredMediaTree({ nodes }).nodes;
+}
+
+function findMediaNode(nodes, id) {
+  return nodes.find((node) => node.id === id) || null;
+}
+
+function getMediaChildren(nodes, parentId, type) {
+  return nodes.filter((node) => node.parentId === parentId && (!type || node.type === type));
+}
+
+function ensureMediaActiveSection(nodes) {
+  if (!mediaActiveSectionId) return;
+  const active = findMediaNode(nodes, mediaActiveSectionId);
+  if (!active || active.type !== "section") {
+    mediaActiveSectionId = null;
+  }
+}
+
+function getMediaPath(nodes, sectionId) {
+  const path = [];
+  let current = sectionId ? findMediaNode(nodes, sectionId) : null;
+  while (current && current.type === "section") {
+    path.unshift(current);
+    current = current.parentId ? findMediaNode(nodes, current.parentId) : null;
+  }
+  return path;
+}
+
+function countSectionChildren(nodes, sectionId) {
+  const sections = getMediaChildren(nodes, sectionId, "section").length;
+  const items = getMediaChildren(nodes, sectionId, "item").length;
+  return { sections, items };
+}
+
+function sectionMetaText(counts) {
+  const sectionsWord = mediaCopy("sectionsCount");
+  const itemsWord = mediaCopy("itemsCount");
+  return `${counts.sections} ${sectionsWord} - ${counts.items} ${itemsWord}`;
+}
+
+function renderMediaBreadcrumb(nodes) {
+  if (!mediaBreadcrumb) return;
+  mediaBreadcrumb.innerHTML = "";
+
+  const rootBtn = document.createElement("button");
+  rootBtn.type = "button";
+  rootBtn.className = "media-crumb" + (!mediaActiveSectionId ? " active" : "");
+  rootBtn.textContent = mediaCopy("root");
+  rootBtn.addEventListener("click", () => {
+    mediaActiveSectionId = null;
+    renderMedia();
+  });
+  mediaBreadcrumb.appendChild(rootBtn);
+
+  const path = getMediaPath(nodes, mediaActiveSectionId);
+  path.forEach((section) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    const isActive = section.id === mediaActiveSectionId;
+    btn.className = "media-crumb" + (isActive ? " active" : "");
+    btn.textContent = section.name;
+    btn.disabled = isActive;
+    btn.addEventListener("click", () => {
+      mediaActiveSectionId = section.id;
+      renderMedia();
+    });
+    mediaBreadcrumb.appendChild(btn);
+  });
+}
+
+function renderMediaSections(nodes) {
+  if (!mediaSectionList) return;
+  const sections = getMediaChildren(nodes, mediaActiveSectionId, "section");
+  mediaSectionList.innerHTML = "";
+
+  if (!sections.length) {
+    const empty = document.createElement("div");
+    empty.className = "media-empty";
+    empty.textContent = mediaCopy("emptySections");
+    mediaSectionList.appendChild(empty);
+    return;
+  }
+
+  sections.forEach((section) => {
+    const counts = countSectionChildren(nodes, section.id);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "media-section-card";
+    btn.innerHTML = `
+      <strong>${section.name}</strong>
+      <div class="small">${sectionMetaText(counts)}</div>
+    `;
+    btn.addEventListener("click", () => {
+      mediaActiveSectionId = section.id;
+      renderMedia();
+    });
+    mediaSectionList.appendChild(btn);
+  });
+}
+
+function mediaFavoriteLabel(item) {
+  const parent = item.parentName ? ` - ${item.parentName}` : "";
+  return `${item.title}${parent}`;
+}
+
+function renderMediaItems(nodes) {
+  if (!mediaItemList) return;
+  const items = getMediaChildren(nodes, mediaActiveSectionId, "item");
+  const assignedLabel = mediaCopy("assigned");
+  const saveFavLabel = mediaCopy("saveFav");
+  const parent = mediaActiveSectionId ? findMediaNode(nodes, mediaActiveSectionId) : null;
+  const parentName = parent?.type === "section" ? parent.name : "";
+
+  mediaItemList.innerHTML = "";
+  items.forEach((item) => {
     const card = document.createElement("div");
-    card.className = "media-card";
+    card.className = "media-item-card";
     card.innerHTML = `
       <h4>${item.title}</h4>
-      <div class="small">${item.type} - ${item.tag}</div>
-      <div class="small">Assigned: ${item.assigned}</div>
+      <div class="small">${item.mediaType}</div>
+      ${item.assigned ? `<div class="small">${assignedLabel}: ${item.assigned}</div>` : ""}
+      ${item.note ? `<div class="small">${item.note}</div>` : ""}
     `;
 
     const btn = document.createElement("button");
-    btn.textContent = "Save to Favorites";
+    btn.textContent = saveFavLabel;
     btn.addEventListener("click", () => {
       const favs = getFavorites();
-      const label = `${item.title} (${item.tag})`;
+      const label = mediaFavoriteLabel({ ...item, parentName });
       if (!favs.includes(label)) {
         favs.unshift(label);
         setFavorites(favs);
@@ -1875,25 +5491,120 @@ function renderMedia() {
     });
 
     card.appendChild(btn);
-    mediaGrid.appendChild(card);
+    mediaItemList.appendChild(card);
   });
+
+  return items.length;
 }
 
-renderMedia();
+function renderMediaEmptyState(sectionCount, itemCount) {
+  if (!mediaEmpty) return;
+  const isEmpty = sectionCount === 0 && itemCount === 0;
+  mediaEmpty.hidden = !isEmpty;
+  mediaEmpty.textContent = isEmpty ? mediaCopy("empty") : "";
+}
+
+function bindMediaTools() {
+  if (mediaToolsBound) return;
+
+  if (mediaAddSectionBtn) {
+    mediaAddSectionBtn.addEventListener("click", () => {
+      const name = mediaNewSectionName?.value.trim();
+      if (!name) {
+        toast(mediaCopy("needSectionName"));
+        return;
+      }
+      const nodes = getMediaNodes();
+      nodes.push({
+        id: makeMediaId("sec"),
+        type: "section",
+        name,
+        parentId: mediaActiveSectionId
+      });
+      setMediaNodes(nodes);
+      if (mediaNewSectionName) mediaNewSectionName.value = "";
+      toast(mediaCopy("addSectionToast"));
+      renderMedia();
+    });
+  }
+
+  if (mediaAddItemBtn) {
+    mediaAddItemBtn.addEventListener("click", () => {
+      const title = mediaNewItemTitle?.value.trim();
+      if (!title) {
+        toast(mediaCopy("needItemTitle"));
+        return;
+      }
+      const nodes = getMediaNodes();
+      nodes.push({
+        id: makeMediaId("item"),
+        type: "item",
+        title,
+        mediaType: mediaNewItemType?.value || "Video",
+        assigned: mediaNewItemAssigned?.value.trim() || "",
+        note: mediaNewItemNote?.value.trim() || "",
+        parentId: mediaActiveSectionId
+      });
+      setMediaNodes(nodes);
+      if (mediaNewItemTitle) mediaNewItemTitle.value = "";
+      if (mediaNewItemAssigned) mediaNewItemAssigned.value = "";
+      if (mediaNewItemNote) mediaNewItemNote.value = "";
+      toast(mediaCopy("addItemToast"));
+      renderMedia();
+    });
+  }
+
+  mediaToolsBound = true;
+}
+
+function renderMediaCoachTools(isCoach) {
+  if (!mediaCoachTools) return;
+  mediaCoachTools.classList.toggle("hidden", !isCoach);
+  if (!isCoach) return;
+
+  bindMediaTools();
+
+  if (mediaAddSectionTitle) mediaAddSectionTitle.textContent = mediaCopy("addSectionTitle");
+  if (mediaNewSectionLabel) mediaNewSectionLabel.textContent = mediaCopy("addSectionLabel");
+  if (mediaAddSectionBtn) mediaAddSectionBtn.textContent = mediaCopy("addSectionBtn");
+  if (mediaAddItemTitle) mediaAddItemTitle.textContent = mediaCopy("addItemTitle");
+  if (mediaNewItemLabel) mediaNewItemLabel.textContent = mediaCopy("addItemLabel");
+  if (mediaNewItemTypeLabel) mediaNewItemTypeLabel.textContent = mediaCopy("addItemTypeLabel");
+  if (mediaNewItemAssignedLabel) mediaNewItemAssignedLabel.textContent = mediaCopy("addItemAssignedLabel");
+  if (mediaNewItemNoteLabel) mediaNewItemNoteLabel.textContent = mediaCopy("addItemNoteLabel");
+  if (mediaAddItemBtn) mediaAddItemBtn.textContent = mediaCopy("addItemBtn");
+
+  if (mediaNewSectionName) mediaNewSectionName.placeholder = pickCopy(MEDIA_PLACEHOLDERS.section);
+  if (mediaNewItemTitle) mediaNewItemTitle.placeholder = pickCopy(MEDIA_PLACEHOLDERS.item);
+  if (mediaNewItemAssigned) mediaNewItemAssigned.placeholder = pickCopy(MEDIA_PLACEHOLDERS.assigned);
+  if (mediaNewItemNote) mediaNewItemNote.placeholder = pickCopy(MEDIA_PLACEHOLDERS.note);
+}
+
+function renderMedia() {
+  const nodes = getMediaNodes();
+  ensureMediaActiveSection(nodes);
+  const profile = getProfile();
+  const isCoach = profile?.role === "coach";
+
+  renderMediaBreadcrumb(nodes);
+  renderMediaSections(nodes);
+  const itemCount = renderMediaItems(nodes) || 0;
+  const sectionCount = getMediaChildren(nodes, mediaActiveSectionId, "section").length;
+  renderMediaEmptyState(sectionCount, itemCount);
+  renderMediaCoachTools(isCoach);
+}
 
 // ---------- ANNOUNCEMENTS ----------
 const announcementList = document.getElementById("announcementList");
 
 function renderAnnouncements() {
   announcementList.innerHTML = "";
-  ANNOUNCEMENTS.forEach((note) => {
+  getAnnouncementsData().forEach((note) => {
     const li = document.createElement("li");
     li.innerHTML = `<strong>${note.title}</strong><div class="small">${note.detail} - ${note.time}</div>`;
     announcementList.appendChild(li);
   });
 }
-renderAnnouncements();
-
 // ---------- DASHBOARD ----------
 const teamStats = document.getElementById("teamStats");
 const alertList = document.getElementById("alertList");
@@ -1902,7 +5613,7 @@ const quickActions = document.getElementById("quickActions");
 
 function renderDashboard() {
   teamStats.innerHTML = "";
-  TEAM_STATS.forEach((stat) => {
+  getTeamStatsData().forEach((stat) => {
     const card = document.createElement("div");
     card.className = "stat-card";
     card.innerHTML = `<h3>${stat.value}</h3><p>${stat.title} - ${stat.note}</p>`;
@@ -1910,14 +5621,14 @@ function renderDashboard() {
   });
 
   teamOverview.innerHTML = "";
-  TEAM_OVERVIEW.forEach((line) => {
+  getTeamOverviewData().forEach((line) => {
     const li = document.createElement("li");
     li.textContent = line;
     teamOverview.appendChild(li);
   });
 
   quickActions.innerHTML = "";
-  QUICK_ACTIONS.forEach((action) => {
+  getQuickActionsData().forEach((action) => {
     const btn = document.createElement("button");
     btn.className = "action-btn";
     btn.textContent = action;
@@ -1925,15 +5636,13 @@ function renderDashboard() {
   });
 
   alertList.innerHTML = "";
-  ALERTS.forEach((alert) => {
+  getAlertsData().forEach((alert) => {
     const div = document.createElement("div");
     div.className = "alert";
     div.textContent = alert;
     alertList.appendChild(div);
   });
 }
-
-renderDashboard();
 
 // ---------- COACH PROFILE ----------
 const coachAccount = document.getElementById("coachAccount");
@@ -1944,21 +5653,21 @@ const coachInternational = document.getElementById("coachInternational");
 
 function renderCoachProfile() {
   coachAccount.innerHTML = "";
-  COACH_ACCOUNT.forEach((line) => {
+  getCoachAccountData().forEach((line) => {
     const li = document.createElement("li");
     li.textContent = line;
     coachAccount.appendChild(li);
   });
 
   coachProfile.innerHTML = "";
-  COACH_PROFILE.forEach((line) => {
+  getCoachProfileData().forEach((line) => {
     const li = document.createElement("li");
     li.textContent = line;
     coachProfile.appendChild(li);
   });
 
   coachDiscipline.innerHTML = "";
-  COACH_DISCIPLINE.forEach((item) => {
+  getCoachDisciplineData().forEach((item) => {
     const tag = document.createElement("span");
     tag.className = "tag";
     tag.textContent = item;
@@ -1966,7 +5675,7 @@ function renderCoachProfile() {
   });
 
   coachStyle.innerHTML = "";
-  COACH_STYLE.forEach((item) => {
+  getCoachStyleData().forEach((item) => {
     const tag = document.createElement("span");
     tag.className = "tag";
     tag.textContent = item;
@@ -1974,43 +5683,106 @@ function renderCoachProfile() {
   });
 
   coachInternational.innerHTML = "";
-  COACH_INTERNATIONAL.forEach((line) => {
+  getCoachInternationalData().forEach((line) => {
     const li = document.createElement("li");
     li.textContent = line;
     coachInternational.appendChild(li);
   });
 }
 
-renderCoachProfile();
-
 // ---------- ATHLETE MANAGEMENT ----------
 const athleteFilters = document.getElementById("athleteFilters");
 const athleteList = document.getElementById("athleteList");
+let selectedCoachTags = new Set();
 
-function renderAthleteManagement() {
+function athleteMatchesTagFilter(tags = []) {
+  const normalized = normalizeSmartTags(tags);
+  if (!selectedCoachTags.size) return true;
+  return normalized.some((tag) => selectedCoachTags.has(tag));
+}
+
+function renderAthleteFilters() {
+  if (!athleteFilters) return;
+  const filterLabel = currentLang === "es" ? "Filtrar por tags:" : "Filter by tags:";
+  const clearLabel = currentLang === "es" ? "Limpiar" : "Clear";
   athleteFilters.innerHTML = "";
-  ATHLETE_FILTERS.forEach((item) => {
-    const tag = document.createElement("span");
-    tag.className = "tag";
-    tag.textContent = item;
-    athleteFilters.appendChild(tag);
+
+  const label = document.createElement("span");
+  label.className = "filter-label";
+  label.textContent = filterLabel;
+  athleteFilters.appendChild(label);
+
+  SMART_TAGS.forEach((tag) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "tag-chip filter-tag";
+    btn.textContent = `${tag.icon} ${pickCopy(tag.label)}`;
+    btn.classList.toggle("active", selectedCoachTags.has(tag.id));
+    btn.addEventListener("click", () => {
+      if (selectedCoachTags.has(tag.id)) selectedCoachTags.delete(tag.id);
+      else selectedCoachTags.add(tag.id);
+      renderAthleteManagement();
+    });
+    athleteFilters.appendChild(btn);
   });
 
+  if (selectedCoachTags.size) {
+    const clearBtn = document.createElement("button");
+    clearBtn.type = "button";
+    clearBtn.className = "tag-chip clear-tag";
+    clearBtn.textContent = clearLabel;
+    clearBtn.addEventListener("click", () => {
+      selectedCoachTags = new Set();
+      renderAthleteManagement();
+    });
+    athleteFilters.appendChild(clearBtn);
+  }
+}
+
+function renderAthleteManagement() {
+  if (!athleteFilters || !athleteList) return;
+  renderAthleteFilters();
+
   athleteList.innerHTML = "";
-  ATHLETES.forEach((athlete) => {
+  const statusLabel = currentLang === "es" ? "Estado" : "Status";
+  const preferredLabel = currentLang === "es" ? "Preferido" : "Preferred";
+  const intlLabel = currentLang === "es" ? "Internacional" : "International";
+  const onePagerLabel = currentLang === "es" ? "Abrir resumen" : "Open One-Pager";
+  const emptyLabel = currentLang === "es"
+    ? "No hay atletas con esos tags."
+    : "No athletes match those tags.";
+  const athletes = getAthletesData();
+  const filtered = athletes.filter((athlete) => athleteMatchesTagFilter(athlete.tags));
+
+  if (!filtered.length) {
+    const empty = document.createElement("div");
+    empty.className = "mini-card";
+    empty.innerHTML = `<h3>${emptyLabel}</h3>`;
+    athleteList.appendChild(empty);
+    return;
+  }
+
+  filtered.forEach((athlete) => {
     const card = document.createElement("div");
     card.className = "athlete-card";
+    const tags = normalizeSmartTags(athlete.tags);
+    const tagRow = tags.length
+      ? `<div class="tag-row smart-tags">${tags
+          .map((tag) => `<span class="tag smart-tag">${formatSmartTag(tag)}</span>`)
+          .join("")}</div>`
+      : "";
     card.innerHTML = `
       <h4>${athlete.name}</h4>
       <div class="small">${athlete.weight} - ${athlete.style}</div>
-      <div class="small">Status: ${athlete.availability}</div>
-      <div class="small">Preferred: ${athlete.preferred}</div>
-      <div class="small">International: ${athlete.international}</div>
+      <div class="small">${statusLabel}: ${athlete.availability}</div>
+      <div class="small">${preferredLabel}: ${athlete.preferred}</div>
+      <div class="small">${intlLabel}: ${athlete.international}</div>
       <div class="small">${athlete.history}</div>
       <div class="small">${athlete.notes}</div>
+      ${tagRow}
     `;
     const btn = document.createElement("button");
-    btn.textContent = "Open One-Pager";
+    btn.textContent = onePagerLabel;
     btn.addEventListener("click", () => {
       selectOnePagerAthlete(athlete.name);
       showTab("one-pager");
@@ -2020,8 +5792,6 @@ function renderAthleteManagement() {
   });
 }
 
-renderAthleteManagement();
-
 // ---------- JOURNAL MONITOR ----------
 const journalInsights = document.getElementById("journalInsights");
 const journalFlags = document.getElementById("journalFlags");
@@ -2029,34 +5799,37 @@ const journalAthletes = document.getElementById("journalAthletes");
 
 function renderJournalMonitor() {
   journalInsights.innerHTML = "";
-  JOURNAL_INSIGHTS.forEach((line) => {
+  getJournalInsightsData().forEach((line) => {
     const li = document.createElement("li");
     li.textContent = line;
     journalInsights.appendChild(li);
   });
 
   journalFlags.innerHTML = "";
-  JOURNAL_FLAGS.forEach((line) => {
+  getJournalFlagsData().forEach((line) => {
     const li = document.createElement("li");
     li.textContent = line;
     journalFlags.appendChild(li);
   });
 
   journalAthletes.innerHTML = "";
-  JOURNAL_ATHLETES.forEach((athlete) => {
+  const sleepLabel = currentLang === "es" ? "Sueno" : "Sleep";
+  const energyLabel = currentLang === "es" ? "Energia" : "Energy";
+  const sorenessLabel = currentLang === "es" ? "Dolor" : "Soreness";
+  const moodLabel = currentLang === "es" ? "Animo" : "Mood";
+  const weightLabel = currentLang === "es" ? "Tendencia de peso" : "Weight trend";
+  getJournalAthletesData().forEach((athlete) => {
     const card = document.createElement("div");
     card.className = "athlete-card";
     card.innerHTML = `
       <h4>${athlete.name}</h4>
-      <div class="small">Sleep: ${athlete.sleep} - Energy: ${athlete.energy}</div>
-      <div class="small">Soreness: ${athlete.soreness} - Mood: ${athlete.mood}</div>
-      <div class="small">Weight trend: ${athlete.weight}</div>
+      <div class="small">${sleepLabel}: ${athlete.sleep} - ${energyLabel}: ${athlete.energy}</div>
+      <div class="small">${sorenessLabel}: ${athlete.soreness} - ${moodLabel}: ${athlete.mood}</div>
+      <div class="small">${weightLabel}: ${athlete.weight}</div>
     `;
     journalAthletes.appendChild(card);
   });
 }
-
-renderJournalMonitor();
 
 // ---------- PERMISSIONS ----------
 const permissionsCan = document.getElementById("permissionsCan");
@@ -2064,21 +5837,20 @@ const permissionsCannot = document.getElementById("permissionsCannot");
 
 function renderPermissions() {
   permissionsCan.innerHTML = "";
-  PERMISSIONS.can.forEach((line) => {
+  const permissions = getPermissionsData();
+  permissions.can.forEach((line) => {
     const li = document.createElement("li");
     li.textContent = line;
     permissionsCan.appendChild(li);
   });
 
   permissionsCannot.innerHTML = "";
-  PERMISSIONS.cannot.forEach((line) => {
+  permissions.cannot.forEach((line) => {
     const li = document.createElement("li");
     li.textContent = line;
     permissionsCannot.appendChild(li);
   });
 }
-
-renderPermissions();
 
 // ---------- FUTURE ----------
 const futureAddons = document.getElementById("futureAddons");
@@ -2086,21 +5858,19 @@ const coachDesign = document.getElementById("coachDesign");
 
 function renderFuture() {
   futureAddons.innerHTML = "";
-  FUTURE_ADDONS.forEach((line) => {
+  getFutureAddonsData().forEach((line) => {
     const li = document.createElement("li");
     li.textContent = line;
     futureAddons.appendChild(li);
   });
 
   coachDesign.innerHTML = "";
-  COACH_DESIGN.forEach((line) => {
+  getCoachDesignData().forEach((line) => {
     const li = document.createElement("li");
     li.textContent = line;
     coachDesign.appendChild(li);
   });
 }
-
-renderFuture();
 
 // ---------- ONE-PAGER ----------
 const onePagerSelect = document.getElementById("onePagerSelect");
@@ -2148,11 +5918,11 @@ function buildOnePagerBase(athlete) {
     weightClass: athlete.weightClass || athlete.weight,
     school: athlete.schoolName || "",
     club: athlete.clubName || "",
-    years: athlete.years || athlete.level || "N/A",
-    international: athlete.international || "No",
+    years: athlete.years || athlete.level || "",
+    international: athlete.international || "no",
     internationalEvents: athlete.internationalEvents || "",
-    position: athlete.position || "Neutral",
-    strategy: athlete.strategy || "Balanced",
+    position: athlete.position || "neutral",
+    strategy: athlete.strategy || "balanced",
     techniques: athlete.techniques || {
       neutral: [],
       top: [],
@@ -2166,19 +5936,48 @@ function buildOnePagerBase(athlete) {
 }
 
 function renderOnePager(athleteName) {
-  const athlete = ATHLETES.find((a) => a.name === athleteName) || getProfile();
+  const athlete = getAthletesData().find((a) => a.name === athleteName) || getProfile();
   if (!athlete) return;
   const base = buildOnePagerBase(athlete);
   const saved = getOnePagerData(base.name) || {};
+  const defaultPlan =
+    currentLang === "es"
+      ? "Puntua primero con pierna simple. Mantente pesado arriba."
+      : "Score first with single leg. Stay heavy on top.";
+  const defaultDo =
+    currentLang === "es"
+      ? "Empuja el ritmo temprano. Mantener codos cerrados."
+      : "Push pace early. Keep elbows tight.";
+  const defaultDont =
+    currentLang === "es"
+      ? "Sobre extenderse en tiros. Colgarse en el underhook."
+      : "Overextend on shots. Hang in underhook.";
   const merged = {
     ...base,
-    plan: saved.plan || "Score first with single leg. Stay heavy on top.",
-    do: saved.do || "Push pace early. Keep elbows tight.",
-    dont: saved.dont || "Overextend on shots. Hang in underhook.",
+    plan: saved.plan || defaultPlan,
+    do: saved.do || defaultDo,
+    dont: saved.dont || defaultDont,
     coachCues: saved.coachCues || base.coachCues,
     cueNotes: saved.cueNotes || base.cueNotes,
     injuryNotes: saved.injuryNotes || base.injuryNotes
   };
+  const na = currentLang === "es" ? "N/D" : "N/A";
+  const schoolNA = currentLang === "es" ? "Escuela N/D" : "School N/A";
+  const yearsValue = merged.years || "";
+  const yearsDisplay = yearsValue ? getLevelLabel(yearsValue) || yearsValue : na;
+  const styleDisplay = merged.style
+    ? translateOptionValue("aStyle", merged.style) || translateValue(merged.style)
+    : na;
+  const positionDisplay = translateOptionValue("pPosition", merged.position) || na;
+  const strategyDisplay = translateOptionValue("pStrategy", merged.strategy) || na;
+  const internationalDisplay = translateOptionValue("pInternational", merged.international) || na;
+  const intlEventsDisplay =
+    merged.internationalEvents ||
+    (currentLang === "es" ? "No hay eventos internacionales" : "No international events listed");
+  const neutralTech = translateTechniqueList(merged.techniques.neutral);
+  const topTech = translateTechniqueList(merged.techniques.top);
+  const bottomTech = translateTechniqueList(merged.techniques.bottom);
+  const defenseTech = translateTechniqueList(merged.techniques.defense);
 
   if (onePagerHeader) {
     const initials = merged.name ? merged.name.split(" ").map((n) => n[0]).join("").slice(0, 2) : "AT";
@@ -2186,33 +5985,33 @@ function renderOnePager(athleteName) {
       <div class="onepager-avatar">${initials}</div>
       <div>
         <h3>${merged.name}</h3>
-        <div class="small">${merged.style} - ${merged.currentWeight} (${merged.weightClass})</div>
-        <div class="small">${merged.school || "School N/A"} ${merged.club ? "- " + merged.club : ""}</div>
+        <div class="small">${styleDisplay} - ${merged.currentWeight} (${merged.weightClass})</div>
+        <div class="small">${merged.school || schoolNA} ${merged.club ? "- " + merged.club : ""}</div>
       </div>
     `;
   }
 
   if (onePagerIdentity) {
     onePagerIdentity.innerHTML = `
-      <h3>Experience & Identity</h3>
+      <h3>${currentLang === "es" ? "Experiencia e identidad" : "Experience & Identity"}</h3>
       <ul class="list">
-        <li>Experience: ${merged.years}</li>
-        <li>International: ${merged.international}</li>
-        <li>${merged.internationalEvents || "No international events listed"}</li>
-        <li>Preferred position: ${merged.position}</li>
-        <li>Strategy: ${merged.strategy}</li>
+        <li>${currentLang === "es" ? "Experiencia" : "Experience"}: ${yearsDisplay}</li>
+        <li>${currentLang === "es" ? "Internacional" : "International"}: ${internationalDisplay}</li>
+        <li>${intlEventsDisplay}</li>
+        <li>${currentLang === "es" ? "Posicion preferida" : "Preferred position"}: ${positionDisplay}</li>
+        <li>${currentLang === "es" ? "Estrategia" : "Strategy"}: ${strategyDisplay}</li>
       </ul>
     `;
   }
 
   if (onePagerTechniques) {
     onePagerTechniques.innerHTML = `
-      <h3>Preferred Techniques</h3>
+      <h3>${currentLang === "es" ? "Tecnicas predeterminadas" : "Default Techniques"}</h3>
       <ul class="list">
-        <li>Neutral: ${(merged.techniques.neutral || []).join(", ") || "N/A"}</li>
-        <li>Top: ${(merged.techniques.top || []).join(", ") || "N/A"}</li>
-        <li>Bottom: ${(merged.techniques.bottom || []).join(", ") || "N/A"}</li>
-        <li>Defense: ${(merged.techniques.defense || []).join(", ") || "N/A"}</li>
+        <li>${currentLang === "es" ? "Neutral" : "Neutral"}: ${neutralTech.join(", ") || na}</li>
+        <li>${currentLang === "es" ? "Arriba" : "Top"}: ${topTech.join(", ") || na}</li>
+        <li>${currentLang === "es" ? "Abajo" : "Bottom"}: ${bottomTech.join(", ") || na}</li>
+        <li>${currentLang === "es" ? "Defensa" : "Defense"}: ${defenseTech.join(", ") || na}</li>
       </ul>
     `;
   }
@@ -2232,21 +6031,21 @@ function selectOnePagerAthlete(name) {
 
 if (onePagerSelect) {
   onePagerSelect.innerHTML = "";
-  ATHLETES.forEach((athlete) => {
+  getAthletesData().forEach((athlete) => {
     const option = document.createElement("option");
     option.value = athlete.name;
     option.textContent = athlete.name;
     onePagerSelect.appendChild(option);
   });
   onePagerSelect.addEventListener("change", () => renderOnePager(onePagerSelect.value));
-  selectOnePagerAthlete(ATHLETES[0]?.name);
+  selectOnePagerAthlete(getAthletesData()[0]?.name);
 }
 
 function saveOnePagerField(field, value) {
   const name = onePagerSelect?.value || "Athlete";
   const current = getOnePagerData(name) || {};
   setOnePagerData(name, { ...current, [field]: value });
-  toast("One-pager saved.");
+  toast(pickCopy({ en: "One-pager saved.", es: "Resumen guardado." }));
 }
 
 if (saveOnePagerPlan) {
@@ -2299,13 +6098,339 @@ if (addQuickNoteBtn) {
   });
 }
 
+// ---------- COACH MATCH VIEW ----------
+const coachMatchSelect = document.getElementById("coachMatchSelect");
+const coachMatchSelectLabel = document.getElementById("coachMatchSelectLabel");
+const coachMatchAvatar = document.getElementById("coachMatchAvatar");
+const coachMatchName = document.getElementById("coachMatchName");
+const coachMatchMeta = document.getElementById("coachMatchMeta");
+const coachMatchBasics = document.getElementById("coachMatchBasics");
+const coachMatchPosition = document.getElementById("coachMatchPosition");
+const coachMatchOffense = document.getElementById("coachMatchOffense");
+const coachMatchDefense = document.getElementById("coachMatchDefense");
+const coachMatchPsych = document.getElementById("coachMatchPsych");
+const coachMatchGoal = document.getElementById("coachMatchGoal");
+const coachMatchCue = document.getElementById("coachMatchCue");
+const coachMatchArchetype = document.getElementById("coachMatchArchetype");
+const coachMatchBodyType = document.getElementById("coachMatchBodyType");
+const coachMatchCueWords = document.getElementById("coachMatchCueWords");
+
+const MATCH_VIEW_COPY = {
+  en: {
+    selectAthlete: "Select athlete",
+    snapshot: "Match Snapshot",
+    style: "Style",
+    experience: "Years of experience",
+    weight: "Current weight",
+    category: "Weight category",
+    positionalStrengthTitle: "Positional Strength (1-10)",
+    positionalStrengthFallback: "Strength details not set yet",
+    offenseTitle: "Top 3 Offensive Moves",
+    defenseTitle: "Top 3 Defensive Moves",
+    psychTitle: "Psychological Tendency",
+    tendency: "Tendency",
+    error: "Common error under pressure",
+    cueWordsTitle: "Cue Words",
+    cueWordsHint: "Short, intentional reminders that help the athlete focus, reset, or return to core principles.",
+    cueWordsEmpty: "No cue words saved yet.",
+    archetypeTitle: "Archetype",
+    archetypeFallback: "No archetype chosen yet",
+    cueTitle: "Coach Key Signal",
+    cueHint: "If X happens -> do Y",
+    bodyTypeTitle: "Body Type",
+    bodyTypeFallback: "Body type not set yet",
+    goalTitle: "Athlete Goal",
+    goalFallback: "Goal not set yet",
+    yearsUnit: "years"
+  },
+  es: {
+    selectAthlete: "Seleccionar atleta",
+    snapshot: "Vista rapida",
+    style: "Estilo",
+    experience: "Anos de experiencia",
+    weight: "Peso actual",
+    category: "Categoria",
+    positionalStrengthTitle: "Fuerza posicional (1-10)",
+    positionalStrengthFallback: "Aun no registramos la fuerza",
+    offenseTitle: "Top 3 ofensivos",
+    defenseTitle: "Top 3 defensivos",
+    psychTitle: "Tendencia psicologica",
+    tendency: "Tendencia",
+    error: "Error comun bajo presion",
+    cueWordsTitle: "Cue Words",
+    cueWordsHint: "Recordatorios cortos e intencionales que ayudan al atleta a enfocarse, resetearse o volver a los principios.",
+    cueWordsEmpty: "Todavia no hay cue words guardadas.",
+    archetypeTitle: "Arquetipo",
+    archetypeFallback: "Aun no se selecciono un arquetipo",
+    cueTitle: "Senal clave del coach",
+    cueHint: "Si pasa X -> haz Y",
+    bodyTypeTitle: "Tipo de cuerpo",
+    bodyTypeFallback: "Tipo de cuerpo sin registrar",
+    goalTitle: "Meta del atleta",
+    goalFallback: "Meta aun no registrada",
+    yearsUnit: "anos"
+  }
+};
+
+function matchCopy(key) {
+  const table = MATCH_VIEW_COPY[resolveLang(currentLang)] || MATCH_VIEW_COPY.en;
+  return table[key] || MATCH_VIEW_COPY.en[key] || key;
+}
+
+function normalizePositionKey(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (raw.startsWith("top") || raw.startsWith("arr")) return "top";
+  if (raw.startsWith("bot") || raw.startsWith("aba")) return "bottom";
+  return "neutral";
+}
+
+function extractExperienceYears(athlete) {
+  if (!athlete) return "";
+  if (athlete.experienceYears) return String(athlete.experienceYears);
+  if (athlete.years) return String(athlete.years);
+  const history = String(athlete.history || "");
+  const match = history.match(/(\d+)\s*(year|ano)/i);
+  return match ? match[1] : "";
+}
+
+function topThree(list) {
+  if (!Array.isArray(list)) return [];
+  return list.filter(Boolean).slice(0, 3);
+}
+
+function createPositionStrengths(athlete) {
+  if (!athlete) return [];
+  const provided = athlete.positionStrengths || athlete.positionalStrength;
+  if (Array.isArray(provided) && provided.length) {
+    return provided
+      .filter((entry) => entry && (entry.name || entry.position))
+      .map((entry) => ({
+        name: entry.name || entry.position,
+        strength: Math.min(10, Math.max(0, Number(entry.strength ?? entry.value ?? 0)))
+      }));
+  }
+
+  const favorite = (athlete.favoritePosition || athlete.position || "").trim().toLowerCase();
+  const baseStats = [
+    { name: "Neutral", strength: 7 },
+    { name: "Top", strength: 6 },
+    { name: "Bottom", strength: 6 }
+  ];
+
+  return baseStats.map((entry) => {
+    const key = entry.name.toLowerCase();
+    const boost = favorite && (favorite === key || favorite.startsWith(key)) ? 2 : 0;
+    return {
+      name: entry.name,
+      strength: Math.min(10, entry.strength + boost)
+    };
+  });
+}
+
+function strategyToTendency(strategy) {
+  const key = String(strategy || "").toLowerCase();
+  if (key.includes("offensive")) return "aggressive";
+  if (key.includes("defensive")) return "conservative";
+  if (key.includes("counter")) return "counterattack";
+  return "conservative";
+}
+
+function buildCoachMatchData(athleteName) {
+  const athlete =
+    getAthletesData().find((a) => a.name === athleteName) ||
+    ATHLETES.find((a) => a.name === athleteName) ||
+    getProfile();
+  if (!athlete) return null;
+  const saved = getOnePagerData(athlete.name) || {};
+  const positionKey = normalizePositionKey(athlete.favoritePosition || athlete.position);
+  const offense = topThree(athlete.offenseTop3 || athlete.techniques?.neutral || []);
+  const defense = topThree(athlete.defenseTop3 || athlete.techniques?.defense || []);
+  const tendency = athlete.psychTendency || strategyToTendency(athlete.strategy);
+  const coachSignal = saved.cueNotes || athlete.coachSignal || saved.plan || "";
+  const goalText = saved.goal || athlete.goal || athlete.mainGoal || "";
+  const archetype = saved.archetype || athlete.archetype || athlete.profile?.archetype || "";
+  const bodyType = saved.bodyType || athlete.bodyType || athlete.profile?.bodyType || "";
+  const cueWords = saved.cueWords || athlete.cueWords || athlete.profile?.cueWords || [];
+  return {
+    name: athlete.name,
+    style: athlete.style,
+    experienceYears: extractExperienceYears(athlete),
+    currentWeight: athlete.currentWeight || athlete.weight || "",
+    weightClass: athlete.weightClass || "",
+    goal: goalText,
+    archetype,
+    bodyType,
+    cueWords,
+    positionStrengths: createPositionStrengths(athlete),
+    positionKey,
+    offense,
+    defense,
+    tendency,
+    pressureError: athlete.pressureError || saved.dont || "",
+    coachSignal
+  };
+}
+
+function renderCoachMatchView(athleteName) {
+  if (!coachMatchSelect) return;
+  const data = buildCoachMatchData(athleteName);
+  if (!data) return;
+  const na = currentLang === "es" ? "N/D" : "N/A";
+  const initials = data.name
+    ? data.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
+    : "AT";
+  const styleDisplay = data.style
+    ? translateOptionValue("aStyle", data.style) || translateValue(data.style)
+    : na;
+  const experienceDisplay = data.experienceYears
+    ? `${data.experienceYears} ${matchCopy("yearsUnit")}`
+    : na;
+  const weightDisplay = data.currentWeight || na;
+  const categoryDisplay = data.weightClass || na;
+  const positionStrengthList = data.positionStrengths || [];
+  const offenseDisplay = translateTechniqueList(data.offense).join(", ") || na;
+  const defenseDisplay = translateTechniqueList(data.defense).join(", ") || na;
+  const tendencyDisplay =
+    translateOptionValue("aPsychTendency", data.tendency) ||
+    translateValue(data.tendency) ||
+    na;
+  const errorDisplay = data.pressureError || na;
+  const archetypeDisplay =
+    translateOptionValue("aArchetype", data.archetype) ||
+    translateValue(data.archetype) ||
+    matchCopy("archetypeFallback");
+  const bodyTypeDisplay =
+    translateOptionValue("aBodyType", data.bodyType) ||
+    translateValue(data.bodyType) ||
+    matchCopy("bodyTypeFallback");
+  const cueDisplay = data.coachSignal || matchCopy("cueHint");
+  const cueWordsList = (data.cueWords || []).filter(Boolean);
+  const cueWordsHtml = cueWordsList.length
+    ? `<ul class="list tight cue-word-list">${cueWordsList.map((word) => `<li>${word}</li>`).join("")}</ul>`
+    : `<div class="small muted">${matchCopy("cueWordsEmpty")}</div>`;
+  const goalDisplay = data.goal || matchCopy("goalFallback");
+
+  if (coachMatchSelectLabel) coachMatchSelectLabel.textContent = matchCopy("selectAthlete");
+  if (coachMatchAvatar) coachMatchAvatar.textContent = initials;
+  if (coachMatchName) coachMatchName.textContent = data.name;
+  if (coachMatchMeta) coachMatchMeta.textContent = `${styleDisplay} - ${weightDisplay} (${categoryDisplay})`;
+
+  if (coachMatchBasics) {
+    coachMatchBasics.innerHTML = `
+      <h3>${matchCopy("snapshot")}</h3>
+      <ul class="list tight">
+        <li>${matchCopy("style")}: ${styleDisplay}</li>
+        <li>${matchCopy("experience")}: ${experienceDisplay}</li>
+        <li>${matchCopy("weight")}: ${weightDisplay}</li>
+        <li>${matchCopy("category")}: ${categoryDisplay}</li>
+      </ul>
+    `;
+  }
+
+  if (coachMatchPosition) {
+    const strengthItems = positionStrengthList.length
+      ? positionStrengthList
+          .map(
+            (entry) =>
+              `<li>${translateValue(entry.name)}: ${entry.strength}/10</li>`
+          )
+          .join("")
+      : `<li>${matchCopy("positionalStrengthFallback")}</li>`;
+    coachMatchPosition.innerHTML = `
+      <h3>${matchCopy("positionalStrengthTitle")}</h3>
+      <ul class="list tight">
+        ${strengthItems}
+      </ul>
+    `;
+  }
+
+  if (coachMatchOffense) {
+    coachMatchOffense.innerHTML = `
+      <h3>${matchCopy("offenseTitle")}</h3>
+      <div class="match-highlight">${offenseDisplay}</div>
+    `;
+  }
+
+  if (coachMatchDefense) {
+    coachMatchDefense.innerHTML = `
+      <h3>${matchCopy("defenseTitle")}</h3>
+      <div class="match-highlight">${defenseDisplay}</div>
+    `;
+  }
+
+  if (coachMatchPsych) {
+    coachMatchPsych.innerHTML = `
+      <h3>${matchCopy("psychTitle")}</h3>
+      <ul class="list tight">
+        <li>${matchCopy("tendency")}: ${tendencyDisplay}</li>
+        <li>${matchCopy("error")}: ${errorDisplay}</li>
+      </ul>
+    `;
+  }
+
+  if (coachMatchArchetype) {
+    coachMatchArchetype.innerHTML = `
+      <h3>${matchCopy("archetypeTitle")}</h3>
+      <div class="match-highlight">${archetypeDisplay}</div>
+    `;
+  }
+
+  if (coachMatchCueWords) {
+    coachMatchCueWords.innerHTML = `
+      <h3>${matchCopy("cueWordsTitle")}</h3>
+      <p class="small muted">${matchCopy("cueWordsHint")}</p>
+      ${cueWordsHtml}
+    `;
+  }
+
+  if (coachMatchBodyType) {
+    coachMatchBodyType.innerHTML = `
+      <h3>${matchCopy("bodyTypeTitle")}</h3>
+      <div class="match-highlight">${bodyTypeDisplay}</div>
+    `;
+  }
+
+  if (coachMatchGoal) {
+    coachMatchGoal.innerHTML = `
+      <h3>${matchCopy("goalTitle")}</h3>
+      <div class="match-highlight">${goalDisplay}</div>
+    `;
+  }
+
+  if (coachMatchCue) {
+    coachMatchCue.innerHTML = `
+      <h3>${matchCopy("cueTitle")}</h3>
+      <div class="match-cue">${cueDisplay}</div>
+    `;
+  }
+}
+
+function selectCoachMatchAthlete(name) {
+  if (!coachMatchSelect) return;
+  coachMatchSelect.value = name;
+  renderCoachMatchView(name);
+}
+
+if (coachMatchSelect) {
+  coachMatchSelect.innerHTML = "";
+  getAthletesData().forEach((athlete) => {
+    const option = document.createElement("option");
+    option.value = athlete.name;
+    option.textContent = athlete.name;
+    coachMatchSelect.appendChild(option);
+  });
+  coachMatchSelect.addEventListener("change", () => renderCoachMatchView(coachMatchSelect.value));
+  const defaultName = onePagerSelect?.value || getAthletesData()[0]?.name;
+  if (defaultName) selectCoachMatchAthlete(defaultName);
+}
+
 // ---------- MESSAGES ----------
 const messageList = document.getElementById("messageList");
 
 function renderMessages() {
   if (!messageList) return;
   messageList.innerHTML = "";
-  COACH_MESSAGES.forEach((msg) => {
+  getCoachMessagesData().forEach((msg) => {
     const card = document.createElement("div");
     card.className = "message-card";
     card.innerHTML = `
@@ -2318,90 +6443,115 @@ function renderMessages() {
   });
 }
 
-renderMessages();
-
 // ---------- SKILLS ----------
 const skillsGrid = document.getElementById("skillsGrid");
 
 function renderSkills() {
   skillsGrid.innerHTML = "";
-  SKILLS.forEach((skill) => {
+  const bestClipLabel = currentLang === "es" ? "Mejor clip" : "Best clip";
+  const notesLabel = currentLang === "es" ? "Notas" : "Notes";
+  const updatedLabel = currentLang === "es" ? "Actualizado" : "Updated";
+  getSkillsData().forEach((skill) => {
     const card = document.createElement("div");
     card.className = "skill-card";
     card.innerHTML = `
       <h3>${skill.name}</h3>
       <div class="rating">${skill.rating}</div>
-      <div class="small">Best clip: ${skill.clip}</div>
-      <div class="small">Notes: ${skill.notes}</div>
-      <div class="small">Updated: ${skill.updated}</div>
+      <div class="small">${bestClipLabel}: ${skill.clip}</div>
+      <div class="small">${notesLabel}: ${skill.notes}</div>
+      <div class="small">${updatedLabel}: ${skill.updated}</div>
     `;
     skillsGrid.appendChild(card);
   });
 }
 
-renderSkills();
-
 // ---------- JOURNAL ----------
 const journalInput = document.getElementById("journalInput");
 const saveJournalBtn = document.getElementById("saveJournalBtn");
-const clearJournalBtn = document.getElementById("clearJournalBtn");
 const journalStatus = document.getElementById("journalStatus");
+const journalEntries = document.getElementById("journalEntries");
+const JOURNAL_ENTRIES_KEY = "wpl_journal_entries";
 
-const sleepInput = document.getElementById("sleepInput");
-const energyInput = document.getElementById("energyInput");
-const sorenessInput = document.getElementById("sorenessInput");
-const weightInput = document.getElementById("weightInput");
-const moodInput = document.getElementById("moodInput");
-const injuryInput = document.getElementById("injuryInput");
-
-const JOURNAL_KEY = "wpl_journal";
-
-function loadJournal() {
-  const saved = localStorage.getItem(JOURNAL_KEY);
-  if (!saved) return;
-
+function getJournalEntries() {
+  const saved = localStorage.getItem(JOURNAL_ENTRIES_KEY);
+  if (!saved) return [];
   try {
-    const data = JSON.parse(saved);
-    journalInput.value = data.notes || "";
-    sleepInput.value = data.sleep || "";
-    energyInput.value = data.energy || "";
-    sorenessInput.value = data.soreness || "";
-    weightInput.value = data.weight || "";
-    moodInput.value = data.mood || "";
-    injuryInput.value = data.injury || "";
+    const parsed = JSON.parse(saved);
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
-    journalInput.value = saved;
+    return [];
   }
 }
-loadJournal();
 
-saveJournalBtn.addEventListener("click", () => {
-  const data = {
-    notes: journalInput.value,
-    sleep: sleepInput.value,
-    energy: energyInput.value,
-    soreness: sorenessInput.value,
-    weight: weightInput.value,
-    mood: moodInput.value,
-    injury: injuryInput.value
-  };
-  localStorage.setItem(JOURNAL_KEY, JSON.stringify(data));
-  journalStatus.textContent = "Saved.";
-  setTimeout(() => (journalStatus.textContent = ""), 1200);
-});
+function formatJournalDate(timestamp) {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return "";
+  const locale = currentLang === "es" ? "es-PR" : "en-US";
+  return date.toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
+}
 
-clearJournalBtn.addEventListener("click", () => {
+function renderJournalEntries() {
+  if (!journalEntries) return;
+  const entries = getJournalEntries();
+  if (!entries.length) {
+    journalEntries.innerHTML = `<p class="small muted">${pickCopy({ en: "No journal entries yet.", es: "Todavia no hay entradas de diario." })}</p>`;
+    return;
+  }
+  journalEntries.innerHTML = entries
+    .slice()
+    .reverse()
+    .map((entry) => {
+      const date = formatJournalDate(entry.date);
+      return `
+        <div class="journal-entry-card">
+          <div class="journal-entry-date">${date || pickCopy({ en: "Unknown time", es: "Hora desconocida" })}</div>
+          <p>${entry.note.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function saveJournalEntry() {
+  if (!journalInput) return;
+  const note = journalInput.value.trim();
+  if (!note) {
+    journalStatus.textContent = pickCopy({ en: "Write something before saving.", es: "Escribe algo antes de guardar." });
+    setTimeout(() => (journalStatus.textContent = ""), 1600);
+    return;
+  }
+  const entries = getJournalEntries();
+  entries.push({ date: new Date().toISOString(), note });
+  localStorage.setItem(JOURNAL_ENTRIES_KEY, JSON.stringify(entries));
   journalInput.value = "";
-  sleepInput.value = "";
-  energyInput.value = "";
-  sorenessInput.value = "";
-  weightInput.value = "";
-  moodInput.value = "";
-  injuryInput.value = "";
-  localStorage.removeItem(JOURNAL_KEY);
-  journalStatus.textContent = "Cleared.";
-  setTimeout(() => (journalStatus.textContent = ""), 1200);
-});
+  journalStatus.textContent = pickCopy({ en: "Entry saved.", es: "Entrada guardada." });
+  setTimeout(() => (journalStatus.textContent = ""), 1600);
+  renderJournalEntries();
+}
 
-// Initialize the new plan selectors
-initializePlanSelectors();
+if (saveJournalBtn) {
+  saveJournalBtn.addEventListener("click", saveJournalEntry);
+}
+
+async function startApp() {
+  renderJournalEntries();
+  await bootProfile();
+  renderToday();
+  renderFeelingScale();
+  renderPlanGrid();
+  renderCalendar();
+  renderCalendarManager();
+  renderMedia();
+  renderAnnouncements();
+  renderDashboard();
+  renderCoachProfile();
+  renderAthleteManagement();
+  renderJournalMonitor();
+  renderPermissions();
+  renderFuture();
+  renderMessages();
+  renderSkills();
+  initializePlanSelectors();
+}
+
+startApp();
