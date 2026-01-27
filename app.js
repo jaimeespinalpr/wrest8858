@@ -1724,13 +1724,17 @@ async function continueAsGuest(role) {
 }
 
 if (guestAthleteBtn) {
-  guestAthleteBtn.addEventListener("click", async () => {
+  guestAthleteBtn.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
     await continueAsGuest("athlete");
   });
 }
 
 if (guestCoachBtn) {
-  guestCoachBtn.addEventListener("click", async () => {
+  guestCoachBtn.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
     await continueAsGuest("coach");
   });
 }
