@@ -138,7 +138,6 @@ const userMeta = document.getElementById("userMeta");
 const roleMeta = document.getElementById("roleMeta");
 const nowMeta = document.getElementById("nowMeta");
 const editProfileBtn = document.getElementById("editProfileBtn");
-const muteBtn = document.getElementById("muteBtn");
 const headerLang = document.getElementById("headerLang");
 const headerFlag = document.getElementById("headerFlag");
 const authTabs = Array.from(document.querySelectorAll(".auth-tab"));
@@ -1481,9 +1480,6 @@ function applyStaticTranslations() {
   if (editProfileBtn) {
     editProfileBtn.title = currentLang === "es" ? "Editar perfil" : "Edit profile";
   }
-  if (muteBtn) {
-    muteBtn.setAttribute("aria-label", currentLang === "es" ? "Silenciar audio" : "Mute audio");
-  }
 
   const welcomeVisible = welcomeScreen && !welcomeScreen.classList.contains("hidden");
   if (!welcomeVisible) {
@@ -1881,12 +1877,6 @@ function speak(text) {
 
   speechSynthesis.speak(u);
 }
-
-muteBtn.addEventListener("click", () => {
-  muted = !muted;
-  speechSynthesis.cancel();
-  muteBtn.textContent = muted ? "🔇" : "🔊";
-});
 
 if (headerLang) {
   headerLang.addEventListener("change", () => {
