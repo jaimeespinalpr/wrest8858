@@ -987,21 +987,54 @@
           </div>
 
           <div class="plan-range-wrapper form-section">
-            <h3 id="planRangeHeading">Plan range</h3>
-            <div class="plan-range-panel">
-              <div class="plan-calendar calendar-container" id="planCalendarContainer"></div>
-              <div class="plan-range-inputs">
-                <label class="range-input">
-                  <span id="planRangeStartTitle">Start</span>
-                  <input type="date" id="planRangeStart" >
-                </label>
-                <label class="range-input hidden" id="planRangeEndWrapper">
-                  <span id="planRangeEndTitle">End</span>
-                  <input type="date" id="planRangeEnd" >
-                </label>
+            <div class="plan-calendar-hub">
+              <div class="plan-calendar-card month-card">
+                <div class="card-header">
+                  <div>
+                    <span class="calendar-card-title">Month View</span>
+                    <span class="calendar-card-label" id="planCalendarLabel">June 2021</span>
+                  </div>
+                  <div class="calendar-card-controls">
+                    <button type="button" id="planMonthPrev" aria-label="Previous month">‹</button>
+                    <button type="button" id="planMonthNext" aria-label="Next month">›</button>
+                  </div>
+                </div>
+                <div class="plan-calendar calendar-container" id="planCalendarContainer"></div>
               </div>
-              <p class="small muted" id="planRangeHint"></p>
+              <div class="plan-calendar-card year-card">
+                <div class="card-header">
+                  <span class="calendar-card-title">Year View</span>
+                  <span class="calendar-card-label" id="planYearLabel">2021</span>
+                </div>
+                <div class="plan-year-grid" id="planYearGrid"></div>
+              </div>
+              <div class="plan-calendar-card decade-card">
+                <div class="card-header">
+                  <span class="calendar-card-title">Decade View</span>
+                  <span class="calendar-card-label" id="planDecadeLabel">2018 - 2029</span>
+                </div>
+                <div class="plan-decade-grid" id="planDecadeGrid"></div>
+              </div>
             </div>
+            <div class="plan-calendar-detail">
+              <div class="plan-monthly-selection" id="planMonthlySelection">Selecciona un día para comenzar.</div>
+              <textarea id="planMonthlyNotes" rows="4" placeholder="Notas rápidas del día"></textarea>
+              <div class="row plan-monthly-actions">
+                <button type="button" class="ghost" id="planMonthlyClear">Limpiar</button>
+                <button type="button" class="primary" id="planMonthlySave">Guardar día</button>
+              </div>
+            </div>
+            <div class="plan-range-inputs">
+              <label class="range-input">
+                <span id="planRangeStartTitle">Start</span>
+                <input type="date" id="planRangeStart" >
+              </label>
+              <label class="range-input hidden" id="planRangeEndWrapper">
+                <span id="planRangeEndTitle">End</span>
+                <input type="date" id="planRangeEnd" >
+              </label>
+            </div>
+            <p class="small muted" id="planRangeHint"></p>
           </div>
 
           <div class="subpanel" id="plan-daily">
@@ -1356,32 +1389,9 @@
           </div>
 
           <div class="subpanel hidden" id="plan-monthly">
-            <div class="form-section">
-                <h3>Select Month and Year</h3>
-                <div class="row">
-                    <select id="monthly-month-select"></select>
-                    <select id="monthly-year-select"></select>
-                </div>
-            </div>
-            <div class="section-grid">
-              <div class="mini-card">
-                <h3>Monthly Focus</h3>
-                <ul class="list">
-                  <li>Define phase goals</li>
-                  <li>Build weekly load pattern</li>
-                  <li>Track recovery deloads</li>
-                  <li>Assign by athlete or group</li>
-                </ul>
-              </div>
-              <div class="mini-card">
-                <h3>Review</h3>
-                <ul class="list">
-                  <li>Progress checkpoints</li>
-                  <li>Competition readiness</li>
-                  <li>Compliance summary</li>
-                </ul>
-              </div>
-            </div>
+            <p class="small muted">
+              El calendario mensual completo se muestra arriba. Selecciona cualquier día para planificar el trabajo de todo el mes; la vista cambiará automáticamente cuando navegues entre meses.
+            </p>
           </div>
 
           <div class="subpanel hidden" id="plan-season">
