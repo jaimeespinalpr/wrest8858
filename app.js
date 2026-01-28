@@ -1110,6 +1110,31 @@ const TAB_COPY = {
   future: { en: "Future", es: "Futuro" }
 };
 
+const PLAN_RANGE_COPY = {
+  heading: { en: "Plan range", es: "Rango del plan" },
+  start: { en: "Start", es: "Inicio" },
+  end: { en: "End", es: "Fin" }
+};
+
+const PLAN_RANGE_HINT = {
+  day: {
+    en: "Select a single day on the calendar to lock this plan.",
+    es: "Selecciona un solo día en el calendario para fijar el plan."
+  },
+  week: {
+    en: "Pick start and end dates to capture the week span.",
+    es: "Elige fecha de inicio y fin para cubrir la semana."
+  },
+  month: {
+    en: "Choose a start and end date that span the month.",
+    es: "Selecciona fechas de inicio y fin que cubran el mes."
+  },
+  season: {
+    en: "Enter the season window by selecting start and end dates.",
+    es: "Define la ventana de temporada con fechas de inicio y fin."
+  }
+};
+
 const PROFILE_SUBTAB_COPY = {
   training: { en: "Training", es: "Entrenamiento" },
   competition: { en: "Competition", es: "Competencia" },
@@ -1446,6 +1471,9 @@ function applyStaticTranslations() {
   Object.entries(PROFILE_SECTION_COPY).forEach(([id, copy]) => {
     setTextContent(`#${id}`, copy);
   });
+  setTextContent("#planRangeHeading", PLAN_RANGE_COPY.heading);
+  setTextContent("#planRangeStartTitle", PLAN_RANGE_COPY.start);
+  setTextContent("#planRangeEndTitle", PLAN_RANGE_COPY.end);
   if (typeof renderProfileTagPicker === "function") {
     renderProfileTagPicker();
   }
@@ -3251,11 +3279,16 @@ function showSubtab(name) {
 }
 
 subtabButtons.forEach((btn) => {
-  btn.addEventListener("click", () => showSubtab(btn.dataset.subtab));
+  btn.addEventListener("click", () => {
+    showSubtab(btn.dataset.subtab);
+    updatePlanRangeType(btn.dataset.subtab);
+  });
 });
 
 if (subtabButtons.length) {
-  showSubtab(subtabButtons[0].dataset.subtab);
+  const initial = subtabButtons[0].dataset.subtab;
+  showSubtab(initial);
+  updatePlanRangeType(initial);
 }
 
 // ---------- DAILY PLAN SELECTIONS ----------
@@ -3284,10 +3317,27 @@ let templatePdfBytes = null;
 let lastFilledPdfUrl = null;
 let pendingTemplatePrint = false;
 
-const dailyCalendarContainer = document.getElementById('daily-calendar-container');
-const monthlyMonthSelect = document.getElementById('monthly-month-select');
-const monthlyYearSelect = document.getElementById('monthly-year-select');
-const seasonYearSelect = document.getElementById('season-year-select');
+const planCalendarContainer = document.getElementById("planCalendarContainer");
+const monthlyMonthSelect = document.getElementById("monthly-month-select");
+const monthlyYearSelect = document.getElementById("monthly-year-select");
+const seasonYearSelect = document.getElementById("season-year-select");
+const planRangeStartInput = document.getElementById("planRangeStart");
+const planRangeEndInput = document.getElementById("planRangeEnd");
+const planRangeEndWrapper = document.getElementById("planRangeEndWrapper");
+const planRangeHint = document.getElementById("planRangeHint");
+const planRangeHeading = document.getElementById("planRangeHeading");
+const planRangeStartTitle = document.getElementById("planRangeStartTitle");
+const planRangeEndTitle = document.getElementById("planRangeEndTitle");
+let planRangeType = "day";
+let planRangeSelection = { start: new Date(), end: new Date() };
+let planCalendarYear = new Date().getFullYear();
+let planCalendarMonth = new Date().getMonth();
+const PLAN_RANGE_KEY_MAP = {
+  "plan-daily": "day",
+  "plan-weekly": "week",
+  "plan-monthly": "month",
+  "plan-season": "season"
+};
 
 function populateYearSelects() {
     if (!monthlyYearSelect || !seasonYearSelect) return;
@@ -3311,7 +3361,9 @@ function populateMonthSelect() {
 }
 
 function renderPlanCalendar(year, month) {
-    if (!dailyCalendarContainer) return;
+    if (!planCalendarContainer) return;
+    planCalendarYear = year;
+    planCalendarMonth = month;
 
     const monthNames = getMonthNames();
     const daysOfWeek = getDayAbbr();
@@ -3323,9 +3375,9 @@ function renderPlanCalendar(year, month) {
 
     let html = `
     <div class="calendar-header">
-      <button id="prev-month">&lt;</button>
+      <button id="plan-prev-month" type="button">&lt;</button>
       <span>${monthNames[month]} ${year}</span>
-      <button id="next-month">&gt;</button>
+      <button id="plan-next-month" type="button">&gt;</button>
     </div>
     <div class="calendar-grid-days">
   `;
@@ -3343,22 +3395,19 @@ function renderPlanCalendar(year, month) {
     }
 
     html += '</div>';
-    dailyCalendarContainer.innerHTML = html;
-
-    document.getElementById('prev-month').addEventListener('click', () => {
+    planCalendarContainer.innerHTML = html;
+    document.getElementById('plan-prev-month')?.addEventListener('click', () => {
         const newDate = new Date(year, month - 1, 1);
         renderPlanCalendar(newDate.getFullYear(), newDate.getMonth());
     });
-    document.getElementById('next-month').addEventListener('click', () => {
+    document.getElementById('plan-next-month')?.addEventListener('click', () => {
         const newDate = new Date(year, month + 1, 1);
         renderPlanCalendar(newDate.getFullYear(), newDate.getMonth());
     });
-    dailyCalendarContainer.querySelectorAll('.calendar-day').forEach(dayEl => {
-        dayEl.addEventListener('click', () => {
-            dailyCalendarContainer.querySelectorAll('.calendar-day').forEach(d => d.classList.remove('selected'));
-            dayEl.classList.add('selected');
-        });
+    planCalendarContainer.querySelectorAll('.calendar-day').forEach(dayEl => {
+        dayEl.addEventListener('click', () => handlePlanDayClick(dayEl));
     });
+    highlightPlanRange();
 }
 
 function initializePlanSelectors() {
@@ -3367,6 +3416,127 @@ function initializePlanSelectors() {
     populateYearSelects();
     const today = new Date();
     renderPlanCalendar(today.getFullYear(), today.getMonth());
+    updateRangeInputsFromSelection();
+}
+
+function toIsoDate(date) {
+    if (!date || Number.isNaN(date.getTime())) return "";
+    const offsetMs = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - offsetMs).toISOString().slice(0, 10);
+}
+
+function parseDateInput(value) {
+    if (!value) return null;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function updateRangeInputsFromSelection() {
+    if (planRangeStartInput) {
+        planRangeStartInput.value = toIsoDate(planRangeSelection.start);
+    }
+    if (planRangeEndInput) {
+        planRangeEndInput.value = planRangeType === "day"
+            ? toIsoDate(planRangeSelection.start)
+            : toIsoDate(planRangeSelection.end);
+    }
+}
+
+function updateSelectionFromInputs() {
+    const startValue = parseDateInput(planRangeStartInput?.value);
+    const endValue = parseDateInput(planRangeEndInput?.value);
+    if (planRangeType === "day") {
+        planRangeSelection.start = startValue || planRangeSelection.start;
+        planRangeSelection.end = planRangeSelection.start;
+    } else {
+        planRangeSelection.start = startValue || planRangeSelection.start;
+        planRangeSelection.end = endValue;
+        if (
+            planRangeSelection.start &&
+            planRangeSelection.end &&
+            planRangeSelection.end < planRangeSelection.start
+        ) {
+            [planRangeSelection.start, planRangeSelection.end] = [
+                planRangeSelection.end,
+                planRangeSelection.start
+            ];
+        }
+    }
+    highlightPlanRange();
+}
+
+function highlightPlanRange() {
+    if (!planCalendarContainer) return;
+    const days = Array.from(planCalendarContainer.querySelectorAll(".calendar-day"));
+    if (!days.length) return;
+    const start = planRangeSelection.start;
+    const end = planRangeType === "day"
+        ? start
+        : planRangeSelection.end;
+    days.forEach((dayEl) => {
+        const dayNum = Number(dayEl.dataset.day);
+        if (!dayNum) {
+            dayEl.classList.remove("range-start", "range-end", "range-between");
+            return;
+        }
+        const date = new Date(planCalendarYear, planCalendarMonth, dayNum);
+        dayEl.classList.remove("range-start", "range-between", "range-end");
+        if (start && date.getTime() === start.getTime()) {
+            dayEl.classList.add("range-start");
+        }
+        if (end && date.getTime() === end.getTime()) {
+            dayEl.classList.add("range-end");
+        }
+        if (start && end && date > start && date < end) {
+            dayEl.classList.add("range-between");
+        }
+    });
+}
+
+function handlePlanDayClick(dayEl) {
+    const dayValue = Number(dayEl.dataset.day);
+    if (!dayValue) return;
+    const clicked = new Date(planCalendarYear, planCalendarMonth, dayValue);
+    if (planRangeType === "day") {
+        planRangeSelection.start = clicked;
+        planRangeSelection.end = clicked;
+    } else if (!planRangeSelection.start || (planRangeSelection.start && planRangeSelection.end)) {
+        planRangeSelection.start = clicked;
+        planRangeSelection.end = null;
+    } else {
+        planRangeSelection.end = clicked;
+        if (planRangeSelection.end < planRangeSelection.start) {
+            [planRangeSelection.start, planRangeSelection.end] = [
+                planRangeSelection.end,
+                planRangeSelection.start
+            ];
+        }
+    }
+    updateRangeInputsFromSelection();
+    highlightPlanRange();
+}
+
+function updatePlanRangeType(subtabKey) {
+    const nextType = PLAN_RANGE_KEY_MAP[subtabKey] || "day";
+    planRangeType = nextType;
+    if (planRangeEndWrapper) {
+        planRangeEndWrapper.classList.toggle("hidden", planRangeType === "day");
+    }
+    if (planRangeType === "day") {
+        planRangeSelection.end = planRangeSelection.start;
+    }
+    updateRangeInputsFromSelection();
+    highlightPlanRange();
+    if (planRangeHint) {
+        planRangeHint.textContent = pickCopy(PLAN_RANGE_HINT[planRangeType]);
+    }
+}
+
+if (planRangeStartInput) {
+    planRangeStartInput.addEventListener("change", () => updateSelectionFromInputs());
+}
+if (planRangeEndInput) {
+    planRangeEndInput.addEventListener("change", () => updateSelectionFromInputs());
 }
 
 function addChosenItem(listEl, value) {

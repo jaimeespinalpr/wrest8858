@@ -930,6 +930,104 @@ textarea:focus{
   gap: 12px;
 }
 
+.plan-range-wrapper{
+  margin: 18px 0;
+}
+
+.plan-range-panel{
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(11,16,28,0.72);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plan-calendar{
+  border-radius: 18px;
+  padding: 12px;
+  background: rgba(0,0,0,0.35);
+}
+
+.calendar-header{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+
+.calendar-header button{
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.06);
+  padding: 4px 10px;
+  color: var(--text);
+}
+
+.calendar-grid-days{
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0,1fr));
+  gap: 6px;
+  font-size: 13px;
+}
+
+.calendar-day-name{
+  text-align: center;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.calendar-day{
+  border-radius: 10px;
+  padding: 10px 0;
+  text-align: center;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: border 0.2s ease;
+}
+
+.calendar-day.today{
+  border-color: rgba(59,130,246,0.6);
+}
+
+.calendar-day.range-start,
+.calendar-day.range-end{
+  background: rgba(59,130,246,0.25);
+  border-color: rgba(59,130,246,0.35);
+}
+
+.calendar-day.range-between{
+  background: rgba(59,130,246,0.15);
+}
+
+.plan-range-inputs{
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.range-input{
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.range-input input{
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(0,0,0,0.28);
+  color: var(--text);
+  padding: 8px 10px;
+}
+
+.plan-range-panel .small{
+  margin: 0;
+}
+
 .plan-card{
   border-radius: 16px;
   padding: 12px;
