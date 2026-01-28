@@ -4157,10 +4157,6 @@ const planMonthlySave = document.getElementById("planMonthlySave");
 const planMonthPrevBtn = document.getElementById("planMonthPrev");
 const planMonthNextBtn = document.getElementById("planMonthNext");
 const planCalendarLabel = document.getElementById("planCalendarLabel");
-const planYearLabel = document.getElementById("planYearLabel");
-const planDecadeLabel = document.getElementById("planDecadeLabel");
-const planYearGrid = document.getElementById("planYearGrid");
-const planDecadeGrid = document.getElementById("planDecadeGrid");
 
 function getCalendarContainers() {
     return [planCalendarContainer].filter(Boolean);
@@ -4181,65 +4177,11 @@ function updateMonthlySelectionLabel() {
     planMonthlySelection.textContent = `Día seleccionado: ${formatMonthlySelection(planRangeSelection.start)}`;
 }
 
-function getDecadeWindow(year) {
-    const base = Math.floor(year / 10) * 10;
-    const start = base - 2;
-    return Array.from({ length: 12 }, (_, idx) => start + idx);
-}
-
-function getDecadeLabel(year) {
-    const window = getDecadeWindow(year);
-    if (!window.length) return "";
-    return `${window[0]} - ${window[window.length - 1]}`;
-}
-
 function updateCalendarLabels() {
     if (planCalendarLabel) {
         const name = getMonthNames()[planCalendarMonth] || "";
         planCalendarLabel.textContent = `${name} ${planCalendarYear}`;
     }
-    if (planYearLabel) {
-        planYearLabel.textContent = `${planCalendarYear}`;
-    }
-    if (planDecadeLabel) {
-        planDecadeLabel.textContent = getDecadeLabel(planCalendarYear);
-    }
-}
-
-function renderYearGrid(year) {
-    if (!planYearGrid) return;
-    const months = getMonthNames();
-    planYearGrid.innerHTML = months
-        .map((name, idx) => {
-            const shortName = name.slice(0, 3);
-            const active = year === planCalendarYear && idx === planCalendarMonth ? " active" : "";
-            return `<button type="button" class="year-month${active}" data-month="${idx}">${shortName}</button>`;
-        })
-        .join("");
-    planYearGrid.querySelectorAll("button").forEach((btn) => {
-        btn.addEventListener("click", () => {
-            planCalendarMonth = Number(btn.dataset.month);
-            planCalendarYear = year;
-            renderPlanCalendar(planCalendarYear, planCalendarMonth);
-        });
-    });
-}
-
-function renderDecadeGrid(year) {
-    if (!planDecadeGrid) return;
-    const decade = getDecadeWindow(year);
-    planDecadeGrid.innerHTML = decade
-        .map((value) => {
-            const active = value === planCalendarYear ? " active" : "";
-            return `<button type="button" class="decade-year${active}" data-year="${value}">${value}</button>`;
-        })
-        .join("");
-    planDecadeGrid.querySelectorAll("button").forEach((btn) => {
-        btn.addEventListener("click", () => {
-            planCalendarYear = Number(btn.dataset.year);
-            renderPlanCalendar(planCalendarYear, planCalendarMonth);
-        });
-    });
 }
 
 if (planMonthlyClear) {
@@ -4318,8 +4260,6 @@ function renderPlanCalendar(year, month) {
     });
 
     updateCalendarLabels();
-    renderYearGrid(planCalendarYear);
-    renderDecadeGrid(planCalendarYear);
     highlightPlanRange();
 }
 
