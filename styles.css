@@ -49,6 +49,8 @@ body{
   border: 1px solid var(--stroke);
   box-shadow: var(--shadow);
   backdrop-filter: blur(10px);
+  position: relative;
+  z-index: 20;
 }
 
 .app-header h1{
@@ -1693,7 +1695,7 @@ textarea:focus{
   gap: 10px;
   align-items:center;
   position: relative;
-  z-index: 5;
+  z-index: 50;
 }
 
 .header-profile{
@@ -1713,7 +1715,7 @@ textarea:focus{
   border-radius: 14px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.35);
   min-width: 160px;
-  z-index: 50;
+  z-index: 100;
 }
 
 .header-menu.hidden{
