@@ -464,7 +464,6 @@ function refreshLanguageUI() {
   renderAthleteManagement();
   renderJournalMonitor();
   renderPermissions();
-  renderFuture();
   renderMessages();
   renderSkills();
   if (typeof coachMatchSelect !== "undefined" && coachMatchSelect && coachMatchSelect.value) {
@@ -1105,8 +1104,7 @@ const TAB_COPY = {
   skills: { en: "Skills Tracker", es: "Tecnicas" },
   "journal-monitor": { en: "Journal Monitor", es: "Monitor diario" },
   messages: { en: "Messages", es: "Mensajes" },
-  permissions: { en: "Permissions", es: "Permisos" },
-  future: { en: "Future", es: "Futuro" }
+  permissions: { en: "Permissions", es: "Permisos" }
 };
 
 const PLAN_RANGE_COPY = {
@@ -1241,10 +1239,6 @@ const PANEL_COPY = {
   "panel-permissions": {
     title: { en: "Permissions & Control", es: "Permisos y control" },
     chip: { en: "Role based access", es: "Acceso por rol" }
-  },
-  "panel-future": {
-    title: { en: "Future Expansion", es: "Expansion futura" },
-    chip: { en: "Coach ready", es: "Listo para entrenador" }
   }
 };
 
@@ -2714,22 +2708,6 @@ const PERMISSIONS_ES = {
   ]
 };
 
-const FUTURE_ADDONS = [
-  "Web-only advanced dashboard",
-  "Video annotation tools",
-  "Match scouting reports",
-  "Team comparison metrics",
-  "Multi-coach collaboration"
-];
-
-const FUTURE_ADDONS_ES = [
-  "Panel avanzado solo web",
-  "Herramientas de anotacion de video",
-  "Reportes de scouting de combates",
-  "Metricas de comparacion entre equipos",
-  "Colaboracion multi entrenador"
-];
-
 const COACH_DESIGN = [
   "Desktop-first efficiency",
   "Fast navigation",
@@ -3154,10 +3132,6 @@ function getSkillsData() {
 
 function getPermissionsData() {
   return currentLang === "es" ? PERMISSIONS_ES : PERMISSIONS;
-}
-
-function getFutureAddonsData() {
-  return currentLang === "es" ? FUTURE_ADDONS_ES : FUTURE_ADDONS;
 }
 
 function getCoachDesignData() {
@@ -6005,26 +5979,6 @@ function renderPermissions() {
   });
 }
 
-// ---------- FUTURE ----------
-const futureAddons = document.getElementById("futureAddons");
-const coachDesign = document.getElementById("coachDesign");
-
-function renderFuture() {
-  futureAddons.innerHTML = "";
-  getFutureAddonsData().forEach((line) => {
-    const li = document.createElement("li");
-    li.textContent = line;
-    futureAddons.appendChild(li);
-  });
-
-  coachDesign.innerHTML = "";
-  getCoachDesignData().forEach((line) => {
-    const li = document.createElement("li");
-    li.textContent = line;
-    coachDesign.appendChild(li);
-  });
-}
-
 // ---------- ONE-PAGER ----------
 const onePagerHeader = document.getElementById("onePagerHeader");
 const onePagerIdentity = document.getElementById("onePagerIdentity");
@@ -6688,7 +6642,6 @@ async function startApp() {
   renderAthleteManagement();
   renderJournalMonitor();
   renderPermissions();
-  renderFuture();
   renderMessages();
   renderSkills();
   initializePlanSelectors();
