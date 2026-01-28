@@ -957,22 +957,6 @@ textarea:focus{
   background: rgba(0,0,0,0.35);
 }
 
-.calendar-header{
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-  font-size: 14px;
-}
-
-.calendar-header button{
-  border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 10px;
-  background: rgba(255,255,255,0.06);
-  padding: 4px 10px;
-  color: var(--text);
-}
-
 .calendar-grid-days{
   display: grid;
   grid-template-columns: repeat(7, minmax(0,1fr));
@@ -1035,6 +1019,140 @@ textarea:focus{
   margin: 0;
 }
 
+.plan-calendar-hub{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.plan-calendar-card{
+  background: var(--card);
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,255,255,0.15);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: var(--shadow);
+}
+
+.plan-calendar-card .card-header{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+}
+
+.calendar-card-title{
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.calendar-card-label{
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.calendar-card-controls{
+  display: flex;
+  gap: 6px;
+}
+
+.calendar-card-controls button{
+  width: 38px;
+  height: 34px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.08);
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
+  transition: background 0.2s ease, border 0.2s ease;
+}
+
+.calendar-card-controls button:hover{
+  background: rgba(255,255,255,0.2);
+  border-color: rgba(96,165,250,0.7);
+}
+
+.plan-calendar{
+  background: rgba(255,255,255,0.04);
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.18);
+  padding: 12px;
+}
+
+.plan-year-grid,
+.plan-decade-grid{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 8px;
+}
+
+.plan-year-grid button,
+.plan-decade-grid button{
+  border-radius: 12px;
+  padding: 12px 10px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.24);
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, border 0.2s ease, color 0.2s ease;
+}
+
+.plan-year-grid button:hover,
+.plan-decade-grid button:hover{
+  border-color: rgba(96,165,250,0.7);
+}
+
+.plan-year-grid button.active,
+.plan-decade-grid button.active{
+  background: var(--blue);
+  color: #fff;
+  border-color: var(--blue);
+}
+
+.plan-calendar-detail{
+  margin-top: 12px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.plan-calendar-detail textarea{
+  max-width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(0,0,0,0.35);
+  color: var(--text);
+  padding: 10px;
+  resize: vertical;
+  min-height: 100px;
+}
+
+.plan-monthly-selection{
+  font-weight: 600;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.plan-monthly-actions{
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.plan-calendar-detail .row{
+  flex-wrap: wrap;
+  gap: 8px;
+}
 .plan-card{
   border-radius: 16px;
   padding: 12px;

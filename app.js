@@ -4130,8 +4130,6 @@ let lastFilledPdfUrl = null;
 let pendingTemplatePrint = false;
 
 const planCalendarContainer = document.getElementById("planCalendarContainer");
-const monthlyMonthSelect = document.getElementById("monthly-month-select");
-const monthlyYearSelect = document.getElementById("monthly-year-select");
 const seasonYearSelect = document.getElementById("season-year-select");
 const planRangeStartInput = document.getElementById("planRangeStart");
 const planRangeEndInput = document.getElementById("planRangeEnd");
@@ -4151,81 +4149,182 @@ const PLAN_RANGE_KEY_MAP = {
   "plan-season": "season"
 };
 
-function populateYearSelects() {
-    if (!monthlyYearSelect || !seasonYearSelect) return;
-    const currentYear = new Date().getFullYear();
-    const years = Array.from({
-        length: 10
-    }, (_, i) => currentYear - 5 + i);
+const planMonthlySelection = document.getElementById("planMonthlySelection");
+const planMonthlyNotes = document.getElementById("planMonthlyNotes");
+const planMonthlyClear = document.getElementById("planMonthlyClear");
+const planMonthlySave = document.getElementById("planMonthlySave");
 
-    monthlyYearSelect.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
-    monthlyYearSelect.value = currentYear;
+const planMonthPrevBtn = document.getElementById("planMonthPrev");
+const planMonthNextBtn = document.getElementById("planMonthNext");
+const planCalendarLabel = document.getElementById("planCalendarLabel");
+const planYearLabel = document.getElementById("planYearLabel");
+const planDecadeLabel = document.getElementById("planDecadeLabel");
+const planYearGrid = document.getElementById("planYearGrid");
+const planDecadeGrid = document.getElementById("planDecadeGrid");
 
-    seasonYearSelect.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
-    seasonYearSelect.value = currentYear;
+function getCalendarContainers() {
+    return [planCalendarContainer].filter(Boolean);
 }
 
-function populateMonthSelect() {
-    if (!monthlyMonthSelect) return;
+function formatMonthlySelection(date) {
+    if (!date) return "";
+    const locale = currentLang === "es" ? "es-ES" : "en-US";
+    return new Intl.DateTimeFormat(locale, { weekday: "long", month: "long", day: "numeric" }).format(date);
+}
+
+function updateMonthlySelectionLabel() {
+    if (!planMonthlySelection) return;
+    if (!planRangeSelection.start) {
+        planMonthlySelection.textContent = "Selecciona un día para comenzar.";
+        return;
+    }
+    planMonthlySelection.textContent = `Día seleccionado: ${formatMonthlySelection(planRangeSelection.start)}`;
+}
+
+function getDecadeWindow(year) {
+    const base = Math.floor(year / 10) * 10;
+    const start = base - 2;
+    return Array.from({ length: 12 }, (_, idx) => start + idx);
+}
+
+function getDecadeLabel(year) {
+    const window = getDecadeWindow(year);
+    if (!window.length) return "";
+    return `${window[0]} - ${window[window.length - 1]}`;
+}
+
+function updateCalendarLabels() {
+    if (planCalendarLabel) {
+        const name = getMonthNames()[planCalendarMonth] || "";
+        planCalendarLabel.textContent = `${name} ${planCalendarYear}`;
+    }
+    if (planYearLabel) {
+        planYearLabel.textContent = `${planCalendarYear}`;
+    }
+    if (planDecadeLabel) {
+        planDecadeLabel.textContent = getDecadeLabel(planCalendarYear);
+    }
+}
+
+function renderYearGrid(year) {
+    if (!planYearGrid) return;
     const months = getMonthNames();
-    monthlyMonthSelect.innerHTML = months.map((m, i) => `<option value="${i}">${m}</option>`).join('');
-    monthlyMonthSelect.value = new Date().getMonth();
+    planYearGrid.innerHTML = months
+        .map((name, idx) => {
+            const shortName = name.slice(0, 3);
+            const active = year === planCalendarYear && idx === planCalendarMonth ? " active" : "";
+            return `<button type="button" class="year-month${active}" data-month="${idx}">${shortName}</button>`;
+        })
+        .join("");
+    planYearGrid.querySelectorAll("button").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            planCalendarMonth = Number(btn.dataset.month);
+            planCalendarYear = year;
+            renderPlanCalendar(planCalendarYear, planCalendarMonth);
+        });
+    });
+}
+
+function renderDecadeGrid(year) {
+    if (!planDecadeGrid) return;
+    const decade = getDecadeWindow(year);
+    planDecadeGrid.innerHTML = decade
+        .map((value) => {
+            const active = value === planCalendarYear ? " active" : "";
+            return `<button type="button" class="decade-year${active}" data-year="${value}">${value}</button>`;
+        })
+        .join("");
+    planDecadeGrid.querySelectorAll("button").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            planCalendarYear = Number(btn.dataset.year);
+            renderPlanCalendar(planCalendarYear, planCalendarMonth);
+        });
+    });
+}
+
+if (planMonthlyClear) {
+    planMonthlyClear.addEventListener("click", () => {
+        if (planMonthlyNotes) planMonthlyNotes.value = "";
+        toast(currentLang === "es" ? "Notas borradas." : "Notes cleared.");
+    });
+}
+
+if (planMonthlySave) {
+    planMonthlySave.addEventListener("click", () => {
+        const targetDate = planRangeSelection.start;
+        if (!targetDate) {
+            toast(currentLang === "es" ? "Selecciona un día primero." : "Select a day first.");
+            return;
+        }
+        const formatted = formatMonthlySelection(targetDate);
+        toast(
+            currentLang === "es"
+                ? `Plan guardado para ${formatted}.`
+                : `Plan saved for ${formatted}.`
+        );
+    });
+}
+
+if (planMonthPrevBtn) {
+    planMonthPrevBtn.addEventListener("click", () => {
+        const newDate = new Date(planCalendarYear, planCalendarMonth - 1, 1);
+        renderPlanCalendar(newDate.getFullYear(), newDate.getMonth());
+    });
+}
+
+if (planMonthNextBtn) {
+    planMonthNextBtn.addEventListener("click", () => {
+        const newDate = new Date(planCalendarYear, planCalendarMonth + 1, 1);
+        renderPlanCalendar(newDate.getFullYear(), newDate.getMonth());
+    });
 }
 
 function renderPlanCalendar(year, month) {
-    if (!planCalendarContainer) return;
+    const containers = getCalendarContainers();
+    if (!containers.length) return;
     planCalendarYear = year;
     planCalendarMonth = month;
-
     const monthNames = getMonthNames();
     const daysOfWeek = getDayAbbr();
-
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const numDays = lastDay.getDate();
     const startDayOfWeek = firstDay.getDay();
 
-    let html = `
-    <div class="calendar-header">
-      <button id="plan-prev-month" type="button">&lt;</button>
-      <span>${monthNames[month]} ${year}</span>
-      <button id="plan-next-month" type="button">&gt;</button>
-    </div>
-    <div class="calendar-grid-days">
-  `;
-    daysOfWeek.forEach(day => {
-        html += `<div class="calendar-day-name">${day}</div>`;
+    const buildCalendarHtml = () => {
+        let html = '<div class="calendar-grid-days">';
+        daysOfWeek.forEach(day => {
+            html += `<div class="calendar-day-name">${day}</div>`;
+        });
+
+        for (let i = 0; i < startDayOfWeek; i++) {
+            html += `<div></div>`;
+        }
+
+        for (let i = 1; i <= numDays; i++) {
+            const todayMark = (year === new Date().getFullYear() && month === new Date().getMonth() && i === new Date().getDate()) ? 'today' : '';
+            html += `<div class="calendar-day ${todayMark}" data-day="${i}">${i}</div>`;
+        }
+
+        html += '</div>';
+        return html;
+    };
+
+    containers.forEach((container) => {
+        container.innerHTML = buildCalendarHtml();
+        container.querySelectorAll('.calendar-day').forEach(dayEl => {
+            dayEl.addEventListener('click', () => handlePlanDayClick(dayEl));
+        });
     });
 
-    for (let i = 0; i < startDayOfWeek; i++) {
-        html += `<div></div>`;
-    }
-
-    for (let i = 1; i <= numDays; i++) {
-        const isToday = (year === new Date().getFullYear() && month === new Date().getMonth() && i === new Date().getDate()) ? 'today' : '';
-        html += `<div class="calendar-day ${isToday}" data-day="${i}">${i}</div>`;
-    }
-
-    html += '</div>';
-    planCalendarContainer.innerHTML = html;
-    document.getElementById('plan-prev-month')?.addEventListener('click', () => {
-        const newDate = new Date(year, month - 1, 1);
-        renderPlanCalendar(newDate.getFullYear(), newDate.getMonth());
-    });
-    document.getElementById('plan-next-month')?.addEventListener('click', () => {
-        const newDate = new Date(year, month + 1, 1);
-        renderPlanCalendar(newDate.getFullYear(), newDate.getMonth());
-    });
-    planCalendarContainer.querySelectorAll('.calendar-day').forEach(dayEl => {
-        dayEl.addEventListener('click', () => handlePlanDayClick(dayEl));
-    });
+    updateCalendarLabels();
+    renderYearGrid(planCalendarYear);
+    renderDecadeGrid(planCalendarYear);
     highlightPlanRange();
 }
 
 function initializePlanSelectors() {
     if (!document.getElementById('panel-plans')) return;
-    populateMonthSelect();
-    populateYearSelects();
     const today = new Date();
     renderPlanCalendar(today.getFullYear(), today.getMonth());
     updateRangeInputsFromSelection();
@@ -4252,6 +4351,7 @@ function updateRangeInputsFromSelection() {
             ? toIsoDate(planRangeSelection.start)
             : toIsoDate(planRangeSelection.end);
     }
+    highlightPlanRange();
 }
 
 function updateSelectionFromInputs() {
@@ -4278,31 +4378,34 @@ function updateSelectionFromInputs() {
 }
 
 function highlightPlanRange() {
-    if (!planCalendarContainer) return;
-    const days = Array.from(planCalendarContainer.querySelectorAll(".calendar-day"));
-    if (!days.length) return;
+    const containers = getCalendarContainers();
+    if (!containers.length) return;
     const start = planRangeSelection.start;
     const end = planRangeType === "day"
         ? start
         : planRangeSelection.end;
-    days.forEach((dayEl) => {
-        const dayNum = Number(dayEl.dataset.day);
-        if (!dayNum) {
-            dayEl.classList.remove("range-start", "range-end", "range-between");
-            return;
-        }
-        const date = new Date(planCalendarYear, planCalendarMonth, dayNum);
-        dayEl.classList.remove("range-start", "range-between", "range-end");
-        if (start && date.getTime() === start.getTime()) {
-            dayEl.classList.add("range-start");
-        }
-        if (end && date.getTime() === end.getTime()) {
-            dayEl.classList.add("range-end");
-        }
-        if (start && end && date > start && date < end) {
-            dayEl.classList.add("range-between");
-        }
+    containers.forEach((container) => {
+        const days = Array.from(container.querySelectorAll(".calendar-day"));
+        days.forEach((dayEl) => {
+            const dayNum = Number(dayEl.dataset.day);
+            if (!dayNum) {
+                dayEl.classList.remove("range-start", "range-end", "range-between");
+                return;
+            }
+            const date = new Date(planCalendarYear, planCalendarMonth, dayNum);
+            dayEl.classList.remove("range-start", "range-between", "range-end");
+            if (start && date.getTime() === start.getTime()) {
+                dayEl.classList.add("range-start");
+            }
+            if (end && date.getTime() === end.getTime()) {
+                dayEl.classList.add("range-end");
+            }
+            if (start && end && date > start && date < end) {
+                dayEl.classList.add("range-between");
+            }
+        });
     });
+    updateMonthlySelectionLabel();
 }
 
 function handlePlanDayClick(dayEl) {
@@ -4325,7 +4428,6 @@ function handlePlanDayClick(dayEl) {
         }
     }
     updateRangeInputsFromSelection();
-    highlightPlanRange();
 }
 
 function updatePlanRangeType(subtabKey) {
