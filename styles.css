@@ -1083,37 +1083,6 @@ textarea:focus{
   padding: 12px;
 }
 
-.plan-year-grid,
-.plan-decade-grid{
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0,1fr));
-  gap: 8px;
-}
-
-.plan-year-grid button,
-.plan-decade-grid button{
-  border-radius: 12px;
-  padding: 12px 10px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.24);
-  color: var(--text);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s ease, border 0.2s ease, color 0.2s ease;
-}
-
-.plan-year-grid button:hover,
-.plan-decade-grid button:hover{
-  border-color: rgba(96,165,250,0.7);
-}
-
-.plan-year-grid button.active,
-.plan-decade-grid button.active{
-  background: var(--blue);
-  color: #fff;
-  border-color: var(--blue);
-}
-
 .plan-calendar-detail{
   margin-top: 12px;
   background: rgba(255,255,255,0.02);
