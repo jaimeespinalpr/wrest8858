@@ -7,9 +7,10 @@
 const PROFILE_KEY = "wpl_profile";
 const AUTH_USER_KEY = "wpl_auth_user";
 const DEFAULT_LANG = "en";
-const SUPPORTED_LANGS = new Set(["en", "es"]);
+const SUPPORTED_LANGS = new Set(["en", "es", "uz", "ru"]);
 let currentLang = DEFAULT_LANG;
 let langChangeLocked = false;
+let profileTagState = new Set();
 
 // ---------- STORAGE SYNC ----------
 const STORAGE_PREFIX = "wpl_";
@@ -18,6 +19,31 @@ let storageSyncEnabled = true;
 let storageHydrated = false;
 let suppressStorageSync = false;
 let storageSyncAttached = false;
+
+const FIREBASE_USERS_COLLECTION = window.FIREBASE_USERS_COLLECTION || "users";
+let firebaseAuthInstance = null;
+let firebaseFirestoreInstance = null;
+
+function initFirebaseClient() {
+  if (typeof firebase === "undefined" || !window.FIREBASE_CONFIG) return null;
+  try {
+    if (!firebase.apps.length) {
+      firebase.initializeApp(window.FIREBASE_CONFIG);
+    }
+    const auth = firebase.auth();
+    const firestore = firebase.firestore ? firebase.firestore() : null;
+    return { auth, firestore };
+  } catch (err) {
+    console.warn("Firebase init failed:", err);
+    return null;
+  }
+}
+
+(function setupFirebase() {
+  const client = initFirebaseClient();
+  firebaseAuthInstance = client?.auth ?? null;
+  firebaseFirestoreInstance = client?.firestore ?? null;
+})();
 
 function shouldSyncKey(key) {
   return typeof key === "string" && key.startsWith(STORAGE_PREFIX);
@@ -140,33 +166,75 @@ const nowMeta = document.getElementById("nowMeta");
 const editProfileBtn = document.getElementById("editProfileBtn");
 const headerLang = document.getElementById("headerLang");
 const headerFlag = document.getElementById("headerFlag");
-const authTabs = Array.from(document.querySelectorAll(".auth-tab"));
+const authChoice = document.getElementById("authChoice");
+const loginOptionBtn = document.getElementById("loginOptionBtn");
+const createOptionBtn = document.getElementById("createOptionBtn");
+const authForms = document.getElementById("authForms");
+const loginFormWrap = document.getElementById("loginFormWrap");
+const profileFormWrap = document.getElementById("profileFormWrap");
+const authBackBtn = document.getElementById("authBackBtn");
 const authTitle = document.getElementById("authTitle");
 const authSubtitle = document.getElementById("authSubtitle");
 const loginEmail = document.getElementById("loginEmail");
 const loginPassword = document.getElementById("loginPassword");
-const loginRole = document.getElementById("loginRole");
-const authToggle = document.querySelector(".auth-toggle");
 const AUTH_STRICT = false;
-let welcomeScreen = null;
-let welcomeCreateBtn = null;
-let welcomeLoginBtn = null;
 let headerMenuOpen = false;
 let viewMenuOpen = false;
 let currentView = "athlete";
+const headerViewButtons = Array.from(document.querySelectorAll("#headerMenu button[data-action^='view-']"));
 
 const VIEW_OPTIONS = ["athlete", "coach", "admin", "parent"];
 const VIEW_LABELS = {
-  athlete: { en: "Athlete view", es: "Vista atleta" },
-  coach: { en: "Coach view", es: "Vista entrenador" },
-  admin: { en: "Administrative view", es: "Vista administrativa" },
-  parent: { en: "Parent view", es: "Vista padres" }
+  athlete: {
+    en: "Athlete view",
+    es: "Vista atleta",
+    uz: "Sportchi rejimi",
+    ru: "Просмотр спортсмена"
+  },
+  coach: {
+    en: "Coach view",
+    es: "Vista entrenador",
+    uz: "Murabbiy rejimi",
+    ru: "Просмотр тренера"
+  },
+  admin: {
+    en: "Administrative view",
+    es: "Vista administrativa",
+    uz: "Ma'muriy rejimi",
+    ru: "Административный вид"
+  },
+  parent: {
+    en: "Parent view",
+    es: "Vista padres",
+    uz: "Ota-ona rejimi",
+    ru: "Родительский вид"
+  }
 };
 const VIEW_META_TEXT = {
-  athlete: { en: "Athlete View", es: "Vista atleta" },
-  coach: { en: "Coach Dashboard", es: "Panel entrenador" },
-  admin: { en: "Administrative Desk", es: "Mesa administrativa" },
-  parent: { en: "Parent View", es: "Vista padres" }
+  athlete: {
+    en: "Athlete View",
+    es: "Vista atleta",
+    uz: "Sportchi ko'rinishi",
+    ru: "Вид спортсмена"
+  },
+  coach: {
+    en: "Coach Dashboard",
+    es: "Panel entrenador",
+    uz: "Murabbiy paneli",
+    ru: "Панель тренера"
+  },
+  admin: {
+    en: "Administrative Desk",
+    es: "Mesa administrativa",
+    uz: "Ma'muriy stol",
+    ru: "Административный стол"
+  },
+  parent: {
+    en: "Parent View",
+    es: "Vista padres",
+    uz: "Ota-ona ko'rinishi",
+    ru: "Вид родителя"
+  }
 };
 const VIEW_ROLE_MAP = {
   athlete: "athlete",
@@ -208,16 +276,25 @@ function handleHeaderMenuAction(action) {
     return;
   }
   if (action === "logout") {
+    firebaseAuthInstance?.signOut().catch(() => {});
     setProfile(null);
     setAuthUser(null);
     showOnboarding(null);
+    showAuthChoice();
     setView("athlete");
     return;
   }
+  if (action.startsWith("view-")) {
+    const targetView = action.replace(/^view-/, "");
+    setView(targetView);
+    return;
+  }
   if (action === "switch") {
+    firebaseAuthInstance?.signOut().catch(() => {});
     setProfile(null);
     setAuthUser(null);
     showOnboarding(null);
+    showAuthChoice();
     setView("athlete");
   }
 }
@@ -243,6 +320,15 @@ function updateViewMenuLabel(view) {
   viewSwitchBtn?.setAttribute("aria-label", currentViewLabel.textContent);
 }
 
+function refreshHeaderViewButtons() {
+  headerViewButtons.forEach((btn) => {
+    const action = String(btn.dataset.action || "");
+    if (!action.startsWith("view-")) return;
+    const view = action.replace(/^view-/, "");
+    btn.textContent = pickCopy(VIEW_LABELS[view]) || VIEW_LABELS[view]?.en || VIEW_LABELS.athlete.en;
+  });
+}
+
 function setView(view) {
   const normalized = VIEW_OPTIONS.includes(view) ? view : "athlete";
   currentView = normalized;
@@ -253,6 +339,7 @@ function setView(view) {
 
 const pEmail = document.getElementById("pEmail");
 const pPassword = document.getElementById("pPassword");
+const pPasswordConfirm = document.getElementById("pPasswordConfirm");
 const pName = document.getElementById("pName");
 const pRole = document.getElementById("pRole");
 const pLevel = document.getElementById("pLevel");
@@ -279,6 +366,11 @@ const pInternationalYears = document.getElementById("pInternationalYears");
 const pCoachCues = document.getElementById("pCoachCues");
 const pCueNotes = document.getElementById("pCueNotes");
 const pInjuryNotes = document.getElementById("pInjuryNotes");
+const pPreferredMoves = document.getElementById("pPreferredMoves");
+const pExperienceYears = document.getElementById("pExperienceYears");
+const pStance = document.getElementById("pStance");
+const pWeightClass = document.getElementById("pWeightClass");
+const pNotes = document.getElementById("pNotes");
 const athleteOnlySections = Array.from(document.querySelectorAll(".role-athlete"));
 const athleteOnlyControls = Array.from(
   document.querySelectorAll(".role-athlete input, .role-athlete select, .role-athlete textarea")
@@ -303,38 +395,101 @@ const LANG_RESET_KEY = "wpl_lang_reset_v1";
 
 const ROLE_LABELS = {
   en: { athlete: "Athlete", coach: "Coach" },
-  es: { athlete: "Atleta", coach: "Entrenador" }
+  es: { athlete: "Atleta", coach: "Entrenador" },
+  uz: { athlete: "Sportchi", coach: "Murabbiy" },
+  ru: { athlete: "Спортсмен", coach: "Тренер" }
 };
 
 const LEVEL_LABELS = {
   en: { beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced" },
-  es: { beginner: "Principiante", intermediate: "Intermedio", advanced: "Avanzado" }
+  es: { beginner: "Principiante", intermediate: "Intermedio", advanced: "Avanzado" },
+  uz: { beginner: "Boshlang'ich", intermediate: "O'rta", advanced: "Yuqori" },
+  ru: { beginner: "Начальный", intermediate: "Средний", advanced: "Продвинутый" }
 };
 
 const INTENSITY_LABELS = {
   en: { Low: "Low", Medium: "Medium", High: "High" },
-  es: { Low: "Baja", Medium: "Media", High: "Alta" }
+  es: { Low: "Baja", Medium: "Media", High: "Alta" },
+  uz: { Low: "Past", Medium: "O'rta", High: "Yuqori" },
+  ru: { Low: "Низкая", Medium: "Средняя", High: "Высокая" }
 };
 
 const LANGUAGE_CONFIRM = {
-  es: "Cambiar toda la aplicacion a Espanol?"
+  es: "Cambiar toda la aplicacion a Espanol?",
+  uz: "Butun ilovani O'zbek tiliga o'zgartirishga rozimisiz?",
+  ru: "Перевести все приложение на русский язык?"
 };
 
 const GUEST_COPY = {
   athlete: {
-    name: { en: "Guest", es: "Invitado" },
-    goal: { en: "Get better every day", es: "Mejorar cada día" },
-    routines: { en: "AM mat, PM film", es: "Mañana en tapiz, tarde film" },
-    focus: { en: "Mat technique", es: "Técnica en el tapiz" },
-    volume: { en: "6 sessions / 10 hours weekly", es: "6 sesiones / 10 horas semanales" }
+    name: {
+      en: "Guest",
+      es: "Invitado",
+      uz: "Mehmon",
+      ru: "Гость"
+    },
+    goal: {
+      en: "Get better every day",
+      es: "Mejorar cada día",
+      uz: "Har kuni yaxshilanish",
+      ru: "Становитесь лучше каждый день"
+    },
+    routines: {
+      en: "AM mat, PM film",
+      es: "Mañana en tapiz, tarde film",
+      uz: "Kunduz mat, kechki film",
+      ru: "Утренний ковёр, вечерний фильм"
+    },
+    focus: {
+      en: "Mat technique",
+      es: "Técnica en el tapiz",
+      uz: "Kurash texnikasi",
+      ru: "Техника ковра"
+    },
+    volume: {
+      en: "6 sessions / 10 hours weekly",
+      es: "6 sesiones / 10 horas semanales",
+      uz: "Haftada 6 mashgʻulot / 10 soat",
+      ru: "6 тренировок / 10 часов в неделю"
+    }
   },
   coach: {
-    name: { en: "Coach Guest", es: "Coach Invitado" },
-    goal: { en: "Plan training sessions and watch film", es: "Planifica sesiones y revisa film" },
-    routines: { en: "Review film, build sessions", es: "Revisar film, planear sesiones" },
-    focus: { en: "Team planning & match prep", es: "Planificación y preparación" },
-    volume: { en: "Design 6 sessions per week", es: "Diseña 6 sesiones por semana" },
-    tactics: { en: "Control the mat, pressure transitions", es: "Controla el tapiz y transiciones" }
+    name: {
+      en: "Coach Guest",
+      es: "Coach Invitado",
+      uz: "Murabbiy Mehmon",
+      ru: "Приглашенный тренер"
+    },
+    goal: {
+      en: "Plan training sessions and watch film",
+      es: "Planifica sesiones y revisa film",
+      uz: "Mashg'ulotlarni rejalashtiring va filmni tomosha qiling",
+      ru: "Планируйте тренировки и смотрите видео"
+    },
+    routines: {
+      en: "Review film, build sessions",
+      es: "Revisar film, planear sesiones",
+      uz: "Filmni ko'rib chiqish, mashg'ulotlar tuzish",
+      ru: "Просмотр видео, планирование сессий"
+    },
+    focus: {
+      en: "Team planning & match prep",
+      es: "Planificación y preparación",
+      uz: "Jamoa rejasi va bellashuv tayyorgarligi",
+      ru: "Планирование команды и подготовка к поединку"
+    },
+    volume: {
+      en: "Design 6 sessions per week",
+      es: "Diseña 6 sesiones por semana",
+      uz: "Haftada 6 mashg'ulotni tuzing",
+      ru: "Составьте 6 тренировок в неделю"
+    },
+    tactics: {
+      en: "Control the mat, pressure transitions",
+      es: "Controla el tapiz y transiciones",
+      uz: "Kovrdan nazorat, o'tishlarda bosim",
+      ru: "Контролируйте ковер, давите в переходах"
+    }
   }
 };
 
@@ -443,6 +598,7 @@ function refreshLanguageUI() {
   renderUserMeta(profile);
   const activeRole = profile?.role || "athlete";
   updateViewMenuLabel(currentView);
+  refreshHeaderViewButtons();
   refreshNowMeta();
   enforceStrictAuthUI();
   applyStaticTranslations();
@@ -516,8 +672,8 @@ function parseStoredJson(key) {
 function getAuthUser() {
   const auth = parseStoredJson(AUTH_USER_KEY);
   if (!auth || typeof auth !== "object") return null;
-  const id = Number.parseInt(auth.id, 10);
-  if (!Number.isFinite(id) || id <= 0) return null;
+  const id = auth.id ? String(auth.id).trim() : "";
+  if (!id) return null;
   return {
     id,
     email: String(auth.email || ""),
@@ -531,7 +687,7 @@ function setAuthUser(authUser) {
     return;
   }
   const payload = {
-    id: Number.parseInt(authUser.id, 10),
+    id: String(authUser.id || ""),
     email: String(authUser.email || ""),
     role: authUser.role === "coach" ? "coach" : "athlete"
   };
@@ -539,9 +695,10 @@ function setAuthUser(authUser) {
 }
 
 function profileStorageKey(userId) {
-  const id = Number.parseInt(userId, 10);
-  if (!Number.isFinite(id) || id <= 0) return PROFILE_KEY;
-  return `wpl_profile_user_${id}`;
+  const id = userId ? String(userId) : "";
+  if (!id) return PROFILE_KEY;
+  const safeId = id.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return `wpl_profile_user_${safeId}`;
 }
 
 function normalizeProfileForAuth(profile, authUser) {
@@ -594,11 +751,18 @@ async function applyProfile(profile) {
   refreshLanguageUI();
 }
 
+const LANG_FLAGS = {
+  en: "🇺🇸",
+  es: "🇵🇷",
+  uz: "🇺🇿",
+  ru: "🇷🇺"
+};
+
 function setHeaderLang(lang) {
   if (!headerLang || !headerFlag) return;
   const nextLang = resolveLang(lang);
   headerLang.value = nextLang;
-  headerFlag.textContent = nextLang === "es" ? "🇵🇷" : "🇺🇸";
+  headerFlag.textContent = LANG_FLAGS[nextLang] || LANG_FLAGS.en;
 }
 
 const AUTH_TEXT = {
@@ -639,71 +803,37 @@ function authText(key) {
   return table[key] || AUTH_TEXT.en[key] || "";
 }
 
-function setAuthMode(mode, { updateView = true } = {}) {
-  const isLogin = mode === "login";
-  authTabs.forEach((btn) => {
-    if (btn.dataset.auth === "create") btn.textContent = authText("createTab");
-    if (btn.dataset.auth === "login") btn.textContent = authText("loginTab");
-    if (updateView) btn.classList.toggle("active", btn.dataset.auth === mode);
-  });
-  if (updateView) {
-    if (profileForm) profileForm.classList.toggle("hidden", isLogin);
-    if (loginForm) loginForm.classList.toggle("hidden", !isLogin);
-  }
-  if (authTitle) authTitle.textContent = isLogin ? authText("loginTitle") : authText("createTitle");
-  if (authSubtitle) {
-    authSubtitle.textContent = isLogin ? authText("loginSubtitle") : authText("createSubtitle");
-  }
+let activeAuthMode = null;
+
+function updateAuthHeading(titleKey, subtitleKey) {
+  if (authTitle) authTitle.textContent = authText(titleKey);
+  if (authSubtitle) authSubtitle.textContent = authText(subtitleKey);
 }
 
-function ensureWelcomeScreen() {
-  if (!onboardingCard) return;
-  if (!welcomeScreen) {
-    welcomeScreen = document.createElement("div");
-    welcomeScreen.id = "welcomeScreen";
-    welcomeScreen.className = "welcome-screen";
-    const insertBefore = authToggle || profileForm;
-    onboardingCard.insertBefore(welcomeScreen, insertBefore);
-  }
+function showAuthChoice() {
+  activeAuthMode = null;
+  authChoice?.classList.remove("hidden");
+  authForms?.classList.add("hidden");
+  loginFormWrap?.classList.add("hidden");
+  profileFormWrap?.classList.add("hidden");
+  authBackBtn?.classList.add("hidden");
+  updateAuthHeading("welcomeTitle", "welcomeSubtitle");
 }
 
-function renderWelcomeScreen() {
-  ensureWelcomeScreen();
-  if (!welcomeScreen) return;
-  welcomeScreen.innerHTML = `
-    <h3>${authText("welcomeCardTitle")}</h3>
-    <p class="small muted">${authText("welcomeCardSubtitle")}</p>
-    <div class="row">
-      <button type="button" class="primary" id="welcomeCreateBtn">${authText("createAccount")}</button>
-      <button type="button" id="welcomeLoginBtn">${authText("logIn")}</button>
-    </div>
-    <p class="small muted">${authText("welcomeFootnote")}</p>
-  `;
-  welcomeCreateBtn = welcomeScreen.querySelector("#welcomeCreateBtn");
-  welcomeLoginBtn = welcomeScreen.querySelector("#welcomeLoginBtn");
-  if (welcomeCreateBtn) {
-    welcomeCreateBtn.addEventListener("click", () => showAuthPanel("create"));
+function showAuthForm(mode) {
+  activeAuthMode = mode;
+  authChoice?.classList.add("hidden");
+  authForms?.classList.remove("hidden");
+  authBackBtn?.classList.remove("hidden");
+  if (mode === "login") {
+    loginFormWrap?.classList.remove("hidden");
+    profileFormWrap?.classList.add("hidden");
+    updateAuthHeading("loginTitle", "loginSubtitle");
+  } else {
+    loginFormWrap?.classList.add("hidden");
+    profileFormWrap?.classList.remove("hidden");
+    updateAuthHeading("createTitle", "createSubtitle");
   }
-  if (welcomeLoginBtn) {
-    welcomeLoginBtn.addEventListener("click", () => showAuthPanel("login"));
-  }
-}
-
-function showWelcome() {
-  renderWelcomeScreen();
-  if (welcomeScreen) welcomeScreen.classList.remove("hidden");
-  if (authToggle) authToggle.classList.add("hidden");
-  if (profileForm) profileForm.classList.add("hidden");
-  if (loginForm) loginForm.classList.add("hidden");
-  if (authTitle) authTitle.textContent = authText("welcomeTitle");
-  if (authSubtitle) authSubtitle.textContent = authText("welcomeSubtitle");
-}
-
-function showAuthPanel(mode) {
-  ensureWelcomeScreen();
-  if (welcomeScreen) welcomeScreen.classList.add("hidden");
-  if (authToggle) authToggle.classList.remove("hidden");
-  setAuthMode(mode);
 }
 
 function showOnboarding(prefillProfile = null) {
@@ -719,31 +849,42 @@ function hideOnboarding() {
 
 async function bootProfile() {
   showOnboarding(null);
+  showAuthChoice();
 }
 
 const HEADER_COPY = {
   en: "Wrestling Performance Lab",
-  es: "Laboratorio de Rendimiento de Lucha"
+  es: "Laboratorio de Rendimiento de Lucha",
+  uz: "Kurash Performans Laboratoriyasi",
+  ru: "Лаборатория производительности борьбы"
 };
 
 const LANG_NAME_COPY = {
-  en: { en: "English", es: "Spanish" },
-  es: { en: "Ingles", es: "Espanol" }
+  en: { en: "English", es: "Spanish", uz: "Uzbek", ru: "Russian" },
+  es: { en: "Ingles", es: "Espanol", uz: "Uzbeko", ru: "Ruso" },
+  uz: { en: "Inglizcha", es: "Ispancha", uz: "O'zbekcha", ru: "Ruscha" },
+  ru: { en: "Английский", es: "Испанский", uz: "Узбекский", ru: "Русский" }
 };
 
 const QUICK_HELP_COPY = {
   en: "Only name and main goal are required.",
-  es: "Solo el nombre y la meta principal son obligatorios."
+  es: "Solo el nombre y la meta principal son obligatorios.",
+  uz: "Faqat ism va asosiy maqsad majburiy.",
+  ru: "Требуются только имя и основная цель."
 };
 
 const PROFILE_FOOTNOTE_COPY = {
   en: "Your profile is stored in the app database.",
-  es: "Tu perfil se guarda en la base de datos de la app."
+  es: "Tu perfil se guarda en la base de datos de la app.",
+  uz: "Profilingiz ilovaning bazasida saqlanadi.",
+  ru: "Ваш профиль хранится в базе приложения."
 };
 
 const LOGIN_FOOTNOTE_COPY = {
   en: "Use a registered email and password to log in.",
-  es: "Usa un correo y contrasena registrados para entrar."
+  es: "Usa un correo y contrasena registrados para entrar.",
+  uz: "Kirish uchun ro'yxatdan o'tgan elektron pochta va paroldan foydalaning.",
+  ru: "Используйте зарегистрированный email и пароль для входа."
 };
 
 const FIELD_COPY = {
@@ -828,7 +969,6 @@ const FIELD_COPY = {
     label: { en: "Password", es: "Contrasena" },
     placeholder: { en: "••••••••", es: "••••••••" }
   },
-  loginRole: { label: { en: "Role", es: "Rol" } },
   aName: { label: { en: "Full name", es: "Nombre completo" } },
   aPhoto: {
     label: { en: "Profile photo (optional)", es: "Foto de perfil (opcional)" },
@@ -922,14 +1062,12 @@ const FIELD_COPY = {
 
 const SELECT_COPY = {
   headerLang: {
-    en: { en: "English", es: "Spanish" },
-    es: { en: "Ingles", es: "Espanol" }
+    en: { en: "English", es: "Spanish", uz: "Uzbek", ru: "Russian" },
+    es: { en: "Ingles", es: "Espanol", uz: "Uzbeko", ru: "Ruso" },
+    uz: { en: "Inglizcha", es: "Ispancha", uz: "O'zbekcha", ru: "Ruscha" },
+    ru: { en: "Английский", es: "Испанский", uz: "Узбекский", ru: "Русский" }
   },
   pRole: {
-    en: { athlete: "Athlete", coach: "Coach" },
-    es: { athlete: "Atleta", coach: "Entrenador" }
-  },
-  loginRole: {
     en: { athlete: "Athlete", coach: "Coach" },
     es: { athlete: "Atleta", coach: "Entrenador" }
   },
@@ -1085,32 +1223,147 @@ const TECHNIQUE_LABELS = {
 };
 
 const TAB_COPY = {
-  today: { en: "Today", es: "Hoy" },
-  "athlete-profile": { en: "Profile", es: "Perfil" },
-  training: { en: "Training Plan", es: "Plan de entrenamiento" },
-  calendar: { en: "Calendar", es: "Calendario" },
-  media: { en: "Media", es: "Multimedia" },
-  journal: { en: "Journal", es: "Diario" },
-  favorites: { en: "Favorites", es: "Favoritos" },
-  announcements: { en: "Announcements", es: "Avisos" },
-  dashboard: { en: "Dashboard", es: "Panel" },
-  "coach-profile": { en: "Coach Profile", es: "Perfil entrenador" },
-  athletes: { en: "Athletes", es: "Atletas" },
-  "coach-match": { en: "Athlete Summary", es: "Resumen atleta" },
-  plans: { en: "Create Plans", es: "Crear planes" },
-  "calendar-manager": { en: "Calendar Manager", es: "Gestion calendario" },
-  "media-library": { en: "Media Library", es: "Biblioteca" },
-  "athlete-notes": { en: "Athlete Notes", es: "Notas atletas" },
-  skills: { en: "Skills Tracker", es: "Tecnicas" },
-  "journal-monitor": { en: "Journal Monitor", es: "Monitor diario" },
-  messages: { en: "Messages", es: "Mensajes" },
-  permissions: { en: "Permissions", es: "Permisos" }
+  today: {
+    en: "Today",
+    es: "Hoy",
+    uz: "Bugun",
+    ru: "Сегодня"
+  },
+  "athlete-profile": {
+    en: "Profile",
+    es: "Perfil",
+    uz: "Profil",
+    ru: "Профиль"
+  },
+  training: {
+    en: "Training Plan",
+    es: "Plan de entrenamiento",
+    uz: "Trening rejasi",
+    ru: "План тренировок"
+  },
+  calendar: {
+    en: "Calendar",
+    es: "Calendario",
+    uz: "Taqvim",
+    ru: "Календарь"
+  },
+  media: {
+    en: "Media",
+    es: "Multimedia",
+    uz: "Media",
+    ru: "Медиа"
+  },
+  journal: {
+    en: "Journal",
+    es: "Diario",
+    uz: "Kundalik",
+    ru: "Дневник"
+  },
+  favorites: {
+    en: "Favorites",
+    es: "Favoritos",
+    uz: "Sevimlilar",
+    ru: "Избранное"
+  },
+  announcements: {
+    en: "Announcements",
+    es: "Avisos",
+    uz: "E'lonlar",
+    ru: "Объявления"
+  },
+  dashboard: {
+    en: "Dashboard",
+    es: "Panel",
+    uz: "Panel",
+    ru: "Панель"
+  },
+  "coach-profile": {
+    en: "Coach Profile",
+    es: "Perfil entrenador",
+    uz: "Murabbiy profili",
+    ru: "Профиль тренера"
+  },
+  athletes: {
+    en: "Athletes",
+    es: "Atletas",
+    uz: "Sportchilar",
+    ru: "Спортсмены"
+  },
+  "coach-match": {
+    en: "Athlete Summary",
+    es: "Resumen atleta",
+    uz: "Sportchi xulosasi",
+    ru: "Сводка спортсмена"
+  },
+  plans: {
+    en: "Create Plans",
+    es: "Crear planes",
+    uz: "Rejalar yaratish",
+    ru: "Создать планы"
+  },
+  "calendar-manager": {
+    en: "Calendar Manager",
+    es: "Gestion calendario",
+    uz: "Taqvim boshqaruvi",
+    ru: "Управление календарём"
+  },
+  "media-library": {
+    en: "Media Library",
+    es: "Biblioteca",
+    uz: "Media kutubxonasi",
+    ru: "Медиатека"
+  },
+  "athlete-notes": {
+    en: "Athlete Notes",
+    es: "Notas atletas",
+    uz: "Sportchi eslatmalari",
+    ru: "Заметки спортсмена"
+  },
+  skills: {
+    en: "Skills Tracker",
+    es: "Tecnicas",
+    uz: "Ko'nikmalar kuzatuvchisi",
+    ru: "Трекер навыков"
+  },
+  "journal-monitor": {
+    en: "Journal Monitor",
+    es: "Monitor diario",
+    uz: "Kundalik kuzatuvi",
+    ru: "Монитор дневника"
+  },
+  messages: {
+    en: "Messages",
+    es: "Mensajes",
+    uz: "Xabarlar",
+    ru: "Сообщения"
+  },
+  permissions: {
+    en: "Permissions",
+    es: "Permisos",
+    uz: "Ruxsatlar",
+    ru: "Разрешения"
+  }
 };
 
 const PLAN_RANGE_COPY = {
-  heading: { en: "Plan range", es: "Rango del plan" },
-  start: { en: "Start", es: "Inicio" },
-  end: { en: "End", es: "Fin" }
+  heading: {
+    en: "Plan range",
+    es: "Rango del plan",
+    uz: "Reja oralig'i",
+    ru: "Диапазон плана"
+  },
+  start: {
+    en: "Start",
+    es: "Inicio",
+    uz: "Boshlanish",
+    ru: "Начало"
+  },
+  end: {
+    en: "End",
+    es: "Fin",
+    uz: "Tugash",
+    ru: "Конец"
+  }
 };
 
 const PLAN_RANGE_HINT = {
@@ -1133,161 +1386,582 @@ const PLAN_RANGE_HINT = {
 };
 
 const PROFILE_SUBTAB_COPY = {
-  training: { en: "Training", es: "Entrenamiento" },
-  competition: { en: "Competition", es: "Competencia" },
-  coaching: { en: "Coaching Quick", es: "Coaching rapido" }
+  training: {
+    en: "Training",
+    es: "Entrenamiento",
+    uz: "Trening",
+    ru: "Тренировка"
+  },
+  competition: {
+    en: "Competition",
+    es: "Competencia",
+    uz: "Musobaqa",
+    ru: "Соревнования"
+  },
+  coaching: {
+    en: "Coaching Quick",
+    es: "Coaching rapido",
+    uz: "Murabbiylik tezkor",
+    ru: "Быстрая коуч-сессия"
+  }
 };
 
 const PROFILE_SECTION_COPY = {
-  aStrategyPlansHeading: { en: "Strategy A / B / C", es: "Estrategia A / B / C" },
+  aStrategyPlansHeading: {
+    en: "Strategy A / B / C",
+    es: "Estrategia A / B / C",
+    uz: "A / B / C strategiyasi",
+    ru: "Стратегия A / B / C"
+  },
   aStrategyPlansHint: {
     en: "Have a primary plan plus two adjustments.",
-    es: "Ten un plan principal y dos ajustes."
+    es: "Ten un plan principal y dos ajustes.",
+    uz: "Asosiy rejani va ikkita sozlamani belgilang.",
+    ru: "Имейте основной план и две корректировки."
   },
-  aRiskHeading: { en: "Safe vs Risky Moves", es: "Movimientos seguros vs arriesgados" },
-  aResultsHeading: { en: "Results History", es: "Historial de resultados" },
-  aTagsHeading: { en: "Smart Tags", es: "Tags inteligentes" },
+  aRiskHeading: {
+    en: "Safe vs Risky Moves",
+    es: "Movimientos seguros vs arriesgados",
+    uz: "Xavfsiz vs xavfli harakatlar",
+    ru: "Безопасные vs рискованные приемы"
+  },
+  aResultsHeading: {
+    en: "Results History",
+    es: "Historial de resultados",
+    uz: "Natijalar tarixi",
+    ru: "История результатов"
+  },
+  aTagsHeading: {
+    en: "Smart Tags",
+    es: "Tags inteligentes",
+    uz: "Aqlli teglar",
+    ru: "Умные метки"
+  },
   aTagsHint: {
     en: "Coaches can filter athletes by these tags.",
-    es: "Los coaches pueden filtrar atletas por estos tags."
+    es: "Los coaches pueden filtrar atletas por estos tags.",
+    uz: "Murabbiylar bu teglar orqali sportchilarni saralashi mumkin.",
+    ru: "Тренеры могут фильтровать спортсменов по этим меткам."
   },
-  aCoachQuickHeading: { en: "Coaching Quick", es: "Coaching rapido" },
+  aCoachQuickHeading: {
+    en: "Coaching Quick",
+    es: "Coaching rapido",
+    uz: "Murabbiylik tezkor",
+    ru: "Быстрая коуч-сессия"
+  },
   aCoachQuickHint: {
     en: "Build a match-side cheat sheet for the corner.",
-    es: "Crea un cheat sheet rapido para la esquina."
+    es: "Crea un cheat sheet rapido para la esquina.",
+    uz: "Raqobatga tezkor eslatma tayyorlang.",
+    ru: "Составьте шпаргалку для угла."
   },
-  aTopMovesHeading: { en: "Top 3 Moves", es: "Top 3 movimientos" },
-  aOffenseHeading: { en: "Offense", es: "Ofensiva" },
-  aDefenseHeading: { en: "Defense", es: "Defensa" },
-  coachQuickPreviewHeading: { en: "Coaching Quick Summary", es: "Resumen rapido" }
+  aTopMovesHeading: {
+    en: "Top 3 Moves",
+    es: "Top 3 movimientos",
+    uz: "Top 3 usul",
+    ru: "Топ 3 приема"
+  },
+  aOffenseHeading: {
+    en: "Offense",
+    es: "Ofensiva",
+    uz: "Hujum",
+    ru: "Атака"
+  },
+  aDefenseHeading: {
+    en: "Defense",
+    es: "Defensa",
+    uz: "Himoya",
+    ru: "Защита"
+  },
+  coachQuickPreviewHeading: {
+    en: "Coaching Quick Summary",
+    es: "Resumen rapido",
+    uz: "Murabbiylik tezkor xulosasi",
+    ru: "Краткое резюме коучинга"
+  }
 };
 
 const PANEL_COPY = {
   "panel-training": {
-    title: { en: "Training Plan", es: "Plan de entrenamiento" },
-    chip: { en: "Week 3 - Pre-Tournament", es: "Semana 3 - Pre torneo" }
+    title: {
+      en: "Training Plan",
+      es: "Plan de entrenamiento",
+      uz: "Trening rejasi",
+      ru: "План тренировок"
+    },
+    chip: {
+      en: "Week 3 - Pre-Tournament",
+      es: "Semana 3 - Pre torneo",
+      uz: "3-hafta - Turnirdan oldin",
+      ru: "Неделя 3 - Предтурнир"
+    }
   },
   "panel-athlete-profile": {
-    title: { en: "Athlete Profile", es: "Perfil atleta" },
-    chip: { en: "Create & Edit", es: "Crear y editar" }
+    title: {
+      en: "Athlete Profile",
+      es: "Perfil atleta",
+      uz: "Sportchi profili",
+      ru: "Профиль спортсмена"
+    },
+    chip: {
+      en: "Create & Edit",
+      es: "Crear y editar",
+      uz: "Yaratish va tahrirlash",
+      ru: "Создать и редактировать"
+    }
   },
   "panel-competition-preview": {
-    title: { en: "Competition Summary Preview", es: "Resumen de competencia" },
-    chip: { en: "Coach view", es: "Vista entrenador" }
+    title: {
+      en: "Competition Summary Preview",
+      es: "Resumen de competencia",
+      uz: "Musobaqa xulosasi ko‘rinishi",
+      ru: "Предварительный обзор соревнования"
+    },
+    chip: {
+      en: "Coach view",
+      es: "Vista entrenador",
+      uz: "Murabbiy ko'rinishi",
+      ru: "Вид тренера"
+    }
   },
   "panel-calendar": {
-    title: { en: "Calendar", es: "Calendario" },
-    chip: { en: "Next tournament in 12 days", es: "Proximo torneo en 12 dias" }
+    title: {
+      en: "Calendar",
+      es: "Calendario",
+      uz: "Taqvim",
+      ru: "Календарь"
+    },
+    chip: {
+      en: "Next tournament in 12 days",
+      es: "Proximo torneo en 12 dias",
+      uz: "Keyingi turnir 12 kunda",
+      ru: "Следующий турнир через 12 дней"
+    }
   },
   "panel-media": {
-    title: { en: "Media", es: "Multimedia" },
-    chip: { en: "Assigned for Today", es: "Asignado para hoy" }
+    title: {
+      en: "Media",
+      es: "Multimedia",
+      uz: "Media",
+      ru: "Медиа"
+    },
+    chip: {
+      en: "Assigned for Today",
+      es: "Asignado para hoy",
+      uz: "Bugun uchun tayinlangan",
+      ru: "Назначено на сегодня"
+    }
   },
   "panel-journal": {
-    title: { en: "Daily Check-in", es: "Chequeo diario" }
+    title: {
+      en: "Daily Check-in",
+      es: "Chequeo diario",
+      uz: "Kunlik qayd",
+      ru: "Ежедневная проверка"
+    }
   },
   "panel-favorites": {
-    title: { en: "Favorites", es: "Favoritos" }
+    title: {
+      en: "Favorites",
+      es: "Favoritos",
+      uz: "Sevimlilar",
+      ru: "Избранное"
+    }
   },
   "panel-announcements": {
-    title: { en: "Messages & Announcements", es: "Mensajes y avisos" },
-    chip: { en: "Coach Broadcast", es: "Aviso entrenador" }
+    title: {
+      en: "Messages & Announcements",
+      es: "Mensajes y avisos",
+      uz: "Xabarlar va e'lonlar",
+      ru: "Сообщения и объявления"
+    },
+    chip: {
+      en: "Coach Broadcast",
+      es: "Aviso entrenador",
+      uz: "Murabbiy efiri",
+      ru: "Трансляция тренера"
+    }
   },
   "panel-dashboard": {
-    title: { en: "Team Dashboard", es: "Panel del equipo" },
-    chip: { en: "Alerts: 3", es: "Alertas: 3" }
+    title: {
+      en: "Team Dashboard",
+      es: "Panel del equipo",
+      uz: "Jamoa paneli",
+      ru: "Командная панель"
+    },
+    chip: {
+      en: "Alerts: 3",
+      es: "Alertas: 3",
+      uz: "Ogohlantirishlar: 3",
+      ru: "Оповещения: 3"
+    }
   },
   "panel-coach-profile": {
-    title: { en: "Coach Account & Profile", es: "Cuenta y perfil entrenador" },
-    chip: { en: "Secure access", es: "Acceso seguro" }
+    title: {
+      en: "Coach Account & Profile",
+      es: "Cuenta y perfil entrenador",
+      uz: "Murabbiy hisobi va profili",
+      ru: "Аккаунт и профиль тренера"
+    },
+    chip: {
+      en: "Secure access",
+      es: "Acceso seguro",
+      uz: "Xavfsiz kirish",
+      ru: "Безопасный доступ"
+    }
   },
   "panel-athletes": {
-    title: { en: "Athlete Management", es: "Gestion de atletas" },
-    chip: { en: "Roster", es: "Plantel" }
+    title: {
+      en: "Athlete Management",
+      es: "Gestion de atletas",
+      uz: "Sportchilarni boshqarish",
+      ru: "Управление спортсменами"
+    },
+    chip: {
+      en: "Roster",
+      es: "Plantel",
+      uz: "Ro'yxat",
+      ru: "Состав"
+    }
   },
   "panel-coach-match": {
-    title: { en: "Athlete Summary", es: "Resumen atleta" },
-    chip: { en: "Real-time corner view", es: "Vista en tiempo real" }
+    title: {
+      en: "Athlete Summary",
+      es: "Resumen atleta",
+      uz: "Sportchi xulosasi",
+      ru: "Сводка спортсмена"
+    },
+    chip: {
+      en: "Real-time corner view",
+      es: "Vista en tiempo real",
+      uz: "Jonli burchak ko'rinishi",
+      ru: "Просмотр в реальном времени"
+    }
   },
   "panel-plans": {
-    title: { en: "Create Training Plans", es: "Crear planes de entrenamiento" }
+    title: {
+      en: "Create Training Plans",
+      es: "Crear planes de entrenamiento",
+      uz: "Trening rejalarini yaratish",
+      ru: "Создание тренировочных планов"
+    }
   },
   "panel-calendar-manager": {
-    title: { en: "Calendar Manager", es: "Gestion de calendario" },
-    chip: { en: "Create events + reminders", es: "Crear eventos y recordatorios" }
+    title: {
+      en: "Calendar Manager",
+      es: "Gestion de calendario",
+      uz: "Taqvim boshqaruvi",
+      ru: "Управление календарем"
+    },
+    chip: {
+      en: "Create events + reminders",
+      es: "Crear eventos y recordatorios",
+      uz: "Tadbirlar va eslatmalar yarating",
+      ru: "Создайте события и напоминания"
+    }
   },
   "panel-media-library": {
-    title: { en: "Media Library", es: "Biblioteca multimedia" },
-    chip: { en: "Upload - Tag - Assign", es: "Subir - Etiquetar - Asignar" }
+    title: {
+      en: "Media Library",
+      es: "Biblioteca multimedia",
+      uz: "Media kutubxonasi",
+      ru: "Медиатека"
+    },
+    chip: {
+      en: "Upload - Tag - Assign",
+      es: "Subir - Etiquetar - Asignar",
+      uz: "Yuklash - Teg qo'yish - Belgilash",
+      ru: "Загрузить - Тег - Назначить"
+    }
   },
   "panel-athlete-notes": {
-    title: { en: "Athlete Notes", es: "Notas de atletas" },
-    chip: { en: "Private coach notes", es: "Notas privadas" }
+    title: {
+      en: "Athlete Notes",
+      es: "Notas de atletas",
+      uz: "Sportchi eslatmalari",
+      ru: "Заметки спортсмена"
+    },
+    chip: {
+      en: "Private coach notes",
+      es: "Notas privadas",
+      uz: "Shaxsiy murabbiy eslatmalari",
+      ru: "Личные заметки тренера"
+    }
   },
   "panel-skills": {
-    title: { en: "Skills Tracker", es: "Seguimiento de tecnicas" },
-    chip: { en: "Best clips by move", es: "Mejores clips por tecnica" }
+    title: {
+      en: "Skills Tracker",
+      es: "Seguimiento de tecnicas",
+      uz: "Ko'nikmalar kuzatuvchisi",
+      ru: "Трекер навыков"
+    },
+    chip: {
+      en: "Best clips by move",
+      es: "Mejores clips por tecnica",
+      uz: "Harakat bo'yicha eng yaxshi kliplar",
+      ru: "Лучшие клипы по приему"
+    }
   },
   "panel-journal-monitor": {
-    title: { en: "Athlete Journal Monitoring", es: "Monitoreo del diario" },
-    chip: { en: "Readiness signals", es: "Senales de disponibilidad" }
+    title: {
+      en: "Athlete Journal Monitoring",
+      es: "Monitoreo del diario",
+      uz: "Sportchi kundaligini kuzatish",
+      ru: "Мониторинг дневника спортсмена"
+    },
+    chip: {
+      en: "Readiness signals",
+      es: "Senales de disponibilidad",
+      uz: "Tayyorlik signallari",
+      ru: "Сигналы готовности"
+    }
   },
   "panel-messages": {
-    title: { en: "Coach Messages", es: "Mensajes del entrenador" },
-    chip: { en: "1:1 + tags", es: "1:1 + etiquetas" }
+    title: {
+      en: "Coach Messages",
+      es: "Mensajes del entrenador",
+      uz: "Murabbiy xabarlari",
+      ru: "Сообщения тренера"
+    },
+    chip: {
+      en: "1:1 + tags",
+      es: "1:1 + etiquetas",
+      uz: "1:1 + teglar",
+      ru: "1:1 + метки"
+    }
   },
   "panel-permissions": {
-    title: { en: "Permissions & Control", es: "Permisos y control" },
-    chip: { en: "Role based access", es: "Acceso por rol" }
+    title: {
+      en: "Permissions & Control",
+      es: "Permisos y control",
+      uz: "Ruxsatlar va nazorat",
+      ru: "Разрешения и контроль"
+    },
+    chip: {
+      en: "Role based access",
+      es: "Acceso por rol",
+      uz: "Rol asosida kirish",
+      ru: "Доступ по ролям"
+    }
   }
 };
 
 const BUTTON_COPY = {
-  quickContinueBtn: { en: "Save & Continue", es: "Guardar y continuar" },
-  quickSkipBtn: { en: "Skip", es: "Omitir" },
-  doneProfileBtn: { en: "Done", es: "Listo" },
-  skipBtn: { en: "Skip (use default)", es: "Omitir (usar por defecto)" },
-  loginGuestBtn: { en: "Continue as Guest", es: "Continuar como invitado" },
-  startSessionBtn: { en: "Start Session", es: "Iniciar sesion" },
-  watchFilmBtn: { en: "Watch Assigned Film", es: "Ver video asignado" },
-  logCompletionBtn: { en: "Log Completion", es: "Registrar completado" },
-  previewProfileBtn: { en: "Preview Competition Summary", es: "Ver resumen de competencia" },
-  openCoachMatchBtn: { en: "Open Athlete Summary", es: "Abrir resumen atleta" },
-  openCompetitionPreviewBtn: { en: "Open Competition Preview", es: "Abrir resumen de competencia" },
-  backToProfileBtn: { en: "Back to Profile", es: "Volver al perfil" },
-  saveJournalBtn: { en: "Save entry", es: "Guardar entrada" },
-  saveOnePagerPlan: { en: "Save Plan", es: "Guardar plan" },
-  saveOnePagerDos: { en: "Save Do/Don't", es: "Guardar hacer/no hacer" },
-  saveOnePagerCues: { en: "Save Cues", es: "Guardar indicaciones" },
-  saveOnePagerSafety: { en: "Save Safety Notes", es: "Guardar notas de seguridad" },
-  messageAthleteBtn: { en: "Message Athlete", es: "Mensaje al atleta" },
-  openTrainingBtn: { en: "Open Today's Training", es: "Abrir entrenamiento de hoy" },
-  openTournamentBtn: { en: "Open Tournament Event", es: "Abrir evento de torneo" },
-  addQuickNoteBtn: { en: "Add Quick Note", es: "Agregar nota rapida" },
-  templatesBtn: { en: "Templates", es: "Plantillas" },
-  templateGoBtn: { en: "Go ahead", es: "Continuar" },
-  templateNoBtn: { en: "Nevermind", es: "Cancelar" },
-  doneDailyPlan: { en: "Done", es: "Listo" },
-  saveDailyPlan: { en: "Save", es: "Guardar" },
-  shareDailyPlan: { en: "Share", es: "Compartir" },
-  printTemplatePlan: { en: "Print from Template", es: "Imprimir desde plantilla" },
-  uploadTemplateBtn: { en: "Upload PDF", es: "Subir PDF" },
-  generateTemplateBtn: { en: "Fill PDF Template", es: "Llenar plantilla PDF" },
-  templateHelpBtn: { en: "Template", es: "Plantilla" }
+  quickContinueBtn: {
+    en: "Save & Continue",
+    es: "Guardar y continuar",
+    uz: "Saqlash va davom etish",
+    ru: "Сохранить и продолжить"
+  },
+  quickSkipBtn: {
+    en: "Skip",
+    es: "Omitir",
+    uz: "Oʻtkazib yuborish",
+    ru: "Пропустить"
+  },
+  doneProfileBtn: {
+    en: "Done",
+    es: "Listo",
+    uz: "Tayyor",
+    ru: "Готово"
+  },
+  skipBtn: {
+    en: "Skip (use default)",
+    es: "Omitir (usar por defecto)",
+    uz: "Oʻtkazib yuborish (standart)",
+    ru: "Пропустить (использовать по умолчанию)"
+  },
+  loginGuestBtn: {
+    en: "Continue as Guest",
+    es: "Continuar como invitado",
+    uz: "Mehmon sifatida davom etish",
+    ru: "Продолжить как гость"
+  },
+  startSessionBtn: {
+    en: "Start Session",
+    es: "Iniciar sesion",
+    uz: "Mashgʻulotni boshlash",
+    ru: "Начать сессию"
+  },
+  watchFilmBtn: {
+    en: "Watch Assigned Film",
+    es: "Ver video asignado",
+    uz: "Belgilangan filmni ko‘rish",
+    ru: "Смотреть назначенное видео"
+  },
+  logCompletionBtn: {
+    en: "Log Completion",
+    es: "Registrar completado",
+    uz: "Tugallanishni qayd etish",
+    ru: "Зарегистрировать завершение"
+  },
+  previewProfileBtn: {
+    en: "Preview Competition Summary",
+    es: "Ver resumen de competencia",
+    uz: "Musobaqa xulosasini ko‘rib chiqish",
+    ru: "Просмотреть сводку соревнования"
+  },
+  openCoachMatchBtn: {
+    en: "Open Athlete Summary",
+    es: "Abrir resumen atleta",
+    uz: "Sportchi xulosasini ochish",
+    ru: "Открыть сводку спортсмена"
+  },
+  openCompetitionPreviewBtn: {
+    en: "Open Competition Preview",
+    es: "Abrir resumen de competencia",
+    uz: "Musobaqa ko‘rinishini ochish",
+    ru: "Открыть предварительный просмотр соревнования"
+  },
+  backToProfileBtn: {
+    en: "Back to Profile",
+    es: "Volver al perfil",
+    uz: "Profilga qaytish",
+    ru: "Вернуться к профилю"
+  },
+  saveJournalBtn: {
+    en: "Save entry",
+    es: "Guardar entrada",
+    uz: "Yozuvni saqlash",
+    ru: "Сохранить запись"
+  },
+  saveOnePagerPlan: {
+    en: "Save Plan",
+    es: "Guardar plan",
+    uz: "Rejani saqlash",
+    ru: "Сохранить план"
+  },
+  saveOnePagerDos: {
+    en: "Save Do/Don't",
+    es: "Guardar hacer/no hacer",
+    uz: "Qilish/qoʻymaslikni saqlash",
+    ru: "Сохранить делай/не делай"
+  },
+  saveOnePagerCues: {
+    en: "Save Cues",
+    es: "Guardar indicaciones",
+    uz: "Ko‘rsatmalarni saqlash",
+    ru: "Сохранить подсказки"
+  },
+  saveOnePagerSafety: {
+    en: "Save Safety Notes",
+    es: "Guardar notas de seguridad",
+    uz: "Xavfsizlik eslatmalarini saqlash",
+    ru: "Сохранить заметки по безопасности"
+  },
+  messageAthleteBtn: {
+    en: "Message Athlete",
+    es: "Mensaje al atleta",
+    uz: "Sportchiga xabar yuborish",
+    ru: "Отправить сообщение спортсмену"
+  },
+  openTrainingBtn: {
+    en: "Open Today's Training",
+    es: "Abrir entrenamiento de hoy",
+    uz: "Bugungi mashg‘ulotni ochish",
+    ru: "Открыть сегодняшнюю тренировку"
+  },
+  openTournamentBtn: {
+    en: "Open Tournament Event",
+    es: "Abrir evento de torneo",
+    uz: "Turnir tadbirini ochish",
+    ru: "Открыть событие турнира"
+  },
+  addQuickNoteBtn: {
+    en: "Add Quick Note",
+    es: "Agregar nota rapida",
+    uz: "Tez eslatma qo‘shish",
+    ru: "Добавить заметку"
+  },
+  templatesBtn: {
+    en: "Templates",
+    es: "Plantillas",
+    uz: "Shablonlar",
+    ru: "Шаблоны"
+  },
+  templateGoBtn: {
+    en: "Go ahead",
+    es: "Continuar",
+    uz: "Davom etish",
+    ru: "Продолжить"
+  },
+  templateNoBtn: {
+    en: "Nevermind",
+    es: "Cancelar",
+    uz: "Bekor qilish",
+    ru: "Не сейчас"
+  },
+  doneDailyPlan: {
+    en: "Done",
+    es: "Listo",
+    uz: "Tugallandi",
+    ru: "Готово"
+  },
+  saveDailyPlan: {
+    en: "Save",
+    es: "Guardar",
+    uz: "Saqlash",
+    ru: "Сохранить"
+  },
+  shareDailyPlan: {
+    en: "Share",
+    es: "Compartir",
+    uz: "Baham ko‘rish",
+    ru: "Поделиться"
+  },
+  printTemplatePlan: {
+    en: "Print from Template",
+    es: "Imprimir desde plantilla",
+    uz: "Shablondan chop etish",
+    ru: "Распечатать из шаблона"
+  },
+  uploadTemplateBtn: {
+    en: "Upload PDF",
+    es: "Subir PDF",
+    uz: "PDF yuklash",
+    ru: "Загрузить PDF"
+  },
+  generateTemplateBtn: {
+    en: "Fill PDF Template",
+    es: "Llenar plantilla PDF",
+    uz: "PDF shablonini to‘ldirish",
+    ru: "Заполнить PDF-шаблон"
+  },
+  templateHelpBtn: {
+    en: "Template",
+    es: "Plantilla",
+    uz: "Shablon",
+    ru: "Шаблон"
+  }
 };
 
 const PLACEHOLDER_COPY = [
   {
     selector: ".search-input",
-    value: { en: "Search athletes by name", es: "Buscar atletas por nombre" }
+    value: {
+      en: "Search athletes by name",
+      es: "Buscar atletas por nombre",
+      uz: "Sportchilarni ismi bilan qidirish",
+      ru: "Искать спортсменов по имени"
+    }
   },
   {
     selector: "#journalInput",
-    value: { en: "Notes (text or voice summary)...", es: "Notas (texto o voz)..." }
+    value: {
+      en: "Notes (text or voice summary)...",
+      es: "Notas (texto o voz)...",
+      uz: "Eslatmalar (matn yoki ovoz)...",
+      ru: "Заметки (текст или голос)..."
+    }
   },
   {
     selector: "#injuryInput",
-    value: { en: "Knee soreness, right side", es: "Dolor de rodilla, lado derecho" }
+    value: {
+      en: "Knee soreness, right side",
+      es: "Dolor de rodilla, lado derecho",
+      uz: "Tizza og‘rig‘i, o‘ng tomonda",
+      ru: "Боль в колене, правая сторона"
+    }
   }
 ];
 
@@ -1320,11 +1994,43 @@ const MONTH_NAMES_BY_LANG = {
     "Noviembre",
     "Diciembre"
   ]
+  ,
+  uz: [
+    "Yanvar",
+    "Fevral",
+    "Mart",
+    "Aprel",
+    "May",
+    "Iyun",
+    "Iyul",
+    "Avgust",
+    "Sentabr",
+    "Oktabr",
+    "Noyabr",
+    "Dekabr"
+  ],
+  ru: [
+    "Январь",
+    "Февраль",
+    "Март",
+    "Апрель",
+    "Май",
+    "Июнь",
+    "Июль",
+    "Август",
+    "Сентябрь",
+    "Октябрь",
+    "Ноябрь",
+    "Декабрь"
+  ]
 };
 
 const DAY_ABBR_BY_LANG = {
   en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
   es: ["Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab"]
+  ,
+  uz: ["Yak", "Dush", "Sal", "Chor", "Pay", "Jum", "Shan"],
+  ru: ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"]
 };
 
 function pickCopy(copy) {
@@ -1463,10 +2169,6 @@ function applyStaticTranslations() {
   setTextContent("#planRangeHeading", PLAN_RANGE_COPY.heading);
   setTextContent("#planRangeStartTitle", PLAN_RANGE_COPY.start);
   setTextContent("#planRangeEndTitle", PLAN_RANGE_COPY.end);
-  if (typeof renderProfileTagPicker === "function") {
-    renderProfileTagPicker();
-  }
-
   document.querySelectorAll(".tab").forEach((tab) => {
     const key = tab.dataset.tab;
     if (key && TAB_COPY[key]) tab.textContent = pickCopy(TAB_COPY[key]);
@@ -1490,11 +2192,10 @@ function applyStaticTranslations() {
     editProfileBtn.title = currentLang === "es" ? "Editar perfil" : "Edit profile";
   }
 
-  const welcomeVisible = welcomeScreen && !welcomeScreen.classList.contains("hidden");
-  if (!welcomeVisible) {
-    const active = authTabs.find((btn) => btn.classList.contains("active"));
-    const mode = active?.dataset.auth || (loginForm && !loginForm.classList.contains("hidden") ? "login" : "create");
-    setAuthMode(mode, { updateView: true });
+  if (activeAuthMode === "login" || activeAuthMode === "create") {
+    showAuthForm(activeAuthMode);
+  } else {
+    showAuthChoice();
   }
 }
 
@@ -1507,7 +2208,15 @@ function authErrorMessage(code, fallback = "") {
         password_too_short: "La contrasena debe tener al menos 8 caracteres.",
         missing_fields: "Faltan campos obligatorios.",
         invalid_email: "Correo invalido.",
-        db_error: "Error de base de datos."
+        db_error: "Error de base de datos.",
+        "auth/user-not-found": "No encontramos una cuenta con ese correo.",
+        "auth/wrong-password": "Correo o contrasena incorrectos.",
+        "auth/email-already-in-use": "Ese correo ya esta registrado.",
+        "auth/invalid-email": "Correo invalido.",
+        "auth/weak-password": "La contrasena es muy debil.",
+        password_mismatch: "Las contrasenas deben coincidir.",
+        firebase_not_configured: "Firebase no esta configurado.",
+        "auth/network-request-failed": "Revise su conexion e intente de nuevo."
       }
     : {
         invalid_credentials: "Incorrect email or password.",
@@ -1516,7 +2225,15 @@ function authErrorMessage(code, fallback = "") {
         password_too_short: "Password must be at least 8 characters.",
         missing_fields: "Required fields are missing.",
         invalid_email: "Invalid email.",
-        db_error: "Database error."
+        db_error: "Database error.",
+        "auth/user-not-found": "We couldn't find an account with that email.",
+        "auth/wrong-password": "Incorrect email or password.",
+        "auth/email-already-in-use": "That email is already registered.",
+        "auth/invalid-email": "Invalid email address.",
+        "auth/weak-password": "Password is too weak.",
+        password_mismatch: "Passwords must match.",
+        firebase_not_configured: "Firebase is not configured.",
+        "auth/network-request-failed": "Network error. Check connectivity."
       };
   return map[code] || fallback || String(code || "");
 }
@@ -1786,38 +2503,111 @@ document.addEventListener("click", () => {
 });
 
 function buildAuthUser(userPayload) {
-  if (!userPayload) return null;
-  const id = Number.parseInt(userPayload.id, 10);
-  if (!Number.isFinite(id) || id <= 0) return null;
+  if (!userPayload || !userPayload.id) return null;
+  const id = String(userPayload.id);
+  if (!id) return null;
   return {
     id,
     email: String(userPayload.email || ""),
-    role: userPayload.user_type === "coach" ? "coach" : "athlete"
+    role: userPayload.role === "coach" ? "coach" : "athlete"
   };
 }
 
-async function loginWithCredentials({ email, password, role }) {
-  const response = await fetch("api/login.php", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password, user_type: role })
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || !payload.success) {
-    const code = payload.error || payload.message || response.status;
-    throw new Error(authErrorMessage(code, response.statusText));
+async function fetchFirebaseProfile(uid) {
+  if (!firebaseFirestoreInstance) return null;
+  try {
+    const doc = await firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION).doc(uid).get();
+    if (!doc.exists) return null;
+    return doc.data();
+  } catch (err) {
+    console.warn("Failed to load Firebase profile", err);
+    return null;
   }
-  return payload;
+}
+
+async function persistFirebaseProfile(uid, data) {
+  if (!firebaseFirestoreInstance) return;
+  try {
+    await firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION).doc(uid).set(data, { merge: true });
+  } catch (err) {
+    console.warn("Failed to persist Firebase profile", err);
+  }
+}
+
+async function loginWithCredentials({ email, password }) {
+  if (!firebaseAuthInstance) {
+    throw new Error("firebase_not_configured");
+  }
+  const credential = await firebaseAuthInstance.signInWithEmailAndPassword(email, password);
+  const { user } = credential;
+  const remoteProfile = await fetchFirebaseProfile(user.uid);
+  const resolvedRole = remoteProfile?.role || "athlete";
+  const profile = {
+    user_id: user.uid,
+    email: user.email || email,
+    name: remoteProfile?.name || user.displayName || "",
+    role: resolvedRole,
+    lang: remoteProfile?.lang || currentLang,
+    createdAt: remoteProfile?.createdAt || new Date().toISOString()
+  };
+  return { user: { id: user.uid, email: user.email || email, role: resolvedRole }, profile };
+}
+
+async function registerWithFirebase({
+  email,
+  password,
+  name,
+  role,
+  lang,
+  preferredMoves = "",
+  experienceYears = "",
+  stance = "",
+  weightClass = "",
+  notes = ""
+}) {
+  if (!firebaseAuthInstance) {
+    throw new Error("firebase_not_configured");
+  }
+  const credential = await firebaseAuthInstance.createUserWithEmailAndPassword(email, password);
+  const { user } = credential;
+  if (name && user.updateProfile) {
+    try {
+      await user.updateProfile({ displayName: name });
+    } catch {
+      // ignore profile update errors
+    }
+  }
+  const profilePayload = {
+    user_id: user.uid,
+    email,
+    name,
+    role: role === "coach" ? "coach" : "athlete",
+    lang: resolveLang(lang || currentLang),
+    preferred_moves: preferredMoves,
+    experience_years: experienceYears,
+    stance,
+    weight_class: weightClass,
+    notes,
+    createdAt: new Date().toISOString()
+  };
+  await persistFirebaseProfile(user.uid, profilePayload);
+  return { user: { id: user.uid, email, role: profilePayload.role }, profile: profilePayload };
+}
+
+async function handleSuccessfulAuth(result) {
+  const authUser = buildAuthUser(result.user);
+  if (!authUser) {
+    throw new Error("invalid_credentials");
+  }
+  setAuthUser(authUser);
+  const profile = normalizeProfileForAuth(result.profile || {}, authUser);
+  setProfile(profile);
+  await applyProfile(profile);
+  hideOnboarding();
 }
 
 if (pRole) {
   pRole.addEventListener("change", () => updateRoleSections(pRole.value));
-}
-
-if (authTabs.length) {
-  authTabs.forEach((btn) => {
-    btn.addEventListener("click", () => setAuthMode(btn.dataset.auth));
-  });
 }
 
 if (loginForm) {
@@ -1825,7 +2615,6 @@ if (loginForm) {
     e.preventDefault();
     const email = loginEmail.value.trim();
     const password = loginPassword.value.trim();
-    const role = loginRole.value;
 
     if (!email || !password) {
       alert("Please enter email and password.");
@@ -1833,21 +2622,75 @@ if (loginForm) {
     }
 
     try {
-      const result = await loginWithCredentials({ email, password, role });
-      const authUser = buildAuthUser(result.user);
-      if (!authUser) {
-        alert(authErrorMessage("invalid_credentials", "Login failed."));
-        return;
-      }
-      setAuthUser(authUser);
-      const profile = normalizeProfileForAuth(result.profile || {}, authUser);
-      setProfile(profile);
-      await applyProfile(profile);
-      hideOnboarding();
+      const result = await loginWithCredentials({ email, password });
+      await handleSuccessfulAuth(result);
     } catch (err) {
-      alert(err.message || String(err));
+      const code = err?.code || err?.message || "auth_error";
+      alert(authErrorMessage(code, err?.message || String(err)));
     }
   });
+}
+
+if (profileForm) {
+  profileForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = pName.value.trim();
+    const email = pEmail.value.trim();
+    const password = pPassword.value;
+    const confirm = pPasswordConfirm.value;
+    const role = pRole.value;
+    const lang = pLang?.value || currentLang;
+
+    if (!name || !email || !password || !confirm) {
+      alert("Please fill all fields.");
+      return;
+    }
+    if (password.length < 8) {
+      alert(authErrorMessage("password_too_short", "Password must be at least 8 characters."));
+      return;
+    }
+    if (password !== confirm) {
+      alert(authErrorMessage("password_mismatch", "Passwords must match."));
+      return;
+    }
+
+    const preferredMoves = pPreferredMoves?.value.trim() || "";
+    const experienceYears = pExperienceYears?.value.trim() || "";
+    const stance = pStance?.value || "";
+    const weightClass = pWeightClass?.value.trim() || "";
+    const notes = pNotes?.value.trim() || "";
+
+    try {
+      const payload = await registerWithFirebase({
+        email,
+        password,
+        name,
+        role,
+        lang,
+        preferredMoves,
+        experienceYears,
+        stance,
+        weightClass,
+        notes
+      });
+      await handleSuccessfulAuth(payload);
+    } catch (err) {
+      const code = err?.code || err?.message || "auth_error";
+      alert(authErrorMessage(code, err?.message || String(err)));
+    }
+  });
+}
+
+if (loginOptionBtn) {
+  loginOptionBtn.addEventListener("click", () => showAuthForm("login"));
+}
+
+if (createOptionBtn) {
+  createOptionBtn.addEventListener("click", () => showAuthForm("create"));
+}
+
+if (authBackBtn) {
+  authBackBtn.addEventListener("click", showAuthChoice);
 }
 
 // Edit profile later
@@ -3236,6 +4079,7 @@ function setRoleUI(role, view = "athlete") {
 
 tabBtns.forEach(btn => btn.addEventListener("click", () => showTab(btn.dataset.tab)));
 setView(currentView);
+refreshHeaderViewButtons();
 
 // ---------- PLAN SUBTABS ----------
 const subtabButtons = Array.from(document.querySelectorAll(".subtab"));
@@ -4111,8 +4955,6 @@ const aCueWord1 = document.getElementById("aCueWord1");
 const aCueWord2 = document.getElementById("aCueWord2");
 const aCueWord3 = document.getElementById("aCueWord3");
 
-let profileTagState = new Set();
-
 function collectTechniques(selector) {
   return Array.from(document.querySelectorAll(selector))
     .filter((el) => el.checked)
@@ -4726,50 +5568,127 @@ const calendarCoachSaveBtn = document.getElementById("calendarCoachSaveBtn");
 const calendarCoachClearBtn = document.getElementById("calendarCoachClearBtn");
 
 const CALENDAR_COPY = {
-  title: { en: "Calendar", es: "Calendario" },
-  chip: { en: "Month view", es: "Vista mensual" }
+  title: {
+    en: "Calendar",
+    es: "Calendario",
+    uz: "Taqvim",
+    ru: "Календарь"
+  },
+  chip: {
+    en: "Month view",
+    es: "Vista mensual",
+    uz: "Oy ko‘rinishi",
+    ru: "Вид месяца"
+  }
 };
 
 const CALENDAR_AUDIENCE_COPY = {
-  assigned: { en: "Assigned", es: "Asignado" },
-  team: { en: "Entire team", es: "Todo el equipo" },
-  you: { en: "You", es: "Tu" },
-  unset: { en: "No athletes assigned yet.", es: "Aun no hay atletas asignados." },
-  hidden: { en: "This day is not assigned to you yet.", es: "Este dia aun no esta asignado para ti." }
+  assigned: {
+    en: "Assigned",
+    es: "Asignado",
+    uz: "Tayinlangan",
+    ru: "Назначено"
+  },
+  team: {
+    en: "Entire team",
+    es: "Todo el equipo",
+    uz: "Butun jamoa",
+    ru: "Вся команда"
+  },
+  you: {
+    en: "You",
+    es: "Tu",
+    uz: "Siz",
+    ru: "Вы"
+  },
+  unset: {
+    en: "No athletes assigned yet.",
+    es: "Aun no hay atletas asignados.",
+    uz: "Hali sportchilar tayinlanmagan.",
+    ru: "Спортсмены еще не назначены."
+  },
+  hidden: {
+    en: "This day is not assigned to you yet.",
+    es: "Este dia aun no esta asignado para ti.",
+    uz: "Bu kun hali sizga tayinlanmagan.",
+    ru: "Этот день еще не назначен вам."
+  }
 };
 
 const CALENDAR_COACH_COPY = {
-  title: { en: "Coach plan for this day", es: "Plan del coach para este dia" },
+  title: {
+    en: "Coach plan for this day",
+    es: "Plan del coach para este dia",
+    uz: "Bu kun uchun murabbiy rejasi",
+    ru: "План тренера на этот день"
+  },
   hint: {
     en: "Add the plan, then assign athletes or send to the full team.",
-    es: "Agrega el plan, luego asigna atletas o envialo a todo el equipo."
+    es: "Agrega el plan, luego asigna atletas o envialo a todo el equipo.",
+    uz: "Rejani qo‘shing, keyin sportchilarni tayinlang yoki butun jamoaga yuboring.",
+    ru: "Добавьте план, затем назначьте спортсменов или отправьте всей команде."
   },
   itemsLabel: {
     en: "Training plan (one item per line)",
-    es: "Plan de entrenamiento (una linea por punto)"
+    es: "Plan de entrenamiento (una linea por punto)",
+    uz: "Trening rejasi (har qatorda bitta nuqta)",
+    ru: "План тренировки (по одному пункту в строке)"
   },
-  allLabel: { en: "Send to entire team", es: "Enviar a todo el equipo" },
-  saveBtn: { en: "Save day plan", es: "Guardar plan del dia" },
-  clearBtn: { en: "Clear day", es: "Limpiar dia" },
-  saveToast: { en: "Day plan saved.", es: "Plan del dia guardado." },
-  clearToast: { en: "Day cleared.", es: "Dia limpiado." },
+  allLabel: {
+    en: "Send to entire team",
+    es: "Enviar a todo el equipo",
+    uz: "Butun jamoaga yuborish",
+    ru: "Отправить всей команде"
+  },
+  saveBtn: {
+    en: "Save day plan",
+    es: "Guardar plan del dia",
+    uz: "Kun rejani saqlash",
+    ru: "Сохранить план дня"
+  },
+  clearBtn: {
+    en: "Clear day",
+    es: "Limpiar dia",
+    uz: "Kunni tozalash",
+    ru: "Очистить день"
+  },
+  saveToast: {
+    en: "Day plan saved.",
+    es: "Plan del dia guardado.",
+    uz: "Kun rejasi saqlandi.",
+    ru: "План дня сохранен."
+  },
+  clearToast: {
+    en: "Day cleared.",
+    es: "Dia limpiado.",
+    uz: "Kun tozalandi.",
+    ru: "День очищен."
+  },
   needAudience: {
     en: "Select athletes or choose entire team.",
-    es: "Selecciona atletas o elige todo el equipo."
+    es: "Selecciona atletas o elige todo el equipo.",
+    uz: "Sportchilarni tanlang yoki butun jamoani tanlang.",
+    ru: "Выберите спортсменов или всю команду."
   },
   needItems: {
     en: "Add at least one training item.",
-    es: "Agrega al menos un punto del entrenamiento."
+    es: "Agrega al menos un punto del entrenamiento.",
+    uz: "Kamida bitta mashg‘ulot punktini qo‘shing.",
+    ru: "Добавьте хотя бы один элемент тренировки."
   },
   clearConfirm: {
     en: "Clear the plan and assignments for this date?",
-    es: "Borrar el plan y asignaciones de esta fecha?"
+    es: "Borrar el plan y asignaciones de esta fecha?",
+    uz: "Bu sana uchun rejani va tayinlarni tozalaysizmi?",
+    ru: "Очистить план и назначения на эту дату?"
   }
 };
 
 const CALENDAR_COACH_PLACEHOLDERS = {
   en: "Warm-up - 15 min\nTechnique - Single leg chain\nLive - 4 x 2:00",
-  es: "Calentamiento - 15 min\nTecnica - Cadena de pierna simple\nEn vivo - 4 x 2:00"
+  es: "Calentamiento - 15 min\nTecnica - Cadena de pierna simple\nEn vivo - 4 x 2:00",
+  uz: "Isinish - 15 min\nTexnika - Bir oyoqli zanjir\nJonli - 4 x 2:00",
+  ru: "Разминка - 15 мин\nТехника - Цепочка одинарного захвата\nСпарринг - 4 х 2:00"
 };
 
 let calendarViewDate = new Date();
@@ -5148,35 +6067,147 @@ const calendarManagerDetailsTitle = document.getElementById("calendarManagerDeta
 const calendarManagerNotificationsTitle = document.getElementById("calendarManagerNotificationsTitle");
 
 const CALENDAR_MANAGER_COPY = {
-  title: { en: "Calendar Manager", es: "Gestion de calendario" },
-  chip: { en: "Create events + reminders", es: "Crear eventos y recordatorios" },
-  formTitle: { en: "Create Event", es: "Crear evento" },
-  dateLabel: { en: "Date", es: "Fecha" },
-  eventLabel: { en: "Event", es: "Evento" },
-  timeLabel: { en: "Time", es: "Hora" },
-  noteLabel: { en: "Note", es: "Nota" },
-  addBtn: { en: "Add event", es: "Agregar evento" },
-  clearBtn: { en: "Clear date", es: "Limpiar fecha" },
-  listTitle: { en: "Events on this date", es: "Eventos en esta fecha" },
-  empty: { en: "No events yet.", es: "Aun no hay eventos." },
-  actionsTitle: { en: "Coach Actions", es: "Acciones del coach" },
-  typesTitle: { en: "Event Types", es: "Tipos de evento" },
-  detailsTitle: { en: "Event Details", es: "Detalles del evento" },
-  notificationsTitle: { en: "Notifications", es: "Notificaciones" },
-  removeBtn: { en: "Remove", es: "Quitar" },
+  title: {
+    en: "Calendar Manager",
+    es: "Gestion de calendario",
+    uz: "Taqvim boshqaruvi",
+    ru: "Управление календарём"
+  },
+  chip: {
+    en: "Create events + reminders",
+    es: "Crear eventos y recordatorios",
+    uz: "Tadbirlar va eslatmalar yarating",
+    ru: "Создайте события и напоминания"
+  },
+  formTitle: {
+    en: "Create Event",
+    es: "Crear evento",
+    uz: "Tadbir yaratish",
+    ru: "Создать событие"
+  },
+  dateLabel: {
+    en: "Date",
+    es: "Fecha",
+    uz: "Sana",
+    ru: "Дата"
+  },
+  eventLabel: {
+    en: "Event",
+    es: "Evento",
+    uz: "Tadbir",
+    ru: "Событие"
+  },
+  timeLabel: {
+    en: "Time",
+    es: "Hora",
+    uz: "Vaqt",
+    ru: "Время"
+  },
+  noteLabel: {
+    en: "Note",
+    es: "Nota",
+    uz: "Eslatma",
+    ru: "Заметка"
+  },
+  addBtn: {
+    en: "Add event",
+    es: "Agregar evento",
+    uz: "Tadbir qo‘shish",
+    ru: "Добавить событие"
+  },
+  clearBtn: {
+    en: "Clear date",
+    es: "Limpiar fecha",
+    uz: "Sanani tozalash",
+    ru: "Очистить дату"
+  },
+  listTitle: {
+    en: "Events on this date",
+    es: "Eventos en esta fecha",
+    uz: "Bu sanadagi tadbirlar",
+    ru: "События на эту дату"
+  },
+  empty: {
+    en: "No events yet.",
+    es: "Aun no hay eventos.",
+    uz: "Hozircha tadbirlar yo‘q.",
+    ru: "Еще нет событий."
+  },
+  actionsTitle: {
+    en: "Coach Actions",
+    es: "Acciones del coach",
+    uz: "Murabbiy harakatlari",
+    ru: "Действия тренера"
+  },
+  typesTitle: {
+    en: "Event Types",
+    es: "Tipos de evento",
+    uz: "Tadbir turlari",
+    ru: "Типы событий"
+  },
+  detailsTitle: {
+    en: "Event Details",
+    es: "Detalles del evento",
+    uz: "Tadbir tafsilotlari",
+    ru: "Детали события"
+  },
+  notificationsTitle: {
+    en: "Notifications",
+    es: "Notificaciones",
+    uz: "Bildirishnomalar",
+    ru: "Уведомления"
+  },
+  removeBtn: {
+    en: "Remove",
+    es: "Quitar",
+    uz: "O‘chirish",
+    ru: "Удалить"
+  },
   clearConfirm: {
     en: "Clear all events for this date?",
-    es: "Borrar todos los eventos de esta fecha?"
+    es: "Borrar todos los eventos de esta fecha?",
+    uz: "Bu sanadagi barcha tadbirlarni tozalaysizmi?",
+    ru: "Очистить все события на эту дату?"
   },
-  savedToast: { en: "Event saved.", es: "Evento guardado." },
-  clearedToast: { en: "Date cleared.", es: "Fecha limpiada." },
-  removedToast: { en: "Event removed.", es: "Evento quitado." }
+  savedToast: {
+    en: "Event saved.",
+    es: "Evento guardado.",
+    uz: "Tadbir saqlandi.",
+    ru: "Событие сохранено."
+  },
+  clearedToast: {
+    en: "Date cleared.",
+    es: "Fecha limpiada.",
+    uz: "Sana tozalandi.",
+    ru: "Дата очищена."
+  },
+  removedToast: {
+    en: "Event removed.",
+    es: "Evento quitado.",
+    uz: "Tadbir o‘chirildi.",
+    ru: "Событие удалено."
+  }
 };
 
 const CALENDAR_MANAGER_PLACEHOLDERS = {
-  title: { en: "Team practice", es: "Practica del equipo" },
-  time: { en: "3:30 PM", es: "3:30 PM" },
-  note: { en: "Mat 2", es: "Tapiz 2" }
+  title: {
+    en: "Team practice",
+    es: "Practica del equipo",
+    uz: "Jamoa mashg'uloti",
+    ru: "Тренировка команды"
+  },
+  time: {
+    en: "3:30 PM",
+    es: "3:30 PM",
+    uz: "15:30",
+    ru: "15:30"
+  },
+  note: {
+    en: "Mat 2",
+    es: "Tapiz 2",
+    uz: "2-mat",
+    ru: "Мат 2"
+  }
 };
 
 function calendarCopy(key) {
@@ -5334,39 +6365,171 @@ const mediaNewItemNote = document.getElementById("mediaNewItemNote");
 const mediaAddItemBtn = document.getElementById("mediaAddItemBtn");
 
 const MEDIA_COPY = {
-  root: { en: "All media", es: "Toda la multimedia" },
-  sectionsLabel: { en: "Sections", es: "Secciones" },
-  itemsLabel: { en: "Videos", es: "Videos" },
+  root: {
+    en: "All media",
+    es: "Toda la multimedia",
+    uz: "Barcha media",
+    ru: "Все медиа"
+  },
+  sectionsLabel: {
+    en: "Sections",
+    es: "Secciones",
+    uz: "Bo‘limlar",
+    ru: "Разделы"
+  },
+  itemsLabel: {
+    en: "Videos",
+    es: "Videos",
+    uz: "Videolar",
+    ru: "Видео"
+  },
   empty: {
     en: "No media here yet. Create a section like \"Double leg\" and add videos inside.",
-    es: "Aun no hay contenido. Crea una seccion como \"Double leg\" y agrega videos dentro."
+    es: "Aun no hay contenido. Crea una seccion como \"Double leg\" y agrega videos dentro.",
+    uz: "Bu yerda hali media yo‘q. Masalan, “Double leg” bo‘limini yarating va videolar qo‘shing.",
+    ru: "Здесь пока нет медиа. Создайте раздел, например «Double leg», и добавьте видео."
   },
-  emptySections: { en: "No sections yet.", es: "Aun no hay secciones." },
-  emptyItems: { en: "No videos in this section yet.", es: "Aun no hay videos en esta seccion." },
-  addSectionTitle: { en: "Add Section", es: "Agregar seccion" },
-  addSectionLabel: { en: "Section name", es: "Nombre de la seccion" },
-  addSectionBtn: { en: "Add section", es: "Agregar seccion" },
-  addItemTitle: { en: "Add Video", es: "Agregar video" },
-  addItemLabel: { en: "Video title", es: "Titulo del video" },
-  addItemTypeLabel: { en: "Type", es: "Tipo" },
-  addItemAssignedLabel: { en: "Assigned", es: "Asignado" },
-  addItemNoteLabel: { en: "Notes", es: "Notas" },
-  addItemBtn: { en: "Add video", es: "Agregar video" },
-  assigned: { en: "Assigned", es: "Asignado" },
-  sectionsCount: { en: "sections", es: "secciones" },
-  itemsCount: { en: "videos", es: "videos" },
-  saveFav: { en: "Save to Favorites", es: "Guardar en favoritos" },
-  addSectionToast: { en: "Section added.", es: "Seccion agregada." },
-  addItemToast: { en: "Video added.", es: "Video agregado." },
-  needSectionName: { en: "Add a section name.", es: "Agrega un nombre de seccion." },
-  needItemTitle: { en: "Add a video title.", es: "Agrega un titulo de video." }
+  emptySections: {
+    en: "No sections yet.",
+    es: "Aun no hay secciones.",
+    uz: "Hali bo‘limlar yo‘q.",
+    ru: "Пока нет разделов."
+  },
+  emptyItems: {
+    en: "No videos in this section yet.",
+    es: "Aun no hay videos en esta seccion.",
+    uz: "Bu bo‘limda hali videolar yo‘q.",
+    ru: "В этом разделе пока нет видео."
+  },
+  addSectionTitle: {
+    en: "Add Section",
+    es: "Agregar seccion",
+    uz: "Bo‘lim qo‘shish",
+    ru: "Добавить раздел"
+  },
+  addSectionLabel: {
+    en: "Section name",
+    es: "Nombre de la seccion",
+    uz: "Bo‘lim nomi",
+    ru: "Название раздела"
+  },
+  addSectionBtn: {
+    en: "Add section",
+    es: "Agregar seccion",
+    uz: "Bo‘lim qo‘shish",
+    ru: "Добавить раздел"
+  },
+  addItemTitle: {
+    en: "Add Video",
+    es: "Agregar video",
+    uz: "Video qo‘shish",
+    ru: "Добавить видео"
+  },
+  addItemLabel: {
+    en: "Video title",
+    es: "Titulo del video",
+    uz: "Video sarlavhasi",
+    ru: "Название видео"
+  },
+  addItemTypeLabel: {
+    en: "Type",
+    es: "Tipo",
+    uz: "Tur",
+    ru: "Тип"
+  },
+  addItemAssignedLabel: {
+    en: "Assigned",
+    es: "Asignado",
+    uz: "Tayinlangan",
+    ru: "Назначено"
+  },
+  addItemNoteLabel: {
+    en: "Notes",
+    es: "Notas",
+    uz: "Eslatmalar",
+    ru: "Заметки"
+  },
+  addItemBtn: {
+    en: "Add video",
+    es: "Agregar video",
+    uz: "Video qo‘shish",
+    ru: "Добавить видео"
+  },
+  assigned: {
+    en: "Assigned",
+    es: "Asignado",
+    uz: "Tayinlangan",
+    ru: "Назначено"
+  },
+  sectionsCount: {
+    en: "sections",
+    es: "secciones",
+    uz: "bo‘limlar",
+    ru: "разделов"
+  },
+  itemsCount: {
+    en: "videos",
+    es: "videos",
+    uz: "videolar",
+    ru: "видео"
+  },
+  saveFav: {
+    en: "Save to Favorites",
+    es: "Guardar en favoritos",
+    uz: "Sevimlilarga saqlash",
+    ru: "Сохранить в избранное"
+  },
+  addSectionToast: {
+    en: "Section added.",
+    es: "Seccion agregada.",
+    uz: "Bo‘lim qo‘shildi.",
+    ru: "Раздел добавлен."
+  },
+  addItemToast: {
+    en: "Video added.",
+    es: "Video agregado.",
+    uz: "Video qo‘shildi.",
+    ru: "Видео добавлено."
+  },
+  needSectionName: {
+    en: "Add a section name.",
+    es: "Agrega un nombre de seccion.",
+    uz: "Bo‘lim nomini kiriting.",
+    ru: "Добавьте название раздела."
+  },
+  needItemTitle: {
+    en: "Add a video title.",
+    es: "Agrega un titulo de video.",
+    uz: "Video sarlavhasini kiriting.",
+    ru: "Добавьте название видео."
+  }
 };
 
 const MEDIA_PLACEHOLDERS = {
-  section: { en: "e.g., Double leg", es: "ej., Double leg" },
-  item: { en: "e.g., Double leg finish", es: "ej., Final de double leg" },
-  assigned: { en: "Today", es: "Hoy" },
-  note: { en: "Optional note", es: "Nota opcional" }
+  section: {
+    en: "e.g., Double leg",
+    es: "ej., Double leg",
+    uz: "mas., Double leg",
+    ru: "напр., Double leg"
+  },
+  item: {
+    en: "e.g., Double leg finish",
+    es: "ej., Final de double leg",
+    uz: "mas., Double leg finish",
+    ru: "напр., Double leg finish"
+  },
+  assigned: {
+    en: "Today",
+    es: "Hoy",
+    uz: "Bugun",
+    ru: "Сегодня"
+  },
+  note: {
+    en: "Optional note",
+    es: "Nota opcional",
+    uz: "Ixtiyoriy eslatma",
+    ru: "Дополнительная заметка"
+  }
 };
 
 let mediaActiveSectionId = null;
@@ -6262,6 +7425,60 @@ const MATCH_VIEW_COPY = {
     goalTitle: "Meta del atleta",
     goalFallback: "Meta aun no registrada",
     yearsUnit: "anos"
+  },
+  uz: {
+    selectAthlete: "Sportchini tanlang",
+    snapshot: "Match qisqacha ko‘rinish",
+    style: "Uslub",
+    experience: "Tajriba yillari",
+    weight: "Hozirgi vazn",
+    category: "Vazn toifasi",
+    positionalStrengthTitle: "Pozitsion kuch (1-10)",
+    positionalStrengthFallback: "Kuch tafsilotlari hali yo‘q",
+    offenseTitle: "Top 3 hujum harakati",
+    defenseTitle: "Top 3 mudofaa harakati",
+    psychTitle: "Psixologik moyillik",
+    tendency: "Moyillik",
+    error: "Bosim ostidagi keng tarqalgan xato",
+    cueWordsTitle: "Cue so‘zlar",
+    cueWordsHint: "Sportchini fokusga keltiruvchi qisqa eslatmalar.",
+    cueWordsEmpty: "Hech qanday cue so‘zlar saqlanmadi.",
+    archetypeTitle: "Arketip",
+    archetypeFallback: "Arketip hali tanlanmagan",
+    cueTitle: "Murabbiy signal",
+    cueHint: "Agar X sodir bo‘lsa -> Y qiling",
+    bodyTypeTitle: "Jismoniy tip",
+    bodyTypeFallback: "Jismoniy tip hali mavjud emas",
+    goalTitle: "Sportchi maqsadi",
+    goalFallback: "Maqsad hali mavjud emas",
+    yearsUnit: "yil"
+  },
+  ru: {
+    selectAthlete: "Выберите спортсмена",
+    snapshot: "Снимок матча",
+    style: "Стиль",
+    experience: "Лет опыта",
+    weight: "Текущий вес",
+    category: "Весовая категория",
+    positionalStrengthTitle: "Уровень позиций (1-10)",
+    positionalStrengthFallback: "Данные о силе еще не заданы",
+    offenseTitle: "Топ-3 атакующих приемов",
+    defenseTitle: "Топ-3 защитных приемов",
+    psychTitle: "Психологическая склонность",
+    tendency: "Склонность",
+    error: "Типичная ошибка под давлением",
+    cueWordsTitle: "Подсказки",
+    cueWordsHint: "Короткие напоминания, помогающие спортсмену сосредоточиться.",
+    cueWordsEmpty: "Подсказки пока не сохранены.",
+    archetypeTitle: "Архетип",
+    archetypeFallback: "Архетип не выбран",
+    cueTitle: "Ключевой сигнал тренера",
+    cueHint: "Если X происходит -> делай Y",
+    bodyTypeTitle: "Тип телосложения",
+    bodyTypeFallback: "Тип тела не задан",
+    goalTitle: "Цель спортсмена",
+    goalFallback: "Цель не задана",
+    yearsUnit: "лет"
   }
 };
 

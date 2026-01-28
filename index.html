@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8" >
   <title>Wrestling Performance Lab</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="styles.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" >
+  <link rel="stylesheet" href="styles.css" >
 </head>
 
 <body>
@@ -19,13 +19,98 @@
         </div>
       </div>
 
-      <div class="guest-choice">
-        <p class="small muted">Pick the athlete or coach experience to enter the app immediately.</p>
-        <div class="guest-buttons">
-          <button id="guestAthleteBtn" class="primary full" type="button">Enter Athlete View</button>
-          <button id="guestCoachBtn" class="ghost full" type="button">Enter Coach View</button>
+      <div class="auth-shell">
+        <div class="auth-copy">
+          <h3 id="authTitle">Log in or create an account</h3>
+          <p id="authSubtitle" class="small muted">Securely access your Wrestling Performance Lab workspace.</p>
+        </div>
+      <div class="auth-panel">
+        <div class="auth-choice" id="authChoice">
+          <button type="button" id="loginOptionBtn" class="primary full">Log In</button>
+          <button type="button" id="createOptionBtn" class="ghost full">Create account</button>
+        </div>
+        <div class="auth-forms hidden" id="authForms">
+          <div class="auth-form-wrap hidden" id="loginFormWrap">
+            <form id="loginForm" class="auth-form">
+              <label>
+                <span>Email</span>
+                <input id="loginEmail" type="email" required autocomplete="username">
+              </label>
+              <label>
+                <span>Password</span>
+                <input id="loginPassword" type="password" required autocomplete="current-password" minlength="8">
+              </label>
+              <button type="submit" class="primary full">Log In</button>
+              <p class="small muted">Only email and password are needed to continue.</p>
+            </form>
+          </div>
+          <div class="auth-form-wrap hidden" id="profileFormWrap">
+            <form id="profileForm" class="auth-form">
+              <label>
+                <span>Full name</span>
+                <input id="pName" type="text" required autocomplete="name">
+              </label>
+              <label>
+                <span>Email</span>
+                <input id="pEmail" type="email" required autocomplete="email">
+              </label>
+              <label>
+                <span>Password</span>
+                <input id="pPassword" type="password" required minlength="8" autocomplete="new-password">
+              </label>
+              <label>
+                <span>Confirm password</span>
+                <input id="pPasswordConfirm" type="password" required minlength="8" autocomplete="new-password">
+              </label>
+              <label>
+                <span>Role</span>
+                <select id="pRole">
+                  <option value="athlete">Athlete</option>
+                  <option value="coach">Coach</option>
+                </select>
+              </label>
+              <label>
+                <span>Language</span>
+                <select id="pLang">
+                  <option value="en">English</option>
+                  <option value="es">Spanish</option>
+                  <option value="uz">Uzbek</option>
+                  <option value="ru">Russian</option>
+                </select>
+              </label>
+              <label>
+                <span>Preferred move(s)</span>
+                <input id="pPreferredMoves" type="text" placeholder="e.g., Single leg finish, high crotch">
+              </label>
+              <label>
+                <span>Experience (years)</span>
+                <input id="pExperienceYears" type="number" min="0" max="50" placeholder="e.g., 5">
+              </label>
+              <label>
+                <span>Stance</span>
+                <select id="pStance">
+                  <option value="">Select stance</option>
+                  <option value="left">Left</option>
+                  <option value="right">Right</option>
+                  <option value="switch">Switch</option>
+                </select>
+              </label>
+              <label>
+                <span>Weight class</span>
+                <input id="pWeightClass" type="text" placeholder="e.g., 74 kg">
+              </label>
+              <label>
+                <span>Notes</span>
+                <textarea id="pNotes" rows="3" placeholder="Anything else we should know?"></textarea>
+              </label>
+              <button type="submit" class="primary full">Create account</button>
+              <p class="small muted">Firebase Auth keeps your account backed on the server.</p>
+            </form>
+          </div>
+          <button type="button" class="ghost auth-back hidden" id="authBackBtn">Back to choice</button>
         </div>
       </div>
+    </div>
     </div>
   </div>
 
@@ -43,11 +128,13 @@
       </div>
 
       <div class="header-actions">
-        <div class="lang-switch" aria-label="Language selector">
+        <div class="lang-switch" role="group" aria-label="Language selector">
           <span class="flag" id="headerFlag">🇺🇸</span>
           <select id="headerLang">
             <option value="en">English</option>
             <option value="es">Spanish</option>
+            <option value="uz">Uzbek</option>
+            <option value="ru">Russian</option>
           </select>
         </div>
         <div class="view-switch">
@@ -63,11 +150,18 @@
           </div>
         </div>
         <div class="header-profile">
-          <button id="editProfileBtn" title="User menu">👤</button>
+          <button type="button" id="editProfileBtn" title="User menu">👤</button>
           <div id="headerMenu" class="header-menu hidden">
-            <button type="button" data-action="profile">Profile</button>
-            <button type="button" data-action="logout">Log out</button>
-            <button type="button" data-action="switch">Switch user</button>
+            <div class="header-menu-section">
+              <div class="header-menu-section-title">Views</div>
+              <button type="button" data-action="view-athlete">Athlete view</button>
+              <button type="button" data-action="view-coach">Coach view</button>
+            </div>
+            <div class="header-menu-section">
+              <button type="button" data-action="profile">Profile</button>
+              <button type="button" data-action="logout">Log out</button>
+              <button type="button" data-action="switch">Switch user</button>
+            </div>
           </div>
         </div>
       </div>
@@ -75,27 +169,27 @@
 
     <main class="app-content">
       <nav class="tabs" aria-label="Main tabs">
-        <button class="tab active" data-tab="today" data-role="athlete" data-views="athlete parent">Today</button>
-        <button class="tab" data-tab="athlete-profile" data-role="athlete" data-views="athlete parent">Profile</button>
-        <button class="tab" data-tab="training" data-role="athlete" data-views="athlete parent">Training Plan</button>
-        <button class="tab" data-tab="calendar" data-role="athlete coach" data-views="athlete coach parent">Calendar</button>
-        <button class="tab" data-tab="media" data-role="athlete coach" data-views="athlete coach parent">Media</button>
-        <button class="tab" data-tab="journal" data-role="athlete" data-views="athlete parent">Journal</button>
-        <button class="tab" data-tab="favorites" data-role="athlete">Favorites</button>
-        <button class="tab" data-tab="announcements" data-role="athlete coach" data-views="athlete coach parent admin">Announcements</button>
+        <button type="button" class="tab active" data-tab="today" data-role="athlete" data-views="athlete parent">Today</button>
+        <button type="button" class="tab" data-tab="athlete-profile" data-role="athlete" data-views="athlete parent">Profile</button>
+        <button type="button" class="tab" data-tab="training" data-role="athlete" data-views="athlete parent">Training Plan</button>
+        <button type="button" class="tab" data-tab="calendar" data-role="athlete coach" data-views="athlete coach parent">Calendar</button>
+        <button type="button" class="tab" data-tab="media" data-role="athlete coach" data-views="athlete coach parent">Media</button>
+        <button type="button" class="tab" data-tab="journal" data-role="athlete" data-views="athlete parent">Journal</button>
+        <button type="button" class="tab" data-tab="favorites" data-role="athlete">Favorites</button>
+        <button type="button" class="tab" data-tab="announcements" data-role="athlete coach" data-views="athlete coach parent admin">Announcements</button>
 
-        <button class="tab" data-tab="dashboard" data-role="coach" data-views="coach admin">Dashboard</button>
-        <button class="tab" data-tab="coach-profile" data-role="coach" data-views="coach admin">Coach Profile</button>
-        <button class="tab" data-tab="athletes" data-role="coach" data-views="coach admin">Athletes</button>
-        <button class="tab" data-tab="coach-match" data-role="coach" data-views="coach admin">Athlete Summary</button>
-        <button class="tab" data-tab="plans" data-role="coach" data-views="coach admin">Create Plans</button>
-        <button class="tab" data-tab="calendar-manager" data-role="coach" data-views="coach admin">Calendar Manager</button>
-        <button class="tab" data-tab="media-library" data-role="coach" data-views="coach admin">Media Library</button>
-        <button class="tab" data-tab="athlete-notes" data-role="coach" data-views="coach parent">Athlete Notes</button>
-        <button class="tab" data-tab="skills" data-role="coach" data-views="coach admin">Skills Tracker</button>
-        <button class="tab" data-tab="journal-monitor" data-role="coach" data-views="coach parent">Journal Monitor</button>
-        <button class="tab" data-tab="messages" data-role="coach" data-views="coach admin">Messages</button>
-        <button class="tab" data-tab="permissions" data-role="admin" data-views="admin">Permissions</button>
+        <button type="button" class="tab" data-tab="dashboard" data-role="coach" data-views="coach admin">Dashboard</button>
+        <button type="button" class="tab" data-tab="coach-profile" data-role="coach" data-views="coach admin">Coach Profile</button>
+        <button type="button" class="tab" data-tab="athletes" data-role="coach" data-views="coach admin">Athletes</button>
+        <button type="button" class="tab" data-tab="coach-match" data-role="coach" data-views="coach admin">Athlete Summary</button>
+        <button type="button" class="tab" data-tab="plans" data-role="coach" data-views="coach admin">Create Plans</button>
+        <button type="button" class="tab" data-tab="calendar-manager" data-role="coach" data-views="coach admin">Calendar Manager</button>
+        <button type="button" class="tab" data-tab="media-library" data-role="coach" data-views="coach admin">Media Library</button>
+        <button type="button" class="tab" data-tab="athlete-notes" data-role="coach" data-views="coach parent">Athlete Notes</button>
+        <button type="button" class="tab" data-tab="skills" data-role="coach" data-views="coach admin">Skills Tracker</button>
+        <button type="button" class="tab" data-tab="journal-monitor" data-role="coach" data-views="coach parent">Journal Monitor</button>
+        <button type="button" class="tab" data-tab="messages" data-role="coach" data-views="coach admin">Messages</button>
+        <button type="button" class="tab" data-tab="permissions" data-role="admin" data-views="admin">Permissions</button>
       </nav>
 
       <!-- ATHLETE: TODAY -->
@@ -113,9 +207,9 @@
           <div class="session-grid" id="sessionBlocks"></div>
 
           <div class="row">
-            <button id="startSessionBtn" class="primary">Start Session</button>
-            <button id="watchFilmBtn">Watch Assigned Film</button>
-            <button id="logCompletionBtn">Log Completion</button>
+            <button type="button" id="startSessionBtn" class="primary">Start Session</button>
+            <button type="button" id="watchFilmBtn">Watch Assigned Film</button>
+            <button type="button" id="logCompletionBtn">Log Completion</button>
           </div>
 
           <div class="checkin">
@@ -147,7 +241,7 @@
         <div class="card">
           <div class="card-header">
             <h2>Athlete Profile</h2>
-            <div class="chip">Create & Edit</div>
+            <div class="chip">Create &amp; Edit</div>
           </div>
           <form id="athleteProfileForm" class="form">
             <div class="profile-subtabs" role="tablist" aria-label="Athlete profile focus">
@@ -160,39 +254,39 @@
               <div class="grid profile-grid">
                 <label>
                   <span>Full name</span>
-                  <input id="aName" type="text" required />
+                  <input id="aName" type="text" required >
                 </label>
                 <label>
                   <span>Age</span>
-                  <input id="aAge" type="number" min="10" max="60" placeholder="e.g., 19" />
+                  <input id="aAge" type="number" min="10" max="60" placeholder="e.g., 19" >
                 </label>
                 <label>
                   <span>Profile photo (optional)</span>
-                  <input id="aPhoto" type="text" placeholder="Add a photo URL" />
+                  <input id="aPhoto" type="text" placeholder="Add a photo URL" >
                 </label>
                 <label>
                   <span>Country (optional)</span>
-                  <input id="aCountry" type="text" />
+                  <input id="aCountry" type="text" >
                 </label>
                 <label>
                   <span>City/State (optional)</span>
-                  <input id="aCity" type="text" />
+                  <input id="aCity" type="text" >
                 </label>
                 <label>
                   <span>Current weight</span>
-                  <input id="aWeight" type="text" placeholder="e.g., 157 lb" />
+                  <input id="aWeight" type="text" placeholder="e.g., 157 lb" >
                 </label>
                 <label>
                   <span>School name (optional)</span>
-                  <input id="aSchool" type="text" />
+                  <input id="aSchool" type="text" >
                 </label>
                 <label>
                   <span>Club name (optional)</span>
-                  <input id="aClub" type="text" />
+                  <input id="aClub" type="text" >
                 </label>
                 <label>
                   <span>School grade / level</span>
-                  <input id="aSchoolGrade" type="text" placeholder="e.g., 11th grade" />
+                  <input id="aSchoolGrade" type="text" placeholder="e.g., 11th grade" >
                 </label>
                 <label>
                   <span>Training routines</span>
@@ -200,11 +294,11 @@
                 </label>
                 <label>
                   <span>Weekly volume</span>
-                  <input id="aTrainingVolume" type="text" placeholder="e.g., 6 sessions, 10 hours" />
+                  <input id="aTrainingVolume" type="text" placeholder="e.g., 6 sessions, 10 hours" >
                 </label>
                 <label>
                   <span>Technique worked most</span>
-                  <input id="aTrainingFocus" type="text" placeholder="e.g., Single leg finish chain" />
+                  <input id="aTrainingFocus" type="text" placeholder="e.g., Single leg finish chain" >
                 </label>
               </div>
 
@@ -221,15 +315,15 @@
                   </label>
                   <label>
                     <span>Left-side attack</span>
-                    <input id="aLeftAttack" type="text" placeholder="Primary left-side entry" />
+                    <input id="aLeftAttack" type="text" placeholder="Primary left-side entry" >
                   </label>
                   <label>
                     <span>Right-side attack</span>
-                    <input id="aRightAttack" type="text" placeholder="Primary right-side entry" />
+                    <input id="aRightAttack" type="text" placeholder="Primary right-side entry" >
                   </label>
                   <label>
                     <span>Preferred ties</span>
-                    <input id="aPreferredTies" type="text" placeholder="e.g., underhooks, wrist control" />
+                    <input id="aPreferredTies" type="text" placeholder="e.g., underhooks, wrist control" >
                   </label>
                 </div>
                 <label class="miscellaneous">
@@ -243,15 +337,15 @@
                 <div class="grid">
                   <label>
                     <span>Challenge #1</span>
-                    <input id="aChallengeOne" type="text" placeholder="First challenge" />
+                    <input id="aChallengeOne" type="text" placeholder="First challenge" >
                   </label>
                   <label>
                     <span>Challenge #2</span>
-                    <input id="aChallengeTwo" type="text" placeholder="Second challenge" />
+                    <input id="aChallengeTwo" type="text" placeholder="Second challenge" >
                   </label>
                   <label>
                     <span>Challenge #3</span>
-                    <input id="aChallengeThree" type="text" placeholder="Third challenge" />
+                    <input id="aChallengeThree" type="text" placeholder="Third challenge" >
                   </label>
                 </div>
               </div>
@@ -269,11 +363,11 @@
                 </label>
                 <label>
                   <span>Weight class</span>
-                  <input id="aWeightClass" type="text" placeholder="e.g., 157" />
+                  <input id="aWeightClass" type="text" placeholder="e.g., 157" >
                 </label>
                 <label>
                   <span>Years of experience</span>
-                  <input id="aYears" type="number" min="0" max="30" />
+                  <input id="aYears" type="number" min="0" max="30" >
                 </label>
                 <label>
                   <span>Experience level</span>
@@ -393,11 +487,11 @@
                   </label>
                   <label>
                     <span>Countries / events (optional)</span>
-                    <input id="aInternationalEvents" type="text" />
+                    <input id="aInternationalEvents" type="text" >
                   </label>
                   <label>
                     <span>Years (optional)</span>
-                    <input id="aInternationalYears" type="text" />
+                    <input id="aInternationalYears" type="text" >
                   </label>
                 </div>
               </div>
@@ -416,11 +510,11 @@
                   </label>
                   <label>
                     <span>What helps you most? (optional)</span>
-                    <input id="aCueNotes" type="text" />
+                    <input id="aCueNotes" type="text" >
                   </label>
                   <label>
                     <span>Injuries or limitations (optional)</span>
-                    <input id="aInjuryNotes" type="text" />
+                    <input id="aInjuryNotes" type="text" >
                   </label>
                 </div>
               </div>
@@ -455,7 +549,7 @@
                   </label>
                   <label>
                     <span>Common error under pressure</span>
-                    <input id="aPressureError" type="text" placeholder="e.g., Reaching on ties" />
+                    <input id="aPressureError" type="text" placeholder="e.g., Reaching on ties" >
                   </label>
                   <label>
                     <span>Coach key signal</span>
@@ -472,15 +566,15 @@
               <div class="grid">
                 <label>
                   <span>Cue word #1</span>
-                  <input id="aCueWord1" type="text" placeholder="e.g., Breathe" />
+                  <input id="aCueWord1" type="text" placeholder="e.g., Breathe" >
                 </label>
                 <label>
                   <span>Cue word #2</span>
-                  <input id="aCueWord2" type="text" placeholder="e.g., Stay tight" />
+                  <input id="aCueWord2" type="text" placeholder="e.g., Stay tight" >
                 </label>
                 <label>
                   <span>Cue word #3</span>
-                  <input id="aCueWord3" type="text" placeholder="e.g., Attack quick" />
+                  <input id="aCueWord3" type="text" placeholder="e.g., Attack quick" >
                 </label>
               </div>
             </div>
@@ -492,30 +586,30 @@
                     <h4 id="aOffenseHeading">Offense</h4>
                     <label>
                       <span>Offense 1</span>
-                      <input id="aOffense1" type="text" placeholder="Primary attack" />
+                      <input id="aOffense1" type="text" placeholder="Primary attack" >
                     </label>
                     <label>
                       <span>Offense 2</span>
-                      <input id="aOffense2" type="text" placeholder="Secondary attack" />
+                      <input id="aOffense2" type="text" placeholder="Secondary attack" >
                     </label>
                     <label>
                       <span>Offense 3</span>
-                      <input id="aOffense3" type="text" placeholder="Counter score" />
+                      <input id="aOffense3" type="text" placeholder="Counter score" >
                     </label>
                   </div>
                   <div class="mini-card">
                     <h4 id="aDefenseHeading">Defense</h4>
                     <label>
                       <span>Defense 1</span>
-                      <input id="aDefense1" type="text" placeholder="Primary defense" />
+                      <input id="aDefense1" type="text" placeholder="Primary defense" >
                     </label>
                     <label>
                       <span>Defense 2</span>
-                      <input id="aDefense2" type="text" placeholder="Secondary defense" />
+                      <input id="aDefense2" type="text" placeholder="Secondary defense" >
                     </label>
                     <label>
                       <span>Defense 3</span>
-                      <input id="aDefense3" type="text" placeholder="Emergency defense" />
+                      <input id="aDefense3" type="text" placeholder="Emergency defense" >
                     </label>
                   </div>
                 </div>
@@ -571,7 +665,7 @@
           </div>
           <div class="section-grid" id="competitionPreview"></div>
           <div class="row">
-            <button id="backToProfileBtn">Back to Profile</button>
+            <button type="button" id="backToProfileBtn">Back to Profile</button>
           </div>
         </div>
       </section>
@@ -592,7 +686,7 @@
             <div class="month-day-names" id="calendarDayNames"></div>
             <div class="month-grid" id="calendarMonthGrid"></div>
           </div>
-          <hr class="sep" />
+          <hr class="sep" >
           <h3 id="calTitle">Select a date</h3>
           <ol id="calDrills"></ol>
           <p id="calAudience" class="small muted"></p>
@@ -604,8 +698,8 @@
             <textarea id="calendarCoachItems" rows="5" placeholder="Warm-up - 15 min&#10;Technique - Single leg chain"></textarea>
 
             <div class="calendar-audience">
-              <label class="check" for="calendarCoachAll">
-                <input type="checkbox" id="calendarCoachAll" />
+              <label class="check">
+                <input type="checkbox" id="calendarCoachAll" >
                 <span id="calendarCoachAllLabel">Send to entire team</span>
               </label>
               <div id="calendarCoachAthletes" class="calendar-athlete-list"></div>
@@ -638,7 +732,7 @@
                 <div class="media-tool-card">
                   <h3 id="mediaAddSectionTitle">Add Section</h3>
                   <label for="mediaNewSectionName" id="mediaNewSectionLabel">Section name</label>
-                  <input id="mediaNewSectionName" type="text" placeholder="e.g., Double leg" />
+                  <input id="mediaNewSectionName" type="text" placeholder="e.g., Double leg" >
                   <div class="form-actions">
                     <button type="button" id="mediaAddSectionBtn" class="primary">Add section</button>
                   </div>
@@ -646,7 +740,7 @@
                 <div class="media-tool-card">
                   <h3 id="mediaAddItemTitle">Add Video</h3>
                   <label for="mediaNewItemTitle" id="mediaNewItemLabel">Video title</label>
-                  <input id="mediaNewItemTitle" type="text" placeholder="e.g., Double leg finish" />
+                  <input id="mediaNewItemTitle" type="text" placeholder="e.g., Double leg finish" >
                   <label for="mediaNewItemType" id="mediaNewItemTypeLabel">Type</label>
                   <select id="mediaNewItemType">
                     <option value="Video">Video</option>
@@ -654,9 +748,9 @@
                     <option value="Link">Link</option>
                   </select>
                   <label for="mediaNewItemAssigned" id="mediaNewItemAssignedLabel">Assigned</label>
-                  <input id="mediaNewItemAssigned" type="text" placeholder="Today" />
+                  <input id="mediaNewItemAssigned" type="text" placeholder="Today" >
                   <label for="mediaNewItemNote" id="mediaNewItemNoteLabel">Notes</label>
-                  <input id="mediaNewItemNote" type="text" placeholder="Optional note" />
+                  <input id="mediaNewItemNote" type="text" placeholder="Optional note" >
                   <div class="form-actions">
                     <button type="button" id="mediaAddItemBtn" class="primary">Add video</button>
                   </div>
@@ -683,8 +777,8 @@
                 placeholder="Capture today’s thoughts, reminders, or reflections."
               ></textarea>
             </label>
-            <div class="row" style="gap: 10px; align-items: center;">
-              <button id="saveJournalBtn" class="primary">Save entry</button>
+            <div class="row row-align-center">
+              <button type="button" id="saveJournalBtn" class="primary">Save entry</button>
               <span class="small muted" id="journalStatus"></span>
             </div>
           </div>
@@ -704,7 +798,7 @@
       <section class="panel hidden" id="panel-announcements">
         <div class="card">
           <div class="card-header">
-            <h2>Messages & Announcements</h2>
+            <h2>Messages &amp; Announcements</h2>
             <div class="chip">Coach Broadcast</div>
           </div>
           <ul class="timeline" id="announcementList"></ul>
@@ -737,7 +831,7 @@
       <section class="panel hidden" id="panel-coach-profile">
         <div class="card">
           <div class="card-header">
-            <h2>Coach Account & Profile</h2>
+            <h2>Coach Account &amp; Profile</h2>
             <div class="chip">Secure access</div>
           </div>
           <div class="section-grid">
@@ -775,7 +869,7 @@
             <div class="chip">Roster</div>
           </div>
           <div class="filter-row" id="athleteFilters"></div>
-          <input class="search-input" type="text" placeholder="Search athletes by name" aria-label="Search athletes" />
+          <input class="search-input" type="text" placeholder="Search athletes by name" aria-label="Search athletes" >
           <div class="athlete-grid" id="athleteList"></div>
         </div>
       </section>
@@ -824,7 +918,7 @@
               <div class="mini-card">
                 <h3>Go-To Plan (Coach)</h3>
                 <textarea id="onePagerPlan" rows="3" placeholder="Score first with single leg. Stay heavy on top."></textarea>
-                <button id="saveOnePagerPlan">Save Plan</button>
+                <button type="button" id="saveOnePagerPlan">Save Plan</button>
               </div>
               <div class="mini-card">
                 <h3>Do / Don't</h3>
@@ -838,7 +932,7 @@
                     <textarea id="onePagerDont" rows="3" placeholder="Overextend on shots."></textarea>
                   </label>
                 </div>
-                <button id="saveOnePagerDos">Save Do/Don't</button>
+                <button type="button" id="saveOnePagerDos">Save Do/Don't</button>
               </div>
             </div>
 
@@ -851,21 +945,21 @@
                   <option value="energy">High energy push</option>
                   <option value="specific">Specific instruction only</option>
                 </select>
-                <input id="onePagerCueNotes" type="text" placeholder="Optional: responds to simple commands" />
-                <button id="saveOnePagerCues">Save Cues</button>
+                <input id="onePagerCueNotes" type="text" placeholder="Optional: responds to simple commands" >
+                <button type="button" id="saveOnePagerCues">Save Cues</button>
               </div>
               <div class="mini-card">
-                <h3>Safety & Limitations</h3>
+                <h3>Safety &amp; Limitations</h3>
                 <textarea id="onePagerSafety" rows="3" placeholder="Left shoulder caution. Avoid deep shots."></textarea>
-                <button id="saveOnePagerSafety">Save Safety Notes</button>
+                <button type="button" id="saveOnePagerSafety">Save Safety Notes</button>
               </div>
             </div>
 
             <div class="quick-actions">
-              <button id="messageAthleteBtn">Message Athlete</button>
-              <button id="openTrainingBtn">Open Today's Training</button>
-              <button id="openTournamentBtn">Open Tournament Event</button>
-              <button id="addQuickNoteBtn">Add Quick Note</button>
+              <button type="button" id="messageAthleteBtn">Message Athlete</button>
+              <button type="button" id="openTrainingBtn">Open Today's Training</button>
+              <button type="button" id="openTournamentBtn">Open Tournament Event</button>
+              <button type="button" id="addQuickNoteBtn">Add Quick Note</button>
             </div>
           </div>
         </div>
@@ -886,10 +980,10 @@
             </div>
           </div>
           <div class="subtabs" role="tablist" aria-label="Plan scope">
-            <button class="subtab active" data-subtab="plan-daily">Daily</button>
-            <button class="subtab" data-subtab="plan-weekly">Weekly</button>
-            <button class="subtab" data-subtab="plan-monthly">Monthly</button>
-            <button class="subtab" data-subtab="plan-season">Season</button>
+            <button type="button" class="subtab active" data-subtab="plan-daily">Daily</button>
+            <button type="button" class="subtab" data-subtab="plan-weekly">Weekly</button>
+            <button type="button" class="subtab" data-subtab="plan-monthly">Monthly</button>
+            <button type="button" class="subtab" data-subtab="plan-season">Season</button>
           </div>
 
           <div class="plan-range-wrapper form-section">
@@ -899,11 +993,11 @@
               <div class="plan-range-inputs">
                 <label class="range-input">
                   <span id="planRangeStartTitle">Start</span>
-                  <input type="date" id="planRangeStart" />
+                  <input type="date" id="planRangeStart" >
                 </label>
                 <label class="range-input hidden" id="planRangeEndWrapper">
                   <span id="planRangeEndTitle">End</span>
-                  <input type="date" id="planRangeEnd" />
+                  <input type="date" id="planRangeEnd" >
                 </label>
               </div>
               <p class="small muted" id="planRangeHint"></p>
@@ -913,7 +1007,7 @@
           <div class="subpanel" id="plan-daily">
             <div class="accordion">
               <div class="accordion-item">
-                <button class="accordion-toggle active" data-accordion="intro">Introduction</button>
+                <button type="button" class="accordion-toggle active" data-accordion="intro">Introduction</button>
                 <div class="accordion-panel" id="intro">
                   <div class="selection-block" data-block="intro">
                     <div class="selection-options">
@@ -928,7 +1022,7 @@
                         <li data-value="Highlight athlete effort">Highlight athlete effort</li>
                       </ul>
                       <div class="row">
-                        <input type="text" class="custom-input" placeholder="Other (optional)" />
+                        <input type="text" class="custom-input" placeholder="Other (optional)" >
                         <button type="button" class="add-custom-btn">Add</button>
                       </div>
                     </div>
@@ -941,7 +1035,7 @@
               </div>
 
               <div class="accordion-item">
-                <button class="accordion-toggle" data-accordion="warmup">Warm-up</button>
+                <button type="button" class="accordion-toggle" data-accordion="warmup">Warm-up</button>
                 <div class="accordion-panel hidden" id="warmup">
                   <div class="selection-block" data-block="warmup">
                     <div class="selection-options">
@@ -954,7 +1048,7 @@
                         <li data-value="Speed ladder or cones">Speed ladder or cones</li>
                       </ul>
                       <div class="row">
-                        <input type="text" class="custom-input" placeholder="Other (optional)" />
+                        <input type="text" class="custom-input" placeholder="Other (optional)" >
                         <button type="button" class="add-custom-btn">Add</button>
                       </div>
                     </div>
@@ -967,7 +1061,7 @@
               </div>
 
               <div class="accordion-item">
-                <button class="accordion-toggle" data-accordion="drills">Drills + Technique Intro</button>
+                <button type="button" class="accordion-toggle" data-accordion="drills">Drills + Technique Intro</button>
                 <div class="accordion-panel hidden" id="drills">
                   <div class="selection-block" data-block="drills">
                     <div class="selection-options">
@@ -981,7 +1075,7 @@
                         <li data-value="Bottom escapes">Bottom escapes</li>
                       </ul>
                       <div class="row">
-                        <input type="text" class="custom-input" placeholder="Other (optional)" />
+                        <input type="text" class="custom-input" placeholder="Other (optional)" >
                         <button type="button" class="add-custom-btn">Add</button>
                       </div>
                     </div>
@@ -994,7 +1088,7 @@
               </div>
 
               <div class="accordion-item">
-                <button class="accordion-toggle" data-accordion="live">Live / Hard Pace + Conditioning</button>
+                <button type="button" class="accordion-toggle" data-accordion="live">Live / Hard Pace + Conditioning</button>
                 <div class="accordion-panel hidden" id="live">
                   <div class="selection-block" data-block="live">
                     <div class="selection-options">
@@ -1007,7 +1101,7 @@
                         <li data-value="Conditioning finisher">Conditioning finisher</li>
                       </ul>
                       <div class="row">
-                        <input type="text" class="custom-input" placeholder="Other (optional)" />
+                        <input type="text" class="custom-input" placeholder="Other (optional)" >
                         <button type="button" class="add-custom-btn">Add</button>
                       </div>
                     </div>
@@ -1020,7 +1114,7 @@
               </div>
 
               <div class="accordion-item">
-                <button class="accordion-toggle" data-accordion="cooldown">Visualization + Cool Down</button>
+                <button type="button" class="accordion-toggle" data-accordion="cooldown">Visualization + Cool Down</button>
                 <div class="accordion-panel hidden" id="cooldown">
                   <div class="selection-block" data-block="cooldown">
                     <div class="selection-options">
@@ -1032,7 +1126,7 @@
                         <li data-value="Guided breathing">Guided breathing</li>
                       </ul>
                       <div class="row">
-                        <input type="text" class="custom-input" placeholder="Other (optional)" />
+                        <input type="text" class="custom-input" placeholder="Other (optional)" >
                         <button type="button" class="add-custom-btn">Add</button>
                       </div>
                     </div>
@@ -1045,7 +1139,7 @@
               </div>
 
               <div class="accordion-item">
-                <button class="accordion-toggle" data-accordion="announcements">Announcements</button>
+                <button type="button" class="accordion-toggle" data-accordion="announcements">Announcements</button>
                 <div class="accordion-panel hidden" id="announcements">
                   <div class="selection-block" data-block="announcements">
                     <div class="selection-options">
@@ -1058,7 +1152,7 @@
                         <li data-value="Weight check reminder">Weight check reminder</li>
                       </ul>
                       <div class="row">
-                        <input type="text" class="custom-input" placeholder="Other (optional)" />
+                        <input type="text" class="custom-input" placeholder="Other (optional)" >
                         <button type="button" class="add-custom-btn">Add</button>
                       </div>
                     </div>
@@ -1116,7 +1210,7 @@
                   <span class="tag">date</span>
                 </div>
                 <div class="row">
-                  <input type="file" id="templateFile" accept=".pdf" disabled />
+                  <input type="file" id="templateFile" accept=".pdf" disabled >
                   <button type="button" id="uploadTemplateBtn" disabled>Upload PDF</button>
                 </div>
                 <div class="dropzone" id="templateDropzone">
@@ -1160,7 +1254,7 @@
                       </ul>
                     </div>
                     <div>
-                      <strong>Drills & Technique</strong>
+                      <strong>Drills &amp; Technique</strong>
                       <ul class="list">
                         <li>Technique</li>
                         <li>Technique Introduction</li>
@@ -1332,20 +1426,20 @@
               <form id="calendarManagerForm" class="form compact-form">
                 <div class="form-row">
                   <label for="calendarManagerDate" id="calendarManagerDateLabel">Date</label>
-                  <input id="calendarManagerDate" type="date" required />
+                  <input id="calendarManagerDate" type="date" required >
                 </div>
                 <div class="form-row">
                   <label for="calendarManagerTitleInput" id="calendarManagerEventLabel">Event</label>
-                  <input id="calendarManagerTitleInput" type="text" placeholder="Team practice" required />
+                  <input id="calendarManagerTitleInput" type="text" placeholder="Team practice" required >
                 </div>
                 <div class="form-row two-cols">
                   <div>
                     <label for="calendarManagerTimeInput" id="calendarManagerTimeLabel">Time</label>
-                    <input id="calendarManagerTimeInput" type="text" placeholder="3:30 PM" />
+                    <input id="calendarManagerTimeInput" type="text" placeholder="3:30 PM" >
                   </div>
                   <div>
                     <label for="calendarManagerNoteInput" id="calendarManagerNoteLabel">Note</label>
-                    <input id="calendarManagerNoteInput" type="text" placeholder="Mat 2" />
+                    <input id="calendarManagerNoteInput" type="text" placeholder="Mat 2" >
                   </div>
                 </div>
                 <div class="form-actions">
@@ -1353,7 +1447,7 @@
                   <button type="button" class="ghost" id="calendarManagerClearBtn">Clear day</button>
                 </div>
               </form>
-              <div class="mini-card" style="margin-top:12px;">
+              <div class="mini-card mini-card-spaced">
                 <h3 id="calendarManagerListTitle">Events this day</h3>
                 <p class="small muted" id="calendarManagerEmpty">No events yet.</p>
                 <ul class="list" id="calendarManagerList"></ul>
@@ -1515,7 +1609,7 @@
       <section class="panel hidden" id="panel-permissions">
         <div class="card">
           <div class="card-header">
-            <h2>Permissions & Control</h2>
+            <h2>Permissions &amp; Control</h2>
             <div class="chip">Role based access</div>
           </div>
           <div class="section-grid">
@@ -1534,6 +1628,10 @@
     </main>
   </div>
 
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <script src="app.js"></script>
 </body>
