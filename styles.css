@@ -1693,6 +1693,7 @@ textarea:focus{
   gap: 10px;
   align-items:center;
   position: relative;
+  z-index: 5;
 }
 
 .header-profile{
@@ -1712,7 +1713,7 @@ textarea:focus{
   border-radius: 14px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.35);
   min-width: 160px;
-  z-index: 5;
+  z-index: 50;
 }
 
 .header-menu.hidden{
