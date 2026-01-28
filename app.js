@@ -1104,7 +1104,6 @@ const TAB_COPY = {
   "athlete-notes": { en: "Athlete Notes", es: "Notas atletas" },
   skills: { en: "Skills Tracker", es: "Tecnicas" },
   "journal-monitor": { en: "Journal Monitor", es: "Monitor diario" },
-  reports: { en: "Reports", es: "Reportes" },
   messages: { en: "Messages", es: "Mensajes" },
   permissions: { en: "Permissions", es: "Permisos" },
   future: { en: "Future", es: "Futuro" }
@@ -1234,10 +1233,6 @@ const PANEL_COPY = {
   "panel-journal-monitor": {
     title: { en: "Athlete Journal Monitoring", es: "Monitoreo del diario" },
     chip: { en: "Readiness signals", es: "Senales de disponibilidad" }
-  },
-  "panel-reports": {
-    title: { en: "Weekly Reports", es: "Reportes semanales" },
-    chip: { en: "Compliance - Progress", es: "Cumplimiento - Progreso" }
   },
   "panel-messages": {
     title: { en: "Coach Messages", es: "Mensajes del entrenador" },
@@ -3202,7 +3197,6 @@ const panels = {
   "athlete-notes": document.getElementById("panel-athlete-notes"),
   skills: document.getElementById("panel-skills"),
   "journal-monitor": document.getElementById("panel-journal-monitor"),
-  reports: document.getElementById("panel-reports"),
   messages: document.getElementById("panel-messages"),
   permissions: document.getElementById("panel-permissions"),
   future: document.getElementById("panel-future"),
@@ -3257,7 +3251,7 @@ function setRoleUI(role, view = "athlete") {
   }
 
   const defaultTab = view === "admin"
-    ? "reports"
+    ? "dashboard"
     : view === "parent"
       ? "athlete-notes"
       : roleName === "coach"
