@@ -177,6 +177,9 @@ const authTitle = document.getElementById("authTitle");
 const authSubtitle = document.getElementById("authSubtitle");
 const loginEmail = document.getElementById("loginEmail");
 const loginPassword = document.getElementById("loginPassword");
+const parentViewNotice = document.getElementById("parentViewNotice");
+const parentViewNoticeTitle = document.getElementById("parentViewNoticeTitle");
+const parentViewNoticeSubtitle = document.getElementById("parentViewNoticeSubtitle");
 const AUTH_STRICT = false;
 let headerMenuOpen = false;
 let viewMenuOpen = false;
@@ -234,6 +237,20 @@ const VIEW_META_TEXT = {
     es: "Vista padres",
     uz: "Ota-ona ko'rinishi",
     ru: "Вид родителя"
+  }
+};
+const PARENT_VIEW_NOTICE_COPY = {
+  title: {
+    en: "Parent view coming soon",
+    es: "Vista de padres próximamente",
+    uz: "Ota-ona ko'rinishi tez orada",
+    ru: "Родительский вид скоро"
+  },
+  message: {
+    en: "We’re building a dedicated experience for parents. Stay tuned!",
+    es: "Estamos creando una experiencia dedicada para padres. ¡Vuelve pronto!",
+    uz: "Ota-onalar uchun maxsus tajriba ustida ishlayapmiz. Yaqinda qaytib keling!",
+    ru: "Мы готовим отдельный опыт для родителей. Скоро будет доступно!"
   }
 };
 const VIEW_ROLE_MAP = {
@@ -335,6 +352,17 @@ function setView(view) {
   updateViewMenuLabel(normalized);
   const roleName = VIEW_ROLE_MAP[normalized] || "athlete";
   setRoleUI(roleName, normalized);
+}
+
+function toggleParentViewNotice(view) {
+  const isParentView = view === "parent";
+  if (parentViewNotice) {
+    parentViewNotice.classList.toggle("hidden", !isParentView);
+    parentViewNotice.setAttribute("aria-hidden", (!isParentView).toString());
+  }
+  if (appRoot) {
+    appRoot.classList.toggle("parent-view-mode", isParentView);
+  }
 }
 
 const pEmail = document.getElementById("pEmail");
@@ -1481,6 +1509,250 @@ const PROFILE_SECTION_COPY = {
   }
 };
 
+const TEXT_TRANSLATIONS = {
+  "Jump right in": {
+    en: "Jump right in",
+    es: "Empieza ahora",
+    uz: "Jump right in",
+    ru: "Jump right in"
+  },
+  "No account required. Choose the view you want to explore.": {
+    en: "No account required. Choose the view you want to explore.",
+    es: "No necesitas cuenta. Elige la vista que quieres explorar.",
+    uz: "No account required. Choose the view you want to explore.",
+    ru: "No account required. Choose the view you want to explore."
+  },
+  "Securely access your Wrestling Performance Lab workspace.": {
+    en: "Securely access your Wrestling Performance Lab workspace.",
+    es: "Accede de forma segura a tu espacio en Wrestling Performance Lab.",
+    uz: "Securely access your Wrestling Performance Lab workspace.",
+    ru: "Securely access your Wrestling Performance Lab workspace."
+  },
+  "Only email and password are needed to continue.": {
+    en: "Only email and password are needed to continue.",
+    es: "Solo necesitas correo y contraseña para continuar.",
+    uz: "Only email and password are needed to continue.",
+    ru: "Only email and password are needed to continue."
+  },
+  "Back to choice": {
+    en: "Back to choice",
+    es: "Volver a opciones",
+    uz: "Back to choice",
+    ru: "Back to choice"
+  },
+  "Log In": {
+    en: "Log In",
+    es: "Entrar",
+    uz: "Log In",
+    ru: "Log In"
+  },
+  "Create account": {
+    en: "Create account",
+    es: "Crear cuenta",
+    uz: "Create account",
+    ru: "Create account"
+  },
+  "Athlete Can": {
+    en: "Athlete Can",
+    es: "El atleta puede",
+    uz: "Athlete Can",
+    ru: "Athlete Can"
+  },
+  "Athlete Cannot": {
+    en: "Athlete Cannot",
+    es: "El atleta no puede",
+    uz: "Athlete Cannot",
+    ru: "Athlete Cannot"
+  },
+  "Edit own profile fields": {
+    en: "Edit own profile fields",
+    es: "Edita tus propios campos de perfil",
+    uz: "Edit own profile fields",
+    ru: "Edit own profile fields"
+  },
+  "Edit preferred techniques": {
+    en: "Edit preferred techniques",
+    es: "Edita tus tecnicas preferidas",
+    uz: "Edit preferred techniques",
+    ru: "Edit preferred techniques"
+  },
+  "Update experience and style": {
+    en: "Update experience and style",
+    es: "Actualiza tu experiencia y estilo",
+    uz: "Update experience and style",
+    ru: "Update experience and style"
+  },
+  "Update optional competition notes": {
+    en: "Update optional competition notes",
+    es: "Actualiza notas opcionales de competencia",
+    uz: "Update optional competition notes",
+    ru: "Update optional competition notes"
+  },
+  "Edit coach-only notes": {
+    en: "Edit coach-only notes",
+    es: "Edita notas solo del coach",
+    uz: "Edit coach-only notes",
+    ru: "Edit coach-only notes"
+  },
+  "Edit coach strategy plans": {
+    en: "Edit coach strategy plans",
+    es: "Edita planes estrategicos del coach",
+    uz: "Edit coach strategy plans",
+    ru: "Edit coach strategy plans"
+  },
+  "Edit other athlete accounts": {
+    en: "Edit other athlete accounts",
+    es: "Edita cuentas de otros atletas",
+    uz: "Edit other athlete accounts",
+    ru: "Edit other athlete accounts"
+  },
+  "Coach Can": {
+    en: "Coach Can",
+    es: "El coach puede",
+    uz: "Coach Can",
+    ru: "Coach Can"
+  },
+  "Coach Cannot": {
+    en: "Coach Cannot",
+    es: "El coach no puede",
+    uz: "Coach Cannot",
+    ru: "Coach Cannot"
+  },
+  "Add the plan, then assign athletes or send to the full team.": {
+    en: "Add the plan, then assign athletes or send to the full team.",
+    es: "Agrega el plan, luego asigna atletas o envialo a todo el equipo.",
+    uz: "Add the plan, then assign athletes or send to the full team.",
+    ru: "Add the plan, then assign athletes or send to the full team."
+  },
+  "Training plan (one item per line)": {
+    en: "Training plan (one item per line)",
+    es: "Plan de entrenamiento (una linea por punto)",
+    uz: "Training plan (one item per line)",
+    ru: "Training plan (one item per line)"
+  },
+  "Send to entire team": {
+    en: "Send to entire team",
+    es: "Enviar a todo el equipo",
+    uz: "Send to entire team",
+    ru: "Send to entire team"
+  },
+  "Save day plan": {
+    en: "Save day plan",
+    es: "Guardar plan del dia",
+    uz: "Save day plan",
+    ru: "Save day plan"
+  },
+  "Clear day": {
+    en: "Clear day",
+    es: "Limpiar dia",
+    uz: "Clear day",
+    ru: "Clear day"
+  },
+  "Create Event": {
+    en: "Create Event",
+    es: "Crear evento",
+    uz: "Create Event",
+    ru: "Create Event"
+  },
+  "Coach Actions": {
+    en: "Coach Actions",
+    es: "Acciones del coach",
+    uz: "Coach Actions",
+    ru: "Coach Actions"
+  },
+  "Event Types": {
+    en: "Event Types",
+    es: "Tipos de evento",
+    uz: "Event Types",
+    ru: "Event Types"
+  },
+  "Event Details": {
+    en: "Event Details",
+    es: "Detalles del evento",
+    uz: "Event Details",
+    ru: "Event Details"
+  },
+  "Notifications": {
+    en: "Notifications",
+    es: "Notificaciones",
+    uz: "Notifications",
+    ru: "Notifications"
+  },
+  "Events this day": {
+    en: "Events this day",
+    es: "Eventos de este dia",
+    uz: "Events this day",
+    ru: "Events this day"
+  },
+  "No events yet.": {
+    en: "No events yet.",
+    es: "Aun no hay eventos.",
+    uz: "No events yet.",
+    ru: "No events yet."
+  },
+  "Add event": {
+    en: "Add event",
+    es: "Agregar evento",
+    uz: "Add event",
+    ru: "Add event"
+  },
+  "Add Section": {
+    en: "Add Section",
+    es: "Agregar sección",
+    uz: "Add Section",
+    ru: "Add Section"
+  },
+  "Add Video": {
+    en: "Add Video",
+    es: "Agregar video",
+    uz: "Add Video",
+    ru: "Add Video"
+  },
+  "Upload - Tag - Assign": {
+    en: "Upload - Tag - Assign",
+    es: "Sube, etiqueta y asigna",
+    uz: "Upload - Tag - Assign",
+    ru: "Upload - Tag - Assign"
+  },
+  "Firebase Auth keeps your account backed on the server.": {
+    en: "Firebase Auth keeps your account backed on the server.",
+    es: "Firebase Auth mantiene tu cuenta respaldada en el servidor.",
+    uz: "Firebase Auth keeps your account backed on the server.",
+    ru: "Firebase Auth keeps your account backed on the server."
+  }
+};
+
+const TEXT_TRANSLATION_KEYS = new WeakMap();
+
+function applyTextTranslations(root = document.body) {
+  if (!root) return;
+  const filter = {
+    acceptNode(node) {
+      const parentTag = node.parentElement?.tagName?.toLowerCase();
+      if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      if (parentTag && ["script", "style", "noscript", "template"].includes(parentTag)) {
+        return NodeFilter.FILTER_REJECT;
+      }
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  };
+
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, filter, false);
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    const parentTag = node.parentElement?.tagName?.toLowerCase();
+    if (parentTag && ["script", "style", "noscript", "template"].includes(parentTag)) continue;
+    const baseKey = TEXT_TRANSLATION_KEYS.get(node) || node.nodeValue.trim();
+    const entry = TEXT_TRANSLATIONS[baseKey];
+    if (!entry) continue;
+    TEXT_TRANSLATION_KEYS.set(node, baseKey);
+    const localized = pickCopy(entry);
+    if (localized && node.nodeValue !== localized) {
+      node.nodeValue = localized;
+    }
+  }
+}
+
 const PANEL_COPY = {
   "panel-training": {
     title: {
@@ -2187,6 +2459,8 @@ function applyStaticTranslations() {
     const btn = document.getElementById(id);
     if (btn) btn.textContent = pickCopy(copy);
   });
+  setTextContent("#parentViewNoticeTitle", PARENT_VIEW_NOTICE_COPY.title);
+  setTextContent("#parentViewNoticeSubtitle", PARENT_VIEW_NOTICE_COPY.message);
 
   if (editProfileBtn) {
     editProfileBtn.title = currentLang === "es" ? "Editar perfil" : "Edit profile";
@@ -2197,6 +2471,8 @@ function applyStaticTranslations() {
   } else {
     showAuthChoice();
   }
+
+  applyTextTranslations();
 }
 
 function authErrorMessage(code, fallback = "") {
@@ -4074,6 +4350,7 @@ function setRoleUI(role, view = "athlete") {
       : roleName === "coach"
         ? "dashboard"
         : "today";
+  toggleParentViewNotice(view);
   showTab(defaultTab);
 }
 
@@ -4140,8 +4417,10 @@ const planRangeStartTitle = document.getElementById("planRangeStartTitle");
 const planRangeEndTitle = document.getElementById("planRangeEndTitle");
 let planRangeType = "day";
 let planRangeSelection = { start: new Date(), end: new Date() };
-let planCalendarYear = new Date().getFullYear();
-let planCalendarMonth = new Date().getMonth();
+const initialPlanStart = startOfMonth(new Date());
+let planCalendarYear = initialPlanStart.getFullYear();
+let planCalendarMonth = initialPlanStart.getMonth();
+const PLAN_MONTHS_VISIBLE = 4;
 const PLAN_RANGE_KEY_MAP = {
   "plan-daily": "day",
   "plan-weekly": "week",
@@ -4178,10 +4457,13 @@ function updateMonthlySelectionLabel() {
 }
 
 function updateCalendarLabels() {
-    if (planCalendarLabel) {
-        const name = getMonthNames()[planCalendarMonth] || "";
-        planCalendarLabel.textContent = `${name} ${planCalendarYear}`;
-    }
+    if (!planCalendarLabel) return;
+    const monthNames = getMonthNames();
+    const startDate = new Date(planCalendarYear, planCalendarMonth, 1);
+    const endDate = new Date(planCalendarYear, planCalendarMonth + PLAN_MONTHS_VISIBLE - 1, 1);
+    const startLabel = `${monthNames[startDate.getMonth()]} ${startDate.getFullYear()}`;
+    const endLabel = `${monthNames[endDate.getMonth()]} ${endDate.getFullYear()}`;
+    planCalendarLabel.textContent = startLabel === endLabel ? startLabel : `${startLabel} – ${endLabel}`;
 }
 
 if (planMonthlyClear) {
@@ -4228,32 +4510,36 @@ function renderPlanCalendar(year, month) {
     planCalendarMonth = month;
     const monthNames = getMonthNames();
     const daysOfWeek = getDayAbbr();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const numDays = lastDay.getDate();
-    const startDayOfWeek = firstDay.getDay();
+    const todayKey = toDateKey(new Date());
+    const dayNamesRow = `<div class="calendar-grid-days">${daysOfWeek.map((day) => `<div class="calendar-day-name">${day}</div>`).join("")}</div>`;
 
-    const buildCalendarHtml = () => {
-        let html = '<div class="calendar-grid-days">';
-        daysOfWeek.forEach(day => {
-            html += `<div class="calendar-day-name">${day}</div>`;
-        });
-
-        for (let i = 0; i < startDayOfWeek; i++) {
-            html += `<div></div>`;
+    const buildMonthPanel = (panelYear, panelMonth) => {
+        const firstDay = new Date(panelYear, panelMonth, 1);
+        const numDays = new Date(panelYear, panelMonth + 1, 0).getDate();
+        const startDayOfWeek = firstDay.getDay();
+        let html = `<div class="plan-month-panel"><div class="plan-month-panel-label">${monthNames[panelMonth]} ${panelYear}</div>`;
+        html += dayNamesRow;
+        html += '<div class="plan-month-grid">';
+        for (let i = 0; i < startDayOfWeek; i += 1) {
+            html += '<span class="calendar-day empty"></span>';
         }
-
-        for (let i = 1; i <= numDays; i++) {
-            const todayMark = (year === new Date().getFullYear() && month === new Date().getMonth() && i === new Date().getDate()) ? 'today' : '';
-            html += `<div class="calendar-day ${todayMark}" data-day="${i}">${i}</div>`;
+        for (let day = 1; day <= numDays; day += 1) {
+            const date = new Date(panelYear, panelMonth, day);
+            const key = toDateKey(date);
+            const todayClass = key === todayKey ? " today" : "";
+            html += `<button type="button" class="calendar-day${todayClass}" data-date="${key}">${day}</button>`;
         }
-
-        html += '</div>';
+        html += '</div></div>';
         return html;
     };
 
+    const multiMonthHtml = Array.from({ length: PLAN_MONTHS_VISIBLE }, (_, idx) => {
+        const panelDate = new Date(year, month + idx, 1);
+        return buildMonthPanel(panelDate.getFullYear(), panelDate.getMonth());
+    }).join("");
+
     containers.forEach((container) => {
-        container.innerHTML = buildCalendarHtml();
+        container.innerHTML = `<div class="plan-multi-months">${multiMonthHtml}</div>`;
         container.querySelectorAll('.calendar-day').forEach(dayEl => {
             dayEl.addEventListener('click', () => handlePlanDayClick(dayEl));
         });
@@ -4327,12 +4613,12 @@ function highlightPlanRange() {
     containers.forEach((container) => {
         const days = Array.from(container.querySelectorAll(".calendar-day"));
         days.forEach((dayEl) => {
-            const dayNum = Number(dayEl.dataset.day);
-            if (!dayNum) {
+            const isoDate = dayEl.dataset.date;
+            if (!isoDate) {
                 dayEl.classList.remove("range-start", "range-end", "range-between");
                 return;
             }
-            const date = new Date(planCalendarYear, planCalendarMonth, dayNum);
+            const date = dateFromKey(isoDate);
             dayEl.classList.remove("range-start", "range-between", "range-end");
             if (start && date.getTime() === start.getTime()) {
                 dayEl.classList.add("range-start");
@@ -4349,9 +4635,9 @@ function highlightPlanRange() {
 }
 
 function handlePlanDayClick(dayEl) {
-    const dayValue = Number(dayEl.dataset.day);
-    if (!dayValue) return;
-    const clicked = new Date(planCalendarYear, planCalendarMonth, dayValue);
+    const dateKey = dayEl.dataset.date;
+    if (!dateKey) return;
+    const clicked = dateFromKey(dateKey);
     if (planRangeType === "day") {
         planRangeSelection.start = clicked;
         planRangeSelection.end = clicked;
@@ -5589,7 +5875,6 @@ function renderPlanDetails(dayIndex) {
 
 // ---------- CALENDAR ----------
 const calendarGrid = document.getElementById("calendarMonthGrid");
-const calendarDayNames = document.getElementById("calendarDayNames");
 const calendarMonthLabel = document.getElementById("calendarMonthLabel");
 const calendarPrevBtn = document.getElementById("calendarPrevBtn");
 const calendarNextBtn = document.getElementById("calendarNextBtn");
@@ -5623,6 +5908,8 @@ const CALENDAR_COPY = {
     ru: "Вид месяца"
   }
 };
+
+const MONTHS_VISIBLE = 4;
 
 const CALENDAR_AUDIENCE_COPY = {
   assigned: {
@@ -5733,7 +6020,11 @@ const CALENDAR_COACH_PLACEHOLDERS = {
   ru: "Разминка - 15 мин\nТехника - Цепочка одинарного захвата\nСпарринг - 4 х 2:00"
 };
 
-let calendarViewDate = new Date();
+function startOfMonth(date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+let calendarViewDate = startOfMonth(new Date());
 let calendarSelectedKey = toDateKey(new Date());
 let calendarNavBound = false;
 let calendarCoachBound = false;
@@ -5820,14 +6111,33 @@ function getAudienceLabel(entry, profile) {
   return `${assigned}: ${getAudienceText(entry, profile)}`;
 }
 
-function shiftCalendarMonth(delta) {
-  const next = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() + delta, 1);
-  calendarViewDate = next;
-  const selectedDate = dateFromKey(calendarSelectedKey);
-  if (selectedDate.getFullYear() !== next.getFullYear() || selectedDate.getMonth() !== next.getMonth()) {
-    calendarSelectedKey = toDateKey(next);
+function ensureCalendarViewIncludesDate(date) {
+  if (!date) return;
+  const startIndex = calendarViewDate.getFullYear() * 12 + calendarViewDate.getMonth();
+  const selectedIndex = date.getFullYear() * 12 + date.getMonth();
+  if (selectedIndex < startIndex) {
+    calendarViewDate = startOfMonth(date);
+    return;
   }
-  renderCalendar(calendarSelectedKey);
+  const endIndex = startIndex + MONTHS_VISIBLE - 1;
+  if (selectedIndex > endIndex) {
+    calendarViewDate = startOfMonth(new Date(date.getFullYear(), date.getMonth() - (MONTHS_VISIBLE - 1), 1));
+  }
+}
+
+function shiftCalendarMonth(delta) {
+  const next = new Date(
+    calendarViewDate.getFullYear(),
+    calendarViewDate.getMonth() + delta * MONTHS_VISIBLE,
+    1
+  );
+  calendarViewDate = startOfMonth(next);
+  calendarSelectedKey = toDateKey(calendarViewDate);
+  renderCalendar(calendarSelectedKey, { alignToSelection: false });
+  if (calendarManagerDate) {
+    calendarManagerDate.value = calendarSelectedKey;
+    renderCalendarManager();
+  }
 }
 
 function bindCalendarNav() {
@@ -5841,62 +6151,92 @@ function bindCalendarNav() {
   calendarNavBound = true;
 }
 
-function renderCalendar(selectedKey = calendarSelectedKey) {
-  if (!calendarGrid || !calendarDayNames || !calendarMonthLabel) return;
+function renderCalendar(selectedKey = calendarSelectedKey, options = {}) {
+  if (!calendarGrid || !calendarMonthLabel) return;
   bindCalendarNav();
 
   calendarSelectedKey = normalizeDateKey(selectedKey);
   const selectedDate = dateFromKey(calendarSelectedKey);
-  calendarViewDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+  const { alignToSelection = true } = options;
+  if (alignToSelection) {
+    ensureCalendarViewIncludesDate(selectedDate);
+  }
+  calendarViewDate = startOfMonth(calendarViewDate);
 
   if (calendarTitle) calendarTitle.textContent = pickCopy(CALENDAR_COPY.title);
   if (calendarChip) calendarChip.textContent = pickCopy(CALENDAR_COPY.chip);
 
   const monthNames = getMonthNames();
   const dayNames = getDayAbbr();
-  const year = calendarViewDate.getFullYear();
-  const month = calendarViewDate.getMonth();
   const todayKey = toDateKey(new Date());
   const profile = getProfile();
 
-  calendarMonthLabel.textContent = `${monthNames[month]} ${year}`;
-  calendarDayNames.innerHTML = dayNames.map((day) => `<div class="month-day-name">${day}</div>`).join("");
+  const rangeStart = calendarViewDate;
+  const rangeEnd = new Date(rangeStart.getFullYear(), rangeStart.getMonth() + MONTHS_VISIBLE - 1, 1);
+  const startLabel = `${monthNames[rangeStart.getMonth()]} ${rangeStart.getFullYear()}`;
+  const endLabel = `${monthNames[rangeEnd.getMonth()]} ${rangeEnd.getFullYear()}`;
+  calendarMonthLabel.textContent = startLabel === endLabel ? startLabel : `${startLabel} – ${endLabel}`;
   calendarGrid.innerHTML = "";
+  const dayNamesMarkup = dayNames.map((day) => `<div class="month-day-name">${day}</div>`).join("");
 
-  const firstDay = new Date(year, month, 1);
-  const startDayOfWeek = firstDay.getDay();
-  const numDays = new Date(year, month + 1, 0).getDate();
+  for (let offset = 0; offset < MONTHS_VISIBLE; offset += 1) {
+    const panelDate = startOfMonth(new Date(rangeStart.getFullYear(), rangeStart.getMonth() + offset, 1));
+    const panelYear = panelDate.getFullYear();
+    const panelMonth = panelDate.getMonth();
+    const firstDay = new Date(panelYear, panelMonth, 1);
+    const startDayOfWeek = firstDay.getDay();
+    const numDays = new Date(panelYear, panelMonth + 1, 0).getDate();
 
-  for (let i = 0; i < startDayOfWeek; i += 1) {
-    const empty = document.createElement("div");
-    empty.className = "month-cell empty";
-    calendarGrid.appendChild(empty);
-  }
+    const panel = document.createElement("div");
+    panel.className = "multi-month-panel";
 
-  for (let day = 1; day <= numDays; day += 1) {
-    const date = new Date(year, month, day);
-    const key = toDateKey(date);
-    const visibleCount = getVisibleItemsForDate(key, profile).length;
-    const cell = document.createElement("button");
-    cell.type = "button";
-    const isToday = key === todayKey;
-    const isSelected = key === calendarSelectedKey;
-    cell.className = `month-cell${isToday ? " today" : ""}${isSelected ? " selected" : ""}`;
-    cell.dataset.key = key;
-    cell.innerHTML = `
-      <div class="month-day-number">${day}</div>
-      ${visibleCount ? `<div class="month-count">${visibleCount}</div>` : ""}
-    `;
-    cell.addEventListener("click", () => {
-      calendarSelectedKey = key;
-      renderCalendar(key);
-      renderCalendarDetails(key);
-      if (calendarManagerDate) {
-        calendarManagerDate.value = key;
-        renderCalendarManager();
-      }
-    });
-    calendarGrid.appendChild(cell);
+    const header = document.createElement("div");
+    header.className = "multi-month-panel-header";
+    header.textContent = `${monthNames[panelMonth]} ${panelYear}`;
+
+    const dayRow = document.createElement("div");
+    dayRow.className = "month-day-names";
+    dayRow.innerHTML = dayNamesMarkup;
+
+    const grid = document.createElement("div");
+    grid.className = "month-grid";
+
+    for (let i = 0; i < startDayOfWeek; i += 1) {
+      const empty = document.createElement("div");
+      empty.className = "month-cell empty";
+      grid.appendChild(empty);
+    }
+
+    for (let day = 1; day <= numDays; day += 1) {
+      const date = new Date(panelYear, panelMonth, day);
+      const key = toDateKey(date);
+      const visibleCount = getVisibleItemsForDate(key, profile).length;
+      const cell = document.createElement("button");
+      cell.type = "button";
+      const isToday = key === todayKey;
+      const isSelected = key === calendarSelectedKey;
+      cell.className = `month-cell${isToday ? " today" : ""}${isSelected ? " selected" : ""}`;
+      cell.dataset.key = key;
+      cell.innerHTML = `
+        <div class="month-day-number">${day}</div>
+        ${visibleCount ? `<div class="month-count">${visibleCount}</div>` : ""}
+      `;
+      cell.addEventListener("click", () => {
+        calendarSelectedKey = key;
+        renderCalendar(key);
+        renderCalendarDetails(key);
+        if (calendarManagerDate) {
+          calendarManagerDate.value = key;
+          renderCalendarManager();
+        }
+      });
+      grid.appendChild(cell);
+    }
+
+    panel.appendChild(header);
+    panel.appendChild(dayRow);
+    panel.appendChild(grid);
+    calendarGrid.appendChild(panel);
   }
 
   renderCalendarDetails(calendarSelectedKey);

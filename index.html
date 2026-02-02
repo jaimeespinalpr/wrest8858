@@ -166,6 +166,10 @@
         </div>
       </div>
     </header>
+    <div id="parentViewNotice" class="parent-coming-soon hidden" role="status" aria-live="polite">
+      <h2 id="parentViewNoticeTitle">Parent view coming soon</h2>
+      <p id="parentViewNoticeSubtitle">We’re building something great for parents. Check back later.</p>
+    </div>
 
     <main class="app-content">
       <nav class="tabs" aria-label="Main tabs">
@@ -679,12 +683,11 @@
           </div>
           <div class="month-calendar">
             <div class="month-calendar-header">
-              <button type="button" id="calendarPrevBtn" class="ghost-nav" aria-label="Previous month">&lt;</button>
-              <div id="calendarMonthLabel" class="month-label">Month</div>
-              <button type="button" id="calendarNextBtn" class="ghost-nav" aria-label="Next month">&gt;</button>
+              <button type="button" id="calendarPrevBtn" class="ghost-nav" aria-label="Previous set of months">&lt;</button>
+              <div id="calendarMonthLabel" class="month-label">Month range</div>
+              <button type="button" id="calendarNextBtn" class="ghost-nav" aria-label="Next set of months">&gt;</button>
             </div>
-            <div class="month-day-names" id="calendarDayNames"></div>
-            <div class="month-grid" id="calendarMonthGrid"></div>
+            <div class="multi-month-grid" id="calendarMonthGrid"></div>
           </div>
           <hr class="sep" >
           <h3 id="calTitle">Select a date</h3>
