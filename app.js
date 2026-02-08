@@ -185,6 +185,9 @@ const authTitle = document.getElementById("authTitle");
 const authSubtitle = document.getElementById("authSubtitle");
 const loginEmail = document.getElementById("loginEmail");
 const loginPassword = document.getElementById("loginPassword");
+const createAccountBtn = document.getElementById("createAccountBtn");
+const registerModal = document.getElementById("registerModal");
+const registerCloseBtn = document.getElementById("registerCloseBtn");
 let athleteProfileForm;
 let competitionPreview;
 const parentViewNotice = document.getElementById("parentViewNotice");
@@ -882,7 +885,19 @@ function updateAuthHeading(titleKey, subtitleKey) {
   if (authSubtitle) authSubtitle.textContent = authText(subtitleKey);
 }
 
+function hideRegisterModal() {
+  registerModal?.classList.add("hidden");
+}
+
+function showRegisterModal() {
+  registerModal?.classList.remove("hidden");
+  loginFormWrap?.classList.add("hidden");
+  const firstField = registerModal?.querySelector("input, select, textarea");
+  firstField?.focus();
+}
+
 function showAuthChoice() {
+  hideRegisterModal();
   updateAuthHeading("loginTitle", "loginSubtitle");
   loginFormWrap?.classList.remove("hidden");
   loginEmail?.focus();
@@ -2940,6 +2955,14 @@ if (loginForm) {
       }
     }
   });
+}
+
+if (createAccountBtn) {
+  createAccountBtn.addEventListener("click", showRegisterModal);
+}
+
+if (registerCloseBtn) {
+  registerCloseBtn.addEventListener("click", showAuthChoice);
 }
 
 if (profileForm) {

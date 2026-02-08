@@ -38,8 +38,82 @@
               <p class="small muted">Firebase Auth protects your account and keeps the history safe.</p>
             </form>
           </div>
+          <button type="button" id="createAccountBtn" class="ghost full">Create an account</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div id="registerModal" class="register-modal hidden" role="dialog" aria-modal="true" aria-labelledby="registerTitle">
+    <div class="register-card">
+      <div class="register-header">
+        <div>
+          <h3 id="registerTitle">Create an account</h3>
+          <p class="small muted">Answer the questions below to finish setup.</p>
+        </div>
+        <button type="button" id="registerCloseBtn" class="ghost">Back to login</button>
+      </div>
+      <form id="profileForm" class="auth-form register-form">
+        <label>
+          <span>Full name</span>
+          <input id="pName" type="text" required autocomplete="name" placeholder="e.g., Jaime Espinal">
+        </label>
+        <label>
+          <span>Email</span>
+          <input id="pEmail" type="email" required autocomplete="email" placeholder="you@example.com">
+        </label>
+        <label>
+          <span>Password</span>
+          <input id="pPassword" type="password" required minlength="8" autocomplete="new-password">
+        </label>
+        <label>
+          <span>Confirm password</span>
+          <input id="pPasswordConfirm" type="password" required minlength="8" autocomplete="new-password">
+        </label>
+        <label>
+          <span>Role</span>
+          <select id="pRole">
+            <option value="athlete">Athlete</option>
+            <option value="coach">Coach</option>
+          </select>
+        </label>
+        <label>
+          <span>Language</span>
+          <select id="pLang">
+            <option value="en">English</option>
+            <option value="es">Spanish</option>
+            <option value="uz">Uzbek</option>
+            <option value="ru">Russian</option>
+          </select>
+        </label>
+        <label>
+          <span>Preferred move(s)</span>
+          <input id="pPreferredMoves" type="text" placeholder="e.g., Single leg finish">
+        </label>
+        <label>
+          <span>Experience (years)</span>
+          <input id="pExperienceYears" type="number" min="0" max="40" placeholder="e.g., 5">
+        </label>
+        <label>
+          <span>Stance</span>
+          <select id="pStance">
+            <option value="">Select stance</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+            <option value="switch">Switch</option>
+          </select>
+        </label>
+        <label>
+          <span>Weight class</span>
+          <input id="pWeightClass" type="text" placeholder="e.g., 74 kg">
+        </label>
+        <label>
+          <span>Notes</span>
+          <textarea id="pNotes" rows="3" placeholder="Tell us about your goals"></textarea>
+        </label>
+        <button type="submit" class="primary full">Create account</button>
+        <p class="small muted">You can edit this info in the app later.</p>
+      </form>
     </div>
   </div>
 
