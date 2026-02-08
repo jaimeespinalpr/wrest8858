@@ -166,13 +166,7 @@ const nowMeta = document.getElementById("nowMeta");
 const editProfileBtn = document.getElementById("editProfileBtn");
 const headerLang = document.getElementById("headerLang");
 const headerFlag = document.getElementById("headerFlag");
-const authChoice = document.getElementById("authChoice");
-const loginOptionBtn = document.getElementById("loginOptionBtn");
-const createOptionBtn = document.getElementById("createOptionBtn");
-const authForms = document.getElementById("authForms");
 const loginFormWrap = document.getElementById("loginFormWrap");
-const profileFormWrap = document.getElementById("profileFormWrap");
-const authBackBtn = document.getElementById("authBackBtn");
 const authTitle = document.getElementById("authTitle");
 const authSubtitle = document.getElementById("authSubtitle");
 const loginEmail = document.getElementById("loginEmail");
@@ -833,42 +827,21 @@ function authText(key) {
   return table[key] || AUTH_TEXT.en[key] || "";
 }
 
-let activeAuthMode = null;
-
 function updateAuthHeading(titleKey, subtitleKey) {
   if (authTitle) authTitle.textContent = authText(titleKey);
   if (authSubtitle) authSubtitle.textContent = authText(subtitleKey);
 }
 
 function showAuthChoice() {
-  activeAuthMode = null;
-  authChoice?.classList.remove("hidden");
-  authForms?.classList.add("hidden");
-  loginFormWrap?.classList.add("hidden");
-  profileFormWrap?.classList.add("hidden");
-  authBackBtn?.classList.add("hidden");
-  updateAuthHeading("welcomeTitle", "welcomeSubtitle");
-}
-
-function showAuthForm(mode) {
-  activeAuthMode = mode;
-  authChoice?.classList.add("hidden");
-  authForms?.classList.remove("hidden");
-  authBackBtn?.classList.remove("hidden");
-  if (mode === "login") {
-    loginFormWrap?.classList.remove("hidden");
-    profileFormWrap?.classList.add("hidden");
-    updateAuthHeading("loginTitle", "loginSubtitle");
-  } else {
-    loginFormWrap?.classList.add("hidden");
-    profileFormWrap?.classList.remove("hidden");
-    updateAuthHeading("createTitle", "createSubtitle");
-  }
+  updateAuthHeading("loginTitle", "loginSubtitle");
+  loginFormWrap?.classList.remove("hidden");
+  loginEmail?.focus();
 }
 
 function showOnboarding(prefillProfile = null) {
   onboarding.classList.remove("hidden");
   appRoot.classList.add("blurred", "hidden");
+  showAuthChoice();
 }
 
 function hideOnboarding() {
@@ -879,7 +852,6 @@ function hideOnboarding() {
 
 async function bootProfile() {
   showOnboarding(null);
-  showAuthChoice();
 }
 
 const HEADER_COPY = {
@@ -2468,12 +2440,6 @@ function applyStaticTranslations() {
     editProfileBtn.title = currentLang === "es" ? "Editar perfil" : "Edit profile";
   }
 
-  if (activeAuthMode === "login" || activeAuthMode === "create") {
-    showAuthForm(activeAuthMode);
-  } else {
-    showAuthChoice();
-  }
-
   applyTextTranslations();
 }
 
@@ -2957,18 +2923,6 @@ if (profileForm) {
       alert(authErrorMessage(code, err?.message || String(err)));
     }
   });
-}
-
-if (loginOptionBtn) {
-  loginOptionBtn.addEventListener("click", () => showAuthForm("login"));
-}
-
-if (createOptionBtn) {
-  createOptionBtn.addEventListener("click", () => showAuthForm("create"));
-}
-
-if (authBackBtn) {
-  authBackBtn.addEventListener("click", showAuthChoice);
 }
 
 // Edit profile later
