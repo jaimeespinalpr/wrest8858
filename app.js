@@ -176,6 +176,15 @@ let competitionPreview;
 const parentViewNotice = document.getElementById("parentViewNotice");
 const parentViewNoticeTitle = document.getElementById("parentViewNoticeTitle");
 const parentViewNoticeSubtitle = document.getElementById("parentViewNoticeSubtitle");
+const todayTitle = document.getElementById("todayTitle");
+const todaySubtitle = document.getElementById("todaySubtitle");
+const todayType = document.getElementById("todayType");
+const sessionBlocks = document.getElementById("sessionBlocks");
+const startSessionBtn = document.getElementById("startSessionBtn");
+const watchFilmBtn = document.getElementById("watchFilmBtn");
+const logCompletionBtn = document.getElementById("logCompletionBtn");
+const feelingScale = document.getElementById("feelingScale");
+const dailyStatus = document.getElementById("dailyStatus");
 const AUTH_STRICT = false;
 let headerMenuOpen = false;
 let viewMenuOpen = false;
@@ -5722,15 +5731,6 @@ function renderFavorites() {
   });
 }
 // ---------- TODAY ----------
-const todayTitle = document.getElementById("todayTitle");
-const todaySubtitle = document.getElementById("todaySubtitle");
-const todayType = document.getElementById("todayType");
-const sessionBlocks = document.getElementById("sessionBlocks");
-const startSessionBtn = document.getElementById("startSessionBtn");
-const watchFilmBtn = document.getElementById("watchFilmBtn");
-const logCompletionBtn = document.getElementById("logCompletionBtn");
-const feelingScale = document.getElementById("feelingScale");
-const dailyStatus = document.getElementById("dailyStatus");
 
 function toast(msg) {
   dailyStatus.textContent = msg;
