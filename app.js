@@ -5851,6 +5851,8 @@ function renderPlanDetails(dayIndex) {
 }
 
 // ---------- CALENDAR ----------
+const MONTHS_VISIBLE = 4;
+
 const CALENDAR_COPY = {
   title: {
     en: "Calendar",
@@ -5865,8 +5867,6 @@ const CALENDAR_COPY = {
     ru: "Вид месяца"
   }
 };
-
-const MONTHS_VISIBLE = 4;
 
 const CALENDAR_AUDIENCE_COPY = {
   assigned: {
