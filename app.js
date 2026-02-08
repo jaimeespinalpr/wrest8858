@@ -207,6 +207,7 @@ const calendarCoachAllLabel = document.getElementById("calendarCoachAllLabel");
 const calendarCoachAthletes = document.getElementById("calendarCoachAthletes");
 const calendarCoachSaveBtn = document.getElementById("calendarCoachSaveBtn");
 const calendarCoachClearBtn = document.getElementById("calendarCoachClearBtn");
+const MONTHS_VISIBLE = 4;
 const AUTH_STRICT = false;
 let calendarViewDate = startOfMonth(new Date());
 let calendarSelectedKey = toDateKey(new Date());
@@ -5851,8 +5852,6 @@ function renderPlanDetails(dayIndex) {
 }
 
 // ---------- CALENDAR ----------
-const MONTHS_VISIBLE = 4;
-
 const CALENDAR_COPY = {
   title: {
     en: "Calendar",
