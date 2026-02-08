@@ -177,6 +177,8 @@ const authTitle = document.getElementById("authTitle");
 const authSubtitle = document.getElementById("authSubtitle");
 const loginEmail = document.getElementById("loginEmail");
 const loginPassword = document.getElementById("loginPassword");
+let athleteProfileForm;
+let competitionPreview;
 const parentViewNotice = document.getElementById("parentViewNotice");
 const parentViewNoticeTitle = document.getElementById("parentViewNoticeTitle");
 const parentViewNoticeSubtitle = document.getElementById("parentViewNoticeSubtitle");
@@ -5216,10 +5218,10 @@ if (printTemplatePlan) {
 }
 
 // ---------- ATHLETE PROFILE ----------
-const athleteProfileForm = document.getElementById("athleteProfileForm");
+athleteProfileForm = document.getElementById("athleteProfileForm");
 const previewProfileBtn = document.getElementById("previewProfileBtn");
 const backToProfileBtn = document.getElementById("backToProfileBtn");
-const competitionPreview = document.getElementById("competitionPreview");
+competitionPreview = document.getElementById("competitionPreview");
 const openCoachMatchBtn = document.getElementById("openCoachMatchBtn");
 const openCompetitionPreviewBtn = document.getElementById("openCompetitionPreviewBtn");
 const coachQuickPreview = document.getElementById("coachQuickPreview");
