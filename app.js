@@ -188,6 +188,25 @@ const dailyStatus = document.getElementById("dailyStatus");
 const planGrid = document.getElementById("planGrid");
 const planDayTitle = document.getElementById("planDayTitle");
 const planDayDetail = document.getElementById("planDayDetail");
+const calendarGrid = document.getElementById("calendarMonthGrid");
+const calendarMonthLabel = document.getElementById("calendarMonthLabel");
+const calendarPrevBtn = document.getElementById("calendarPrevBtn");
+const calendarNextBtn = document.getElementById("calendarNextBtn");
+const calendarTitle = document.getElementById("calendarTitle");
+const calendarChip = document.getElementById("calendarChip");
+const calTitle = document.getElementById("calTitle");
+const calDrills = document.getElementById("calDrills");
+const calAudience = document.getElementById("calAudience");
+const calendarCoachEditor = document.getElementById("calendarCoachEditor");
+const calendarCoachTitle = document.getElementById("calendarCoachTitle");
+const calendarCoachHint = document.getElementById("calendarCoachHint");
+const calendarCoachItemsLabel = document.getElementById("calendarCoachItemsLabel");
+const calendarCoachItems = document.getElementById("calendarCoachItems");
+const calendarCoachAll = document.getElementById("calendarCoachAll");
+const calendarCoachAllLabel = document.getElementById("calendarCoachAllLabel");
+const calendarCoachAthletes = document.getElementById("calendarCoachAthletes");
+const calendarCoachSaveBtn = document.getElementById("calendarCoachSaveBtn");
+const calendarCoachClearBtn = document.getElementById("calendarCoachClearBtn");
 const AUTH_STRICT = false;
 let headerMenuOpen = false;
 let viewMenuOpen = false;
@@ -5828,26 +5847,6 @@ function renderPlanDetails(dayIndex) {
 }
 
 // ---------- CALENDAR ----------
-const calendarGrid = document.getElementById("calendarMonthGrid");
-const calendarMonthLabel = document.getElementById("calendarMonthLabel");
-const calendarPrevBtn = document.getElementById("calendarPrevBtn");
-const calendarNextBtn = document.getElementById("calendarNextBtn");
-const calendarTitle = document.getElementById("calendarTitle");
-const calendarChip = document.getElementById("calendarChip");
-const calTitle = document.getElementById("calTitle");
-const calDrills = document.getElementById("calDrills");
-const calAudience = document.getElementById("calAudience");
-const calendarCoachEditor = document.getElementById("calendarCoachEditor");
-const calendarCoachTitle = document.getElementById("calendarCoachTitle");
-const calendarCoachHint = document.getElementById("calendarCoachHint");
-const calendarCoachItemsLabel = document.getElementById("calendarCoachItemsLabel");
-const calendarCoachItems = document.getElementById("calendarCoachItems");
-const calendarCoachAll = document.getElementById("calendarCoachAll");
-const calendarCoachAllLabel = document.getElementById("calendarCoachAllLabel");
-const calendarCoachAthletes = document.getElementById("calendarCoachAthletes");
-const calendarCoachSaveBtn = document.getElementById("calendarCoachSaveBtn");
-const calendarCoachClearBtn = document.getElementById("calendarCoachClearBtn");
-
 const CALENDAR_COPY = {
   title: {
     en: "Calendar",
