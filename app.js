@@ -6105,11 +6105,13 @@ function bindCalendarNav() {
   calendarNavBound = true;
 }
 
-function renderCalendar(selectedKey = calendarSelectedKey, options = {}) {
+function renderCalendar(selectedKey, options = {}) {
   if (!calendarGrid || !calendarMonthLabel) return;
   bindCalendarNav();
 
-  calendarSelectedKey = normalizeDateKey(selectedKey);
+  const fallbackKey = calendarSelectedKey || toDateKey(new Date());
+  const resolvedKey = selectedKey ?? fallbackKey;
+  calendarSelectedKey = normalizeDateKey(resolvedKey);
   const selectedDate = dateFromKey(calendarSelectedKey);
   const { alignToSelection = true } = options;
   if (alignToSelection) {
