@@ -208,6 +208,10 @@ const calendarCoachAthletes = document.getElementById("calendarCoachAthletes");
 const calendarCoachSaveBtn = document.getElementById("calendarCoachSaveBtn");
 const calendarCoachClearBtn = document.getElementById("calendarCoachClearBtn");
 const AUTH_STRICT = false;
+let calendarViewDate = startOfMonth(new Date());
+let calendarSelectedKey = toDateKey(new Date());
+let calendarNavBound = false;
+let calendarCoachBound = false;
 let headerMenuOpen = false;
 let viewMenuOpen = false;
 let currentView = "athlete";
@@ -5976,11 +5980,6 @@ const CALENDAR_COACH_PLACEHOLDERS = {
 function startOfMonth(date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
-
-let calendarViewDate = startOfMonth(new Date());
-let calendarSelectedKey = toDateKey(new Date());
-let calendarNavBound = false;
-let calendarCoachBound = false;
 
 function dateFromKey(key) {
   if (!isDateKey(key)) return new Date();
