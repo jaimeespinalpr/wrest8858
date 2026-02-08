@@ -185,6 +185,9 @@ const watchFilmBtn = document.getElementById("watchFilmBtn");
 const logCompletionBtn = document.getElementById("logCompletionBtn");
 const feelingScale = document.getElementById("feelingScale");
 const dailyStatus = document.getElementById("dailyStatus");
+const planGrid = document.getElementById("planGrid");
+const planDayTitle = document.getElementById("planDayTitle");
+const planDayDetail = document.getElementById("planDayDetail");
 const AUTH_STRICT = false;
 let headerMenuOpen = false;
 let viewMenuOpen = false;
@@ -5791,11 +5794,6 @@ watchFilmBtn.addEventListener("click", () => {
 logCompletionBtn.addEventListener("click", () => {
   toast(currentLang === "es" ? "Sesion registrada. Buen trabajo." : "Session logged. Great work.");
 });
-
-// ---------- TRAINING PLAN ----------
-const planGrid = document.getElementById("planGrid");
-const planDayTitle = document.getElementById("planDayTitle");
-const planDayDetail = document.getElementById("planDayDetail");
 
 function renderPlanGrid(selectedDay = new Date().getDay()) {
   planGrid.innerHTML = "";
