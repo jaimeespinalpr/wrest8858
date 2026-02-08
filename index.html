@@ -9,28 +9,22 @@
 
 <body>
   <!-- ONBOARDING / LANDING -->
-  <div id="onboarding" class="onboarding hidden" role="dialog" aria-modal="true">
+  <div id="onboarding" class="onboarding" role="dialog" aria-modal="true">
     <div class="onboarding-card">
       <div class="brand">
         <div class="brand-mark">WPL</div>
         <div>
-          <h2>Jump right in</h2>
-          <p class="small">No account required. Choose the view you want to explore.</p>
+          <h2>Wrestling Performance Lab</h2>
+          <p class="small">Log in with your credentials to unlock the workspace.</p>
         </div>
       </div>
-
       <div class="auth-shell">
         <div class="auth-copy">
-          <h3 id="authTitle">Log in or create an account</h3>
+          <h3 id="authTitle">Log in</h3>
           <p id="authSubtitle" class="small muted">Securely access your Wrestling Performance Lab workspace.</p>
         </div>
-      <div class="auth-panel">
-        <div class="auth-choice" id="authChoice">
-          <button type="button" id="loginOptionBtn" class="primary full">Log In</button>
-          <button type="button" id="createOptionBtn" class="ghost full">Create account</button>
-        </div>
-        <div class="auth-forms hidden" id="authForms">
-          <div class="auth-form-wrap hidden" id="loginFormWrap">
+        <div class="auth-panel">
+          <div class="auth-form-wrap" id="loginFormWrap">
             <form id="loginForm" class="auth-form">
               <label>
                 <span>Email</span>
@@ -38,84 +32,19 @@
               </label>
               <label>
                 <span>Password</span>
-                <input id="loginPassword" type="password" required autocomplete="current-password" minlength="8">
+                <input id="loginPassword" type="password" required minlength="8" autocomplete="current-password">
               </label>
               <button type="submit" class="primary full">Log In</button>
-              <p class="small muted">Only email and password are needed to continue.</p>
+              <p class="small muted">Firebase Auth protects your account and keeps the history safe.</p>
             </form>
           </div>
-          <div class="auth-form-wrap hidden" id="profileFormWrap">
-            <form id="profileForm" class="auth-form">
-              <label>
-                <span>Full name</span>
-                <input id="pName" type="text" required autocomplete="name">
-              </label>
-              <label>
-                <span>Email</span>
-                <input id="pEmail" type="email" required autocomplete="email">
-              </label>
-              <label>
-                <span>Password</span>
-                <input id="pPassword" type="password" required minlength="8" autocomplete="new-password">
-              </label>
-              <label>
-                <span>Confirm password</span>
-                <input id="pPasswordConfirm" type="password" required minlength="8" autocomplete="new-password">
-              </label>
-              <label>
-                <span>Role</span>
-                <select id="pRole">
-                  <option value="athlete">Athlete</option>
-                  <option value="coach">Coach</option>
-                </select>
-              </label>
-              <label>
-                <span>Language</span>
-                <select id="pLang">
-                  <option value="en">English</option>
-                  <option value="es">Spanish</option>
-                  <option value="uz">Uzbek</option>
-                  <option value="ru">Russian</option>
-                </select>
-              </label>
-              <label>
-                <span>Preferred move(s)</span>
-                <input id="pPreferredMoves" type="text" placeholder="e.g., Single leg finish, high crotch">
-              </label>
-              <label>
-                <span>Experience (years)</span>
-                <input id="pExperienceYears" type="number" min="0" max="50" placeholder="e.g., 5">
-              </label>
-              <label>
-                <span>Stance</span>
-                <select id="pStance">
-                  <option value="">Select stance</option>
-                  <option value="left">Left</option>
-                  <option value="right">Right</option>
-                  <option value="switch">Switch</option>
-                </select>
-              </label>
-              <label>
-                <span>Weight class</span>
-                <input id="pWeightClass" type="text" placeholder="e.g., 74 kg">
-              </label>
-              <label>
-                <span>Notes</span>
-                <textarea id="pNotes" rows="3" placeholder="Anything else we should know?"></textarea>
-              </label>
-              <button type="submit" class="primary full">Create account</button>
-              <p class="small muted">Firebase Auth keeps your account backed on the server.</p>
-            </form>
-          </div>
-          <button type="button" class="ghost auth-back hidden" id="authBackBtn">Back to choice</button>
         </div>
       </div>
-    </div>
     </div>
   </div>
 
   <!-- MAIN APP -->
-  <div class="app" id="appRoot">
+  <div class="app hidden" id="appRoot">
     <header class="app-header">
       <div class="header-left">
         <div class="app-badge">WPL</div>
