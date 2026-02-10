@@ -139,6 +139,11 @@ button:active{
   border-color: rgba(255,255,255,0.18);
 }
 
+/* Keep profile tabs available for menu shortcuts, but not visible in main nav */
+.tab-profile-hidden{
+  display: none !important;
+}
+
 .subtabs{
   display: flex;
   gap: 8px;
