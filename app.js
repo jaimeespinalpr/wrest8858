@@ -227,7 +227,7 @@ const calendarCoachAthletes = document.getElementById("calendarCoachAthletes");
 const calendarCoachSaveBtn = document.getElementById("calendarCoachSaveBtn");
 const calendarCoachClearBtn = document.getElementById("calendarCoachClearBtn");
 const MONTHS_VISIBLE = 4;
-const AUTH_STRICT = false;
+const AUTH_STRICT = true;
 let calendarViewDate = startOfMonth(new Date());
 let calendarSelectedKey = toDateKey(new Date());
 let calendarNavBound = false;
@@ -313,7 +313,7 @@ const VIEW_ROLE_MAP = {
 
 function enforceStrictAuthUI() {
   if (!AUTH_STRICT) return;
-  [skipBtn, quickSkipBtn].forEach((btn) => {
+  [skipBtn, quickSkipBtn, quickContinueBtn, guestAthleteBtn, guestCoachBtn].forEach((btn) => {
     if (!btn) return;
     btn.hidden = true;
     btn.disabled = true;
@@ -916,6 +916,7 @@ function showAuthChoice() {
 function showOnboarding(prefillProfile = null) {
   onboarding.classList.remove("hidden");
   appRoot.classList.add("blurred", "hidden");
+  enforceStrictAuthUI();
   showAuthChoice();
 }
 
@@ -2774,6 +2775,11 @@ function buildGuestProfile(role) {
 }
 
 async function continueAsGuest(role) {
+  if (AUTH_STRICT) {
+    showOnboarding(null);
+    showAuthChoice();
+    return;
+  }
   const profile = buildGuestProfile(role);
   setAuthUser(null);
   setProfile(profile);
