@@ -37,6 +37,8 @@ let storageSyncAttached = false;
 const FIREBASE_USERS_COLLECTION = window.FIREBASE_USERS_COLLECTION || "users";
 let firebaseAuthInstance = null;
 let firebaseFirestoreInstance = null;
+let profileSyncTimeout = null;
+const MEDIA_BASE_URL = String(window.WPL_MEDIA_BASE_URL || "").trim().replace(/\/+$/, "");
 
 function initFirebaseClient() {
   if (typeof firebase === "undefined" || !window.FIREBASE_CONFIG) return null;
@@ -804,10 +806,18 @@ function getProfile() {
 
 function setProfile(profile) {
   const authUser = getAuthUser();
+  if (!profile || typeof profile !== "object") {
+    localStorage.removeItem(PROFILE_KEY);
+    if (authUser?.id) {
+      localStorage.removeItem(profileStorageKey(authUser.id));
+    }
+    return;
+  }
   const normalized = normalizeProfileForAuth(profile, authUser);
   localStorage.setItem(PROFILE_KEY, JSON.stringify(normalized));
   if (authUser?.id) {
     localStorage.setItem(profileStorageKey(authUser.id), JSON.stringify(normalized));
+    queueFirebaseProfileSync(authUser.id, normalized);
   }
 }
 
@@ -916,6 +926,17 @@ function hideOnboarding() {
 }
 
 async function bootProfile() {
+  const firebaseUser = await waitForInitialFirebaseUser();
+  if (firebaseUser) {
+    try {
+      const result = await buildAuthResultFromFirebaseUser(firebaseUser, { fallbackEmail: firebaseUser.email || "" });
+      await handleSuccessfulAuth(result);
+      return;
+    } catch (err) {
+      console.warn("Failed to restore Firebase session", err);
+      firebaseAuthInstance?.signOut().catch(() => {});
+    }
+  }
   showOnboarding(null);
 }
 
@@ -2525,6 +2546,9 @@ function authErrorMessage(code, fallback = "") {
         "auth/weak-password": "La contrasena es muy debil.",
         password_mismatch: "Las contrasenas deben coincidir.",
         firebase_not_configured: "Firebase no esta configurado.",
+        firestore_not_configured: "Firestore no esta configurado.",
+        "permission-denied": "No hay permisos para guardar el perfil en Firestore.",
+        unavailable: "Firestore no esta disponible. Intente de nuevo.",
         "auth/network-request-failed": "Revise su conexion e intente de nuevo."
       }
     : {
@@ -2542,6 +2566,9 @@ function authErrorMessage(code, fallback = "") {
         "auth/weak-password": "Password is too weak.",
         password_mismatch: "Passwords must match.",
         firebase_not_configured: "Firebase is not configured.",
+        firestore_not_configured: "Firestore is not configured.",
+        "permission-denied": "Not enough permissions to save the profile in Firestore.",
+        unavailable: "Firestore is unavailable. Please retry.",
         "auth/network-request-failed": "Network error. Check connectivity."
       };
   return map[code] || fallback || String(code || "");
@@ -2818,8 +2845,28 @@ function buildAuthUser(userPayload) {
   return {
     id,
     email: String(userPayload.email || ""),
-    role: userPayload.role === "coach" ? "coach" : "athlete"
+    role: normalizeAuthRole(userPayload.role)
   };
+}
+
+function normalizeAuthRole(role) {
+  return role === "coach" ? "coach" : "athlete";
+}
+
+function stripUndefinedDeep(value) {
+  if (value === undefined) return undefined;
+  if (Array.isArray(value)) {
+    return value.map((item) => stripUndefinedDeep(item)).filter((item) => item !== undefined);
+  }
+  if (value && typeof value === "object") {
+    const out = {};
+    Object.entries(value).forEach(([key, item]) => {
+      const cleaned = stripUndefinedDeep(item);
+      if (cleaned !== undefined) out[key] = cleaned;
+    });
+    return out;
+  }
+  return value;
 }
 
 async function fetchFirebaseProfile(uid) {
@@ -2834,32 +2881,90 @@ async function fetchFirebaseProfile(uid) {
   }
 }
 
-async function persistFirebaseProfile(uid, data) {
-  if (!firebaseFirestoreInstance) return;
+async function persistFirebaseProfile(uid, data, { required = false } = {}) {
+  if (!firebaseFirestoreInstance) {
+    if (required) {
+      const err = new Error("firestore_not_configured");
+      err.code = "firestore_not_configured";
+      throw err;
+    }
+    return;
+  }
+  const payload = stripUndefinedDeep(data);
   try {
-    await firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION).doc(uid).set(data, { merge: true });
+    await firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION).doc(uid).set(payload, { merge: true });
   } catch (err) {
+    if (required) throw err;
     console.warn("Failed to persist Firebase profile", err);
   }
+}
+
+function queueFirebaseProfileSync(uid, profile) {
+  if (!uid || !profile || !firebaseFirestoreInstance) return;
+  if (profileSyncTimeout) clearTimeout(profileSyncTimeout);
+  profileSyncTimeout = setTimeout(() => {
+    if (getAuthUser()?.id !== uid) return;
+    persistFirebaseProfile(uid, {
+      ...profile,
+      updatedAt: new Date().toISOString()
+    }).catch((err) => {
+      console.warn("Background Firebase profile sync failed", err);
+    });
+  }, 350);
+}
+
+async function buildAuthResultFromFirebaseUser(user, { fallbackEmail = "" } = {}) {
+  if (!user || !user.uid) {
+    throw new Error("invalid_credentials");
+  }
+  const remoteProfile = await fetchFirebaseProfile(user.uid);
+  const resolvedRole = normalizeAuthRole(remoteProfile?.role);
+  const email = user.email || fallbackEmail || remoteProfile?.email || "";
+  const now = new Date().toISOString();
+  const profile = stripUndefinedDeep({
+    ...remoteProfile,
+    user_id: user.uid,
+    email,
+    name: remoteProfile?.name || user.displayName || "",
+    role: resolvedRole,
+    lang: resolveLang(remoteProfile?.lang || currentLang),
+    createdAt: remoteProfile?.createdAt || now,
+    updatedAt: now
+  });
+  return {
+    user: { id: user.uid, email, role: resolvedRole },
+    profile
+  };
+}
+
+function waitForInitialFirebaseUser(timeoutMs = 2000) {
+  if (!firebaseAuthInstance?.onAuthStateChanged) {
+    return Promise.resolve(firebaseAuthInstance?.currentUser || null);
+  }
+  return new Promise((resolve) => {
+    let settled = false;
+    let timeoutId = null;
+    let unsubscribe = null;
+    const finish = (user) => {
+      if (settled) return;
+      settled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+      if (unsubscribe) unsubscribe();
+      resolve(user || null);
+    };
+    timeoutId = setTimeout(() => finish(firebaseAuthInstance?.currentUser || null), timeoutMs);
+    unsubscribe = firebaseAuthInstance.onAuthStateChanged((user) => finish(user));
+    if (settled && unsubscribe) unsubscribe();
+  });
 }
 
 async function loginWithCredentials({ email, password }) {
   if (!firebaseAuthInstance) {
     throw new Error("firebase_not_configured");
   }
-  const credential = await firebaseAuthInstance.signInWithEmailAndPassword(email, password);
-  const { user } = credential;
-  const remoteProfile = await fetchFirebaseProfile(user.uid);
-  const resolvedRole = remoteProfile?.role || "athlete";
-  const profile = {
-    user_id: user.uid,
-    email: user.email || email,
-    name: remoteProfile?.name || user.displayName || "",
-    role: resolvedRole,
-    lang: remoteProfile?.lang || currentLang,
-    createdAt: remoteProfile?.createdAt || new Date().toISOString()
-  };
-  return { user: { id: user.uid, email: user.email || email, role: resolvedRole }, profile };
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const credential = await firebaseAuthInstance.signInWithEmailAndPassword(normalizedEmail, password);
+  return buildAuthResultFromFirebaseUser(credential.user, { fallbackEmail: normalizedEmail });
 }
 
 async function registerWithFirebase({
@@ -2877,7 +2982,9 @@ async function registerWithFirebase({
   if (!firebaseAuthInstance) {
     throw new Error("firebase_not_configured");
   }
-  const credential = await firebaseAuthInstance.createUserWithEmailAndPassword(email, password);
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const normalizedRole = normalizeAuthRole(role);
+  const credential = await firebaseAuthInstance.createUserWithEmailAndPassword(normalizedEmail, password);
   const { user } = credential;
   if (name && user.updateProfile) {
     try {
@@ -2886,21 +2993,35 @@ async function registerWithFirebase({
       // ignore profile update errors
     }
   }
+  const now = new Date().toISOString();
   const profilePayload = {
     user_id: user.uid,
-    email,
+    email: normalizedEmail,
     name,
-    role: role === "coach" ? "coach" : "athlete",
+    role: normalizedRole,
     lang: resolveLang(lang || currentLang),
+    preferredMoves,
     preferred_moves: preferredMoves,
+    experienceYears,
     experience_years: experienceYears,
     stance,
+    weightClass,
     weight_class: weightClass,
     notes,
-    createdAt: new Date().toISOString()
+    createdAt: now,
+    updatedAt: now
   };
-  await persistFirebaseProfile(user.uid, profilePayload);
-  return { user: { id: user.uid, email, role: profilePayload.role }, profile: profilePayload };
+  try {
+    await persistFirebaseProfile(user.uid, profilePayload, { required: true });
+  } catch (err) {
+    try {
+      await user.delete();
+    } catch {
+      // ignore rollback errors
+    }
+    throw err;
+  }
+  return { user: { id: user.uid, email: normalizedEmail, role: profilePayload.role }, profile: profilePayload };
 }
 
 async function handleSuccessfulAuth(result) {
@@ -2922,7 +3043,7 @@ if (pRole) {
 if (loginForm) {
   loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const email = loginEmail.value.trim();
+    const email = loginEmail.value.trim().toLowerCase();
     const password = loginPassword.value.trim();
 
     if (!email || !password) {
@@ -2930,29 +3051,12 @@ if (loginForm) {
       return;
     }
 
-    if (email === 'jaimeespinapr@gmail.com' && password === '88588858') {
-      const result = {
-        user: {
-          id: 1,
-          email: 'jaimeespinapr@gmail.com',
-          role: 'coach'
-        },
-        profile: {
-          user_id: 1,
-          email: 'jaimeespinapr@gmail.com',
-          role: 'coach',
-          name: 'Jaime Espinal'
-        }
-      };
+    try {
+      const result = await loginWithCredentials({ email, password });
       await handleSuccessfulAuth(result);
-    } else {
-      try {
-        const result = await loginWithCredentials({ email, password });
-        await handleSuccessfulAuth(result);
-      } catch (err) {
-        const code = err?.code || err?.message || "auth_error";
-        alert(authErrorMessage(code, err?.message || String(err)));
-      }
+    } catch (err) {
+      const code = err?.code || err?.message || "auth_error";
+      alert(authErrorMessage(code, err?.message || String(err)));
     }
   });
 }
@@ -2969,7 +3073,7 @@ if (profileForm) {
   profileForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const name = pName.value.trim();
-    const email = pEmail.value.trim();
+    const email = pEmail.value.trim().toLowerCase();
     const password = pPassword.value;
     const confirm = pPasswordConfirm.value;
     const role = pRole.value;
@@ -4420,10 +4524,9 @@ subtabButtons.forEach((btn) => {
   });
 });
 
-if (subtabButtons.length) {
-  const initial = subtabButtons[0].dataset.subtab;
-  showSubtab(initial);
-  updatePlanRangeType(initial);
+const initialPlanSubtab = subtabButtons.length ? subtabButtons[0].dataset.subtab : null;
+if (initialPlanSubtab) {
+  showSubtab(initialPlanSubtab);
 }
 
 // ---------- DAILY PLAN SELECTIONS ----------
@@ -4716,6 +4819,10 @@ function updatePlanRangeType(subtabKey) {
     if (planRangeHint) {
         planRangeHint.textContent = pickCopy(PLAN_RANGE_HINT[planRangeType]);
     }
+}
+
+if (initialPlanSubtab) {
+    updatePlanRangeType(initialPlanSubtab);
 }
 
 if (planRangeStartInput) {
@@ -5508,7 +5615,7 @@ function fillAthleteProfileForm(profile) {
   aPhoto.value = profile.photo || "";
   aCountry.value = profile.country || "";
   aCity.value = profile.city || "";
-  aSchoolClub.value = profile.schoolClub || "no";
+  if (aSchoolClub) aSchoolClub.value = profile.schoolClub || "no";
   aSchool.value = profile.schoolName || "";
   aClub.value = profile.clubName || "";
   if (aTrainingRoutines) aTrainingRoutines.value = profile.trainingRoutines || "";
@@ -5541,10 +5648,10 @@ function fillAthleteProfileForm(profile) {
   if (aDefense1) aDefense1.value = defense[0] || "";
   if (aDefense2) aDefense2.value = defense[1] || "";
   if (aDefense3) aDefense3.value = defense[2] || "";
-  aNeutralOther.value = profile.techniques?.neutralOther || "";
-  aTopOther.value = profile.techniques?.topOther || "";
-  aBottomOther.value = profile.techniques?.bottomOther || "";
-  aDefenseOther.value = profile.techniques?.defenseOther || "";
+  if (aNeutralOther) aNeutralOther.value = profile.techniques?.neutralOther || "";
+  if (aTopOther) aTopOther.value = profile.techniques?.topOther || "";
+  if (aBottomOther) aBottomOther.value = profile.techniques?.bottomOther || "";
+  if (aDefenseOther) aDefenseOther.value = profile.techniques?.defenseOther || "";
   aInternational.value = profile.international || "no";
   aInternationalEvents.value = profile.internationalEvents || "";
   aInternationalYears.value = profile.internationalYears || "";
@@ -6731,6 +6838,12 @@ const mediaAddSectionBtn = document.getElementById("mediaAddSectionBtn");
 const mediaAddItemTitle = document.getElementById("mediaAddItemTitle");
 const mediaNewItemLabel = document.getElementById("mediaNewItemLabel");
 const mediaNewItemTitle = document.getElementById("mediaNewItemTitle");
+const mediaNewItemAssetPathLabel = document.getElementById("mediaNewItemAssetPathLabel");
+const mediaNewItemAssetPath = document.getElementById("mediaNewItemAssetPath");
+const mediaNewItemThumbPathLabel = document.getElementById("mediaNewItemThumbPathLabel");
+const mediaNewItemThumbPath = document.getElementById("mediaNewItemThumbPath");
+const mediaNewItemDurationLabel = document.getElementById("mediaNewItemDurationLabel");
+const mediaNewItemDuration = document.getElementById("mediaNewItemDuration");
 const mediaNewItemTypeLabel = document.getElementById("mediaNewItemTypeLabel");
 const mediaNewItemType = document.getElementById("mediaNewItemType");
 const mediaNewItemAssignedLabel = document.getElementById("mediaNewItemAssignedLabel");
@@ -6806,6 +6919,24 @@ const MEDIA_COPY = {
     uz: "Video sarlavhasi",
     ru: "Название видео"
   },
+  addItemAssetPathLabel: {
+    en: "NAS path or URL",
+    es: "Ruta o URL en NAS",
+    uz: "NAS yo'li yoki URL",
+    ru: "Путь NAS или URL"
+  },
+  addItemThumbLabel: {
+    en: "Thumbnail path (optional)",
+    es: "Ruta de miniatura (opcional)",
+    uz: "Miniatura yo'li (ixtiyoriy)",
+    ru: "Путь миниатюры (необязательно)"
+  },
+  addItemDurationLabel: {
+    en: "Duration (optional)",
+    es: "Duracion (opcional)",
+    uz: "Davomiyligi (ixtiyoriy)",
+    ru: "Длительность (необязательно)"
+  },
   addItemTypeLabel: {
     en: "Type",
     es: "Tipo",
@@ -6854,6 +6985,24 @@ const MEDIA_COPY = {
     uz: "Sevimlilarga saqlash",
     ru: "Сохранить в избранное"
   },
+  openMedia: {
+    en: "Open Media",
+    es: "Abrir recurso",
+    uz: "Medianı ochish",
+    ru: "Открыть медиа"
+  },
+  missingAsset: {
+    en: "Missing NAS path",
+    es: "Falta ruta NAS",
+    uz: "NAS yo'li yo'q",
+    ru: "Путь NAS отсутствует"
+  },
+  duration: {
+    en: "Duration",
+    es: "Duracion",
+    uz: "Davomiyligi",
+    ru: "Длительность"
+  },
   addSectionToast: {
     en: "Section added.",
     es: "Seccion agregada.",
@@ -6877,6 +7026,12 @@ const MEDIA_COPY = {
     es: "Agrega un titulo de video.",
     uz: "Video sarlavhasini kiriting.",
     ru: "Добавьте название видео."
+  },
+  needItemAssetPath: {
+    en: "Add a NAS path or URL.",
+    es: "Agrega una ruta o URL del NAS.",
+    uz: "NAS yo'li yoki URL kiriting.",
+    ru: "Добавьте путь NAS или URL."
   }
 };
 
@@ -6892,6 +7047,24 @@ const MEDIA_PLACEHOLDERS = {
     es: "ej., Final de double leg",
     uz: "mas., Double leg finish",
     ru: "напр., Double leg finish"
+  },
+  assetPath: {
+    en: "e.g., wrestling/drills/double-leg.mp4",
+    es: "ej., wrestling/drills/double-leg.mp4",
+    uz: "mas., wrestling/drills/double-leg.mp4",
+    ru: "напр., wrestling/drills/double-leg.mp4"
+  },
+  thumbPath: {
+    en: "e.g., wrestling/thumbnails/double-leg.jpg",
+    es: "ej., wrestling/thumbnails/double-leg.jpg",
+    uz: "mas., wrestling/thumbnails/double-leg.jpg",
+    ru: "напр., wrestling/thumbnails/double-leg.jpg"
+  },
+  duration: {
+    en: "e.g., 03:45",
+    es: "ej., 03:45",
+    uz: "mas., 03:45",
+    ru: "напр., 03:45"
   },
   assigned: {
     en: "Today",
@@ -6912,6 +7085,37 @@ let mediaToolsBound = false;
 
 function mediaCopy(key) {
   return pickCopy(MEDIA_COPY[key] || { en: key, es: key });
+}
+
+function isAbsoluteUrl(value) {
+  return /^https?:\/\//i.test(String(value || "").trim());
+}
+
+function normalizeMediaAssetPath(value) {
+  return String(value || "").trim();
+}
+
+function joinMediaUrl(base, path) {
+  const normalizedBase = String(base || "").trim().replace(/\/+$/, "");
+  const normalizedPath = String(path || "").trim().replace(/^\/+/, "");
+  if (!normalizedBase || !normalizedPath) return "";
+  return `${normalizedBase}/${normalizedPath}`;
+}
+
+function resolveMediaLocation(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (isAbsoluteUrl(raw)) return raw;
+  return joinMediaUrl(MEDIA_BASE_URL, raw);
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function makeMediaId(prefix) {
@@ -6943,6 +7147,9 @@ function buildDefaultMediaTree() {
       type: "item",
       title: item.title,
       mediaType: item.type,
+      assetPath: "",
+      thumbnailPath: "",
+      duration: "",
       assigned: item.assigned,
       note: "",
       parentId: sectionId
@@ -6966,11 +7173,16 @@ function normalizeMediaNode(node) {
 
   const title = String(node.title || "").trim();
   if (!title) return null;
+  const rawAssetPath = node.assetPath || node.assetUrl || node.url || "";
+  const rawThumbnailPath = node.thumbnailPath || node.thumbnailUrl || "";
   return {
     id,
     type,
     title,
     mediaType: String(node.mediaType || node.typeLabel || "Video"),
+    assetPath: normalizeMediaAssetPath(rawAssetPath),
+    thumbnailPath: normalizeMediaAssetPath(rawThumbnailPath),
+    duration: String(node.duration || ""),
     assigned: String(node.assigned || ""),
     note: String(node.note || ""),
     parentId
@@ -7128,7 +7340,10 @@ function renderMediaItems(nodes) {
   if (!mediaItemList) return;
   const items = getMediaChildren(nodes, mediaActiveSectionId, "item");
   const assignedLabel = mediaCopy("assigned");
+  const durationLabel = mediaCopy("duration");
   const saveFavLabel = mediaCopy("saveFav");
+  const openMediaLabel = mediaCopy("openMedia");
+  const missingAssetLabel = mediaCopy("missingAsset");
   const parent = mediaActiveSectionId ? findMediaNode(nodes, mediaActiveSectionId) : null;
   const parentName = parent?.type === "section" ? parent.name : "";
 
@@ -7136,14 +7351,42 @@ function renderMediaItems(nodes) {
   items.forEach((item) => {
     const card = document.createElement("div");
     card.className = "media-item-card";
+    const assetPath = normalizeMediaAssetPath(item.assetPath || item.assetUrl || item.url || "");
+    const thumbnailPath = normalizeMediaAssetPath(item.thumbnailPath || item.thumbnailUrl || "");
+    const assetUrl = resolveMediaLocation(assetPath);
+    const thumbnailUrl = resolveMediaLocation(thumbnailPath);
+    const safeTitle = escapeHtml(item.title);
+    const safeType = escapeHtml(item.mediaType);
+    const safeAssigned = escapeHtml(item.assigned);
+    const safeDuration = escapeHtml(item.duration);
+    const safeNote = escapeHtml(item.note);
+    const safePath = escapeHtml(assetPath);
+    const missingClass = assetUrl ? "" : " media-item-missing";
     card.innerHTML = `
-      <h4>${item.title}</h4>
-      <div class="small">${item.mediaType}</div>
-      ${item.assigned ? `<div class="small">${assignedLabel}: ${item.assigned}</div>` : ""}
-      ${item.note ? `<div class="small">${item.note}</div>` : ""}
+      ${thumbnailUrl ? `<img class="media-item-thumb" src="${escapeHtml(thumbnailUrl)}" alt="${safeTitle}" loading="lazy">` : ""}
+      <h4>${safeTitle}</h4>
+      <div class="small">${safeType}</div>
+      ${assetPath ? `<div class="small media-item-path">${safePath}</div>` : `<div class="small${missingClass}">${missingAssetLabel}</div>`}
+      ${item.assigned ? `<div class="small">${assignedLabel}: ${safeAssigned}</div>` : ""}
+      ${item.duration ? `<div class="small">${durationLabel}: ${safeDuration}</div>` : ""}
+      ${item.note ? `<div class="small">${safeNote}</div>` : ""}
     `;
 
+    const actions = document.createElement("div");
+    actions.className = "media-item-actions";
+    if (assetUrl) {
+      const openBtn = document.createElement("button");
+      openBtn.type = "button";
+      openBtn.className = "ghost";
+      openBtn.textContent = openMediaLabel;
+      openBtn.addEventListener("click", () => {
+        window.open(assetUrl, "_blank", "noopener,noreferrer");
+      });
+      actions.appendChild(openBtn);
+    }
+
     const btn = document.createElement("button");
+    btn.type = "button";
     btn.textContent = saveFavLabel;
     btn.addEventListener("click", () => {
       const favs = getFavorites();
@@ -7154,8 +7397,9 @@ function renderMediaItems(nodes) {
         renderFavorites();
       }
     });
+    actions.appendChild(btn);
 
-    card.appendChild(btn);
+    card.appendChild(actions);
     mediaItemList.appendChild(card);
   });
 
@@ -7196,8 +7440,13 @@ function bindMediaTools() {
   if (mediaAddItemBtn) {
     mediaAddItemBtn.addEventListener("click", () => {
       const title = mediaNewItemTitle?.value.trim();
+      const assetPath = normalizeMediaAssetPath(mediaNewItemAssetPath?.value || "");
       if (!title) {
         toast(mediaCopy("needItemTitle"));
+        return;
+      }
+      if (!assetPath) {
+        toast(mediaCopy("needItemAssetPath"));
         return;
       }
       const nodes = getMediaNodes();
@@ -7206,12 +7455,18 @@ function bindMediaTools() {
         type: "item",
         title,
         mediaType: mediaNewItemType?.value || "Video",
+        assetPath,
+        thumbnailPath: normalizeMediaAssetPath(mediaNewItemThumbPath?.value || ""),
+        duration: mediaNewItemDuration?.value.trim() || "",
         assigned: mediaNewItemAssigned?.value.trim() || "",
         note: mediaNewItemNote?.value.trim() || "",
         parentId: mediaActiveSectionId
       });
       setMediaNodes(nodes);
       if (mediaNewItemTitle) mediaNewItemTitle.value = "";
+      if (mediaNewItemAssetPath) mediaNewItemAssetPath.value = "";
+      if (mediaNewItemThumbPath) mediaNewItemThumbPath.value = "";
+      if (mediaNewItemDuration) mediaNewItemDuration.value = "";
       if (mediaNewItemAssigned) mediaNewItemAssigned.value = "";
       if (mediaNewItemNote) mediaNewItemNote.value = "";
       toast(mediaCopy("addItemToast"));
@@ -7234,6 +7489,9 @@ function renderMediaCoachTools(isCoach) {
   if (mediaAddSectionBtn) mediaAddSectionBtn.textContent = mediaCopy("addSectionBtn");
   if (mediaAddItemTitle) mediaAddItemTitle.textContent = mediaCopy("addItemTitle");
   if (mediaNewItemLabel) mediaNewItemLabel.textContent = mediaCopy("addItemLabel");
+  if (mediaNewItemAssetPathLabel) mediaNewItemAssetPathLabel.textContent = mediaCopy("addItemAssetPathLabel");
+  if (mediaNewItemThumbPathLabel) mediaNewItemThumbPathLabel.textContent = mediaCopy("addItemThumbLabel");
+  if (mediaNewItemDurationLabel) mediaNewItemDurationLabel.textContent = mediaCopy("addItemDurationLabel");
   if (mediaNewItemTypeLabel) mediaNewItemTypeLabel.textContent = mediaCopy("addItemTypeLabel");
   if (mediaNewItemAssignedLabel) mediaNewItemAssignedLabel.textContent = mediaCopy("addItemAssignedLabel");
   if (mediaNewItemNoteLabel) mediaNewItemNoteLabel.textContent = mediaCopy("addItemNoteLabel");
@@ -7241,6 +7499,9 @@ function renderMediaCoachTools(isCoach) {
 
   if (mediaNewSectionName) mediaNewSectionName.placeholder = pickCopy(MEDIA_PLACEHOLDERS.section);
   if (mediaNewItemTitle) mediaNewItemTitle.placeholder = pickCopy(MEDIA_PLACEHOLDERS.item);
+  if (mediaNewItemAssetPath) mediaNewItemAssetPath.placeholder = pickCopy(MEDIA_PLACEHOLDERS.assetPath);
+  if (mediaNewItemThumbPath) mediaNewItemThumbPath.placeholder = pickCopy(MEDIA_PLACEHOLDERS.thumbPath);
+  if (mediaNewItemDuration) mediaNewItemDuration.placeholder = pickCopy(MEDIA_PLACEHOLDERS.duration);
   if (mediaNewItemAssigned) mediaNewItemAssigned.placeholder = pickCopy(MEDIA_PLACEHOLDERS.assigned);
   if (mediaNewItemNote) mediaNewItemNote.placeholder = pickCopy(MEDIA_PLACEHOLDERS.note);
 }

@@ -93,3 +93,21 @@ The onboarding overlay now prioritizes log in / create account so athletes and c
    - When the site loads, the onboarding modal now renders the log in / create account forms powered by Firebase Auth. Successful sign-in stores the profile locally but keeps credentials and metadata in Firebase services.
 
 If you later need to revert to MySQL-backed auth, simply remove `firebase-config.js` (or leave it empty) so the Firebase scripts skip initialization, and switch the app back to the PHP storage API as documented above.
+
+## Storage strategy (users in Firebase, media in NAS)
+
+- **Users (now):** authentication and user profile metadata are persisted in Firebase (`Auth` + Firestore `users` collection).
+- **Media (future):** videos/photos/audio can move to your NAS and the app can store only metadata/URLs in Firebase or local state.
+- Recommended next step for NAS integration: define a base URL (or signed URL service) and add media item fields like `assetUrl`, `thumbnailUrl`, and `duration`.
+
+### NAS rollout checklist
+
+1. Expose media through HTTPS from your NAS (reverse proxy or web server).
+2. Decide one public base URL, e.g. `https://nas.example.com/media`.
+3. Set `window.WPL_MEDIA_BASE_URL` in `firebase-config.js` to that base URL.
+4. In **Media > Add Video**, save:
+   - `NAS path or URL`: `wrestling/drills/double-leg.mp4` (or full URL).
+   - `Thumbnail path`: optional image path.
+   - `Duration`: optional display value (`03:45`).
+5. Keep write access private: uploads should go through a backend service, not direct unauthenticated NAS writes from browser clients.
+6. Store only metadata in app/Firebase (paths, labels, assignments); files remain in NAS storage.

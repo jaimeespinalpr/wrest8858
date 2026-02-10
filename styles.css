@@ -1412,6 +1412,29 @@ textarea:focus{
   font-size: 15px;
 }
 
+.media-item-thumb{
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+}
+
+.media-item-path{
+  word-break: break-all;
+}
+
+.media-item-missing{
+  color: #f5b5b5;
+}
+
+.media-item-actions{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
 .media-tools{
   display: grid;
   grid-template-columns: repeat(2, minmax(0,1fr));
