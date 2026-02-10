@@ -38,6 +38,7 @@ const FIREBASE_USERS_COLLECTION = window.FIREBASE_USERS_COLLECTION || "users";
 let firebaseAuthInstance = null;
 let firebaseFirestoreInstance = null;
 let profileSyncTimeout = null;
+const FIREBASE_OP_TIMEOUT_MS = 4000;
 const MEDIA_BASE_URL = String(window.WPL_MEDIA_BASE_URL || "").trim().replace(/\/+$/, "");
 
 function initFirebaseClient() {
@@ -60,6 +61,20 @@ function initFirebaseClient() {
   firebaseAuthInstance = client?.auth ?? null;
   firebaseFirestoreInstance = client?.firestore ?? null;
 })();
+
+function withTimeout(promise, ms, code = "operation_timeout") {
+  let timeoutId = null;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      const err = new Error(code);
+      err.code = code;
+      reject(err);
+    }, ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
+}
 
 function shouldSyncKey(key) {
   return typeof key === "string" && key.startsWith(STORAGE_PREFIX);
@@ -2924,7 +2939,11 @@ function stripUndefinedDeep(value) {
 async function fetchFirebaseProfile(uid) {
   if (!firebaseFirestoreInstance) return null;
   try {
-    const doc = await firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION).doc(uid).get();
+    const doc = await withTimeout(
+      firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION).doc(uid).get(),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_profile_read_timeout"
+    );
     if (!doc.exists) return null;
     return doc.data();
   } catch (err) {
@@ -2944,7 +2963,11 @@ async function persistFirebaseProfile(uid, data, { required = false } = {}) {
   }
   const payload = stripUndefinedDeep(data);
   try {
-    await firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION).doc(uid).set(payload, { merge: true });
+    await withTimeout(
+      firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION).doc(uid).set(payload, { merge: true }),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_profile_write_timeout"
+    );
   } catch (err) {
     if (required) throw err;
     console.warn("Failed to persist Firebase profile", err);
@@ -3066,7 +3089,7 @@ async function registerWithFirebase({
     createdAt: now,
     updatedAt: now
   };
-  await persistFirebaseProfile(user.uid, profilePayload, { required: false });
+  persistFirebaseProfile(user.uid, profilePayload, { required: false }).catch(() => {});
   return { user: { id: user.uid, email: normalizedEmail, role: profilePayload.role }, profile: profilePayload };
 }
 
@@ -3165,12 +3188,6 @@ if (profileForm) {
     }
   });
 }
-
-// Edit profile later
-editProfileBtn.addEventListener("click", () => {
-  const existing = getProfile();
-  showOnboarding(existing);
-});
 
 // ---------- AUDIO ----------
 let muted = false;
