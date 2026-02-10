@@ -6384,11 +6384,14 @@ function renderCalendar(selectedKey, options = {}) {
       cell.type = "button";
       const isToday = key === todayKey;
       const isSelected = key === calendarSelectedKey;
-      cell.className = `month-cell${isToday ? " today" : ""}${isSelected ? " selected" : ""}`;
+      const hasItems = visibleCount > 0;
+      cell.className = `month-cell${isToday ? " today" : ""}${isSelected ? " selected" : ""}${hasItems ? " has-items" : ""}`;
       cell.dataset.key = key;
       cell.innerHTML = `
-        <div class="month-day-number">${day}</div>
-        ${visibleCount ? `<div class="month-count">${visibleCount}</div>` : ""}
+        <div class="month-day-top">
+          <div class="month-day-number">${day}</div>
+          ${visibleCount ? `<div class="month-count">${visibleCount}</div>` : '<div class="month-dot" aria-hidden="true"></div>'}
+        </div>
       `;
       cell.addEventListener("click", () => {
         calendarSelectedKey = key;
