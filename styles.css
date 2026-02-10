@@ -820,6 +820,11 @@ button:active{
   padding: 20px;
 }
 
+.register-modal.hidden{
+  display: none !important;
+  pointer-events: none;
+}
+
 .register-card{
   width: min(520px, 100%);
   background: rgba(255,255,255,0.02);
