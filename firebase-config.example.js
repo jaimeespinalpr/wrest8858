@@ -1,13 +1,16 @@
-const firebaseConfig = {
-  apiKey: "AIzaSyCmXGX7g0w865bdOZSVdlHed2Km2N7RJ-E",
-  authDomain: "gary-test-c557f.firebaseapp.com",
-  projectId: "gary-test-c557f",
-  storageBucket: "gary-test-c557f.firebasestorage.app",
-  messagingSenderId: "48604096321",
-  appId: "1:48604096321:web:cbf9b632c16c7f98e963c0",
-  measurementId: "G-8VGT08KXVZ"
+window.FIREBASE_CONFIG = {
+  apiKey: "YOUR_FIREBASE_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.firebasestorage.app",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID",
+  measurementId: "YOUR_MEASUREMENT_ID"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+// Optional Firestore collection for user profiles.
+window.FIREBASE_USERS_COLLECTION = "users";
+
+// Optional NAS media base URL used by the Media panel.
+// Example: "https://nas.your-domain.com/media"
+window.WPL_MEDIA_BASE_URL = "";
