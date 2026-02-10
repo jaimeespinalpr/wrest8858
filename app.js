@@ -174,6 +174,7 @@ const guestAthleteBtn = document.getElementById("guestAthleteBtn");
 const guestCoachBtn = document.getElementById("guestCoachBtn");
 const viewSwitchBtn = document.getElementById("viewSwitchBtn");
 const viewMenu = document.getElementById("viewMenu");
+const viewSwitchWrap = viewSwitchBtn?.closest(".view-switch");
 const currentViewLabel = document.getElementById("currentViewLabel");
 const headerMenu = document.getElementById("headerMenu");
 const userMeta = document.getElementById("userMeta");
@@ -308,7 +309,7 @@ const VIEW_ROLE_MAP = {
   athlete: "athlete",
   coach: "coach",
   admin: "coach",
-  parent: "athlete"
+  parent: "parent"
 };
 
 function enforceStrictAuthUI() {
@@ -318,6 +319,35 @@ function enforceStrictAuthUI() {
     btn.hidden = true;
     btn.disabled = true;
   });
+  if (viewSwitchWrap) viewSwitchWrap.classList.add("hidden");
+  if (viewMenu) viewMenu.classList.add("hidden");
+  headerViewButtons.forEach((btn) => {
+    btn.hidden = true;
+    btn.disabled = true;
+  });
+  const headerViewSection = headerMenu?.querySelector(".header-menu-section");
+  if (headerViewSection) headerViewSection.classList.add("hidden");
+}
+
+function getDefaultViewForRole(role) {
+  const normalizedRole = normalizeAuthRole(role);
+  if (normalizedRole === "coach") return "coach";
+  if (normalizedRole === "parent") return "parent";
+  return "athlete";
+}
+
+function getActiveRoleForView() {
+  const profileRole = getProfile()?.role;
+  if (profileRole) return normalizeAuthRole(profileRole);
+  const authRole = getAuthUser()?.role;
+  if (authRole) return normalizeAuthRole(authRole);
+  return "athlete";
+}
+
+function resolveViewForRole(role, requestedView) {
+  const roleDefault = getDefaultViewForRole(role);
+  if (AUTH_STRICT) return roleDefault;
+  return VIEW_OPTIONS.includes(requestedView) ? requestedView : roleDefault;
 }
 
 function toggleHeaderMenu(forceState) {
@@ -339,8 +369,14 @@ function handleHeaderMenuAction(action) {
   if (!action) return;
   closeHeaderMenu();
   if (action === "profile") {
-    const role = getProfile()?.role || "athlete";
-    showTab(role === "coach" ? "coach-profile" : "athlete-profile");
+    const role = normalizeAuthRole(getProfile()?.role || "athlete");
+    if (role === "coach") {
+      showTab("coach-profile");
+    } else if (role === "parent") {
+      showTab("athlete-notes");
+    } else {
+      showTab("athlete-profile");
+    }
     return;
   }
   if (action === "logout") {
@@ -398,10 +434,12 @@ function refreshHeaderViewButtons() {
 }
 
 function setView(view) {
-  const normalized = VIEW_OPTIONS.includes(view) ? view : "athlete";
+  const requested = VIEW_OPTIONS.includes(view) ? view : "athlete";
+  const activeRole = getActiveRoleForView();
+  const normalized = resolveViewForRole(activeRole, requested);
   currentView = normalized;
   updateViewMenuLabel(normalized);
-  const roleName = VIEW_ROLE_MAP[normalized] || "athlete";
+  const roleName = VIEW_ROLE_MAP[normalized] || activeRole || "athlete";
   setRoleUI(roleName, normalized);
 }
 
@@ -461,7 +499,7 @@ athleteOnlyControls.forEach((control) => {
 
 function updateRoleSections(role) {
   if (!athleteOnlySections.length) return;
-  const isAthlete = role !== "coach";
+  const isAthlete = normalizeAuthRole(role) === "athlete";
   athleteOnlySections.forEach((section) => section.classList.toggle("hidden", !isAthlete));
   athleteOnlyControls.forEach((control) => {
     control.disabled = !isAthlete;
@@ -473,10 +511,10 @@ const LANG_KEY = "wpl_lang_pref";
 const LANG_RESET_KEY = "wpl_lang_reset_v1";
 
 const ROLE_LABELS = {
-  en: { athlete: "Athlete", coach: "Coach" },
-  es: { athlete: "Atleta", coach: "Entrenador" },
-  uz: { athlete: "Sportchi", coach: "Murabbiy" },
-  ru: { athlete: "Спортсмен", coach: "Тренер" }
+  en: { athlete: "Athlete", coach: "Coach", parent: "Parent" },
+  es: { athlete: "Atleta", coach: "Entrenador", parent: "Padre/Madre" },
+  uz: { athlete: "Sportchi", coach: "Murabbiy", parent: "Ota-ona" },
+  ru: { athlete: "Спортсмен", coach: "Тренер", parent: "Родитель" }
 };
 
 const LEVEL_LABELS = {
@@ -756,7 +794,7 @@ function getAuthUser() {
   return {
     id,
     email: String(auth.email || ""),
-    role: auth.role === "coach" ? "coach" : "athlete"
+    role: normalizeAuthRole(auth.role)
   };
 }
 
@@ -768,7 +806,7 @@ function setAuthUser(authUser) {
   const payload = {
     id: String(authUser.id || ""),
     email: String(authUser.email || ""),
-    role: authUser.role === "coach" ? "coach" : "athlete"
+    role: normalizeAuthRole(authUser.role)
   };
   localStorage.setItem(AUTH_USER_KEY, JSON.stringify(payload));
 }
@@ -784,7 +822,9 @@ function normalizeProfileForAuth(profile, authUser) {
   const base = profile && typeof profile === "object" ? { ...profile } : {};
   if (authUser?.id) base.user_id = authUser.id;
   if (authUser?.email) base.email = authUser.email;
-  if (authUser?.role) base.role = authUser.role;
+  const role = normalizeAuthRole(authUser?.role || base.role);
+  base.role = role;
+  base.view = resolveViewForRole(role, base.view);
   if (!base.lang) {
     const storedLang = localStorage.getItem(LANG_KEY);
     base.lang = storedLang && SUPPORTED_LANGS.has(storedLang) ? storedLang : DEFAULT_LANG;
@@ -829,7 +869,8 @@ async function applyProfile(profile) {
     return;
   }
 
-  const view = profile.view || (profile.role === "coach" ? "coach" : "athlete");
+  const role = normalizeAuthRole(profile.role);
+  const view = resolveViewForRole(role, profile.view);
   setLanguage(profile.lang || getPreferredLang(), { skipConfirm: true, refresh: false });
   setView(view);
   if (view === "coach") {
@@ -1157,8 +1198,10 @@ const SELECT_COPY = {
     ru: { en: "Английский", es: "Испанский", uz: "Узбекский", ru: "Русский" }
   },
   pRole: {
-    en: { athlete: "Athlete", coach: "Coach" },
-    es: { athlete: "Atleta", coach: "Entrenador" }
+    en: { athlete: "Athlete", coach: "Coach", parent: "Parent" },
+    es: { athlete: "Atleta", coach: "Entrenador", parent: "Padre/Madre" },
+    uz: { athlete: "Sportchi", coach: "Murabbiy", parent: "Ota-ona" },
+    ru: { athlete: "Спортсмен", coach: "Тренер", parent: "Родитель" }
   },
   pSchoolClub: {
     en: { no: "No", yes: "Yes" },
@@ -2856,7 +2899,10 @@ function buildAuthUser(userPayload) {
 }
 
 function normalizeAuthRole(role) {
-  return role === "coach" ? "coach" : "athlete";
+  const value = String(role || "").trim().toLowerCase();
+  if (value === "coach") return "coach";
+  if (value === "parent") return "parent";
+  return "athlete";
 }
 
 function stripUndefinedDeep(value) {
@@ -2933,6 +2979,7 @@ async function buildAuthResultFromFirebaseUser(user, { fallbackEmail = "" } = {}
     email,
     name: remoteProfile?.name || user.displayName || "",
     role: resolvedRole,
+    view: resolveViewForRole(resolvedRole, remoteProfile?.view),
     lang: resolveLang(remoteProfile?.lang || currentLang),
     createdAt: remoteProfile?.createdAt || now,
     updatedAt: now
@@ -3005,6 +3052,7 @@ async function registerWithFirebase({
     email: normalizedEmail,
     name,
     role: normalizedRole,
+    view: getDefaultViewForRole(normalizedRole),
     lang: resolveLang(lang || currentLang),
     preferredMoves,
     preferred_moves: preferredMoves,
@@ -3039,6 +3087,7 @@ async function handleSuccessfulAuth(result) {
   const profile = normalizeProfileForAuth(result.profile || {}, authUser);
   setProfile(profile);
   await applyProfile(profile);
+  hideRegisterModal();
   hideOnboarding();
 }
 
@@ -4453,27 +4502,31 @@ const panels = {
 };
 
 async function showTab(name) {
-  tabBtns.forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+  const targetBtn = tabBtns.find((btn) => btn.dataset.tab === name && !btn.hidden);
+  const fallbackTab = tabBtns.find((btn) => !btn.hidden)?.dataset.tab;
+  const safeTab = targetBtn ? name : (fallbackTab || name);
+
+  tabBtns.forEach((b) => b.classList.toggle("active", b.dataset.tab === safeTab));
   Object.entries(panels).forEach(([k, el]) => {
     if (!el) return;
-    el.classList.toggle("hidden", k !== name);
+    el.classList.toggle("hidden", k !== safeTab);
   });
 
-  if (name === "plans" && templatePdfBytes && window.PDFLib) {
+  if (safeTab === "plans" && templatePdfBytes && window.PDFLib) {
     await generateFilledPdf({ download: false });
   }
 
-  if (name === "coach-match" && coachMatchSelect?.value) {
+  if (safeTab === "coach-match" && coachMatchSelect?.value) {
     renderCoachMatchView(coachMatchSelect.value);
   }
 
-  if (name === "calendar-manager") {
+  if (safeTab === "calendar-manager") {
     renderCalendarManager();
   }
 }
 
 function setRoleUI(role, view = "athlete") {
-  const roleName = role === "coach" ? "coach" : "athlete";
+  const roleName = normalizeAuthRole(role);
   tabBtns.forEach((btn) => {
     const viewAttr = btn.dataset.views;
     let visible = true;
@@ -4507,6 +4560,7 @@ function setRoleUI(role, view = "athlete") {
         ? "dashboard"
         : "today";
   toggleParentViewNotice(view);
+  enforceStrictAuthUI();
   showTab(defaultTab);
 }
 
