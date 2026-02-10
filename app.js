@@ -2970,17 +2970,18 @@ async function buildAuthResultFromFirebaseUser(user, { fallbackEmail = "" } = {}
     throw new Error("invalid_credentials");
   }
   const remoteProfile = await fetchFirebaseProfile(user.uid);
-  const resolvedRole = normalizeAuthRole(remoteProfile?.role);
+  const localProfile = parseStoredJson(profileStorageKey(user.uid)) || parseStoredJson(PROFILE_KEY);
+  const resolvedRole = normalizeAuthRole(remoteProfile?.role || localProfile?.role);
   const email = user.email || fallbackEmail || remoteProfile?.email || "";
   const now = new Date().toISOString();
   const profile = stripUndefinedDeep({
     ...remoteProfile,
     user_id: user.uid,
     email,
-    name: remoteProfile?.name || user.displayName || "",
+    name: remoteProfile?.name || localProfile?.name || user.displayName || "",
     role: resolvedRole,
-    view: resolveViewForRole(resolvedRole, remoteProfile?.view),
-    lang: resolveLang(remoteProfile?.lang || currentLang),
+    view: resolveViewForRole(resolvedRole, remoteProfile?.view || localProfile?.view),
+    lang: resolveLang(remoteProfile?.lang || localProfile?.lang || currentLang),
     createdAt: remoteProfile?.createdAt || now,
     updatedAt: now
   });
@@ -3065,16 +3066,7 @@ async function registerWithFirebase({
     createdAt: now,
     updatedAt: now
   };
-  try {
-    await persistFirebaseProfile(user.uid, profilePayload, { required: true });
-  } catch (err) {
-    try {
-      await user.delete();
-    } catch {
-      // ignore rollback errors
-    }
-    throw err;
-  }
+  await persistFirebaseProfile(user.uid, profilePayload, { required: false });
   return { user: { id: user.uid, email: normalizedEmail, role: profilePayload.role }, profile: profilePayload };
 }
 
