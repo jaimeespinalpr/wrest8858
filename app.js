@@ -953,11 +953,9 @@ function updateAuthHeading(titleKey, subtitleKey) {
 
 function hideRegisterModal() {
   registerModal?.classList.add("hidden");
-  onboarding?.classList.remove("register-open");
 }
 
 function showRegisterModal() {
-  onboarding?.classList.add("register-open");
   registerModal?.classList.remove("hidden");
   loginFormWrap?.classList.add("hidden");
   const firstField = registerModal?.querySelector("input, select, textarea");
@@ -981,7 +979,6 @@ function showOnboarding(prefillProfile = null) {
 function hideOnboarding() {
   hideRegisterModal();
   onboarding.classList.add("hidden");
-  onboarding.classList.remove("register-open");
   appRoot.classList.remove("blurred");
   appRoot.classList.remove("hidden");
 }
@@ -3507,14 +3504,28 @@ const MEDIA_ITEMS = [
   { title: "Single Leg Finish", type: "Video", tag: "Single Leg", assigned: "Today" },
   { title: "Half Nelson Series", type: "Video", tag: "Top Control", assigned: "This week" },
   { title: "Bottom Escape Drill", type: "Clip", tag: "Bottom", assigned: "Today" },
-  { title: "Hand Fight Notes", type: "Link", tag: "Neutral", assigned: "Optional" }
+  { title: "Hand Fight Notes", type: "Link", tag: "Neutral", assigned: "Optional" },
+  {
+    title: "Espinal | Trailer oficial | 19 de febrero | Solo en cines",
+    type: "Link",
+    tag: "Featured",
+    assigned: "Today",
+    assetPath: "https://www.youtube.com/watch?v=FHHOgZ3QTSY"
+  }
 ];
 
 const MEDIA_ITEMS_ES = [
   { title: "Final de pierna simple", type: "Video", tag: "Pierna simple", assigned: "Hoy" },
   { title: "Serie de medio nelson", type: "Video", tag: "Control arriba", assigned: "Esta semana" },
   { title: "Drill de escape abajo", type: "Clip", tag: "Abajo", assigned: "Hoy" },
-  { title: "Notas de pelea de manos", type: "Enlace", tag: "Neutral", assigned: "Opcional" }
+  { title: "Notas de pelea de manos", type: "Enlace", tag: "Neutral", assigned: "Opcional" },
+  {
+    title: "Espinal | Trailer oficial | 19 de febrero | Solo en cines",
+    type: "Enlace",
+    tag: "Destacado",
+    assigned: "Hoy",
+    assetPath: "https://www.youtube.com/watch?v=FHHOgZ3QTSY"
+  }
 ];
 
 const ANNOUNCEMENTS = [
@@ -7234,16 +7245,59 @@ function buildDefaultMediaTree() {
       type: "item",
       title: item.title,
       mediaType: item.type,
-      assetPath: "",
-      thumbnailPath: "",
-      duration: "",
+      assetPath: normalizeMediaAssetPath(item.assetPath || item.assetUrl || item.url || ""),
+      thumbnailPath: normalizeMediaAssetPath(item.thumbnailPath || item.thumbnailUrl || ""),
+      duration: String(item.duration || ""),
       assigned: item.assigned,
-      note: "",
+      note: String(item.note || ""),
       parentId: sectionId
     });
   });
 
   return { nodes };
+}
+
+function ensureYoutubeMediaNode(nodes) {
+  const working = Array.isArray(nodes) ? nodes.slice() : [];
+  const targetUrl = "https://www.youtube.com/watch?v=FHHOgZ3QTSY";
+  const normalizedTarget = normalizeMediaAssetPath(targetUrl);
+  const exists = working.some(
+    (node) =>
+      node.type === "item" &&
+      normalizeMediaAssetPath(node.assetPath || node.assetUrl || node.url || "") === normalizedTarget
+  );
+  if (exists) return working;
+
+  const normalizeText = (value) => String(value || "").trim().toLowerCase();
+  const sectionNames = new Set(["featured", "destacado"]);
+  let section = working.find(
+    (node) => node.type === "section" && node.parentId === null && sectionNames.has(normalizeText(node.name))
+  );
+
+  if (!section) {
+    section = {
+      id: makeMediaId("sec"),
+      type: "section",
+      name: currentLang === "es" ? "Destacado" : "Featured",
+      parentId: null
+    };
+    working.push(section);
+  }
+
+  working.push({
+    id: makeMediaId("item"),
+    type: "item",
+    title: "Espinal | Trailer oficial | 19 de febrero | Solo en cines",
+    mediaType: currentLang === "es" ? "Enlace" : "Link",
+    assetPath: targetUrl,
+    thumbnailPath: "",
+    duration: "",
+    assigned: currentLang === "es" ? "Hoy" : "Today",
+    note: "",
+    parentId: section.id
+  });
+
+  return working;
 }
 
 function normalizeMediaNode(node) {
@@ -7293,12 +7347,18 @@ function getStoredMediaTree() {
     }
     const parsed = JSON.parse(raw);
     const normalized = normalizeMediaTree(parsed);
-    if (!normalized.nodes.length) {
+    const mergedNodes = ensureYoutubeMediaNode(normalized.nodes);
+    if (!mergedNodes.length) {
       const seeded = buildDefaultMediaTree();
       localStorage.setItem(MEDIA_TREE_KEY, JSON.stringify(seeded));
       return seeded;
     }
-    return normalized;
+    if (mergedNodes.length !== normalized.nodes.length) {
+      const merged = { nodes: mergedNodes };
+      localStorage.setItem(MEDIA_TREE_KEY, JSON.stringify(merged));
+      return merged;
+    }
+    return { nodes: mergedNodes };
   } catch {
     const seeded = buildDefaultMediaTree();
     localStorage.setItem(MEDIA_TREE_KEY, JSON.stringify(seeded));
