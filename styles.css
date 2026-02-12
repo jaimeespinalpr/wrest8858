@@ -819,10 +819,12 @@ button:active{
   inset: 0;
   background: rgba(5,11,30,0.85);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  z-index: 40;
+  z-index: 80;
   padding: 20px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .register-modal.hidden{
@@ -841,6 +843,7 @@ button:active{
   flex-direction: column;
   gap: 16px;
   position: relative;
+  margin: 8px 0 18px;
 }
 
 .register-header{
@@ -2034,6 +2037,11 @@ textarea:focus{
 }
 
 .onboarding.hidden{ display:none; }
+
+.onboarding.register-open .onboarding-card{
+  visibility: hidden;
+  pointer-events: none;
+}
 
 .onboarding-card{
   width: min(780px, 100%);

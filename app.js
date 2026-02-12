@@ -953,9 +953,11 @@ function updateAuthHeading(titleKey, subtitleKey) {
 
 function hideRegisterModal() {
   registerModal?.classList.add("hidden");
+  onboarding?.classList.remove("register-open");
 }
 
 function showRegisterModal() {
+  onboarding?.classList.add("register-open");
   registerModal?.classList.remove("hidden");
   loginFormWrap?.classList.add("hidden");
   const firstField = registerModal?.querySelector("input, select, textarea");
@@ -977,7 +979,9 @@ function showOnboarding(prefillProfile = null) {
 }
 
 function hideOnboarding() {
+  hideRegisterModal();
   onboarding.classList.add("hidden");
+  onboarding.classList.remove("register-open");
   appRoot.classList.remove("blurred");
   appRoot.classList.remove("hidden");
 }
@@ -3098,12 +3102,23 @@ async function handleSuccessfulAuth(result) {
   if (!authUser) {
     throw new Error("invalid_credentials");
   }
-  setAuthUser(authUser);
-  const profile = normalizeProfileForAuth(result.profile || {}, authUser);
+  const resolvedRole = normalizeAuthRole(result?.profile?.role || authUser.role);
+  const resolvedAuthUser = { ...authUser, role: resolvedRole };
+  const targetView = getDefaultViewForRole(resolvedRole);
+  setAuthUser(resolvedAuthUser);
+  const profile = normalizeProfileForAuth(
+    { ...(result.profile || {}), role: resolvedRole, view: targetView },
+    resolvedAuthUser
+  );
   setProfile(profile);
-  await applyProfile(profile);
-  hideRegisterModal();
   hideOnboarding();
+  try {
+    await applyProfile(profile);
+  } catch (err) {
+    console.warn("Failed to apply profile after auth", err);
+    setView(targetView);
+    refreshLanguageUI();
+  }
 }
 
 if (pRole) {
