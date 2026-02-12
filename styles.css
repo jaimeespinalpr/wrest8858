@@ -2038,11 +2038,6 @@ textarea:focus{
 
 .onboarding.hidden{ display:none; }
 
-.onboarding.register-open .onboarding-card{
-  visibility: hidden;
-  pointer-events: none;
-}
-
 .onboarding-card{
   width: min(780px, 100%);
   border-radius: 22px;
