@@ -6,7 +6,6 @@
 // ---------- PROFILE / ONBOARDING ----------
 const PROFILE_KEY = "wpl_profile";
 const AUTH_USER_KEY = "wpl_auth_user";
-const REGISTERED_USERS_CACHE_KEY = "wpl_registered_users_cache";
 const DEFAULT_LANG = "en";
 const APP_TIMEZONE = "America/New_York";
 const SUPPORTED_LANGS = new Set(["en", "es", "uz", "ru"]);
@@ -895,30 +894,8 @@ function parseStoredJson(key) {
   }
 }
 
-function getRegisteredUsersCache() {
-  const parsed = parseStoredJson(REGISTERED_USERS_CACHE_KEY);
-  return Array.isArray(parsed) ? parsed.filter((item) => item && typeof item === "object") : [];
-}
-
-function setRegisteredUsersCache(users) {
-  const safe = Array.isArray(users) ? users.filter((item) => item && typeof item === "object") : [];
-  localStorage.setItem(REGISTERED_USERS_CACHE_KEY, JSON.stringify(safe));
-}
-
-function cacheRegisteredUser(user) {
-  if (!user || !user.uid) return;
-  const normalized = normalizeManagedUserRecord(user.uid, user);
-  if (!normalized.uid) return;
-  const current = getRegisteredUsersCache();
-  const merged = [];
-  const seen = new Set();
-  [normalized, ...current].forEach((item) => {
-    const uid = String(item.uid || "").trim();
-    if (!uid || seen.has(uid)) return;
-    seen.add(uid);
-    merged.push(normalizeManagedUserRecord(uid, item));
-  });
-  setRegisteredUsersCache(merged);
+function clearLegacyRegisteredUsersCache() {
+  localStorage.removeItem("wpl_registered_users_cache");
 }
 
 function getAuthUser() {
@@ -3194,25 +3171,24 @@ async function buildAuthResultFromFirebaseUser(user, { fallbackEmail = "" } = {}
     throw new Error("invalid_credentials");
   }
   const remoteProfile = await fetchFirebaseProfile(user.uid);
-  const localProfile = parseStoredJson(profileStorageKey(user.uid)) || parseStoredJson(PROFILE_KEY);
   const email = normalizeEmail(user.email || fallbackEmail || remoteProfile?.email || "");
   const defaults = TEST_USER_DEFAULTS[String(email).toLowerCase()] || null;
   const forcedRole = isForcedAdminEmail(email)
     ? "admin"
     : (defaults?.role ? normalizeAuthRole(defaults.role) : "");
-  const resolvedRole = forcedRole || normalizeAuthRole(remoteProfile?.role || localProfile?.role);
+  const resolvedRole = forcedRole || normalizeAuthRole(remoteProfile?.role);
   const resolvedView = forcedRole
     ? getDefaultViewForRole(resolvedRole)
-    : resolveViewForRole(resolvedRole, remoteProfile?.view || localProfile?.view);
+    : resolveViewForRole(resolvedRole, remoteProfile?.view);
   const now = new Date().toISOString();
   const profile = stripUndefinedDeep({
     ...remoteProfile,
     user_id: user.uid,
     email,
-    name: remoteProfile?.name || localProfile?.name || user.displayName || defaults?.name || "",
+    name: remoteProfile?.name || user.displayName || defaults?.name || "",
     role: resolvedRole,
     view: resolvedView,
-    lang: resolveLang(remoteProfile?.lang || localProfile?.lang || currentLang),
+    lang: resolveLang(remoteProfile?.lang || currentLang),
     createdAt: remoteProfile?.createdAt || now,
     updatedAt: now
   });
@@ -3298,8 +3274,7 @@ async function registerWithFirebase({
     createdAt: now,
     updatedAt: now
   };
-  cacheRegisteredUser({ uid: user.uid, ...profilePayload });
-  persistFirebaseProfile(user.uid, profilePayload, { required: false }).catch(() => {});
+  await persistFirebaseProfile(user.uid, profilePayload, { required: true });
   return { user: { id: user.uid, email: normalizedEmail, role: profilePayload.role }, profile: profilePayload };
 }
 
@@ -3316,7 +3291,11 @@ async function handleSuccessfulAuth(result) {
     { ...(result.profile || {}), role: resolvedRole, view: targetView },
     resolvedAuthUser
   );
-  cacheRegisteredUser({ uid: resolvedAuthUser.id, ...profile });
+  await persistFirebaseProfile(resolvedAuthUser.id, {
+    ...profile,
+    user_id: resolvedAuthUser.id,
+    updatedAt: new Date().toISOString()
+  }, { required: true });
   setProfile(profile);
   try {
     await hydrateMediaTreeFromSharedStore();
@@ -8387,10 +8366,6 @@ const ADMIN_USERS_COPY = {
     en: "Could not load users. Check Firestore rules/config.",
     es: "No se pudieron cargar usuarios. Revisa reglas/configuracion de Firestore."
   },
-  loadLocalFallback: {
-    en: "Firestore unavailable. Showing locally known accounts.",
-    es: "Firestore no disponible. Mostrando cuentas conocidas localmente."
-  },
   saveError: { en: "Could not save this user.", es: "No se pudo guardar este usuario." },
   name: { en: "Name", es: "Nombre" },
   email: { en: "Email", es: "Correo" },
@@ -8577,15 +8552,6 @@ function renderAdminUsersList() {
               ? { ...item, name: nextName, email: nextEmail, role: nextRole, lang: nextLang, view: nextView, updatedAt: now }
               : item
           ));
-          cacheRegisteredUser({
-            uid: user.uid,
-            name: nextName,
-            email: nextEmail,
-            role: nextRole,
-            lang: nextLang,
-            view: nextView,
-            updatedAt: now
-          });
 
           const authUser = getAuthUser();
           if (authUser?.id === user.uid) {
@@ -8640,16 +8606,8 @@ async function refreshAdminUsers({ force = false } = {}) {
     setAdminUsersStatus(`${adminUsersCache.length} ${pickCopy(ADMIN_USERS_COPY.title).toLowerCase()}`, { type: "ok" });
   } catch (err) {
     console.warn("Failed to load registered users", err);
-    const localFallback = getRegisteredUsersCache().map((item) => normalizeManagedUserRecord(item.uid, item));
-    if (localFallback.length) {
-      adminUsersCache = localFallback;
-      adminUsersLoadedOnce = true;
-      renderAdminUsersList();
-      setAdminUsersStatus(pickCopy(ADMIN_USERS_COPY.loadLocalFallback), { type: "error" });
-    } else {
-      setAdminUsersStatus(pickCopy(ADMIN_USERS_COPY.loadError), { type: "error" });
-      if (adminUsersList) adminUsersList.innerHTML = "";
-    }
+    setAdminUsersStatus(pickCopy(ADMIN_USERS_COPY.loadError), { type: "error" });
+    if (adminUsersList) adminUsersList.innerHTML = "";
   } finally {
     adminUsersLoading = false;
   }
@@ -9409,6 +9367,7 @@ if (saveJournalBtn) {
 }
 
 async function startApp() {
+  clearLegacyRegisteredUsersCache();
   renderJournalEntries();
   await bootProfile();
   startClock();
