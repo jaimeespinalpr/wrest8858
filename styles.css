@@ -915,14 +915,16 @@ button:active{
 
 .month-cell{
   position: relative;
-  min-height: 68px;
-  border-radius: 14px;
-  border: 1px solid var(--stroke);
-  background: rgba(255,255,255,0.05);
-  padding: 8px;
-  text-align: left;
-  display: grid;
-  align-content: space-between;
+  min-height: 0;
+  aspect-ratio: 1 / 1;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: linear-gradient(145deg, rgba(12,26,52,0.82), rgba(16,34,68,0.72));
+  padding: 0;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
 }
 
@@ -933,17 +935,25 @@ button:active{
 }
 
 .month-cell.today{
-  border-color: rgba(27,138,90,0.46);
+  border-color: rgba(27,138,90,0.72);
 }
 
 .month-cell.selected{
-  border-color: rgba(18,52,98,0.42);
-  background: linear-gradient(120deg, rgba(18,52,98,0.2), rgba(200,16,46,0.16));
+  border-color: rgba(200,16,46,0.72);
+  background: linear-gradient(145deg, rgba(18,52,98,0.46), rgba(200,16,46,0.38));
 }
 
 .month-day-number{
-  font-weight: 600;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
   font-size: 14px;
+  border: 1px solid rgba(255,255,255,0.28);
+  background: rgba(255,255,255,0.08);
 }
 
 .month-count{
@@ -1425,16 +1435,17 @@ textarea:focus{
 }
 
 .calendar-day{
-  border-radius: 10px;
-  padding: 10px 0;
+  border-radius: 999px;
+  padding: 0;
   text-align: center;
   cursor: pointer;
-  border: 1px solid transparent;
+  border: 1px solid rgba(255,255,255,0.18);
   transition: border 0.2s ease, background 0.2s ease;
-  background: rgba(255,255,255,0.04);
+  background: linear-gradient(145deg, rgba(11,25,50,0.84), rgba(15,32,66,0.74));
   color: var(--text);
-  font-weight: 600;
-  min-height: 42px;
+  font-weight: 700;
+  min-height: 0;
+  aspect-ratio: 1 / 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1447,22 +1458,22 @@ textarea:focus{
   cursor: default;
 }
 .calendar-day:not(.empty):hover{
-  border-color: rgba(18,52,98,0.7);
-  background: rgba(18,52,98,0.15);
+  border-color: rgba(200,16,46,0.58);
+  background: linear-gradient(145deg, rgba(18,52,98,0.38), rgba(200,16,46,0.24));
 }
 
 .calendar-day.today{
-  border-color: rgba(18,52,98,0.6);
+  border-color: rgba(27,138,90,0.7);
 }
 
 .calendar-day.range-start,
 .calendar-day.range-end{
-  background: rgba(18,52,98,0.25);
-  border-color: rgba(18,52,98,0.35);
+  background: linear-gradient(145deg, rgba(18,52,98,0.5), rgba(200,16,46,0.34));
+  border-color: rgba(200,16,46,0.72);
 }
 
 .calendar-day.range-between{
-  background: rgba(18,52,98,0.15);
+  background: rgba(18,52,98,0.2);
 }
 
 .plan-range-inputs{
