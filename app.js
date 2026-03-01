@@ -43,7 +43,7 @@ let firebaseAuthInstance = null;
 let firebaseFirestoreInstance = null;
 let firebaseStorageInstance = null;
 let profileSyncTimeout = null;
-const FIREBASE_OP_TIMEOUT_MS = 4000;
+const FIREBASE_OP_TIMEOUT_MS = 12000;
 const MEDIA_BASE_URL = String(window.WPL_MEDIA_BASE_URL || "").trim().replace(/\/+$/, "");
 const TEST_USER_DEFAULTS = {
   "coach.test@wpl.app": { role: "coach", name: "Coach Demo" },
@@ -439,10 +439,12 @@ function resolveViewForRole(role, requestedView) {
   return VIEW_OPTIONS.includes(requestedView) ? requestedView : roleDefault;
 }
 
-function canManageAllAccounts(role = getProfile()?.role || getAuthUser()?.role) {
-  if (!isAdminRole(role)) return false;
+function canManageAllAccounts() {
   const authUser = getAuthUser();
-  return hasTrustedAdminSession({ email: authUser?.email, userId: authUser?.id });
+  const session = getFirebaseSessionSnapshot();
+  const email = authUser?.email || session?.email || "";
+  const userId = authUser?.id || session?.id || "";
+  return hasTrustedAdminSession({ email, userId });
 }
 
 function resolveCoachDashboardTab(role = getProfile()?.role) {
@@ -8358,6 +8360,10 @@ const ADMIN_USERS_COPY = {
   reload: { en: "Refresh list", es: "Actualizar lista" },
   loading: { en: "Loading registered users...", es: "Cargando usuarios registrados..." },
   hint: { en: "Only admins can edit user accounts.", es: "Solo admins pueden editar cuentas de usuarios." },
+  sessionExpired: {
+    en: "Admin session expired. Please log out and log in again.",
+    es: "La sesion de admin expiro. Cierra sesion e inicia nuevamente."
+  },
   empty: { en: "No registered users found.", es: "No se encontraron usuarios registrados." },
   save: { en: "Save", es: "Guardar" },
   saving: { en: "Saving...", es: "Guardando..." },
@@ -8524,7 +8530,10 @@ function renderAdminUsersList() {
     const saveBtn = row.querySelector('button[data-field="save"]');
     if (saveBtn) {
       saveBtn.addEventListener("click", async () => {
-        if (!canManageAllAccounts()) return;
+        if (!canManageAllAccounts()) {
+          setAdminUsersStatus(pickCopy(ADMIN_USERS_COPY.sessionExpired), { type: "error" });
+          return;
+        }
         const nameInput = row.querySelector('input[data-field="name"]');
         const emailInput = row.querySelector('input[data-field="email"]');
         const langSelectEl = row.querySelector('select[data-field="lang"]');
@@ -8567,11 +8576,14 @@ function renderAdminUsersList() {
           }
 
           setAdminUsersStatus(pickCopy(ADMIN_USERS_COPY.saved), { type: "ok" });
-          renderAdminUsersList();
+          await refreshAdminUsers({ force: true });
           renderPermissions();
         } catch (err) {
           console.warn("Failed to save managed user profile", err);
-          setAdminUsersStatus(pickCopy(ADMIN_USERS_COPY.saveError), { type: "error" });
+          const code = err?.code || err?.message || "";
+          const detail = authErrorMessage(code, "");
+          const base = pickCopy(ADMIN_USERS_COPY.saveError);
+          setAdminUsersStatus(detail ? `${base} ${detail}` : base, { type: "error" });
         } finally {
           saveBtn.disabled = false;
           saveBtn.textContent = pickCopy(ADMIN_USERS_COPY.save);
