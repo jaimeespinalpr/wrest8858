@@ -358,6 +358,26 @@ function isForcedAdminEmail(email) {
   return FORCED_ADMIN_EMAILS.has(normalizeEmail(email));
 }
 
+function getFirebaseSessionSnapshot() {
+  const user = firebaseAuthInstance?.currentUser;
+  if (!user?.uid) return null;
+  return {
+    id: String(user.uid || "").trim(),
+    email: normalizeEmail(user.email || "")
+  };
+}
+
+function hasTrustedAdminSession({ email = "", userId = "" } = {}) {
+  const targetEmail = normalizeEmail(email);
+  if (!isForcedAdminEmail(targetEmail)) return false;
+  const session = getFirebaseSessionSnapshot();
+  if (!session) return false;
+  if (targetEmail && session.email !== targetEmail) return false;
+  const targetId = String(userId || "").trim();
+  if (targetId && session.id !== targetId) return false;
+  return true;
+}
+
 function isCoachRole(role) {
   const normalized = normalizeAuthRole(role);
   return normalized === "coach" || normalized === "admin";
@@ -421,7 +441,9 @@ function resolveViewForRole(role, requestedView) {
 }
 
 function canManageAllAccounts(role = getProfile()?.role || getAuthUser()?.role) {
-  return isAdminRole(role);
+  if (!isAdminRole(role)) return false;
+  const authUser = getAuthUser();
+  return hasTrustedAdminSession({ email: authUser?.email, userId: authUser?.id });
 }
 
 function resolveCoachDashboardTab(role = getProfile()?.role) {
@@ -905,7 +927,10 @@ function getAuthUser() {
   const id = auth.id ? String(auth.id).trim() : "";
   if (!id) return null;
   const email = normalizeEmail(auth.email || "");
-  const role = isForcedAdminEmail(email) ? "admin" : normalizeAuthRole(auth.role);
+  const requestedRole = normalizeAuthRole(auth.role);
+  const role = (requestedRole === "admin" || isForcedAdminEmail(email))
+    ? (hasTrustedAdminSession({ email, userId: id }) ? "admin" : "athlete")
+    : requestedRole;
   return {
     id,
     email,
@@ -918,10 +943,16 @@ function setAuthUser(authUser) {
     localStorage.removeItem(AUTH_USER_KEY);
     return;
   }
+  const id = String(authUser.id || "");
+  const email = normalizeEmail(authUser.email || "");
+  const requestedRole = normalizeAuthRole(authUser.role);
+  const role = (requestedRole === "admin" || isForcedAdminEmail(email))
+    ? (hasTrustedAdminSession({ email, userId: id }) ? "admin" : "athlete")
+    : requestedRole;
   const payload = {
-    id: String(authUser.id || ""),
-    email: normalizeEmail(authUser.email || ""),
-    role: isForcedAdminEmail(authUser.email) ? "admin" : normalizeAuthRole(authUser.role)
+    id,
+    email,
+    role
   };
   localStorage.setItem(AUTH_USER_KEY, JSON.stringify(payload));
 }
@@ -936,10 +967,13 @@ function profileStorageKey(userId) {
 function normalizeProfileForAuth(profile, authUser) {
   const base = profile && typeof profile === "object" ? { ...profile } : {};
   if (authUser?.id) base.user_id = authUser.id;
-  if (authUser?.email) base.email = normalizeEmail(authUser.email);
-  const role = isForcedAdminEmail(base.email || authUser?.email)
-    ? "admin"
-    : normalizeAuthRole(authUser?.role || base.role);
+  const email = normalizeEmail(base.email || authUser?.email || "");
+  if (email) base.email = email;
+  const requestedRole = normalizeAuthRole(authUser?.role || base.role);
+  const allowAdmin = hasTrustedAdminSession({ email, userId: authUser?.id || base.user_id });
+  const role = (requestedRole === "admin" || isForcedAdminEmail(email))
+    ? (allowAdmin ? "admin" : "athlete")
+    : requestedRole;
   base.role = role;
   base.view = resolveViewForRole(role, base.view);
   if (!base.lang) {
@@ -3023,10 +3057,14 @@ function buildAuthUser(userPayload) {
   const id = String(userPayload.id);
   if (!id) return null;
   const email = normalizeEmail(userPayload.email || "");
+  const requestedRole = normalizeAuthRole(userPayload.role);
+  const role = (requestedRole === "admin" || isForcedAdminEmail(email))
+    ? (hasTrustedAdminSession({ email, userId: id }) ? "admin" : "athlete")
+    : requestedRole;
   return {
     id,
     email,
-    role: isForcedAdminEmail(email) ? "admin" : normalizeAuthRole(userPayload.role)
+    role
   };
 }
 
