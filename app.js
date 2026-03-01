@@ -51,6 +51,7 @@ const TEST_USER_DEFAULTS = {
   "athlete.test@wpl.app": { role: "athlete", name: "Athlete Demo" },
   "gmunch@united-wc.com": { role: "admin", name: "System Admin" }
 };
+const FORCED_ADMIN_EMAILS = new Set(["gmunch@united-wc.com"]);
 
 function initFirebaseClient() {
   if (typeof firebase === "undefined" || !window.FIREBASE_CONFIG) return null;
@@ -347,6 +348,14 @@ const VIEW_ROLE_MAP = {
 
 function isAdminRole(role) {
   return normalizeAuthRole(role) === "admin";
+}
+
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isForcedAdminEmail(email) {
+  return FORCED_ADMIN_EMAILS.has(normalizeEmail(email));
 }
 
 function isCoachRole(role) {
@@ -895,10 +904,12 @@ function getAuthUser() {
   if (!auth || typeof auth !== "object") return null;
   const id = auth.id ? String(auth.id).trim() : "";
   if (!id) return null;
+  const email = normalizeEmail(auth.email || "");
+  const role = isForcedAdminEmail(email) ? "admin" : normalizeAuthRole(auth.role);
   return {
     id,
-    email: String(auth.email || ""),
-    role: normalizeAuthRole(auth.role)
+    email,
+    role
   };
 }
 
@@ -909,8 +920,8 @@ function setAuthUser(authUser) {
   }
   const payload = {
     id: String(authUser.id || ""),
-    email: String(authUser.email || ""),
-    role: normalizeAuthRole(authUser.role)
+    email: normalizeEmail(authUser.email || ""),
+    role: isForcedAdminEmail(authUser.email) ? "admin" : normalizeAuthRole(authUser.role)
   };
   localStorage.setItem(AUTH_USER_KEY, JSON.stringify(payload));
 }
@@ -925,8 +936,10 @@ function profileStorageKey(userId) {
 function normalizeProfileForAuth(profile, authUser) {
   const base = profile && typeof profile === "object" ? { ...profile } : {};
   if (authUser?.id) base.user_id = authUser.id;
-  if (authUser?.email) base.email = authUser.email;
-  const role = normalizeAuthRole(authUser?.role || base.role);
+  if (authUser?.email) base.email = normalizeEmail(authUser.email);
+  const role = isForcedAdminEmail(base.email || authUser?.email)
+    ? "admin"
+    : normalizeAuthRole(authUser?.role || base.role);
   base.role = role;
   base.view = resolveViewForRole(role, base.view);
   if (!base.lang) {
@@ -3009,10 +3022,11 @@ function buildAuthUser(userPayload) {
   if (!userPayload || !userPayload.id) return null;
   const id = String(userPayload.id);
   if (!id) return null;
+  const email = normalizeEmail(userPayload.email || "");
   return {
     id,
-    email: String(userPayload.email || ""),
-    role: normalizeAuthRole(userPayload.role)
+    email,
+    role: isForcedAdminEmail(email) ? "admin" : normalizeAuthRole(userPayload.role)
   };
 }
 
@@ -3143,9 +3157,11 @@ async function buildAuthResultFromFirebaseUser(user, { fallbackEmail = "" } = {}
   }
   const remoteProfile = await fetchFirebaseProfile(user.uid);
   const localProfile = parseStoredJson(profileStorageKey(user.uid)) || parseStoredJson(PROFILE_KEY);
-  const email = user.email || fallbackEmail || remoteProfile?.email || "";
+  const email = normalizeEmail(user.email || fallbackEmail || remoteProfile?.email || "");
   const defaults = TEST_USER_DEFAULTS[String(email).toLowerCase()] || null;
-  const forcedRole = defaults?.role ? normalizeAuthRole(defaults.role) : "";
+  const forcedRole = isForcedAdminEmail(email)
+    ? "admin"
+    : (defaults?.role ? normalizeAuthRole(defaults.role) : "");
   const resolvedRole = forcedRole || normalizeAuthRole(remoteProfile?.role || localProfile?.role);
   const resolvedView = forcedRole
     ? getDefaultViewForRole(resolvedRole)
@@ -3225,12 +3241,13 @@ async function registerWithFirebase({
     }
   }
   const now = new Date().toISOString();
+  const resolvedRole = isForcedAdminEmail(normalizedEmail) ? "admin" : normalizedRole;
   const profilePayload = {
     user_id: user.uid,
     email: normalizedEmail,
     name,
-    role: normalizedRole,
-    view: getDefaultViewForRole(normalizedRole),
+    role: resolvedRole,
+    view: getDefaultViewForRole(resolvedRole),
     lang: resolveLang(lang || currentLang),
     preferredMoves,
     preferred_moves: preferredMoves,
