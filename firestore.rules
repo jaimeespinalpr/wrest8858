@@ -1,0 +1,35 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdminEmail() {
+      return signedIn()
+        && request.auth.token.email != null
+        && request.auth.token.email == "gmunch@united-wc.com";
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // User profiles: self-manage + global admin access for account administration.
+    match /users/{uid} {
+      allow read: if isSelf(uid) || isAdminEmail();
+      allow create, update: if isSelf(uid) || isAdminEmail();
+      allow delete: if isAdminEmail();
+    }
+
+    // Shared media tree is collaborative between authenticated users.
+    match /shared_app/{docId} {
+      allow read, write: if signedIn();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
