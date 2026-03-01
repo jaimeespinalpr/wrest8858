@@ -51,6 +51,7 @@ const TEST_USER_DEFAULTS = {
   "gmunch@united-wc.com": { role: "admin", name: "System Admin" }
 };
 const FORCED_ADMIN_EMAILS = new Set(["gmunch@united-wc.com"]);
+const SIGNUP_ALLOWED_ROLES = new Set(["athlete", "coach", "parent"]);
 
 function initFirebaseClient() {
   if (typeof firebase === "undefined" || !window.FIREBASE_CONFIG) return null;
@@ -2723,6 +2724,7 @@ function authErrorMessage(code, fallback = "") {
         invalid_credentials: "Correo o contrasena incorrectos.",
         role_mismatch: "Ese usuario no tiene ese rol.",
         email_exists: "Ese correo ya esta registrado.",
+        admin_signup_forbidden: "No se puede crear cuenta de administrador desde el sitio web.",
         password_too_short: "La contrasena debe tener al menos 8 caracteres.",
         missing_fields: "Faltan campos obligatorios.",
         invalid_email: "Correo invalido.",
@@ -2743,6 +2745,7 @@ function authErrorMessage(code, fallback = "") {
         invalid_credentials: "Incorrect email or password.",
         role_mismatch: "That account does not match the selected role.",
         email_exists: "That email is already registered.",
+        admin_signup_forbidden: "Administrator accounts cannot be created from the website.",
         password_too_short: "Password must be at least 8 characters.",
         missing_fields: "Required fields are missing.",
         invalid_email: "Invalid email.",
@@ -3055,6 +3058,11 @@ function normalizeAuthRole(role) {
   return "athlete";
 }
 
+function normalizeSignupRole(role) {
+  const normalized = normalizeAuthRole(role);
+  return SIGNUP_ALLOWED_ROLES.has(normalized) ? normalized : "athlete";
+}
+
 function stripUndefinedDeep(value) {
   if (value === undefined) return undefined;
   if (Array.isArray(value)) {
@@ -3246,7 +3254,18 @@ async function registerWithFirebase({
     throw new Error("firebase_not_configured");
   }
   const normalizedEmail = String(email || "").trim().toLowerCase();
+  if (isForcedAdminEmail(normalizedEmail)) {
+    const err = new Error("admin_signup_forbidden");
+    err.code = "admin_signup_forbidden";
+    throw err;
+  }
   const normalizedRole = normalizeAuthRole(role);
+  if (normalizedRole === "admin") {
+    const err = new Error("admin_signup_forbidden");
+    err.code = "admin_signup_forbidden";
+    throw err;
+  }
+  const signupRole = normalizeSignupRole(role);
   const credential = await firebaseAuthInstance.createUserWithEmailAndPassword(normalizedEmail, password);
   const { user } = credential;
   if (name && user.updateProfile) {
@@ -3257,7 +3276,7 @@ async function registerWithFirebase({
     }
   }
   const now = new Date().toISOString();
-  const resolvedRole = isForcedAdminEmail(normalizedEmail) ? "admin" : normalizedRole;
+  const resolvedRole = signupRole;
   const profilePayload = {
     user_id: user.uid,
     email: normalizedEmail,
@@ -8351,7 +8370,7 @@ function renderJournalMonitor() {
 // ---------- PERMISSIONS ----------
 const permissionsCan = document.getElementById("permissionsCan");
 const permissionsCannot = document.getElementById("permissionsCannot");
-const ADMIN_EDITABLE_ROLES = ["athlete", "coach", "parent", "admin"];
+const ADMIN_EDITABLE_ROLES = ["athlete", "coach", "parent"];
 const ADMIN_EDITABLE_VIEWS = ["athlete", "coach", "admin", "parent"];
 let adminUsersCache = [];
 let adminUsersLoading = false;
@@ -8378,6 +8397,10 @@ const ADMIN_USERS_COPY = {
     es: "No se pudieron cargar usuarios. Revisa reglas/configuracion de Firestore."
   },
   saveError: { en: "Could not save this user.", es: "No se pudo guardar este usuario." },
+  adminRoleCodeOnly: {
+    en: "Admin role can only be created by code/backoffice.",
+    es: "El rol admin solo puede crearse por codigo/backoffice."
+  },
   resetError: { en: "Could not send reset link.", es: "No se pudo enviar el enlace de reset." },
   name: { en: "Name", es: "Nombre" },
   email: { en: "Email", es: "Correo" },
@@ -8432,6 +8455,14 @@ function makeOptionsHtml(values, selected, getLabel) {
       return `<option value="${escapeHtml(value)}"${isSelected}>${label}</option>`;
     })
     .join("");
+}
+
+function getAdminEditableRolesForUser(user) {
+  const currentRole = normalizeAuthRole(user?.role);
+  if (currentRole === "admin") {
+    return [...ADMIN_EDITABLE_ROLES, "admin"];
+  }
+  return ADMIN_EDITABLE_ROLES;
 }
 
 async function fetchRegisteredFirebaseUsers() {
@@ -8490,7 +8521,7 @@ function renderAdminUsersList() {
     row.className = "admin-user-row";
     row.dataset.uid = user.uid;
 
-    const roleOptions = makeOptionsHtml(ADMIN_EDITABLE_ROLES, user.role, (value) => getRoleLabel(value, currentLang));
+    const roleOptions = makeOptionsHtml(getAdminEditableRolesForUser(user), user.role, (value) => getRoleLabel(value, currentLang));
     const langOptions = makeOptionsHtml(Array.from(SUPPORTED_LANGS), user.lang, (value) => getLangLabel(value));
     const viewOptions = makeOptionsHtml(ADMIN_EDITABLE_VIEWS, user.view, (value) => getViewLabel(value));
     const updated = formatAdminTimestamp(user.updatedAt || user.createdAt);
@@ -8545,7 +8576,12 @@ function renderAdminUsersList() {
         const nameInput = row.querySelector('input[data-field="name"]');
         const emailInput = row.querySelector('input[data-field="email"]');
         const langSelectEl = row.querySelector('select[data-field="lang"]');
+        const currentManagedRole = normalizeAuthRole(user.role);
         const nextRole = normalizeAuthRole(roleSelect?.value || user.role);
+        if (nextRole === "admin" && currentManagedRole !== "admin") {
+          setAdminUsersStatus(pickCopy(ADMIN_USERS_COPY.adminRoleCodeOnly), { type: "error" });
+          return;
+        }
         const nextView = resolveViewForRole(nextRole, viewSelect?.value || user.view);
         const nextName = String(nameInput?.value || "").trim();
         const nextEmail = String(emailInput?.value || user.email).trim().toLowerCase();

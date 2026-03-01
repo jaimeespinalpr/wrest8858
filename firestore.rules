@@ -16,10 +16,22 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    function isSelfAllowedRole(role) {
+      return role == "athlete" || role == "coach" || role == "parent";
+    }
+
+    function isAdminAllowedRole(role) {
+      return isSelfAllowedRole(role) || role == "admin";
+    }
+
     // User profiles: self-manage + global admin access for account administration.
     match /users/{uid} {
       allow read: if isSelf(uid) || isAdminEmail();
-      allow create, update: if isSelf(uid) || isAdminEmail();
+      allow create, update: if (
+        isAdminEmail() && isAdminAllowedRole(request.resource.data.role)
+      ) || (
+        isSelf(uid) && isSelfAllowedRole(request.resource.data.role)
+      );
       allow delete: if isAdminEmail();
     }
 
