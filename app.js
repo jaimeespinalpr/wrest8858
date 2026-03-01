@@ -4300,7 +4300,6 @@ const PERMISSIONS_ADMIN = {
     "Access athlete, coach, parent and admin views",
     "Edit account profile data (name, role, language, default view)",
     "Review all registered user profiles",
-    "Send password reset links for user accounts",
     "Maintain team-wide settings and content"
   ],
   cannot: [
@@ -4315,7 +4314,6 @@ const PERMISSIONS_ADMIN_ES = {
     "Acceder a vistas atleta, coach, padre/madre y admin",
     "Editar datos del perfil de cuentas (nombre, rol, idioma, vista)",
     "Revisar todos los perfiles registrados",
-    "Enviar enlaces de restablecer contrasena para cuentas",
     "Mantener configuraciones y contenido del equipo"
   ],
   cannot: [
@@ -8396,15 +8394,11 @@ const ADMIN_USERS_COPY = {
   save: { en: "Save", es: "Save" },
   saving: { en: "Saving...", es: "Saving..." },
   saved: { en: "User updated.", es: "User updated." },
-  resetPassword: { en: "Send reset link", es: "Enviar reset" },
-  resettingPassword: { en: "Sending...", es: "Enviando..." },
-  resetSent: { en: "Password reset link sent to", es: "Enlace de reset enviado a" },
   loadError: {
     en: "Could not load users. Check Firestore rules/config.",
     es: "No se pudieron cargar usuarios. Revisa reglas/configuracion de Firestore."
   },
   saveError: { en: "Could not save this user.", es: "No se pudo guardar este usuario." },
-  resetError: { en: "Could not send reset link.", es: "No se pudo enviar el enlace de reset." },
   name: { en: "Name", es: "Nombre" },
   email: { en: "Email", es: "Correo" },
   role: { en: "Role", es: "Role" },
@@ -8524,7 +8518,6 @@ function renderAdminUsersList() {
     language: pickCopy(ADMIN_USERS_COPY.language),
     view: pickCopy(ADMIN_USERS_COPY.view),
     save: pickCopy(ADMIN_USERS_COPY.save),
-    resetPassword: pickCopy(ADMIN_USERS_COPY.resetPassword),
     updated: pickCopy(ADMIN_USERS_COPY.updated),
     uid: pickCopy(ADMIN_USERS_COPY.uid)
   };
@@ -8564,7 +8557,6 @@ function renderAdminUsersList() {
       </div>
       <div class="admin-user-actions">
         <button type="button" class="primary" data-field="save">${escapeHtml(labels.save)}</button>
-        <button type="button" class="ghost" data-field="reset-password">${escapeHtml(labels.resetPassword)}</button>
       </div>
     `;
 
@@ -8641,46 +8633,6 @@ function renderAdminUsersList() {
         } finally {
           saveBtn.disabled = false;
           saveBtn.textContent = pickCopy(ADMIN_USERS_COPY.save);
-        }
-      });
-    }
-
-    const resetBtn = row.querySelector('button[data-field="reset-password"]');
-    if (resetBtn) {
-      resetBtn.addEventListener("click", async () => {
-        if (!canManageAllAccounts()) {
-          setAdminUsersStatus(pickCopy(ADMIN_USERS_COPY.sessionExpired), { type: "error" });
-          return;
-        }
-        const emailInput = row.querySelector('input[data-field="email"]');
-        const targetEmail = normalizeEmail(emailInput?.value || user.email || "");
-        if (!targetEmail) {
-          setAdminUsersStatus(pickCopy(ADMIN_USERS_COPY.resetError), { type: "error" });
-          return;
-        }
-
-        resetBtn.disabled = true;
-        resetBtn.textContent = pickCopy(ADMIN_USERS_COPY.resettingPassword);
-        try {
-          if (!firebaseAuthInstance?.sendPasswordResetEmail) {
-            const err = new Error("firebase_not_configured");
-            err.code = "firebase_not_configured";
-            throw err;
-          }
-          await withTimeout(
-            firebaseAuthInstance.sendPasswordResetEmail(targetEmail),
-            FIREBASE_OP_TIMEOUT_MS,
-            "auth_reset_timeout"
-          );
-          setAdminUsersStatus(`${pickCopy(ADMIN_USERS_COPY.resetSent)} ${targetEmail}`, { type: "ok" });
-        } catch (err) {
-          const code = err?.code || err?.message || "";
-          const detail = authErrorMessage(code, "");
-          const base = pickCopy(ADMIN_USERS_COPY.resetError);
-          setAdminUsersStatus(detail ? `${base} ${detail}` : base, { type: "error" });
-        } finally {
-          resetBtn.disabled = false;
-          resetBtn.textContent = pickCopy(ADMIN_USERS_COPY.resetPassword);
         }
       });
     }
