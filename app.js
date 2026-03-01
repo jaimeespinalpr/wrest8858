@@ -346,6 +346,13 @@ const VIEW_ROLE_MAP = {
   parent: "parent"
 };
 
+const ROLE_ALLOWED_VIEWS = {
+  athlete: ["athlete"],
+  coach: ["coach"],
+  admin: ["admin", "coach", "athlete", "parent"],
+  parent: ["parent"]
+};
+
 function isAdminRole(role) {
   return normalizeAuthRole(role) === "admin";
 }
@@ -436,8 +443,9 @@ function getActiveRoleForView() {
 function resolveViewForRole(role, requestedView) {
   const normalizedRole = normalizeAuthRole(role);
   const roleDefault = getDefaultViewForRole(normalizedRole);
-  if (AUTH_STRICT && normalizedRole !== "admin") return roleDefault;
-  return VIEW_OPTIONS.includes(requestedView) ? requestedView : roleDefault;
+  const allowedViews = ROLE_ALLOWED_VIEWS[normalizedRole] || ROLE_ALLOWED_VIEWS.athlete;
+  const candidate = VIEW_OPTIONS.includes(requestedView) ? requestedView : roleDefault;
+  return allowedViews.includes(candidate) ? candidate : roleDefault;
 }
 
 function canManageAllAccounts() {
@@ -3306,7 +3314,7 @@ async function handleSuccessfulAuth(result) {
   }
   const resolvedRole = normalizeAuthRole(result?.profile?.role || authUser.role);
   const resolvedAuthUser = { ...authUser, role: resolvedRole };
-  const targetView = getDefaultViewForRole(resolvedRole);
+  const targetView = resolveViewForRole(resolvedRole, result?.profile?.view);
   setAuthUser(resolvedAuthUser);
   const profile = normalizeProfileForAuth(
     { ...(result.profile || {}), role: resolvedRole, view: targetView },
@@ -8371,7 +8379,6 @@ function renderJournalMonitor() {
 const permissionsCan = document.getElementById("permissionsCan");
 const permissionsCannot = document.getElementById("permissionsCannot");
 const ADMIN_EDITABLE_ROLES = ["athlete", "coach", "parent"];
-const ADMIN_EDITABLE_VIEWS = ["athlete", "coach", "admin", "parent"];
 let adminUsersCache = [];
 let adminUsersLoading = false;
 let adminUsersLoadedOnce = false;
@@ -8465,6 +8472,11 @@ function getAdminEditableRolesForUser(user) {
   return ADMIN_EDITABLE_ROLES;
 }
 
+function getAdminEditableViewsForRole(role) {
+  const normalizedRole = normalizeAuthRole(role);
+  return ROLE_ALLOWED_VIEWS[normalizedRole] || ROLE_ALLOWED_VIEWS.athlete;
+}
+
 async function fetchRegisteredFirebaseUsers() {
   if (!firebaseFirestoreInstance) {
     const err = new Error("firestore_not_configured");
@@ -8523,7 +8535,7 @@ function renderAdminUsersList() {
 
     const roleOptions = makeOptionsHtml(getAdminEditableRolesForUser(user), user.role, (value) => getRoleLabel(value, currentLang));
     const langOptions = makeOptionsHtml(Array.from(SUPPORTED_LANGS), user.lang, (value) => getLangLabel(value));
-    const viewOptions = makeOptionsHtml(ADMIN_EDITABLE_VIEWS, user.view, (value) => getViewLabel(value));
+    const viewOptions = makeOptionsHtml(getAdminEditableViewsForRole(user.role), user.view, (value) => getViewLabel(value));
     const updated = formatAdminTimestamp(user.updatedAt || user.createdAt);
 
     row.innerHTML = `
@@ -8560,9 +8572,11 @@ function renderAdminUsersList() {
     if (roleSelect && viewSelect) {
       roleSelect.addEventListener("change", () => {
         const nextRole = normalizeAuthRole(roleSelect.value);
-        if (nextRole !== "admin") {
-          viewSelect.value = getDefaultViewForRole(nextRole);
-        }
+        const allowedViews = getAdminEditableViewsForRole(nextRole);
+        const fallbackView = getDefaultViewForRole(nextRole);
+        const nextViewValue = allowedViews.includes(viewSelect.value) ? viewSelect.value : fallbackView;
+        viewSelect.innerHTML = makeOptionsHtml(allowedViews, nextViewValue, (value) => getViewLabel(value));
+        viewSelect.value = nextViewValue;
       });
     }
 
