@@ -6,7 +6,9 @@
 // ---------- PROFILE / ONBOARDING ----------
 const PROFILE_KEY = "wpl_profile";
 const AUTH_USER_KEY = "wpl_auth_user";
+const REGISTERED_USERS_CACHE_KEY = "wpl_registered_users_cache";
 const DEFAULT_LANG = "en";
+const APP_TIMEZONE = "America/New_York";
 const SUPPORTED_LANGS = new Set(["en", "es", "uz", "ru"]);
 const CALENDAR_COPY = {
   title: {
@@ -35,11 +37,20 @@ let suppressStorageSync = false;
 let storageSyncAttached = false;
 
 const FIREBASE_USERS_COLLECTION = window.FIREBASE_USERS_COLLECTION || "users";
+const FIREBASE_SHARED_COLLECTION = window.FIREBASE_SHARED_COLLECTION || "shared_app";
+const FIREBASE_MEDIA_TREE_DOC = window.FIREBASE_MEDIA_TREE_DOC || "media_tree";
+const WPL_MEDIA_UPLOADS_ROOT = String(window.WPL_MEDIA_UPLOADS_ROOT || "media_uploads").trim().replace(/^\/+|\/+$/g, "");
 let firebaseAuthInstance = null;
 let firebaseFirestoreInstance = null;
+let firebaseStorageInstance = null;
 let profileSyncTimeout = null;
 const FIREBASE_OP_TIMEOUT_MS = 4000;
 const MEDIA_BASE_URL = String(window.WPL_MEDIA_BASE_URL || "").trim().replace(/\/+$/, "");
+const TEST_USER_DEFAULTS = {
+  "coach.test@wpl.app": { role: "coach", name: "Coach Demo" },
+  "athlete.test@wpl.app": { role: "athlete", name: "Athlete Demo" },
+  "gmunch@united-wc.com": { role: "admin", name: "System Admin" }
+};
 
 function initFirebaseClient() {
   if (typeof firebase === "undefined" || !window.FIREBASE_CONFIG) return null;
@@ -49,7 +60,8 @@ function initFirebaseClient() {
     }
     const auth = firebase.auth();
     const firestore = firebase.firestore ? firebase.firestore() : null;
-    return { auth, firestore };
+    const storage = firebase.storage ? firebase.storage() : null;
+    return { auth, firestore, storage };
   } catch (err) {
     console.warn("Firebase init failed:", err);
     return null;
@@ -60,6 +72,7 @@ function initFirebaseClient() {
   const client = initFirebaseClient();
   firebaseAuthInstance = client?.auth ?? null;
   firebaseFirestoreInstance = client?.firestore ?? null;
+  firebaseStorageInstance = client?.storage ?? null;
 })();
 
 function withTimeout(promise, ms, code = "operation_timeout") {
@@ -206,6 +219,11 @@ const loginPassword = document.getElementById("loginPassword");
 const createAccountBtn = document.getElementById("createAccountBtn");
 const registerModal = document.getElementById("registerModal");
 const registerCloseBtn = document.getElementById("registerCloseBtn");
+const registerSigninBtn = document.getElementById("registerSigninBtn");
+const adminUsersTitle = document.getElementById("adminUsersTitle");
+const adminUsersStatus = document.getElementById("adminUsersStatus");
+const adminUsersList = document.getElementById("adminUsersList");
+const adminUsersReloadBtn = document.getElementById("adminUsersReloadBtn");
 let athleteProfileForm;
 let competitionPreview;
 const parentViewNotice = document.getElementById("parentViewNotice");
@@ -244,8 +262,8 @@ const calendarCoachSaveBtn = document.getElementById("calendarCoachSaveBtn");
 const calendarCoachClearBtn = document.getElementById("calendarCoachClearBtn");
 const MONTHS_VISIBLE = 4;
 const AUTH_STRICT = true;
-let calendarViewDate = startOfMonth(new Date());
-let calendarSelectedKey = toDateKey(new Date());
+let calendarViewDate = startOfMonth(getCurrentAppDate());
+let calendarSelectedKey = getCurrentAppDateKey();
 let calendarNavBound = false;
 let calendarCoachBound = false;
 let headerMenuOpen = false;
@@ -323,12 +341,38 @@ const PARENT_VIEW_NOTICE_COPY = {
 const VIEW_ROLE_MAP = {
   athlete: "athlete",
   coach: "coach",
-  admin: "coach",
+  admin: "admin",
   parent: "parent"
 };
 
+function isAdminRole(role) {
+  return normalizeAuthRole(role) === "admin";
+}
+
+function isCoachRole(role) {
+  const normalized = normalizeAuthRole(role);
+  return normalized === "coach" || normalized === "admin";
+}
+
 function enforceStrictAuthUI() {
   if (!AUTH_STRICT) return;
+  const activeRole = getActiveRoleForView();
+  if (activeRole === "admin") {
+    [skipBtn, quickSkipBtn, quickContinueBtn, guestAthleteBtn, guestCoachBtn].forEach((btn) => {
+      if (!btn) return;
+      btn.hidden = true;
+      btn.disabled = true;
+    });
+    if (viewSwitchWrap) viewSwitchWrap.classList.remove("hidden");
+    if (viewMenu) viewMenu.classList.remove("hidden");
+    headerViewButtons.forEach((btn) => {
+      btn.hidden = false;
+      btn.disabled = false;
+    });
+    const headerViewSection = headerMenu?.querySelector(".header-menu-section");
+    if (headerViewSection) headerViewSection.classList.remove("hidden");
+    return;
+  }
   [skipBtn, quickSkipBtn, quickContinueBtn, guestAthleteBtn, guestCoachBtn].forEach((btn) => {
     if (!btn) return;
     btn.hidden = true;
@@ -346,6 +390,7 @@ function enforceStrictAuthUI() {
 
 function getDefaultViewForRole(role) {
   const normalizedRole = normalizeAuthRole(role);
+  if (normalizedRole === "admin") return "admin";
   if (normalizedRole === "coach") return "coach";
   if (normalizedRole === "parent") return "parent";
   return "athlete";
@@ -360,9 +405,26 @@ function getActiveRoleForView() {
 }
 
 function resolveViewForRole(role, requestedView) {
-  const roleDefault = getDefaultViewForRole(role);
-  if (AUTH_STRICT) return roleDefault;
+  const normalizedRole = normalizeAuthRole(role);
+  const roleDefault = getDefaultViewForRole(normalizedRole);
+  if (AUTH_STRICT && normalizedRole !== "admin") return roleDefault;
   return VIEW_OPTIONS.includes(requestedView) ? requestedView : roleDefault;
+}
+
+function canManageAllAccounts(role = getProfile()?.role || getAuthUser()?.role) {
+  return isAdminRole(role);
+}
+
+function resolveCoachDashboardTab(role = getProfile()?.role) {
+  return isCoachRole(role) ? "dashboard" : "today";
+}
+
+function resolveProfileShortcutTab(role = getProfile()?.role) {
+  const normalized = normalizeAuthRole(role);
+  if (normalized === "admin") return "permissions";
+  if (normalized === "coach") return "coach-profile";
+  if (normalized === "parent") return "athlete-notes";
+  return "athlete-profile";
 }
 
 function toggleHeaderMenu(forceState) {
@@ -385,17 +447,12 @@ function handleHeaderMenuAction(action) {
   closeHeaderMenu();
   if (action === "profile") {
     const role = normalizeAuthRole(getProfile()?.role || "athlete");
-    if (role === "coach") {
-      showTab("coach-profile");
-    } else if (role === "parent") {
-      showTab("athlete-notes");
-    } else {
-      showTab("athlete-profile");
-    }
+    showTab(resolveProfileShortcutTab(role));
     return;
   }
   if (action === "logout") {
     firebaseAuthInstance?.signOut().catch(() => {});
+    stopMediaRealtimeSync();
     setProfile(null);
     setAuthUser(null);
     showOnboarding(null);
@@ -410,6 +467,7 @@ function handleHeaderMenuAction(action) {
   }
   if (action === "switch") {
     firebaseAuthInstance?.signOut().catch(() => {});
+    stopMediaRealtimeSync();
     setProfile(null);
     setAuthUser(null);
     showOnboarding(null);
@@ -526,10 +584,10 @@ const LANG_KEY = "wpl_lang_pref";
 const LANG_RESET_KEY = "wpl_lang_reset_v1";
 
 const ROLE_LABELS = {
-  en: { athlete: "Athlete", coach: "Coach", parent: "Parent" },
-  es: { athlete: "Atleta", coach: "Entrenador", parent: "Padre/Madre" },
-  uz: { athlete: "Sportchi", coach: "Murabbiy", parent: "Ota-ona" },
-  ru: { athlete: "Спортсмен", coach: "Тренер", parent: "Родитель" }
+  en: { athlete: "Athlete", coach: "Coach", admin: "Admin", parent: "Parent" },
+  es: { athlete: "Atleta", coach: "Entrenador", admin: "Administrador", parent: "Padre/Madre" },
+  uz: { athlete: "Sportchi", coach: "Murabbiy", admin: "Admin", parent: "Ota-ona" },
+  ru: { athlete: "Спортсмен", coach: "Тренер", admin: "Администратор", parent: "Родитель" }
 };
 
 const LEVEL_LABELS = {
@@ -678,7 +736,7 @@ function renderUserMeta(profile) {
 }
 
 let clockStarted = false;
-let lastClockDayKey = toDateKey(new Date());
+let lastClockDayKey = getCurrentAppDateKey();
 
 function formatNowLabel(date) {
   const locale = currentLang === "es" ? "es-ES" : "en-US";
@@ -686,13 +744,15 @@ function formatNowLabel(date) {
     weekday: "long",
     month: "long",
     day: "numeric",
-    year: "numeric"
+    year: "numeric",
+    timeZone: APP_TIMEZONE
   });
   const timePart = date.toLocaleTimeString(locale, {
     hour: "numeric",
-    minute: "2-digit"
+    minute: "2-digit",
+    timeZone: APP_TIMEZONE
   });
-  const label = currentLang === "es" ? "Hoy" : "Today";
+  const label = currentLang === "es" ? "Hoy (ET)" : "Today (ET)";
   return `${label}: ${datePart} - ${timePart}`;
 }
 
@@ -702,14 +762,15 @@ function refreshNowMeta() {
     nowMeta.textContent = formatNowLabel(now);
   }
 
-  const dayKey = toDateKey(now);
+  const dayKey = getCurrentAppDateKey(now);
   if (dayKey === lastClockDayKey) return;
   lastClockDayKey = dayKey;
 
-  renderToday(now.getDay());
-  renderPlanGrid(now.getDay());
+  const dayIndex = getCurrentAppDayIndex(now);
+  renderToday(dayIndex);
+  renderPlanGrid(dayIndex);
   renderCalendar(dayKey);
-  if (getProfile()?.role === "coach") {
+  if (isCoachRole(getProfile()?.role)) {
     renderCalendarManager();
   }
 }
@@ -739,11 +800,13 @@ function refreshLanguageUI() {
     renderCompetitionPreview(profile);
   }
   const role = (profile || {}).role || "athlete";
+  const currentDayIndex = getCurrentAppDayIndex();
+  const currentDayKey = getCurrentAppDateKey();
   updateRoleSections(role);
-  renderToday();
+  renderToday(currentDayIndex);
   renderFeelingScale();
-  renderPlanGrid();
-  renderCalendar();
+  renderPlanGrid(currentDayIndex);
+  renderCalendar(currentDayKey);
   renderCalendarManager();
   renderMedia();
   renderAnnouncements();
@@ -799,6 +862,32 @@ function parseStoredJson(key) {
   } catch {
     return null;
   }
+}
+
+function getRegisteredUsersCache() {
+  const parsed = parseStoredJson(REGISTERED_USERS_CACHE_KEY);
+  return Array.isArray(parsed) ? parsed.filter((item) => item && typeof item === "object") : [];
+}
+
+function setRegisteredUsersCache(users) {
+  const safe = Array.isArray(users) ? users.filter((item) => item && typeof item === "object") : [];
+  localStorage.setItem(REGISTERED_USERS_CACHE_KEY, JSON.stringify(safe));
+}
+
+function cacheRegisteredUser(user) {
+  if (!user || !user.uid) return;
+  const normalized = normalizeManagedUserRecord(user.uid, user);
+  if (!normalized.uid) return;
+  const current = getRegisteredUsersCache();
+  const merged = [];
+  const seen = new Set();
+  [normalized, ...current].forEach((item) => {
+    const uid = String(item.uid || "").trim();
+    if (!uid || seen.has(uid)) return;
+    seen.add(uid);
+    merged.push(normalizeManagedUserRecord(uid, item));
+  });
+  setRegisteredUsersCache(merged);
 }
 
 function getAuthUser() {
@@ -1116,6 +1205,7 @@ const FIELD_COPY = {
     placeholder: { en: "••••••••", es: "••••••••" }
   },
   aName: { label: { en: "Full name", es: "Nombre completo" } },
+  aRole: { label: { en: "Role", es: "Rol" } },
   aPhoto: {
     label: { en: "Profile photo (optional)", es: "Foto de perfil (opcional)" },
     placeholder: { en: "Add a photo URL", es: "Agrega una URL de foto" }
@@ -1214,6 +1304,12 @@ const SELECT_COPY = {
     ru: { en: "Английский", es: "Испанский", uz: "Узбекский", ru: "Русский" }
   },
   pRole: {
+    en: { athlete: "Athlete", coach: "Coach", parent: "Parent" },
+    es: { athlete: "Atleta", coach: "Entrenador", parent: "Padre/Madre" },
+    uz: { athlete: "Sportchi", coach: "Murabbiy", parent: "Ota-ona" },
+    ru: { athlete: "Спортсмен", coach: "Тренер", parent: "Родитель" }
+  },
+  aRole: {
     en: { athlete: "Athlete", coach: "Coach", parent: "Parent" },
     es: { athlete: "Atleta", coach: "Entrenador", parent: "Padre/Madre" },
     uz: { athlete: "Sportchi", coach: "Murabbiy", parent: "Ota-ona" },
@@ -1671,6 +1767,12 @@ const TEXT_TRANSLATIONS = {
     es: "Crear cuenta",
     uz: "Create account",
     ru: "Create account"
+  },
+  "Back to Sign in": {
+    en: "Back to Sign in",
+    es: "Volver a iniciar sesion",
+    uz: "Back to Sign in",
+    ru: "Back to Sign in"
   },
   "Athlete Can": {
     en: "Athlete Can",
@@ -2754,7 +2856,7 @@ function buildProfileFromForm({ email, role, userId = null } = {}) {
 }
 
 function buildGuestProfile(role) {
-  const isCoach = role === "coach";
+  const isCoach = isCoachRole(role);
   const copy = GUEST_COPY[role] || GUEST_COPY.athlete;
   const profile = {
     name: pickCopy(copy.name),
@@ -2916,6 +3018,7 @@ function buildAuthUser(userPayload) {
 
 function normalizeAuthRole(role) {
   const value = String(role || "").trim().toLowerCase();
+  if (value === "admin" || value === "administrator") return "admin";
   if (value === "coach") return "coach";
   if (value === "parent") return "parent";
   return "athlete";
@@ -2975,6 +3078,51 @@ async function persistFirebaseProfile(uid, data, { required = false } = {}) {
   }
 }
 
+function getSharedMediaTreeDocRef() {
+  if (!firebaseFirestoreInstance) return null;
+  return firebaseFirestoreInstance.collection(FIREBASE_SHARED_COLLECTION).doc(FIREBASE_MEDIA_TREE_DOC);
+}
+
+async function fetchSharedMediaTreeDoc() {
+  const ref = getSharedMediaTreeDocRef();
+  if (!ref) return null;
+  try {
+    const doc = await withTimeout(
+      ref.get(),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_media_read_timeout"
+    );
+    if (!doc.exists) return null;
+    return doc.data();
+  } catch (err) {
+    console.warn("Failed to load shared media tree", err);
+    return null;
+  }
+}
+
+async function persistSharedMediaTreeDoc(payload, { required = false } = {}) {
+  const ref = getSharedMediaTreeDocRef();
+  if (!ref) {
+    if (required) {
+      const err = new Error("firestore_not_configured");
+      err.code = "firestore_not_configured";
+      throw err;
+    }
+    return;
+  }
+
+  try {
+    await withTimeout(
+      ref.set(stripUndefinedDeep(payload), { merge: true }),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_media_write_timeout"
+    );
+  } catch (err) {
+    if (required) throw err;
+    console.warn("Failed to persist shared media tree", err);
+  }
+}
+
 function queueFirebaseProfileSync(uid, profile) {
   if (!uid || !profile || !firebaseFirestoreInstance) return;
   if (profileSyncTimeout) clearTimeout(profileSyncTimeout);
@@ -2995,16 +3143,21 @@ async function buildAuthResultFromFirebaseUser(user, { fallbackEmail = "" } = {}
   }
   const remoteProfile = await fetchFirebaseProfile(user.uid);
   const localProfile = parseStoredJson(profileStorageKey(user.uid)) || parseStoredJson(PROFILE_KEY);
-  const resolvedRole = normalizeAuthRole(remoteProfile?.role || localProfile?.role);
   const email = user.email || fallbackEmail || remoteProfile?.email || "";
+  const defaults = TEST_USER_DEFAULTS[String(email).toLowerCase()] || null;
+  const forcedRole = defaults?.role ? normalizeAuthRole(defaults.role) : "";
+  const resolvedRole = forcedRole || normalizeAuthRole(remoteProfile?.role || localProfile?.role);
+  const resolvedView = forcedRole
+    ? getDefaultViewForRole(resolvedRole)
+    : resolveViewForRole(resolvedRole, remoteProfile?.view || localProfile?.view);
   const now = new Date().toISOString();
   const profile = stripUndefinedDeep({
     ...remoteProfile,
     user_id: user.uid,
     email,
-    name: remoteProfile?.name || localProfile?.name || user.displayName || "",
+    name: remoteProfile?.name || localProfile?.name || user.displayName || defaults?.name || "",
     role: resolvedRole,
-    view: resolveViewForRole(resolvedRole, remoteProfile?.view || localProfile?.view),
+    view: resolvedView,
     lang: resolveLang(remoteProfile?.lang || localProfile?.lang || currentLang),
     createdAt: remoteProfile?.createdAt || now,
     updatedAt: now
@@ -3090,6 +3243,7 @@ async function registerWithFirebase({
     createdAt: now,
     updatedAt: now
   };
+  cacheRegisteredUser({ uid: user.uid, ...profilePayload });
   persistFirebaseProfile(user.uid, profilePayload, { required: false }).catch(() => {});
   return { user: { id: user.uid, email: normalizedEmail, role: profilePayload.role }, profile: profilePayload };
 }
@@ -3107,7 +3261,14 @@ async function handleSuccessfulAuth(result) {
     { ...(result.profile || {}), role: resolvedRole, view: targetView },
     resolvedAuthUser
   );
+  cacheRegisteredUser({ uid: resolvedAuthUser.id, ...profile });
   setProfile(profile);
+  try {
+    await hydrateMediaTreeFromSharedStore();
+    startMediaRealtimeSync();
+  } catch (err) {
+    console.warn("Failed to hydrate shared media after auth", err);
+  }
   hideOnboarding();
   try {
     await applyProfile(profile);
@@ -3149,6 +3310,10 @@ if (createAccountBtn) {
 
 if (registerCloseBtn) {
   registerCloseBtn.addEventListener("click", showAuthChoice);
+}
+
+if (registerSigninBtn) {
+  registerSigninBtn.addEventListener("click", showAuthChoice);
 }
 
 if (profileForm) {
@@ -4067,6 +4232,34 @@ const PERMISSIONS_ES = {
   ]
 };
 
+const PERMISSIONS_ADMIN = {
+  can: [
+    "Access athlete, coach, parent and admin views",
+    "Edit account profile data (name, role, language, default view)",
+    "Review all registered user profiles",
+    "Maintain team-wide settings and content"
+  ],
+  cannot: [
+    "Read or recover user passwords",
+    "Bypass Firebase Authentication requirements",
+    "Manage users if Firestore access is restricted by security rules"
+  ]
+};
+
+const PERMISSIONS_ADMIN_ES = {
+  can: [
+    "Acceder a vistas atleta, coach, padre/madre y admin",
+    "Editar datos del perfil de cuentas (nombre, rol, idioma, vista)",
+    "Revisar todos los perfiles registrados",
+    "Mantener configuraciones y contenido del equipo"
+  ],
+  cannot: [
+    "Leer o recuperar contrasenas de usuarios",
+    "Saltar requisitos de Firebase Authentication",
+    "Gestionar usuarios si Firestore restringe acceso por reglas de seguridad"
+  ]
+};
+
 const COACH_DESIGN = [
   "Desktop-first efficiency",
   "Fast navigation",
@@ -4196,6 +4389,38 @@ function translateTechniqueList(list) {
 
 function getWeekPlanData() {
   return currentLang === "es" ? WEEK_PLAN_ES : WEEK_PLAN;
+}
+
+function getDatePartsInAppTime(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: APP_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+  const map = {};
+  parts.forEach(({ type, value }) => {
+    if (type !== "literal") map[type] = value;
+  });
+  return {
+    year: Number.parseInt(map.year, 10),
+    month: Number.parseInt(map.month, 10),
+    day: Number.parseInt(map.day, 10)
+  };
+}
+
+function getCurrentAppDate(date = new Date()) {
+  const { year, month, day } = getDatePartsInAppTime(date);
+  return new Date(year, month - 1, day);
+}
+
+function getCurrentAppDateKey(date = new Date()) {
+  const { year, month, day } = getDatePartsInAppTime(date);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function getCurrentAppDayIndex(date = new Date()) {
+  return getCurrentAppDate(date).getDay();
 }
 
 function toDateKey(date) {
@@ -4489,7 +4714,10 @@ function getSkillsData() {
   return currentLang === "es" ? SKILLS_ES : SKILLS;
 }
 
-function getPermissionsData() {
+function getPermissionsData(role = getProfile()?.role) {
+  if (isAdminRole(role)) {
+    return currentLang === "es" ? PERMISSIONS_ADMIN_ES : PERMISSIONS_ADMIN;
+  }
   return currentLang === "es" ? PERMISSIONS_ES : PERMISSIONS;
 }
 
@@ -4558,6 +4786,10 @@ async function showTab(name) {
   if (safeTab === "calendar-manager") {
     renderCalendarManager();
   }
+
+  if (safeTab === "permissions") {
+    maybeRefreshAdminUsers();
+  }
 }
 
 function setRoleUI(role, view = "athlete") {
@@ -4588,10 +4820,10 @@ function setRoleUI(role, view = "athlete") {
   }
 
   const defaultTab = view === "admin"
-    ? "dashboard"
+    ? "permissions"
     : view === "parent"
       ? "athlete-notes"
-      : roleName === "coach"
+      : isCoachRole(roleName)
         ? "dashboard"
         : "today";
   toggleParentViewNotice(view);
@@ -4660,8 +4892,8 @@ const planRangeHeading = document.getElementById("planRangeHeading");
 const planRangeStartTitle = document.getElementById("planRangeStartTitle");
 const planRangeEndTitle = document.getElementById("planRangeEndTitle");
 let planRangeType = "day";
-let planRangeSelection = { start: new Date(), end: new Date() };
-const initialPlanStart = startOfMonth(new Date());
+let planRangeSelection = { start: getCurrentAppDate(), end: getCurrentAppDate() };
+const initialPlanStart = startOfMonth(getCurrentAppDate());
 let planCalendarYear = initialPlanStart.getFullYear();
 let planCalendarMonth = initialPlanStart.getMonth();
 const PLAN_MONTHS_VISIBLE = 4;
@@ -4754,7 +4986,7 @@ function renderPlanCalendar(year, month) {
     planCalendarMonth = month;
     const monthNames = getMonthNames();
     const daysOfWeek = getDayAbbr();
-    const todayKey = toDateKey(new Date());
+    const todayKey = getCurrentAppDateKey();
     const dayNamesRow = `<div class="calendar-grid-days">${daysOfWeek.map((day) => `<div class="calendar-day-name">${day}</div>`).join("")}</div>`;
 
     const buildMonthPanel = (panelYear, panelMonth) => {
@@ -4795,7 +5027,7 @@ function renderPlanCalendar(year, month) {
 
 function initializePlanSelectors() {
     if (!document.getElementById('panel-plans')) return;
-    const today = new Date();
+    const today = getCurrentAppDate();
     renderPlanCalendar(today.getFullYear(), today.getMonth());
     updateRangeInputsFromSelection();
 }
@@ -4939,7 +5171,7 @@ function addChosenItem(listEl, value) {
 
 function getCoachKey() {
   const profile = getProfile();
-  if (!profile || profile.role !== "coach") return "coach";
+  if (!profile || !isCoachRole(profile.role)) return "coach";
   return (profile.name || "coach").toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
 
@@ -5271,7 +5503,7 @@ if (doneDailyPlan) {
       toast(pickCopy({ en: "Daily plan saved.", es: "Plan diario guardado." }));
     }
     const role = (getProfile() || {}).role || "athlete";
-    showTab(role === "coach" ? "dashboard" : "today");
+    showTab(resolveCoachDashboardTab(role));
   });
 }
 
@@ -5477,6 +5709,7 @@ const profileSubpanels = Array.from(document.querySelectorAll(".profile-subpanel
 let currentProfileSubtab = "training";
 
 const aName = document.getElementById("aName");
+const aRole = document.getElementById("aRole");
 const aPhoto = document.getElementById("aPhoto");
 const aCountry = document.getElementById("aCountry");
 const aCity = document.getElementById("aCity");
@@ -5608,6 +5841,7 @@ function readAthleteProfileForm(existing = {}) {
   const tendency = aPsychTendency?.value || tendencyFallback(aStrategy?.value);
   return {
     ...existing,
+    role: normalizeAuthRole(aRole?.value || existing.role),
     name: aName?.value.trim() || "",
     photo: aPhoto?.value.trim() || "",
     country: aCountry?.value.trim() || "",
@@ -5707,6 +5941,7 @@ function renderCoachQuickPreview(profile) {
 function fillAthleteProfileForm(profile) {
   if (!athleteProfileForm || !profile) return;
   aName.value = profile.name || "";
+  if (aRole) aRole.value = normalizeAuthRole(profile.role);
   aPhoto.value = profile.photo || "";
   aCountry.value = profile.country || "";
   aCity.value = profile.city || "";
@@ -5901,6 +6136,13 @@ if (athleteProfileForm) {
     e.preventDefault();
     const existing = getProfile() || {};
     const updated = readAthleteProfileForm(existing);
+    const nextRole = normalizeAuthRole(updated.role || existing.role);
+    updated.role = nextRole;
+    updated.view = resolveViewForRole(nextRole, updated.view);
+    const authUser = getAuthUser();
+    if (authUser && normalizeAuthRole(authUser.role) !== nextRole) {
+      setAuthUser({ ...authUser, role: nextRole });
+    }
     setProfile(updated);
     applyProfile(updated);
     renderCoachQuickPreview(updated);
@@ -5929,7 +6171,7 @@ if (openCoachMatchBtn) {
     const draft = readAthleteProfileForm(getProfile() || {});
     renderCoachQuickPreview(draft);
     const role = (draft.role || getProfile()?.role || "athlete");
-    if (role === "coach") {
+    if (isCoachRole(role)) {
       if (coachMatchSelect && draft.name) coachMatchSelect.value = draft.name;
       renderCoachMatchView(coachMatchSelect?.value || draft.name);
       showTab("coach-match");
@@ -6020,7 +6262,7 @@ function toast(msg) {
   setTimeout(() => (dailyStatus.textContent = ""), 1600);
 }
 
-function renderToday(dayIndex = new Date().getDay()) {
+function renderToday(dayIndex = getCurrentAppDayIndex()) {
   const weekPlan = getWeekPlanData();
   const plan = weekPlan[dayIndex];
   if (!plan) return;
@@ -6031,7 +6273,7 @@ function renderToday(dayIndex = new Date().getDay()) {
   const intensity = getIntensityLabel(plan.intensity);
   todaySubtitle.textContent = `${totalLabel}: ${plan.total} - ${intensityLabel}: ${intensity}`;
   todayType.textContent = plan.focus;
-  if (getProfile()?.role !== "coach") {
+  if (!isCoachRole(getProfile()?.role)) {
     const focusLabel = currentLang === "es" ? "Enfoque" : "Training Focus";
     roleMeta.textContent = `${focusLabel}: ${plan.focus}`;
   }
@@ -6059,7 +6301,7 @@ function renderFeelingScale() {
 }
 
 startSessionBtn.addEventListener("click", () => {
-  const plan = getWeekPlanData()[new Date().getDay()];
+  const plan = getWeekPlanData()[getCurrentAppDayIndex()];
   const intro = currentLang === "es"
     ? `Sesion de ${plan.focus}. ${plan.blocks[0]?.label || ""}.`
     : `${plan.focus} session. ${plan.blocks[0]?.label || ""}.`;
@@ -6075,7 +6317,7 @@ logCompletionBtn.addEventListener("click", () => {
   toast(currentLang === "es" ? "Sesion registrada. Buen trabajo." : "Session logged. Great work.");
 });
 
-function renderPlanGrid(selectedDay = new Date().getDay()) {
+function renderPlanGrid(selectedDay = getCurrentAppDayIndex()) {
   planGrid.innerHTML = "";
   const weekPlan = getWeekPlanData();
   weekPlan.forEach((plan, idx) => {
@@ -6231,7 +6473,7 @@ function dateFromKey(key) {
 
 function normalizeDateKey(value) {
   if (isDateKey(value)) return value;
-  return toDateKey(new Date());
+  return getCurrentAppDateKey();
 }
 
 function getAthleteNamesBase() {
@@ -6276,7 +6518,7 @@ function nameListIncludes(list, name) {
 
 function isEntryAssignedToProfile(entry, profile) {
   if (!entry.items.length) return false;
-  if (!profile || profile.role === "coach") return true;
+  if (!profile || isCoachRole(profile.role)) return true;
   if (entry.audience.all) return true;
   if (!entry.audience.athletes.length) return true;
   return nameListIncludes(entry.audience.athletes, profile.name);
@@ -6288,7 +6530,7 @@ function getVisibleItemsForDate(dateKey, profile = getProfile()) {
 }
 
 function getAudienceText(entry, profile) {
-  const isCoach = profile?.role === "coach";
+  const isCoach = isCoachRole(profile?.role);
   if (entry.audience.all) return pickCopy(CALENDAR_AUDIENCE_COPY.team);
   if (entry.audience.athletes.length) {
     if (isCoach) return entry.audience.athletes.join(", ");
@@ -6348,7 +6590,7 @@ function renderCalendar(selectedKey, options = {}) {
   if (!calendarGrid || !calendarMonthLabel) return;
   bindCalendarNav();
 
-  const fallbackKey = calendarSelectedKey || toDateKey(new Date());
+  const fallbackKey = calendarSelectedKey || getCurrentAppDateKey();
   const resolvedKey = selectedKey ?? fallbackKey;
   calendarSelectedKey = normalizeDateKey(resolvedKey);
   const selectedDate = dateFromKey(calendarSelectedKey);
@@ -6363,7 +6605,7 @@ function renderCalendar(selectedKey, options = {}) {
 
   const monthNames = getMonthNames();
   const dayNames = getDayAbbr();
-  const todayKey = toDateKey(new Date());
+  const todayKey = getCurrentAppDateKey();
   const profile = getProfile();
 
   const rangeStart = calendarViewDate;
@@ -6469,7 +6711,7 @@ function renderCalendarDetails(dateKey) {
     if (!hasItems) {
       calAudience.textContent = "";
       calAudience.hidden = true;
-    } else if (profile?.role === "coach") {
+    } else if (isCoachRole(profile?.role)) {
       calAudience.textContent = getAudienceLabel(entry, profile);
       calAudience.hidden = false;
     } else if (assignedToProfile) {
@@ -6529,7 +6771,7 @@ function renderCoachAthleteList(entry) {
 
 function saveCalendarCoachPlan() {
   const profile = getProfile();
-  if (profile?.role !== "coach") return;
+  if (!isCoachRole(profile?.role)) return;
   const key = calendarSelectedKey;
   const items = splitCoachItems(calendarCoachItems?.value);
   if (!items.length) {
@@ -6562,7 +6804,7 @@ function saveCalendarCoachPlan() {
 
 function clearCalendarCoachPlan() {
   const profile = getProfile();
-  if (profile?.role !== "coach") return;
+  if (!isCoachRole(profile?.role)) return;
   if (!confirm(pickCopy(CALENDAR_COACH_COPY.clearConfirm))) return;
   const key = calendarSelectedKey;
   setCalendarEntry(key, { items: [], audience: defaultAudience() });
@@ -6594,7 +6836,7 @@ function bindCalendarCoachEditor() {
 
 function renderCalendarCoachEditor(dateKey, entry, profile) {
   if (!calendarCoachEditor) return;
-  const isCoach = profile?.role === "coach";
+  const isCoach = isCoachRole(profile?.role);
   calendarCoachEditor.classList.toggle("hidden", !isCoach);
   if (!isCoach) return;
 
@@ -6795,7 +7037,7 @@ function calendarCopy(key) {
 }
 
 function getManagerDateKey() {
-  const fallback = calendarSelectedKey || toDateKey(new Date());
+  const fallback = calendarSelectedKey || getCurrentAppDateKey();
   return normalizeDateKey(calendarManagerDate?.value || fallback);
 }
 
@@ -6938,6 +7180,8 @@ const mediaNewItemLabel = document.getElementById("mediaNewItemLabel");
 const mediaNewItemTitle = document.getElementById("mediaNewItemTitle");
 const mediaNewItemAssetPathLabel = document.getElementById("mediaNewItemAssetPathLabel");
 const mediaNewItemAssetPath = document.getElementById("mediaNewItemAssetPath");
+const mediaNewItemFileLabel = document.getElementById("mediaNewItemFileLabel");
+const mediaNewItemFile = document.getElementById("mediaNewItemFile");
 const mediaNewItemThumbPathLabel = document.getElementById("mediaNewItemThumbPathLabel");
 const mediaNewItemThumbPath = document.getElementById("mediaNewItemThumbPath");
 const mediaNewItemDurationLabel = document.getElementById("mediaNewItemDurationLabel");
@@ -7022,6 +7266,12 @@ const MEDIA_COPY = {
     es: "Ruta o URL en NAS",
     uz: "NAS yo'li yoki URL",
     ru: "Путь NAS или URL"
+  },
+  addItemFileLabel: {
+    en: "Upload video file (optional)",
+    es: "Subir archivo de video (opcional)",
+    uz: "Video fayl yuklash (ixtiyoriy)",
+    ru: "Загрузить видеофайл (необязательно)"
   },
   addItemThumbLabel: {
     en: "Thumbnail path (optional)",
@@ -7130,6 +7380,18 @@ const MEDIA_COPY = {
     es: "Agrega una ruta o URL del NAS.",
     uz: "NAS yo'li yoki URL kiriting.",
     ru: "Добавьте путь NAS или URL."
+  },
+  uploadingVideo: {
+    en: "Uploading video...",
+    es: "Subiendo video...",
+    uz: "Video yuklanmoqda...",
+    ru: "Загрузка видео..."
+  },
+  uploadFailed: {
+    en: "Video upload failed. Try again.",
+    es: "No se pudo subir el video. Intenta otra vez.",
+    uz: "Video yuklanmadi. Qayta urinib ko‘ring.",
+    ru: "Не удалось загрузить видео. Попробуйте снова."
   }
 };
 
@@ -7180,6 +7442,10 @@ const MEDIA_PLACEHOLDERS = {
 
 let mediaActiveSectionId = null;
 let mediaToolsBound = false;
+let mediaTreeCache = null;
+let mediaSyncTimeout = null;
+let mediaRealtimeUnsub = null;
+let mediaRealtimeUserId = "";
 
 function mediaCopy(key) {
   return pickCopy(MEDIA_COPY[key] || { en: key, es: key });
@@ -7337,38 +7603,153 @@ function normalizeMediaTree(tree) {
   return { nodes };
 }
 
-function getStoredMediaTree() {
+function sanitizeMediaFileName(name) {
+  const raw = String(name || "").trim().toLowerCase();
+  const replaced = raw.replace(/[^a-z0-9._-]+/g, "-").replace(/-+/g, "-");
+  return replaced.replace(/^-+|-+$/g, "") || `video-${Date.now()}.mp4`;
+}
+
+function inferMediaTitleFromFile(file) {
+  if (!file?.name) return "";
+  return file.name.replace(/\.[^/.]+$/, "").replace(/[_-]+/g, " ").trim();
+}
+
+function getMediaTreeFromLocalStorage() {
   try {
     const raw = localStorage.getItem(MEDIA_TREE_KEY);
-    if (!raw) {
-      const seeded = buildDefaultMediaTree();
-      localStorage.setItem(MEDIA_TREE_KEY, JSON.stringify(seeded));
-      return seeded;
-    }
+    if (!raw) return null;
     const parsed = JSON.parse(raw);
-    const normalized = normalizeMediaTree(parsed);
-    const mergedNodes = ensureYoutubeMediaNode(normalized.nodes);
-    if (!mergedNodes.length) {
-      const seeded = buildDefaultMediaTree();
-      localStorage.setItem(MEDIA_TREE_KEY, JSON.stringify(seeded));
-      return seeded;
-    }
-    if (mergedNodes.length !== normalized.nodes.length) {
-      const merged = { nodes: mergedNodes };
-      localStorage.setItem(MEDIA_TREE_KEY, JSON.stringify(merged));
-      return merged;
-    }
-    return { nodes: mergedNodes };
+    return normalizeMediaTree(parsed);
   } catch {
-    const seeded = buildDefaultMediaTree();
-    localStorage.setItem(MEDIA_TREE_KEY, JSON.stringify(seeded));
-    return seeded;
+    return null;
   }
 }
 
-function setStoredMediaTree(tree) {
+function cacheAndPersistMediaTreeLocally(tree) {
   const normalized = normalizeMediaTree(tree);
-  localStorage.setItem(MEDIA_TREE_KEY, JSON.stringify(normalized));
+  const mergedNodes = ensureYoutubeMediaNode(normalized.nodes);
+  const ready = mergedNodes.length ? { nodes: mergedNodes } : buildDefaultMediaTree();
+  mediaTreeCache = ready;
+  localStorage.setItem(MEDIA_TREE_KEY, JSON.stringify(ready));
+  return ready;
+}
+
+function stopMediaRealtimeSync() {
+  if (mediaRealtimeUnsub) {
+    mediaRealtimeUnsub();
+    mediaRealtimeUnsub = null;
+  }
+  mediaRealtimeUserId = "";
+}
+
+async function hydrateMediaTreeFromSharedStore() {
+  const authUser = getAuthUser();
+  if (!firebaseFirestoreInstance || !authUser?.id) {
+    if (mediaTreeCache) return mediaTreeCache;
+    const local = getMediaTreeFromLocalStorage();
+    if (local) return cacheAndPersistMediaTreeLocally(local);
+    return cacheAndPersistMediaTreeLocally(buildDefaultMediaTree());
+  }
+
+  const remote = await fetchSharedMediaTreeDoc();
+  if (remote && Array.isArray(remote.nodes) && remote.nodes.length) {
+    return cacheAndPersistMediaTreeLocally({ nodes: remote.nodes });
+  }
+
+  const local = getMediaTreeFromLocalStorage();
+  const seeded = cacheAndPersistMediaTreeLocally(local || buildDefaultMediaTree());
+  await persistSharedMediaTreeDoc(
+    {
+      nodes: seeded.nodes,
+      updatedAt: new Date().toISOString(),
+      updatedBy: authUser.id
+    },
+    { required: false }
+  );
+  return seeded;
+}
+
+function queueSharedMediaTreeSync(tree) {
+  const authUser = getAuthUser();
+  if (!firebaseFirestoreInstance || !authUser?.id) return;
+  if (mediaSyncTimeout) clearTimeout(mediaSyncTimeout);
+  mediaSyncTimeout = setTimeout(() => {
+    persistSharedMediaTreeDoc(
+      {
+        nodes: tree.nodes,
+        updatedAt: new Date().toISOString(),
+        updatedBy: authUser.id
+      },
+      { required: false }
+    ).catch((err) => {
+      console.warn("Background media tree sync failed", err);
+    });
+  }, 350);
+}
+
+function startMediaRealtimeSync() {
+  const authUser = getAuthUser();
+  if (!firebaseFirestoreInstance || !authUser?.id) {
+    stopMediaRealtimeSync();
+    return;
+  }
+
+  if (mediaRealtimeUnsub && mediaRealtimeUserId === authUser.id) return;
+  stopMediaRealtimeSync();
+  mediaRealtimeUserId = authUser.id;
+
+  const ref = getSharedMediaTreeDocRef();
+  if (!ref) return;
+  mediaRealtimeUnsub = ref.onSnapshot(
+    (doc) => {
+      if (!doc.exists) return;
+      const data = doc.data();
+      if (!data || !Array.isArray(data.nodes)) return;
+      cacheAndPersistMediaTreeLocally({ nodes: data.nodes });
+      if (!appRoot?.classList.contains("hidden")) {
+        renderMedia();
+      }
+    },
+    (err) => {
+      console.warn("Media realtime sync listener failed", err);
+    }
+  );
+}
+
+function getMediaUploadPath(fileName) {
+  const root = WPL_MEDIA_UPLOADS_ROOT || "media_uploads";
+  const coachKey = getCoachKey();
+  const safeName = sanitizeMediaFileName(fileName);
+  return `${root}/${coachKey}/${Date.now()}-${safeName}`;
+}
+
+async function uploadMediaFileToFirebase(file) {
+  if (!firebaseStorageInstance) {
+    throw new Error("storage_not_configured");
+  }
+  if (!file) {
+    throw new Error("missing_file");
+  }
+  const uploadPath = getMediaUploadPath(file.name);
+  const ref = firebaseStorageInstance.ref().child(uploadPath);
+  const taskSnapshot = await withTimeout(
+    ref.put(file, { contentType: file.type || "video/mp4" }),
+    FIREBASE_OP_TIMEOUT_MS * 4,
+    "storage_upload_timeout"
+  );
+  return taskSnapshot.ref.getDownloadURL();
+}
+
+function getStoredMediaTree() {
+  if (mediaTreeCache) return mediaTreeCache;
+  const local = getMediaTreeFromLocalStorage();
+  if (local) return cacheAndPersistMediaTreeLocally(local);
+  return cacheAndPersistMediaTreeLocally(buildDefaultMediaTree());
+}
+
+function setStoredMediaTree(tree) {
+  const normalized = cacheAndPersistMediaTreeLocally(tree);
+  queueSharedMediaTreeSync(normalized);
   return normalized;
 }
 
@@ -7585,12 +7966,25 @@ function bindMediaTools() {
   }
 
   if (mediaAddItemBtn) {
-    mediaAddItemBtn.addEventListener("click", () => {
-      const title = mediaNewItemTitle?.value.trim();
-      const assetPath = normalizeMediaAssetPath(mediaNewItemAssetPath?.value || "");
+    mediaAddItemBtn.addEventListener("click", async () => {
+      const file = mediaNewItemFile?.files?.[0] || null;
+      const inferredTitle = inferMediaTitleFromFile(file);
+      const title = mediaNewItemTitle?.value.trim() || inferredTitle;
+      let assetPath = normalizeMediaAssetPath(mediaNewItemAssetPath?.value || "");
       if (!title) {
         toast(mediaCopy("needItemTitle"));
         return;
+      }
+      if (file) {
+        try {
+          toast(mediaCopy("uploadingVideo"));
+          assetPath = await uploadMediaFileToFirebase(file);
+          if (mediaNewItemAssetPath) mediaNewItemAssetPath.value = assetPath;
+        } catch (err) {
+          console.warn("Video upload failed", err);
+          toast(mediaCopy("uploadFailed"));
+          return;
+        }
       }
       if (!assetPath) {
         toast(mediaCopy("needItemAssetPath"));
@@ -7616,8 +8010,19 @@ function bindMediaTools() {
       if (mediaNewItemDuration) mediaNewItemDuration.value = "";
       if (mediaNewItemAssigned) mediaNewItemAssigned.value = "";
       if (mediaNewItemNote) mediaNewItemNote.value = "";
+      if (mediaNewItemFile) mediaNewItemFile.value = "";
       toast(mediaCopy("addItemToast"));
       renderMedia();
+    });
+  }
+
+  if (mediaNewItemFile) {
+    mediaNewItemFile.addEventListener("change", () => {
+      const file = mediaNewItemFile.files?.[0];
+      if (!file || !mediaNewItemTitle) return;
+      if (!mediaNewItemTitle.value.trim()) {
+        mediaNewItemTitle.value = inferMediaTitleFromFile(file);
+      }
     });
   }
 
@@ -7637,6 +8042,7 @@ function renderMediaCoachTools(isCoach) {
   if (mediaAddItemTitle) mediaAddItemTitle.textContent = mediaCopy("addItemTitle");
   if (mediaNewItemLabel) mediaNewItemLabel.textContent = mediaCopy("addItemLabel");
   if (mediaNewItemAssetPathLabel) mediaNewItemAssetPathLabel.textContent = mediaCopy("addItemAssetPathLabel");
+  if (mediaNewItemFileLabel) mediaNewItemFileLabel.textContent = mediaCopy("addItemFileLabel");
   if (mediaNewItemThumbPathLabel) mediaNewItemThumbPathLabel.textContent = mediaCopy("addItemThumbLabel");
   if (mediaNewItemDurationLabel) mediaNewItemDurationLabel.textContent = mediaCopy("addItemDurationLabel");
   if (mediaNewItemTypeLabel) mediaNewItemTypeLabel.textContent = mediaCopy("addItemTypeLabel");
@@ -7657,7 +8063,7 @@ function renderMedia() {
   const nodes = getMediaNodes();
   ensureMediaActiveSection(nodes);
   const profile = getProfile();
-  const isCoach = profile?.role === "coach";
+  const isCoach = isCoachRole(profile?.role);
 
   renderMediaBreadcrumb(nodes);
   renderMediaSections(nodes);
@@ -7907,10 +8313,321 @@ function renderJournalMonitor() {
 // ---------- PERMISSIONS ----------
 const permissionsCan = document.getElementById("permissionsCan");
 const permissionsCannot = document.getElementById("permissionsCannot");
+const ADMIN_EDITABLE_ROLES = ["athlete", "coach", "parent", "admin"];
+const ADMIN_EDITABLE_VIEWS = ["athlete", "coach", "admin", "parent"];
+let adminUsersCache = [];
+let adminUsersLoading = false;
+let adminUsersLoadedOnce = false;
+
+const ADMIN_USERS_COPY = {
+  title: { en: "Registered users", es: "Usuarios registrados" },
+  reload: { en: "Refresh list", es: "Actualizar lista" },
+  loading: { en: "Loading registered users...", es: "Cargando usuarios registrados..." },
+  hint: { en: "Only admins can edit user accounts.", es: "Solo admins pueden editar cuentas de usuarios." },
+  empty: { en: "No registered users found.", es: "No se encontraron usuarios registrados." },
+  save: { en: "Save", es: "Guardar" },
+  saving: { en: "Saving...", es: "Guardando..." },
+  saved: { en: "User updated.", es: "Usuario actualizado." },
+  loadError: {
+    en: "Could not load users. Check Firestore rules/config.",
+    es: "No se pudieron cargar usuarios. Revisa reglas/configuracion de Firestore."
+  },
+  loadLocalFallback: {
+    en: "Firestore unavailable. Showing locally known accounts.",
+    es: "Firestore no disponible. Mostrando cuentas conocidas localmente."
+  },
+  saveError: { en: "Could not save this user.", es: "No se pudo guardar este usuario." },
+  name: { en: "Name", es: "Nombre" },
+  email: { en: "Email", es: "Correo" },
+  role: { en: "Role", es: "Rol" },
+  language: { en: "Language", es: "Idioma" },
+  view: { en: "Default view", es: "Vista por defecto" },
+  updated: { en: "Updated", es: "Actualizado" },
+  uid: { en: "UID", es: "UID" }
+};
+
+function parseIsoTimestamp(value) {
+  const ts = Date.parse(String(value || ""));
+  return Number.isFinite(ts) ? ts : 0;
+}
+
+function formatAdminTimestamp(value) {
+  const ts = parseIsoTimestamp(value);
+  if (!ts) return currentLang === "es" ? "Sin fecha" : "No date";
+  const locale = currentLang === "es" ? "es-ES" : "en-US";
+  return new Date(ts).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
+}
+
+function setAdminUsersStatus(message, { type = "" } = {}) {
+  if (!adminUsersStatus) return;
+  adminUsersStatus.textContent = message || "";
+  adminUsersStatus.classList.remove("admin-users-status-error", "admin-users-status-ok");
+  if (type === "error") adminUsersStatus.classList.add("admin-users-status-error");
+  if (type === "ok") adminUsersStatus.classList.add("admin-users-status-ok");
+}
+
+function normalizeManagedUserRecord(uid, data = {}) {
+  const role = normalizeAuthRole(data.role);
+  const lang = resolveLang(data.lang || DEFAULT_LANG);
+  const view = resolveViewForRole(role, data.view || getDefaultViewForRole(role));
+  return {
+    uid: String(uid || "").trim(),
+    email: String(data.email || "").trim().toLowerCase(),
+    name: String(data.name || "").trim(),
+    role,
+    lang,
+    view,
+    updatedAt: String(data.updatedAt || ""),
+    createdAt: String(data.createdAt || "")
+  };
+}
+
+function makeOptionsHtml(values, selected, getLabel) {
+  return values
+    .map((value) => {
+      const isSelected = value === selected ? " selected" : "";
+      const label = escapeHtml(getLabel(value));
+      return `<option value="${escapeHtml(value)}"${isSelected}>${label}</option>`;
+    })
+    .join("");
+}
+
+async function fetchRegisteredFirebaseUsers() {
+  if (!firebaseFirestoreInstance) {
+    const err = new Error("firestore_not_configured");
+    err.code = "firestore_not_configured";
+    throw err;
+  }
+  const snapshot = await withTimeout(
+    firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION).get(),
+    FIREBASE_OP_TIMEOUT_MS * 2,
+    "firestore_users_read_timeout"
+  );
+  const users = snapshot.docs
+    .map((doc) => normalizeManagedUserRecord(doc.id, doc.data() || {}))
+    .filter((user) => Boolean(user.uid));
+  users.sort((a, b) => parseIsoTimestamp(b.updatedAt || b.createdAt) - parseIsoTimestamp(a.updatedAt || a.createdAt));
+  return users;
+}
+
+function getLangLabel(lang) {
+  const map = LANG_NAME_COPY[resolveLang(currentLang)] || LANG_NAME_COPY.en;
+  return map[lang] || lang;
+}
+
+function getViewLabel(view) {
+  return VIEW_LABELS[view]?.[resolveLang(currentLang)] || VIEW_LABELS[view]?.en || view;
+}
+
+function renderAdminUsersList() {
+  if (!adminUsersList) return;
+  adminUsersList.innerHTML = "";
+
+  if (!adminUsersCache.length) {
+    const empty = document.createElement("div");
+    empty.className = "small muted";
+    empty.textContent = pickCopy(ADMIN_USERS_COPY.empty);
+    adminUsersList.appendChild(empty);
+    return;
+  }
+
+  const labels = {
+    name: pickCopy(ADMIN_USERS_COPY.name),
+    email: pickCopy(ADMIN_USERS_COPY.email),
+    role: pickCopy(ADMIN_USERS_COPY.role),
+    language: pickCopy(ADMIN_USERS_COPY.language),
+    view: pickCopy(ADMIN_USERS_COPY.view),
+    save: pickCopy(ADMIN_USERS_COPY.save),
+    updated: pickCopy(ADMIN_USERS_COPY.updated),
+    uid: pickCopy(ADMIN_USERS_COPY.uid)
+  };
+
+  adminUsersCache.forEach((user) => {
+    const row = document.createElement("div");
+    row.className = "admin-user-row";
+    row.dataset.uid = user.uid;
+
+    const roleOptions = makeOptionsHtml(ADMIN_EDITABLE_ROLES, user.role, (value) => getRoleLabel(value, currentLang));
+    const langOptions = makeOptionsHtml(Array.from(SUPPORTED_LANGS), user.lang, (value) => getLangLabel(value));
+    const viewOptions = makeOptionsHtml(ADMIN_EDITABLE_VIEWS, user.view, (value) => getViewLabel(value));
+    const updated = formatAdminTimestamp(user.updatedAt || user.createdAt);
+
+    row.innerHTML = `
+      <div class="admin-user-cell">
+        <label>${escapeHtml(labels.name)}</label>
+        <input type="text" data-field="name" value="${escapeHtml(user.name)}" placeholder="${escapeHtml(labels.name)}">
+        <div class="admin-user-meta">${escapeHtml(labels.uid)}: ${escapeHtml(user.uid)}</div>
+      </div>
+      <div class="admin-user-cell">
+        <label>${escapeHtml(labels.email)}</label>
+        <input type="email" data-field="email" value="${escapeHtml(user.email)}" readonly>
+        <div class="admin-user-meta">${escapeHtml(labels.updated)}: ${escapeHtml(updated)}</div>
+      </div>
+      <div class="admin-user-cell">
+        <label>${escapeHtml(labels.role)}</label>
+        <select data-field="role">${roleOptions}</select>
+      </div>
+      <div class="admin-user-cell">
+        <label>${escapeHtml(labels.language)}</label>
+        <select data-field="lang">${langOptions}</select>
+      </div>
+      <div class="admin-user-cell">
+        <label>${escapeHtml(labels.view)}</label>
+        <select data-field="view">${viewOptions}</select>
+      </div>
+      <div class="admin-user-actions">
+        <button type="button" class="primary" data-field="save">${escapeHtml(labels.save)}</button>
+      </div>
+    `;
+
+    const roleSelect = row.querySelector('select[data-field="role"]');
+    const viewSelect = row.querySelector('select[data-field="view"]');
+    if (roleSelect && viewSelect) {
+      roleSelect.addEventListener("change", () => {
+        const nextRole = normalizeAuthRole(roleSelect.value);
+        if (nextRole !== "admin") {
+          viewSelect.value = getDefaultViewForRole(nextRole);
+        }
+      });
+    }
+
+    const saveBtn = row.querySelector('button[data-field="save"]');
+    if (saveBtn) {
+      saveBtn.addEventListener("click", async () => {
+        if (!canManageAllAccounts()) return;
+        const nameInput = row.querySelector('input[data-field="name"]');
+        const emailInput = row.querySelector('input[data-field="email"]');
+        const langSelectEl = row.querySelector('select[data-field="lang"]');
+        const nextRole = normalizeAuthRole(roleSelect?.value || user.role);
+        const nextView = resolveViewForRole(nextRole, viewSelect?.value || user.view);
+        const nextName = String(nameInput?.value || "").trim();
+        const nextEmail = String(emailInput?.value || user.email).trim().toLowerCase();
+        const nextLang = resolveLang(langSelectEl?.value || user.lang);
+        const now = new Date().toISOString();
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = pickCopy(ADMIN_USERS_COPY.saving);
+        try {
+          await persistFirebaseProfile(user.uid, {
+            name: nextName,
+            email: nextEmail,
+            role: nextRole,
+            lang: nextLang,
+            view: nextView,
+            updatedAt: now
+          }, { required: true });
+
+          adminUsersCache = adminUsersCache.map((item) => (
+            item.uid === user.uid
+              ? { ...item, name: nextName, email: nextEmail, role: nextRole, lang: nextLang, view: nextView, updatedAt: now }
+              : item
+          ));
+          cacheRegisteredUser({
+            uid: user.uid,
+            name: nextName,
+            email: nextEmail,
+            role: nextRole,
+            lang: nextLang,
+            view: nextView,
+            updatedAt: now
+          });
+
+          const authUser = getAuthUser();
+          if (authUser?.id === user.uid) {
+            const nextAuthUser = { ...authUser, role: nextRole, email: nextEmail };
+            setAuthUser(nextAuthUser);
+            const currentProfile = getProfile() || {};
+            const nextProfile = normalizeProfileForAuth(
+              { ...currentProfile, name: nextName, email: nextEmail, role: nextRole, lang: nextLang, view: nextView },
+              nextAuthUser
+            );
+            setProfile(nextProfile);
+            await applyProfile(nextProfile);
+          }
+
+          setAdminUsersStatus(pickCopy(ADMIN_USERS_COPY.saved), { type: "ok" });
+          renderAdminUsersList();
+          renderPermissions();
+        } catch (err) {
+          console.warn("Failed to save managed user profile", err);
+          setAdminUsersStatus(pickCopy(ADMIN_USERS_COPY.saveError), { type: "error" });
+        } finally {
+          saveBtn.disabled = false;
+          saveBtn.textContent = pickCopy(ADMIN_USERS_COPY.save);
+        }
+      });
+    }
+
+    adminUsersList.appendChild(row);
+  });
+}
+
+async function refreshAdminUsers({ force = false } = {}) {
+  if (!canManageAllAccounts()) {
+    adminUsersCache = [];
+    adminUsersLoadedOnce = false;
+    if (adminUsersList) adminUsersList.innerHTML = "";
+    setAdminUsersStatus(pickCopy(ADMIN_USERS_COPY.hint));
+    return;
+  }
+  if (adminUsersLoading) return;
+  if (adminUsersLoadedOnce && !force) {
+    renderAdminUsersList();
+    return;
+  }
+
+  adminUsersLoading = true;
+  setAdminUsersStatus(pickCopy(ADMIN_USERS_COPY.loading));
+  try {
+    adminUsersCache = await fetchRegisteredFirebaseUsers();
+    adminUsersLoadedOnce = true;
+    renderAdminUsersList();
+    setAdminUsersStatus(`${adminUsersCache.length} ${pickCopy(ADMIN_USERS_COPY.title).toLowerCase()}`, { type: "ok" });
+  } catch (err) {
+    console.warn("Failed to load registered users", err);
+    const localFallback = getRegisteredUsersCache().map((item) => normalizeManagedUserRecord(item.uid, item));
+    if (localFallback.length) {
+      adminUsersCache = localFallback;
+      adminUsersLoadedOnce = true;
+      renderAdminUsersList();
+      setAdminUsersStatus(pickCopy(ADMIN_USERS_COPY.loadLocalFallback), { type: "error" });
+    } else {
+      setAdminUsersStatus(pickCopy(ADMIN_USERS_COPY.loadError), { type: "error" });
+      if (adminUsersList) adminUsersList.innerHTML = "";
+    }
+  } finally {
+    adminUsersLoading = false;
+  }
+}
+
+function maybeRefreshAdminUsers({ force = false } = {}) {
+  refreshAdminUsers({ force }).catch((err) => {
+    console.warn("Unexpected admin user refresh failure", err);
+  });
+}
+
+if (adminUsersReloadBtn) {
+  adminUsersReloadBtn.addEventListener("click", () => {
+    maybeRefreshAdminUsers({ force: true });
+  });
+}
 
 function renderPermissions() {
+  if (!permissionsCan || !permissionsCannot) return;
+  const role = getProfile()?.role;
+  const permissions = getPermissionsData(role);
+  const isAdmin = isAdminRole(role);
+
+  const canTitle = permissionsCan.closest(".mini-card")?.querySelector("h3");
+  const cannotTitle = permissionsCannot.closest(".mini-card")?.querySelector("h3");
+  if (canTitle) canTitle.textContent = isAdmin
+    ? (currentLang === "es" ? "Admin puede" : "Admin Can")
+    : (currentLang === "es" ? "Coach puede" : "Coach Can");
+  if (cannotTitle) cannotTitle.textContent = isAdmin
+    ? (currentLang === "es" ? "Admin no puede" : "Admin Cannot")
+    : (currentLang === "es" ? "Coach no puede" : "Coach Cannot");
+
   permissionsCan.innerHTML = "";
-  const permissions = getPermissionsData();
   permissions.can.forEach((line) => {
     const li = document.createElement("li");
     li.textContent = line;
@@ -7923,6 +8640,15 @@ function renderPermissions() {
     li.textContent = line;
     permissionsCannot.appendChild(li);
   });
+
+  if (adminUsersTitle) adminUsersTitle.textContent = pickCopy(ADMIN_USERS_COPY.title);
+  if (adminUsersReloadBtn) adminUsersReloadBtn.textContent = pickCopy(ADMIN_USERS_COPY.reload);
+  if (!canManageAllAccounts()) {
+    if (adminUsersList) adminUsersList.innerHTML = "";
+    setAdminUsersStatus(pickCopy(ADMIN_USERS_COPY.hint));
+  } else {
+    maybeRefreshAdminUsers();
+  }
 }
 
 // ---------- ONE-PAGER ----------
@@ -8630,10 +9356,13 @@ if (saveJournalBtn) {
 async function startApp() {
   renderJournalEntries();
   await bootProfile();
-  renderToday();
+  startClock();
+  const currentDayIndex = getCurrentAppDayIndex();
+  const currentDayKey = getCurrentAppDateKey();
+  renderToday(currentDayIndex);
   renderFeelingScale();
-  renderPlanGrid();
-  renderCalendar();
+  renderPlanGrid(currentDayIndex);
+  renderCalendar(currentDayKey);
   renderCalendarManager();
   renderMedia();
   renderAnnouncements();

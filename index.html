@@ -119,6 +119,7 @@
           <textarea id="pNotes" rows="3" placeholder="Tell us about your goals"></textarea>
         </label>
         <button type="submit" class="primary full">Create account</button>
+        <button type="button" id="registerSigninBtn" class="ghost full">Back to Sign in</button>
         <p class="small muted">You can edit this info in the app later.</p>
       </form>
     </div>
@@ -166,6 +167,8 @@
               <div class="header-menu-section-title">Views</div>
               <button type="button" data-action="view-athlete">Athlete view</button>
               <button type="button" data-action="view-coach">Coach view</button>
+              <button type="button" data-action="view-admin">Administrative view</button>
+              <button type="button" data-action="view-parent">Parent view</button>
             </div>
             <div class="header-menu-section">
               <button type="button" data-action="profile">Profile</button>
@@ -269,6 +272,14 @@
                 <label>
                   <span>Full name</span>
                   <input id="aName" type="text" required >
+                </label>
+                <label>
+                  <span>Role</span>
+                  <select id="aRole">
+                    <option value="athlete">Athlete</option>
+                    <option value="coach">Coach</option>
+                    <option value="parent">Parent</option>
+                  </select>
                 </label>
                 <label>
                   <span>Age</span>
@@ -756,6 +767,8 @@
                   <input id="mediaNewItemTitle" type="text" placeholder="e.g., Double leg finish" >
                   <label for="mediaNewItemAssetPath" id="mediaNewItemAssetPathLabel">NAS path or URL</label>
                   <input id="mediaNewItemAssetPath" type="text" placeholder="e.g., wrestling/drills/double-leg.mp4" >
+                  <label for="mediaNewItemFile" id="mediaNewItemFileLabel">Upload video file (optional)</label>
+                  <input id="mediaNewItemFile" type="file" accept="video/*" >
                   <label for="mediaNewItemThumbPath" id="mediaNewItemThumbPathLabel">Thumbnail path (optional)</label>
                   <input id="mediaNewItemThumbPath" type="text" placeholder="e.g., wrestling/thumbnails/double-leg.jpg" >
                   <label for="mediaNewItemDuration" id="mediaNewItemDurationLabel">Duration (optional)</label>
@@ -1637,6 +1650,14 @@
               <ul class="list" id="permissionsCannot"></ul>
             </div>
           </div>
+          <div class="mini-card admin-users-card">
+            <div class="card-header">
+              <h3 id="adminUsersTitle">Registered users</h3>
+              <button type="button" id="adminUsersReloadBtn" class="ghost">Refresh list</button>
+            </div>
+            <p id="adminUsersStatus" class="small muted">Only admins can edit user accounts.</p>
+            <div id="adminUsersList" class="admin-users-list"></div>
+          </div>
         </div>
       </section>
 
@@ -1646,6 +1667,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
   <script src="firebase-config.public.js"></script>
   <script src="firebase-config.js"></script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>

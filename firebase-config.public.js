@@ -9,4 +9,7 @@ window.FIREBASE_CONFIG = {
 };
 
 window.FIREBASE_USERS_COLLECTION = "users";
+window.FIREBASE_SHARED_COLLECTION = "shared_app";
+window.FIREBASE_MEDIA_TREE_DOC = "media_tree";
+window.WPL_MEDIA_UPLOADS_ROOT = "media_uploads";
 window.WPL_MEDIA_BASE_URL = "";

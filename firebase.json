@@ -1,1 +1,24 @@
-"site": "gary-test-c557f-7c9c8",
+{
+  "hosting": [
+    {
+      "site": "gary-test-c557f",
+      "public": ".",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**",
+        ".github/**"
+      ]
+    },
+    {
+      "site": "gary-test-c557f-7c9c8",
+      "public": ".",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**",
+        ".github/**"
+      ]
+    }
+  ]
+}
