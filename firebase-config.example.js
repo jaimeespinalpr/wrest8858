@@ -10,6 +10,9 @@ window.FIREBASE_CONFIG = {
 
 // Optional Firestore collection for user profiles.
 window.FIREBASE_USERS_COLLECTION = "users";
+window.FIREBASE_SHARED_COLLECTION = "shared_app";
+window.FIREBASE_MEDIA_TREE_DOC = "media_tree";
+window.WPL_MEDIA_UPLOADS_ROOT = "media_uploads";
 
 // Optional NAS media base URL used by the Media panel.
 // Example: "https://nas.your-domain.com/media"
