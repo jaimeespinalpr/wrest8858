@@ -8378,7 +8378,7 @@ function renderJournalMonitor() {
 // ---------- PERMISSIONS ----------
 const permissionsCan = document.getElementById("permissionsCan");
 const permissionsCannot = document.getElementById("permissionsCannot");
-const ADMIN_EDITABLE_ROLES = ["athlete", "coach", "parent"];
+const ADMIN_EDITABLE_ROLES = ["coach", "athlete", "parent"];
 let adminUsersCache = [];
 let adminUsersLoading = false;
 let adminUsersLoadedOnce = false;
@@ -8393,9 +8393,9 @@ const ADMIN_USERS_COPY = {
     es: "La sesion de admin expiro. Cierra sesion e inicia nuevamente."
   },
   empty: { en: "No registered users found.", es: "No se encontraron usuarios registrados." },
-  save: { en: "Save", es: "Guardar" },
-  saving: { en: "Saving...", es: "Guardando..." },
-  saved: { en: "User updated.", es: "Usuario actualizado." },
+  save: { en: "Save", es: "Save" },
+  saving: { en: "Saving...", es: "Saving..." },
+  saved: { en: "User updated.", es: "User updated." },
   resetPassword: { en: "Send reset link", es: "Enviar reset" },
   resettingPassword: { en: "Sending...", es: "Enviando..." },
   resetSent: { en: "Password reset link sent to", es: "Enlace de reset enviado a" },
@@ -8404,14 +8404,10 @@ const ADMIN_USERS_COPY = {
     es: "No se pudieron cargar usuarios. Revisa reglas/configuracion de Firestore."
   },
   saveError: { en: "Could not save this user.", es: "No se pudo guardar este usuario." },
-  adminRoleCodeOnly: {
-    en: "Admin role can only be created by code/backoffice.",
-    es: "El rol admin solo puede crearse por codigo/backoffice."
-  },
   resetError: { en: "Could not send reset link.", es: "No se pudo enviar el enlace de reset." },
   name: { en: "Name", es: "Nombre" },
   email: { en: "Email", es: "Correo" },
-  role: { en: "Role", es: "Rol" },
+  role: { en: "Role", es: "Role" },
   language: { en: "Language", es: "Idioma" },
   view: { en: "Default view", es: "Vista por defecto" },
   updated: { en: "Updated", es: "Actualizado" },
@@ -8464,11 +8460,16 @@ function makeOptionsHtml(values, selected, getLabel) {
     .join("");
 }
 
-function getAdminEditableRolesForUser(user) {
-  const currentRole = normalizeAuthRole(user?.role);
-  if (currentRole === "admin") {
-    return [...ADMIN_EDITABLE_ROLES, "admin"];
-  }
+function getRoleLabelEnglish(role) {
+  const labels = {
+    coach: "Coach",
+    athlete: "Athlete",
+    parent: "Parent"
+  };
+  return labels[normalizeAuthRole(role)] || "Athlete";
+}
+
+function getAdminEditableRolesForUser() {
   return ADMIN_EDITABLE_ROLES;
 }
 
@@ -8533,7 +8534,7 @@ function renderAdminUsersList() {
     row.className = "admin-user-row";
     row.dataset.uid = user.uid;
 
-    const roleOptions = makeOptionsHtml(getAdminEditableRolesForUser(user), user.role, (value) => getRoleLabel(value, currentLang));
+    const roleOptions = makeOptionsHtml(getAdminEditableRolesForUser(), user.role, (value) => getRoleLabelEnglish(value));
     const langOptions = makeOptionsHtml(Array.from(SUPPORTED_LANGS), user.lang, (value) => getLangLabel(value));
     const viewOptions = makeOptionsHtml(getAdminEditableViewsForRole(user.role), user.view, (value) => getViewLabel(value));
     const updated = formatAdminTimestamp(user.updatedAt || user.createdAt);
@@ -8590,12 +8591,7 @@ function renderAdminUsersList() {
         const nameInput = row.querySelector('input[data-field="name"]');
         const emailInput = row.querySelector('input[data-field="email"]');
         const langSelectEl = row.querySelector('select[data-field="lang"]');
-        const currentManagedRole = normalizeAuthRole(user.role);
         const nextRole = normalizeAuthRole(roleSelect?.value || user.role);
-        if (nextRole === "admin" && currentManagedRole !== "admin") {
-          setAdminUsersStatus(pickCopy(ADMIN_USERS_COPY.adminRoleCodeOnly), { type: "error" });
-          return;
-        }
         const nextView = resolveViewForRole(nextRole, viewSelect?.value || user.view);
         const nextName = String(nameInput?.value || "").trim();
         const nextEmail = String(emailInput?.value || user.email).trim().toLowerCase();
