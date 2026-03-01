@@ -24,13 +24,36 @@ service cloud.firestore {
       return isSelfAllowedRole(role) || role == "admin";
     }
 
+    function isAllowedViewForRole(role, view) {
+      return (
+        (role == "athlete" && view == "athlete") ||
+        (role == "coach" && view == "coach") ||
+        (role == "parent" && view == "parent") ||
+        (role == "admin" && (view == "admin" || view == "coach" || view == "athlete" || view == "parent"))
+      );
+    }
+
     // User profiles: self-manage + global admin access for account administration.
     match /users/{uid} {
       allow read: if isSelf(uid) || isAdminEmail();
-      allow create, update: if (
-        isAdminEmail() && isAdminAllowedRole(request.resource.data.role)
+      allow create: if (
+        isAdminEmail()
+        && isAdminAllowedRole(request.resource.data.role)
+        && isAllowedViewForRole(request.resource.data.role, request.resource.data.view)
       ) || (
-        isSelf(uid) && isSelfAllowedRole(request.resource.data.role)
+        isSelf(uid)
+        && isSelfAllowedRole(request.resource.data.role)
+        && isAllowedViewForRole(request.resource.data.role, request.resource.data.view)
+      );
+      allow update: if (
+        isAdminEmail()
+        && isAdminAllowedRole(request.resource.data.role)
+        && isAllowedViewForRole(request.resource.data.role, request.resource.data.view)
+      ) || (
+        isSelf(uid)
+        && isSelfAllowedRole(request.resource.data.role)
+        && isAllowedViewForRole(request.resource.data.role, request.resource.data.view)
+        && resource.data.role == request.resource.data.role
       );
       allow delete: if isAdminEmail();
     }
