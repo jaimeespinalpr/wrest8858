@@ -782,6 +782,55 @@
                     <button type="button" id="mediaAddItemBtn" class="primary">Add video</button>
                   </div>
                 </div>
+                <div class="media-tool-card">
+                  <h3 id="mediaAssignmentTitle">Assign Media Task</h3>
+                  <p class="small muted" id="mediaSelectedItemLabel">Select a media item to turn it into a real athlete assignment.</p>
+                  <label for="mediaAssignmentMode">Assign to</label>
+                  <select id="mediaAssignmentMode">
+                    <option value="athlete">Athlete</option>
+                    <option value="group">Group</option>
+                  </select>
+                  <label for="mediaAssignmentTarget">Athlete or group</label>
+                  <select id="mediaAssignmentTarget"></select>
+                  <label for="mediaAssignmentType">Task type</label>
+                  <select id="mediaAssignmentType">
+                    <option value="Video review">Video review</option>
+                    <option value="Match analysis">Match analysis</option>
+                    <option value="Technique / Drill">Technique / Drill</option>
+                  </select>
+                  <label for="mediaAssignmentDueDate">Due date</label>
+                  <input id="mediaAssignmentDueDate" type="date" >
+                  <label for="mediaAssignmentTitleInput">Task title</label>
+                  <input id="mediaAssignmentTitleInput" type="text" placeholder="Lincoln 157 opponent film" >
+                  <label for="mediaAssignmentNote">Coach note</label>
+                  <textarea id="mediaAssignmentNote" rows="3" placeholder="Write what the athlete should watch, analyze, or complete."></textarea>
+                  <div class="form-actions">
+                    <button type="button" id="mediaAssignBtn" class="primary">Create assignment</button>
+                  </div>
+                  <p class="small" id="mediaAssignmentStatus"></p>
+                </div>
+                <div class="media-tool-card">
+                  <h3 id="mediaAnalysisTitle">Match Analysis</h3>
+                  <p class="small muted" id="mediaAnalysisSelectedLabel">Save timestamped coaching notes tied to the selected media item.</p>
+                  <label for="mediaAnalysisMode">Analysis for</label>
+                  <select id="mediaAnalysisMode">
+                    <option value="athlete">Athlete</option>
+                    <option value="group">Group</option>
+                  </select>
+                  <label for="mediaAnalysisTarget">Athlete or group</label>
+                  <select id="mediaAnalysisTarget"></select>
+                  <label for="mediaAnalysisSummary">Summary</label>
+                  <textarea id="mediaAnalysisSummary" rows="3" placeholder="Main scoring reads, tactical themes, and competition carryover."></textarea>
+                  <label for="mediaAnalysisTimestamp">Timestamp</label>
+                  <input id="mediaAnalysisTimestamp" type="text" placeholder="01:24" >
+                  <label for="mediaAnalysisNote">Timestamp note</label>
+                  <textarea id="mediaAnalysisNote" rows="3" placeholder="Inside control wins the re-shot here."></textarea>
+                  <div class="form-actions">
+                    <button type="button" id="mediaAnalysisAddBtn" class="primary">Save analysis</button>
+                  </div>
+                  <div class="completion-list" id="mediaAnalysisEntries"></div>
+                  <p class="small" id="mediaAnalysisStatus"></p>
+                </div>
               </div>
             </div>
           </div>
@@ -1659,6 +1708,25 @@
             <div class="chip">Send work to athletes</div>
           </div>
           <div class="stat-grid" id="assignmentStats"></div>
+          <div class="assignment-toolbar">
+            <label class="plan-inline-select">
+              <span>Athlete / Group</span>
+              <select id="assignmentFilterAthlete"></select>
+            </label>
+            <label class="plan-inline-select">
+              <span>Status</span>
+              <select id="assignmentFilterStatus"></select>
+            </label>
+            <label class="plan-inline-select">
+              <span>Type</span>
+              <select id="assignmentFilterType"></select>
+            </label>
+            <label class="plan-inline-select">
+              <span>Due date</span>
+              <input id="assignmentFilterDate" type="date" >
+            </label>
+            <button type="button" class="ghost" id="assignmentFilterClear">Clear filters</button>
+          </div>
           <div class="section-grid">
             <div class="mini-card">
               <h3 id="assignmentQueueTitle">Assignment Queue</h3>
@@ -1738,6 +1806,51 @@
               <ul class="list" id="journalFlags"></ul>
             </div>
           </div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3>Log Readiness Update</h3>
+              <p class="small muted" id="coachJournalSelectedAthlete">Selected athlete</p>
+              <form id="coachJournalForm" class="form compact-form">
+                <div class="form-row two-cols">
+                  <div>
+                    <label for="coachJournalSleep">Sleep</label>
+                    <input id="coachJournalSleep" type="text" placeholder="7.0 hrs" >
+                  </div>
+                  <div>
+                    <label for="coachJournalEnergy">Energy</label>
+                    <input id="coachJournalEnergy" type="text" placeholder="4/5" >
+                  </div>
+                </div>
+                <div class="form-row two-cols">
+                  <div>
+                    <label for="coachJournalSoreness">Soreness</label>
+                    <input id="coachJournalSoreness" type="text" placeholder="2/5" >
+                  </div>
+                  <div>
+                    <label for="coachJournalMood">Mood</label>
+                    <input id="coachJournalMood" type="text" placeholder="4/5" >
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label for="coachJournalWeight">Weight trend</label>
+                  <input id="coachJournalWeight" type="text" placeholder="Stable" >
+                </div>
+                <div class="form-row">
+                  <label for="coachJournalNote">Coach observation</label>
+                  <textarea id="coachJournalNote" rows="3" placeholder="Readiness note, rehab update, or tournament check-in."></textarea>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" class="primary" id="coachJournalSaveBtn">Save journal entry</button>
+                  <button type="button" class="ghost" id="coachJournalClearBtn">Clear</button>
+                </div>
+              </form>
+              <p class="small" id="coachJournalStatus"></p>
+            </div>
+            <div class="mini-card">
+              <h3>Recent Readiness Entries</h3>
+              <div class="completion-list" id="coachJournalRecentList"></div>
+            </div>
+          </div>
           <div class="athlete-grid" id="journalAthletes"></div>
         </div>
       </section>
@@ -1764,6 +1877,43 @@
                 <li>10/12: Great pace in live</li>
                 <li>10/10: Needs tighter half</li>
                 <li>10/08: Weight on track</li>
+              </ul>
+            </div>
+          </div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3>Edit Notes</h3>
+              <p class="small muted" id="athleteNotesSelectedAthlete">Selected athlete</p>
+              <form id="coachAthleteNotesForm" class="form compact-form">
+                <div class="form-row">
+                  <label for="coachAthleteFocus1">Focus 1</label>
+                  <input id="coachAthleteFocus1" type="text" placeholder="Finish the single leg immediately." >
+                </div>
+                <div class="form-row">
+                  <label for="coachAthleteFocus2">Focus 2</label>
+                  <input id="coachAthleteFocus2" type="text" placeholder="Win center mat after the first score." >
+                </div>
+                <div class="form-row">
+                  <label for="coachAthleteFocus3">Focus 3</label>
+                  <input id="coachAthleteFocus3" type="text" placeholder="Convert film into 3 clear scoring reads." >
+                </div>
+                <div class="form-row">
+                  <label for="coachAthleteRecentNote">New coach note</label>
+                  <textarea id="coachAthleteRecentNote" rows="3" placeholder="Save a new note for this athlete."></textarea>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" class="primary" id="coachAthleteNotesSaveBtn">Save notes</button>
+                  <button type="button" class="ghost" id="coachAthleteNotesClearBtn">Clear</button>
+                </div>
+              </form>
+              <p class="small" id="coachAthleteNotesStatus"></p>
+            </div>
+            <div class="mini-card">
+              <h3>Coach Workflow</h3>
+              <ul class="list">
+                <li>Update the top 3 focus points before the next session.</li>
+                <li>Save quick notes during practice or after film review.</li>
+                <li>Use these notes in Athlete Profile, Competition, and follow-up.</li>
               </ul>
             </div>
           </div>
