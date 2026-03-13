@@ -104,6 +104,8 @@ body::before{
 
 .app-content{
   margin-top: 16px;
+  display: flex;
+  flex-direction: column;
 }
 
 button{
@@ -222,6 +224,120 @@ button:active{
   justify-content: flex-start;
 }
 
+.plan-route-grid{
+  margin-bottom: 18px;
+  align-items: start;
+}
+
+.plan-builder-grid{
+  margin-bottom: 16px;
+  align-items: start;
+}
+
+.compact-card-header{
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.route-concept-card{
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.route-concept-card .small{
+  margin: 0;
+}
+
+.plan-source-pills{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.plan-source-btn{
+  border-radius: 999px;
+  padding: 9px 14px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.05);
+  color: var(--muted);
+}
+
+.plan-source-btn.active{
+  color: var(--text);
+  border-color: rgba(18,52,98,0.28);
+  background: linear-gradient(90deg, rgba(18,52,98,0.22), rgba(200,16,46,0.18));
+}
+
+.plan-inline-select{
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.plan-inline-select select{
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(0,0,0,0.22);
+  color: var(--text);
+  padding: 10px 12px;
+}
+
+.plan-target-toolbar{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.plan-target-toolbar .small{
+  margin: 0;
+}
+
+.plan-athlete-picker{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.plan-athlete-option{
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.20);
+}
+
+.plan-athlete-option strong{
+  display: block;
+  font-size: 14px;
+}
+
+.plan-athlete-option span{
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.plan-athlete-option.active{
+  border-color: rgba(27,138,90,0.42);
+  background: rgba(27,138,90,0.14);
+}
+
+.plan-quick-summary{
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.22);
+  font-size: 14px;
+  color: rgba(255,255,255,0.86);
+}
+
 .template-help{
   margin-top: 12px;
   padding: 12px;
@@ -253,6 +369,8 @@ button:active{
 
 /* Panels & cards */
 .panel.hidden{ display:none; }
+.app-content > .panel{ margin-top: 16px; }
+.tabs + .panel{ margin-top: 0; }
 
 .card{
   border-radius: calc(var(--radius) + 2px);
@@ -459,11 +577,159 @@ button:active{
   border-radius: 14px;
   border: 1px solid rgba(255,255,255,0.14);
   background: rgba(0,0,0,0.22);
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.athlete-card.active{
+  border-color: rgba(200,16,46,0.45);
+  box-shadow: 0 10px 22px rgba(15,23,42,0.18);
+  transform: translateY(-1px);
 }
 
 .athlete-card h4{
   margin: 0 0 6px;
   font-size: 15px;
+}
+
+.athlete-card-header{
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 6px;
+}
+
+.athlete-card-meta{
+  color: rgba(255,255,255,0.72);
+}
+
+.athlete-card-status,
+.coach-athlete-profile-status{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.athlete-card-status{
+  justify-content: flex-end;
+}
+
+.athlete-card-section{
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.athlete-card-label,
+.coach-athlete-profile-label{
+  display: block;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255,255,255,0.62);
+}
+
+.athlete-card button{
+  margin-top: 10px;
+}
+
+.status-pill{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.16);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  background: rgba(255,255,255,0.08);
+}
+
+.status-pill-active{
+  border-color: rgba(16,185,129,0.35);
+  background: rgba(16,185,129,0.14);
+  color: #c5ffe8;
+}
+
+.status-pill-limited{
+  border-color: rgba(245,158,11,0.35);
+  background: rgba(245,158,11,0.14);
+  color: #ffe7bd;
+}
+
+.status-pill-travel{
+  border-color: rgba(148,163,184,0.32);
+  background: rgba(148,163,184,0.12);
+  color: #d9e2f0;
+}
+
+.status-pill-pending{
+  border-color: rgba(59,130,246,0.34);
+  background: rgba(59,130,246,0.14);
+  color: #d4e6ff;
+}
+
+.status-pill-journal{
+  border-color: rgba(168,85,247,0.34);
+  background: rgba(168,85,247,0.14);
+  color: #f1deff;
+}
+
+.status-pill-alert{
+  border-color: rgba(200,16,46,0.38);
+  background: rgba(200,16,46,0.16);
+  color: #ffd8e0;
+}
+
+.coach-athlete-profile-hero{
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(15,23,42,0.38);
+}
+
+.coach-athlete-profile-avatar{
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.16);
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  font-weight: 800;
+  background: linear-gradient(135deg, rgba(18,52,98,0.28), rgba(200,16,46,0.18));
+}
+
+.coach-athlete-profile-tabs{
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  padding-bottom: 8px;
+}
+
+.coach-athlete-profile-status{
+  margin-bottom: 14px;
+}
+
+.coach-athlete-profile-content{
+  display: grid;
+  gap: 12px;
+}
+
+.coach-profile-section-grid{
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+}
+
+.athlete-summary-section .mini-card{
+  min-height: 100%;
 }
 
 .profile-subtabs{
@@ -1902,6 +2168,79 @@ textarea:focus{
   background: rgba(0,0,0,0.22);
 }
 
+.assignment-list,
+.completion-list{
+  display: grid;
+  gap: 12px;
+}
+
+.assignment-type-grid{
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+}
+
+.assignment-card,
+.assignment-type-card,
+.completion-card{
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.22);
+  padding: 14px;
+}
+
+.assignment-card-top,
+.completion-card-top{
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.assignment-card-meta,
+.completion-card-meta{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.assignment-card-fields{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.assignment-field{
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  padding: 10px;
+}
+
+.assignment-field-label{
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.54);
+}
+
+.assignment-card .small,
+.assignment-type-card .small,
+.completion-card .small{
+  margin-top: 10px;
+}
+
+.assignment-type-card h4{
+  margin: 0;
+  font-size: 16px;
+}
+
 .media-grid{
   display: grid;
   gap: 12px;
@@ -2872,16 +3211,26 @@ textarea:focus{
   .stat-grid,
   .action-grid,
   .athlete-grid,
+  .coach-profile-section-grid,
   .tech-grid,
   .onepager-grid,
   .coach-match-shell,
   .coach-match-grid,
   .selection-block,
-  .template-help-grid{
+  .template-help-grid,
+  .assignment-type-grid,
+  .plan-athlete-picker,
+  .assignment-card-fields{
     grid-template-columns: 1fr;
   }
   .hero-header{
     flex-direction: column;
+  }
+  .athlete-card-header{
+    flex-direction: column;
+  }
+  .athlete-card-status{
+    justify-content: flex-start;
   }
   .admin-user-row{
     grid-template-columns: 1fr 1fr;
@@ -2896,6 +3245,10 @@ textarea:focus{
   }
   .messages-feed{
     max-height: 340px;
+  }
+  .plan-target-toolbar{
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 

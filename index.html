@@ -189,23 +189,18 @@
         <button type="button" class="tab active" data-tab="today" data-role="athlete" data-views="athlete parent">Today</button>
         <button type="button" class="tab tab-profile-hidden" data-tab="athlete-profile" data-role="athlete" data-views="athlete parent">Profile</button>
         <button type="button" class="tab" data-tab="training" data-role="athlete" data-views="athlete parent">Training Plan</button>
-        <button type="button" class="tab" data-tab="calendar" data-role="athlete coach" data-views="athlete coach parent">Calendar</button>
-        <button type="button" class="tab" data-tab="media" data-role="athlete coach" data-views="athlete coach parent">Media</button>
+        <button type="button" class="tab" data-tab="calendar" data-role="athlete coach" data-views="athlete parent">Calendar</button>
+        <button type="button" class="tab" data-tab="media" data-role="athlete coach" data-views="athlete parent">Media</button>
         <button type="button" class="tab" data-tab="journal" data-role="athlete" data-views="athlete parent">Journal</button>
         <button type="button" class="tab" data-tab="favorites" data-role="athlete">Favorites</button>
-        <button type="button" class="tab" data-tab="announcements" data-role="athlete coach" data-views="athlete coach parent admin">Announcements</button>
+        <button type="button" class="tab" data-tab="announcements" data-role="athlete coach" data-views="athlete parent">Announcements</button>
 
-        <button type="button" class="tab" data-tab="dashboard" data-role="coach" data-views="coach admin">Dashboard</button>
+        <button type="button" class="tab" data-tab="coach-home" data-role="coach" data-views="coach admin">Home</button>
+        <button type="button" class="tab" data-tab="coach-athletes" data-role="coach" data-views="coach admin">Athletes</button>
+        <button type="button" class="tab" data-tab="coach-plans" data-role="coach" data-views="coach admin">Plans &amp; Assignments</button>
+        <button type="button" class="tab" data-tab="coach-competition" data-role="coach" data-views="coach admin">Competition</button>
         <button type="button" class="tab tab-profile-hidden" data-tab="coach-profile" data-role="coach" data-views="coach admin">Coach Profile</button>
-        <button type="button" class="tab" data-tab="athletes" data-role="coach" data-views="coach admin">Athletes</button>
-        <button type="button" class="tab" data-tab="coach-match" data-role="coach" data-views="coach admin">Athlete Summary</button>
-        <button type="button" class="tab" data-tab="plans" data-role="coach" data-views="coach admin">Create Plans</button>
-        <button type="button" class="tab" data-tab="calendar-manager" data-role="coach" data-views="coach admin">Calendar Manager</button>
-        <button type="button" class="tab" data-tab="media-library" data-role="coach" data-views="coach admin">Media Library</button>
-        <button type="button" class="tab" data-tab="athlete-notes" data-role="coach" data-views="coach parent">Athlete Notes</button>
-        <button type="button" class="tab" data-tab="skills" data-role="coach" data-views="coach admin">Skills Tracker</button>
-        <button type="button" class="tab" data-tab="journal-monitor" data-role="coach" data-views="coach parent">Journal Monitor</button>
-        <button type="button" class="tab" data-tab="messages" data-role="athlete coach" data-views="athlete coach parent admin">Messages</button>
+        <button type="button" class="tab" data-tab="messages" data-role="athlete coach" data-views="athlete parent">Messages</button>
         <button type="button" class="tab" data-tab="permissions" data-role="admin" data-views="admin">Permissions</button>
       </nav>
 
@@ -841,21 +836,34 @@
       <section class="panel hidden" id="panel-dashboard">
         <div class="card">
           <div class="card-header">
-            <h2>Team Dashboard</h2>
-            <div class="chip">Alerts: 3</div>
+            <h2>Coach Home</h2>
+            <div class="chip">Quick dashboard</div>
           </div>
           <div class="stat-grid" id="teamStats"></div>
           <div class="section-grid">
             <div class="mini-card">
-              <h3>Overview</h3>
+              <h3 id="homeTasksTitle">Pending Tasks</h3>
               <ul class="list" id="teamOverview"></ul>
             </div>
             <div class="mini-card">
-              <h3>Quick Actions</h3>
+              <h3 id="homeActionsTitle">Quick Actions</h3>
               <div class="action-grid" id="quickActions"></div>
             </div>
           </div>
-          <div class="alert-list" id="alertList"></div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3 id="homeCompetitionsTitle">Upcoming Competitions</h3>
+              <ul class="list" id="homeCompetitions"></ul>
+            </div>
+            <div class="mini-card">
+              <h3 id="homeRecentTrainingTitle">Recent Trainings</h3>
+              <ul class="list" id="homeRecentTrainings"></ul>
+            </div>
+          </div>
+          <div class="mini-card">
+            <h3 id="homeAlertsTitle">Important Alerts</h3>
+            <div class="alert-list" id="alertList"></div>
+          </div>
         </div>
       </section>
 
@@ -901,13 +909,36 @@
             <div class="chip">Roster</div>
           </div>
           <div class="filter-row" id="athleteFilters"></div>
-          <input class="search-input" type="text" placeholder="Search athletes by name" aria-label="Search athletes" >
+          <input id="athleteSearchInput" class="search-input" type="text" placeholder="Search athletes by name" aria-label="Search athletes" >
           <div class="athlete-grid" id="athleteList"></div>
+        </div>
+
+        <div class="card" id="coachAthleteProfileCard">
+          <div class="card-header">
+            <h2>Athlete Profile</h2>
+            <div class="chip">Selected athlete</div>
+          </div>
+          <div class="coach-athlete-profile-hero">
+            <div class="coach-athlete-profile-avatar" id="coachAthleteProfileAvatar">AT</div>
+            <div>
+              <h3 id="coachAthleteProfileName">Athlete</h3>
+              <p class="small muted" id="coachAthleteProfileMeta"></p>
+            </div>
+          </div>
+          <div class="profile-subtabs coach-athlete-profile-tabs" role="tablist" aria-label="Athlete profile sections">
+            <button type="button" class="profile-subtab active" data-coach-profile-tab="identity" id="coachProfileTabIdentity">Identity</button>
+            <button type="button" class="profile-subtab" data-coach-profile-tab="style" id="coachProfileTabStyle">Style</button>
+            <button type="button" class="profile-subtab" data-coach-profile-tab="performance" id="coachProfileTabPerformance">Performance</button>
+            <button type="button" class="profile-subtab" data-coach-profile-tab="notes" id="coachProfileTabNotes">Coach Notes</button>
+            <button type="button" class="profile-subtab" data-coach-profile-tab="corner" id="coachProfileTabCorner">Corner View</button>
+          </div>
+          <div class="coach-athlete-profile-status" id="coachAthleteProfileStatus"></div>
+          <div class="coach-athlete-profile-content" id="coachAthleteProfileContent"></div>
         </div>
       </section>
 
       <section class="panel hidden" id="panel-coach-match">
-        <div class="card coach-match-card">
+        <div class="card coach-match-card" id="athleteSummaryCard">
           <div class="card-header">
             <h2>Athlete Summary</h2>
             <div class="chip">Real-time corner view</div>
@@ -938,55 +969,16 @@
               <div class="match-card emphasis" id="coachMatchCue"></div>
             </div>
           </div>
-          <div class="onepager-section">
+          <div class="onepager-section athlete-summary-section">
             <div class="onepager-header" id="onePagerHeader"></div>
-
             <div class="onepager-grid">
-              <div class="mini-card" id="onePagerIdentity"></div>
-              <div class="mini-card" id="onePagerTechniques"></div>
+              <div class="mini-card" id="summaryWeeklyBoard"></div>
+              <div class="mini-card" id="summaryCornerBoard"></div>
             </div>
-
             <div class="onepager-grid">
-              <div class="mini-card">
-                <h3>Go-To Plan (Coach)</h3>
-                <textarea id="onePagerPlan" rows="3" placeholder="Score first with single leg. Stay heavy on top."></textarea>
-                <button type="button" id="saveOnePagerPlan">Save Plan</button>
-              </div>
-              <div class="mini-card">
-                <h3>Do / Don't</h3>
-                <div class="grid">
-                  <label>
-                    <span>Do</span>
-                    <textarea id="onePagerDo" rows="3" placeholder="Push pace early. Keep elbows tight."></textarea>
-                  </label>
-                  <label>
-                    <span>Don't</span>
-                    <textarea id="onePagerDont" rows="3" placeholder="Overextend on shots."></textarea>
-                  </label>
-                </div>
-                <button type="button" id="saveOnePagerDos">Save Do/Don't</button>
-              </div>
+              <div class="mini-card" id="summarySafetyBoard"></div>
+              <div class="mini-card" id="summaryMentalBoard"></div>
             </div>
-
-            <div class="onepager-grid">
-              <div class="mini-card">
-                <h3>Mat-Side Coaching Cues</h3>
-                <select id="onePagerCues">
-                  <option value="short">Short cues only</option>
-                  <option value="calm">Calm tone</option>
-                  <option value="energy">High energy push</option>
-                  <option value="specific">Specific instruction only</option>
-                </select>
-                <input id="onePagerCueNotes" type="text" placeholder="Optional: responds to simple commands" >
-                <button type="button" id="saveOnePagerCues">Save Cues</button>
-              </div>
-              <div class="mini-card">
-                <h3>Safety &amp; Limitations</h3>
-                <textarea id="onePagerSafety" rows="3" placeholder="Left shoulder caution. Avoid deep shots."></textarea>
-                <button type="button" id="saveOnePagerSafety">Save Safety Notes</button>
-              </div>
-            </div>
-
             <div class="quick-actions">
               <button type="button" id="messageAthleteBtn">Message Athlete</button>
               <button type="button" id="openTrainingBtn">Open Today's Training</button>
@@ -1001,16 +993,68 @@
       <section class="panel hidden" id="panel-plans">
         <div class="card">
           <div class="card-header">
-            <h2>Create Training Plans</h2>
-            <button type="button" id="templatesBtn" class="chip chip-button">Templates</button>
+            <div>
+              <h2>Create Plan</h2>
+              <p class="small muted">Build structured training sessions here. Templates, assignments, scheduling, and tracking stay inside this same route.</p>
+            </div>
+            <button type="button" id="templatesBtn" class="chip chip-button">Open Templates</button>
           </div>
-          <div class="template-confirm hidden" id="templateConfirm">
-            <p class="small">Upload a fillable PDF template? Your document should include most of the section labels listed under Template.</p>
-            <div class="row">
-              <button type="button" id="templateGoBtn" class="confirm-yes">Go ahead</button>
-              <button type="button" id="templateNoBtn" class="confirm-no">Nevermind</button>
+          <div class="section-grid plan-route-grid">
+            <div class="mini-card route-concept-card">
+              <p class="eyebrow">Plans</p>
+              <h3>Structured training</h3>
+              <p class="small muted">Design the practice itself: scope, progression, intensity, coaching notes, and match prep blocks.</p>
+            </div>
+            <div class="mini-card route-concept-card">
+              <p class="eyebrow">Assignments</p>
+              <h3>Work sent to athletes</h3>
+              <p class="small muted">Send film, match analysis, drills, notes, or journal tasks, then track completion without leaving the route.</p>
             </div>
           </div>
+          <div class="section-grid plan-builder-grid">
+            <div class="mini-card">
+              <div class="card-header compact-card-header">
+                <div>
+                  <h3 id="planBuildTitle">Start the plan</h3>
+                  <p class="small muted" id="planBuildSubtitle">Choose the plan type, then decide whether to start from zero, a template, or a previous plan.</p>
+                </div>
+              </div>
+              <div class="plan-source-pills" id="planSourceButtons">
+                <button type="button" class="plan-source-btn active" data-plan-source="scratch">From scratch</button>
+                <button type="button" class="plan-source-btn" data-plan-source="template">From template</button>
+                <button type="button" class="plan-source-btn" data-plan-source="duplicate">Duplicate previous</button>
+              </div>
+              <label class="plan-inline-select hidden" id="planSourceSelectWrapper">
+                <span id="planSourceSelectLabel">Template or plan</span>
+                <select id="planSourceSelect"></select>
+              </label>
+              <p class="small muted" id="planSourceSummary">Starting from scratch.</p>
+            </div>
+            <div class="mini-card">
+              <div class="card-header compact-card-header">
+                <div>
+                  <h3 id="planAssignTitle">Assign this plan</h3>
+                  <p class="small muted" id="planAssignSubtitle">Send it to one athlete, several athletes, or a full group without leaving Create Plan.</p>
+                </div>
+              </div>
+              <div class="plan-source-pills" id="planAssignModes">
+                <button type="button" class="plan-source-btn active" data-plan-assign-mode="single">Single athlete</button>
+                <button type="button" class="plan-source-btn" data-plan-assign-mode="multi">Multiple athletes</button>
+                <button type="button" class="plan-source-btn" data-plan-assign-mode="group">Group</button>
+              </div>
+              <label class="plan-inline-select hidden" id="planAssignGroupWrapper">
+                <span id="planAssignGroupLabel">Group</span>
+                <select id="planAssignGroup"></select>
+              </label>
+              <div class="plan-target-toolbar">
+                <button type="button" class="ghost" id="planAssignSelectAll">Select full team</button>
+                <span class="small muted" id="planAssignHint">Pick one athlete first.</span>
+              </div>
+              <div class="plan-athlete-picker" id="planAssignAthletes"></div>
+              <p class="small" id="planAssignSummary">No target selected yet.</p>
+            </div>
+          </div>
+          <div class="plan-quick-summary" id="planQuickSummary">Daily plan • From scratch • No target selected yet.</div>
           <div class="subtabs" role="tablist" aria-label="Plan scope">
             <button type="button" class="subtab active" data-subtab="plan-daily">Daily</button>
             <button type="button" class="subtab" data-subtab="plan-weekly">Weekly</button>
@@ -1249,158 +1293,21 @@
             </div>
             <div class="section-grid">
               <div class="mini-card">
-                <h3>Template Upload (AcroForm PDF)</h3>
-                <p class="small muted">Upload a fillable PDF with field names:</p>
-                <div class="tag-row">
-                  <span class="tag">intro</span>
-                  <span class="tag">warmup</span>
-                  <span class="tag">drills</span>
-                  <span class="tag">live</span>
-                  <span class="tag">cooldown</span>
-                  <span class="tag">announcements</span>
-                  <span class="tag">date</span>
-                </div>
-                <div class="row">
-                  <input type="file" id="templateFile" accept=".pdf" disabled >
-                  <button type="button" id="uploadTemplateBtn" disabled>Upload PDF</button>
-                </div>
-                <div class="dropzone" id="templateDropzone">
-                  <p class="small">Drag and drop your PDF here</p>
-                </div>
-                <div class="row">
-                  <button type="button" id="generateTemplateBtn" class="primary" disabled>Fill PDF Template</button>
-                  <button type="button" id="templateHelpBtn">Template</button>
-                </div>
-                <div class="template-preview hidden" id="templatePreview">
-                  <iframe id="templatePreviewFrame" title="Filled template preview"></iframe>
-                </div>
-                <div class="template-help hidden" id="templateHelpPanel">
-                  <p class="small muted">Your PDF should use most of these section labels:</p>
-                  <div class="template-help-grid">
-                    <div>
-                      <strong>Introduction / Opening</strong>
-                      <ul class="list">
-                        <li>Introduction</li>
-                        <li>Opening</li>
-                        <li>Daily Introduction</li>
-                        <li>Session Introduction</li>
-                        <li>Team Talk</li>
-                        <li>Coach Talk</li>
-                        <li>Opening Talk</li>
-                        <li>Announcements</li>
-                        <li>Daily Brief</li>
-                        <li>Session Overview</li>
-                      </ul>
-                    </div>
-                    <div>
-                      <strong>Warm-Up</strong>
-                      <ul class="list">
-                        <li>Warmup</li>
-                        <li>General Warm-Up</li>
-                        <li>Dynamic Warm-Up</li>
-                        <li>Dynamic Mobility</li>
-                        <li>Activation</li>
-                        <li>Movement Prep</li>
-                        <li>Wrestling-Specific Warm-Up</li>
-                      </ul>
-                    </div>
-                    <div>
-                      <strong>Drills &amp; Technique</strong>
-                      <ul class="list">
-                        <li>Technique</li>
-                        <li>Technique Introduction</li>
-                        <li>Skill Introduction</li>
-                        <li>Technical Instruction</li>
-                        <li>Teaching Points</li>
-                        <li>Demonstration</li>
-                        <li>Drills</li>
-                        <li>Technical Drills</li>
-                        <li>Static Drills</li>
-                        <li>Motion Drills</li>
-                        <li>Partner Drills</li>
-                        <li>Chain Drills</li>
-                        <li>Repetition Drills</li>
-                      </ul>
-                    </div>
-                    <div>
-                      <strong>Live / Hard Pace</strong>
-                      <ul class="list">
-                        <li>Live</li>
-                        <li>Live Wrestling</li>
-                        <li>Situational Live</li>
-                        <li>Situational Wrestling</li>
-                        <li>Hard Pace</li>
-                        <li>High Intensity</li>
-                        <li>Resistance Work</li>
-                        <li>Rounds</li>
-                        <li>Go's</li>
-                        <li>Scenarios</li>
-                        <li>Position Work</li>
-                        <li>Neutral Live</li>
-                        <li>Top Live</li>
-                        <li>Bottom Live</li>
-                      </ul>
-                    </div>
-                    <div>
-                      <strong>Conditioning</strong>
-                      <ul class="list">
-                        <li>Conditioning</li>
-                        <li>Wrestling Conditioning</li>
-                        <li>Physical Conditioning</li>
-                        <li>Circuit</li>
-                        <li>Interval Training</li>
-                        <li>Match Conditioning</li>
-                        <li>Endurance</li>
-                        <li>Work Capacity</li>
-                      </ul>
-                    </div>
-                    <div>
-                      <strong>Cool Down / Recovery</strong>
-                      <ul class="list">
-                        <li>Cool Down</li>
-                        <li>Cooldown</li>
-                        <li>Recovery</li>
-                        <li>Active Recovery</li>
-                        <li>Wrestling section</li>
-                        <li>Mobility</li>
-                        <li>Breathing</li>
-                      </ul>
-                    </div>
-                    <div>
-                      <strong>Visualization / Mental</strong>
-                      <ul class="list">
-                        <li>Visualization</li>
-                        <li>Mental Training</li>
-                        <li>Mental Prep</li>
-                        <li>Focus</li>
-                        <li>Mindset Training</li>
-                        <li>Match Visualization</li>
-                        <li>Breathing Exercises</li>
-                      </ul>
-                    </div>
-                    <div>
-                      <strong>Closing / End of Session</strong>
-                      <ul class="list">
-                        <li>Closing</li>
-                        <li>Wrap-Up</li>
-                        <li>Session Close</li>
-                        <li>Team Closing</li>
-                        <li>Final Message</li>
-                        <li>Announcements</li>
-                        <li>Reminders</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-                <p class="small" id="templateStatus"></p>
+                <h3>Template Workflow</h3>
+                <ul class="list">
+                  <li>Save strong practice structures as reusable templates</li>
+                  <li>Duplicate templates by phase, discipline, or training goal</li>
+                  <li>Jump to Templates to upload PDF forms or keep seasonal builds</li>
+                  <li>Turn any plan block into an assignment without leaving this route</li>
+                </ul>
               </div>
               <div class="mini-card">
-                <h3>Template Notes</h3>
+                <h3>Assignment Link</h3>
                 <ul class="list">
-                  <li>Use your own logo, colors, and fonts</li>
-                  <li>PDF must be AcroForm with matching field names</li>
-                  <li>Selections will be joined into each field</li>
-                  <li>Download and share the filled PDF</li>
+                  <li>Attach video, match study, drill work, notes, or journal follow-up</li>
+                  <li>Assign by athlete, group, date, or competition week</li>
+                  <li>Mark each task as required, optional, or review with coach</li>
+                  <li>Use Completion Tracking to see what needs follow-up fast</li>
                 </ul>
               </div>
             </div>
@@ -1441,23 +1348,218 @@
         </div>
       </section>
 
+      <!-- COACH: TEMPLATES -->
+      <section class="panel hidden" id="panel-templates">
+        <div class="card">
+          <div class="card-header">
+            <h2>Templates</h2>
+            <div class="chip">Reusable structures</div>
+          </div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3>Template Library</h3>
+              <ul class="list">
+                <li>Daily technical session</li>
+                <li>High-volume chain wrestling week</li>
+                <li>Competition taper week</li>
+                <li>Rehab or modified practice build</li>
+                <li>Season block with milestones and checkpoints</li>
+              </ul>
+            </div>
+            <div class="mini-card">
+              <h3>Template Workflow</h3>
+              <ul class="list">
+                <li>Duplicate by phase, discipline, or athlete group</li>
+                <li>Keep recurring structures ready for fast edits</li>
+                <li>Upload a fillable PDF if your staff prints plans</li>
+                <li>Reuse the same template when sending assignments</li>
+              </ul>
+            </div>
+          </div>
+          <div class="template-confirm" id="templateConfirm">
+            <p class="small">Use PDF templates if you want a printable or shareable plan form for staff workflows.</p>
+            <div class="row">
+              <button type="button" id="templateGoBtn" class="confirm-yes">Pick a PDF</button>
+              <button type="button" id="templateNoBtn" class="confirm-no">Hide tips</button>
+            </div>
+          </div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3>Template Upload (AcroForm PDF)</h3>
+              <p class="small muted">Upload a fillable PDF with field names:</p>
+              <div class="tag-row">
+                <span class="tag">intro</span>
+                <span class="tag">warmup</span>
+                <span class="tag">drills</span>
+                <span class="tag">live</span>
+                <span class="tag">cooldown</span>
+                <span class="tag">announcements</span>
+                <span class="tag">date</span>
+              </div>
+              <div class="row">
+                <input type="file" id="templateFile" accept=".pdf" >
+                <button type="button" id="uploadTemplateBtn">Upload PDF</button>
+              </div>
+              <div class="dropzone" id="templateDropzone">
+                <p class="small">Drag and drop your PDF here</p>
+              </div>
+              <div class="row">
+                <button type="button" id="generateTemplateBtn" class="primary">Fill PDF Template</button>
+                <button type="button" id="templateHelpBtn">Template</button>
+              </div>
+              <div class="template-preview hidden" id="templatePreview">
+                <iframe id="templatePreviewFrame" title="Filled template preview"></iframe>
+              </div>
+              <div class="template-help hidden" id="templateHelpPanel">
+                <p class="small muted">Your PDF should use most of these section labels:</p>
+                <div class="template-help-grid">
+                  <div>
+                    <strong>Introduction / Opening</strong>
+                    <ul class="list">
+                      <li>Introduction</li>
+                      <li>Opening</li>
+                      <li>Daily Introduction</li>
+                      <li>Session Introduction</li>
+                      <li>Team Talk</li>
+                      <li>Coach Talk</li>
+                      <li>Opening Talk</li>
+                      <li>Announcements</li>
+                      <li>Daily Brief</li>
+                      <li>Session Overview</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <strong>Warm-Up</strong>
+                    <ul class="list">
+                      <li>Warmup</li>
+                      <li>General Warm-Up</li>
+                      <li>Dynamic Warm-Up</li>
+                      <li>Dynamic Mobility</li>
+                      <li>Activation</li>
+                      <li>Movement Prep</li>
+                      <li>Wrestling-Specific Warm-Up</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <strong>Drills &amp; Technique</strong>
+                    <ul class="list">
+                      <li>Technique</li>
+                      <li>Technique Introduction</li>
+                      <li>Skill Introduction</li>
+                      <li>Technical Instruction</li>
+                      <li>Teaching Points</li>
+                      <li>Demonstration</li>
+                      <li>Drills</li>
+                      <li>Technical Drills</li>
+                      <li>Static Drills</li>
+                      <li>Motion Drills</li>
+                      <li>Partner Drills</li>
+                      <li>Chain Drills</li>
+                      <li>Repetition Drills</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <strong>Live / Hard Pace</strong>
+                    <ul class="list">
+                      <li>Live</li>
+                      <li>Live Wrestling</li>
+                      <li>Situational Live</li>
+                      <li>Situational Wrestling</li>
+                      <li>Hard Pace</li>
+                      <li>High Intensity</li>
+                      <li>Resistance Work</li>
+                      <li>Rounds</li>
+                      <li>Go's</li>
+                      <li>Scenarios</li>
+                      <li>Position Work</li>
+                      <li>Neutral Live</li>
+                      <li>Top Live</li>
+                      <li>Bottom Live</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <strong>Conditioning</strong>
+                    <ul class="list">
+                      <li>Conditioning</li>
+                      <li>Wrestling Conditioning</li>
+                      <li>Physical Conditioning</li>
+                      <li>Circuit</li>
+                      <li>Interval Training</li>
+                      <li>Match Conditioning</li>
+                      <li>Endurance</li>
+                      <li>Work Capacity</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <strong>Cool Down / Recovery</strong>
+                    <ul class="list">
+                      <li>Cool Down</li>
+                      <li>Cooldown</li>
+                      <li>Recovery</li>
+                      <li>Active Recovery</li>
+                      <li>Wrestling section</li>
+                      <li>Mobility</li>
+                      <li>Breathing</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <strong>Visualization / Mental</strong>
+                    <ul class="list">
+                      <li>Visualization</li>
+                      <li>Mental Training</li>
+                      <li>Mental Prep</li>
+                      <li>Focus</li>
+                      <li>Mindset Training</li>
+                      <li>Match Visualization</li>
+                      <li>Breathing Exercises</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <strong>Closing / End of Session</strong>
+                    <ul class="list">
+                      <li>Closing</li>
+                      <li>Wrap-Up</li>
+                      <li>Session Close</li>
+                      <li>Team Closing</li>
+                      <li>Final Message</li>
+                      <li>Announcements</li>
+                      <li>Reminders</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              <p class="small" id="templateStatus"></p>
+            </div>
+            <div class="mini-card">
+              <h3>Template Notes</h3>
+              <ul class="list">
+                <li>Use your own logo, colors, and fonts</li>
+                <li>PDF must be AcroForm with matching field names</li>
+                <li>Selections will be joined into each field</li>
+                <li>Download and share the filled PDF</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- COACH: CALENDAR MANAGER -->
       <section class="panel hidden" id="panel-calendar-manager">
         <div class="card">
           <div class="card-header">
-            <h2 id="calendarManagerTitle">Calendar Manager</h2>
-            <div class="chip" id="calendarManagerChip">Create events + reminders</div>
+            <h2 id="calendarManagerTitle">Calendar</h2>
+            <div class="chip" id="calendarManagerChip">Schedule plans + assignments</div>
           </div>
           <div class="section-grid">
             <div class="mini-card">
-              <h3 id="calendarManagerFormTitle">Create Event</h3>
+              <h3 id="calendarManagerFormTitle">Schedule Item</h3>
               <form id="calendarManagerForm" class="form compact-form">
                 <div class="form-row">
                   <label for="calendarManagerDate" id="calendarManagerDateLabel">Date</label>
                   <input id="calendarManagerDate" type="date" required >
                 </div>
                 <div class="form-row">
-                  <label for="calendarManagerTitleInput" id="calendarManagerEventLabel">Event</label>
+                  <label for="calendarManagerTitleInput" id="calendarManagerEventLabel">Item</label>
                   <input id="calendarManagerTitleInput" type="text" placeholder="Team practice" required >
                 </div>
                 <div class="form-row two-cols">
@@ -1482,32 +1584,33 @@
               </div>
             </div>
             <div class="mini-card">
-              <h3 id="calendarManagerActionsTitle">Coach Actions</h3>
+              <h3 id="calendarManagerActionsTitle">Scheduling Actions</h3>
               <ul class="list">
-                <li>Invite athletes/groups</li>
-                <li>Attach location + checklist</li>
-                <li>Push notifications</li>
+                <li>Place plans and assignments on the same date</li>
+                <li>Target athletes, groups, or the full team</li>
+                <li>Add logistics, reminders, and coach checkpoints</li>
               </ul>
             </div>
           </div>
           <div class="section-grid">
             <div class="mini-card">
-              <h3 id="calendarManagerTypesTitle">Event Types</h3>
+              <h3 id="calendarManagerTypesTitle">Schedule Types</h3>
               <ul class="list">
-                <li>Practice</li>
+                <li>Practice plan</li>
+                <li>Athlete assignment</li>
+                <li>Film review</li>
                 <li>Tournament</li>
                 <li>Weigh-in</li>
                 <li>Travel</li>
-                <li>Team meeting</li>
               </ul>
             </div>
             <div class="mini-card">
-              <h3 id="calendarManagerDetailsTitle">Event Details</h3>
+              <h3 id="calendarManagerDetailsTitle">What to Attach</h3>
               <ul class="list">
                 <li>Date and time</li>
-                <li>Location and map link</li>
-                <li>Notes and reminders</li>
-                <li>Equipment checklist</li>
+                <li>Plan scope or assignment type</li>
+                <li>Notes, reminders, and due expectations</li>
+                <li>Location and checklist when needed</li>
                 <li>Assigned athletes or groups</li>
               </ul>
             </div>
@@ -1525,65 +1628,60 @@
         </div>
       </section>
 
-      <!-- COACH: MEDIA LIBRARY -->
-      <section class="panel hidden" id="panel-media-library">
+      <!-- COACH: ASSIGNMENTS -->
+      <section class="panel hidden" id="panel-assignments">
         <div class="card">
           <div class="card-header">
-            <h2>Media Library</h2>
-            <div class="chip">Upload - Tag - Assign</div>
+            <h2>Assignments</h2>
+            <div class="chip">Send work to athletes</div>
+          </div>
+          <div class="stat-grid" id="assignmentStats"></div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3 id="assignmentQueueTitle">Assignment Queue</h3>
+              <div class="assignment-list" id="assignmentList"></div>
+            </div>
+            <div class="mini-card">
+              <h3 id="assignmentTypesTitle">Assignment Screen</h3>
+              <div class="assignment-type-grid" id="assignmentTypeGrid"></div>
+            </div>
           </div>
           <div class="section-grid">
             <div class="mini-card">
-              <h3>Tags</h3>
+              <h3 id="assignmentResourceTitle">Resource Library</h3>
               <div class="tag-row">
-                <span class="tag">Freestyle</span>
-                <span class="tag">Greco-Roman</span>
-                <span class="tag">Folkstyle</span>
-                <span class="tag">Neutral</span>
-                <span class="tag">Top</span>
-                <span class="tag">Bottom</span>
-                <span class="tag">Single Leg</span>
-                <span class="tag">Defense</span>
-                <span class="tag">Half Nelson</span>
-                <span class="tag">Bottom Escapes</span>
+                <span class="tag">Film</span>
+                <span class="tag">Match Analysis</span>
+                <span class="tag">Drills</span>
+                <span class="tag">Coach Notes</span>
+                <span class="tag">Journal</span>
               </div>
+              <ul class="list" id="assignmentResourceList"></ul>
             </div>
             <div class="mini-card">
-              <h3>Assignments</h3>
-              <ul class="list">
-                <li>Assign to today or a date</li>
-                <li>Assign to athlete or group</li>
-                <li>Track watch history</li>
-                <li>Mark as required or optional</li>
-              </ul>
+              <h3 id="assignmentWorkflowTitle">Assignment Workflow</h3>
+              <ul class="list" id="assignmentWorkflowList"></ul>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- COACH: ATHLETE NOTES -->
-      <section class="panel hidden" id="panel-athlete-notes">
+      <!-- COACH: COMPLETION TRACKING -->
+      <section class="panel hidden" id="panel-completion-tracking">
         <div class="card">
           <div class="card-header">
-            <h2>Athlete Notes</h2>
-            <div class="chip">Private coach notes</div>
+            <h2>Completion Tracking</h2>
+            <div class="chip">Follow-up by athlete</div>
           </div>
+          <div class="stat-grid" id="completionStats"></div>
           <div class="section-grid">
             <div class="mini-card">
-              <h3>Next Focus</h3>
-              <ul class="list">
-                <li>Improve bottom: switch + sit-out</li>
-                <li>Hand fight pressure</li>
-                <li>Finish single leg to shelf</li>
-              </ul>
+              <h3 id="completionRowsTitle">Athlete Follow-Up</h3>
+              <div class="completion-list" id="completionList"></div>
             </div>
             <div class="mini-card">
-              <h3>Recent Notes</h3>
-              <ul class="list">
-                <li>10/12: Great pace in live</li>
-                <li>10/10: Needs tighter half</li>
-                <li>10/08: Weight on track</li>
-              </ul>
+              <h3 id="completionAlertsTitle">Coach Follow-Up</h3>
+              <ul class="list" id="completionAlertsList"></ul>
             </div>
           </div>
         </div>
@@ -1618,6 +1716,34 @@
             </div>
           </div>
           <div class="athlete-grid" id="journalAthletes"></div>
+        </div>
+      </section>
+
+      <!-- COACH: ATHLETE NOTES -->
+      <section class="panel hidden" id="panel-athlete-notes">
+        <div class="card">
+          <div class="card-header">
+            <h2>Athlete Notes</h2>
+            <div class="chip">Private coach notes</div>
+          </div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3>Next Focus</h3>
+              <ul class="list">
+                <li>Improve bottom: switch + sit-out</li>
+                <li>Hand fight pressure</li>
+                <li>Finish single leg to shelf</li>
+              </ul>
+            </div>
+            <div class="mini-card">
+              <h3>Recent Notes</h3>
+              <ul class="list">
+                <li>10/12: Great pace in live</li>
+                <li>10/10: Needs tighter half</li>
+                <li>10/08: Weight on track</li>
+              </ul>
+            </div>
+          </div>
         </div>
       </section>
 
