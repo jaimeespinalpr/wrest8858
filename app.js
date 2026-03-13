@@ -861,6 +861,8 @@ function refreshLanguageUI() {
   renderCalendarManager();
   renderMedia();
   renderAnnouncements();
+  renderCoachAssignments();
+  renderCompletionTracking();
   renderDashboard();
   renderCoachProfile();
   renderAthleteManagement();
@@ -1566,6 +1568,30 @@ const TAB_COPY = {
     uz: "Panel",
     ru: "Панель"
   },
+  "coach-home": {
+    en: "Home",
+    es: "Inicio",
+    uz: "Bosh sahifa",
+    ru: "Главная"
+  },
+  "coach-athletes": {
+    en: "Athletes",
+    es: "Atletas",
+    uz: "Sportchilar",
+    ru: "Спортсмены"
+  },
+  "coach-plans": {
+    en: "Plans & Assignments",
+    es: "Planes y asignaciones",
+    uz: "Rejalar va topshiriqlar",
+    ru: "Планы и назначения"
+  },
+  "coach-competition": {
+    en: "Competition",
+    es: "Competencia",
+    uz: "Musobaqa",
+    ru: "Соревнование"
+  },
   "coach-profile": {
     en: "Coach Profile",
     es: "Perfil entrenador",
@@ -1585,22 +1611,34 @@ const TAB_COPY = {
     ru: "Сводка спортсмена"
   },
   plans: {
-    en: "Create Plans",
-    es: "Crear planes",
+    en: "Create Plan",
+    es: "Crear plan",
     uz: "Rejalar yaratish",
     ru: "Создать планы"
   },
+  templates: {
+    en: "Templates",
+    es: "Plantillas",
+    uz: "Shablonlar",
+    ru: "Шаблоны"
+  },
+  assignments: {
+    en: "Assignments",
+    es: "Asignaciones",
+    uz: "Topshiriqlar",
+    ru: "Назначения"
+  },
   "calendar-manager": {
-    en: "Calendar Manager",
-    es: "Gestion calendario",
+    en: "Calendar",
+    es: "Calendario",
     uz: "Taqvim boshqaruvi",
     ru: "Управление календарём"
   },
-  "media-library": {
-    en: "Media Library",
-    es: "Biblioteca",
-    uz: "Media kutubxonasi",
-    ru: "Медиатека"
+  "completion-tracking": {
+    en: "Completion Tracking",
+    es: "Seguimiento",
+    uz: "Yakun kuzatuvi",
+    ru: "Отслеживание выполнения"
   },
   "athlete-notes": {
     en: "Athlete Notes",
@@ -2051,14 +2089,14 @@ const PANEL_COPY = {
   },
   "panel-competition-preview": {
     title: {
-      en: "Competition Summary Preview",
-      es: "Resumen de competencia",
+      en: "Competition / Corner View",
+      es: "Competencia / Vista de esquina",
       uz: "Musobaqa xulosasi ko‘rinishi",
       ru: "Предварительный обзор соревнования"
     },
     chip: {
-      en: "Coach view",
-      es: "Vista entrenador",
+      en: "Match-day tools",
+      es: "Herramientas de competencia",
       uz: "Murabbiy ko'rinishi",
       ru: "Вид тренера"
     }
@@ -2123,14 +2161,14 @@ const PANEL_COPY = {
   },
   "panel-dashboard": {
     title: {
-      en: "Team Dashboard",
-      es: "Panel del equipo",
+      en: "Coach Home",
+      es: "Inicio del entrenador",
       uz: "Jamoa paneli",
       ru: "Командная панель"
     },
     chip: {
-      en: "Alerts: 3",
-      es: "Alertas: 3",
+      en: "Quick dashboard",
+      es: "Panel rapido",
       uz: "Ogohlantirishlar: 3",
       ru: "Оповещения: 3"
     }
@@ -2151,14 +2189,14 @@ const PANEL_COPY = {
   },
   "panel-athletes": {
     title: {
-      en: "Athlete Management",
-      es: "Gestion de atletas",
+      en: "Athletes",
+      es: "Atletas",
       uz: "Sportchilarni boshqarish",
       ru: "Управление спортсменами"
     },
     chip: {
-      en: "Roster",
-      es: "Plantel",
+      en: "Roster & profiles",
+      es: "Roster y perfiles",
       uz: "Ro'yxat",
       ru: "Состав"
     }
@@ -2171,46 +2209,74 @@ const PANEL_COPY = {
       ru: "Сводка спортсмена"
     },
     chip: {
-      en: "Real-time corner view",
-      es: "Vista en tiempo real",
+      en: "Weekly + competition view",
+      es: "Vista semanal + competencia",
       uz: "Jonli burchak ko'rinishi",
       ru: "Просмотр в реальном времени"
     }
   },
   "panel-plans": {
     title: {
-      en: "Create Training Plans",
-      es: "Crear planes de entrenamiento",
+      en: "Create Plan",
+      es: "Crear plan",
       uz: "Trening rejalarini yaratish",
       ru: "Создание тренировочных планов"
     }
   },
+  "panel-templates": {
+    title: {
+      en: "Templates",
+      es: "Plantillas",
+      uz: "Shablonlar",
+      ru: "Шаблоны"
+    },
+    chip: {
+      en: "Reusable structures",
+      es: "Estructuras reutilizables",
+      uz: "Qayta ishlatiladigan tuzilmalar",
+      ru: "Повторно используемые структуры"
+    }
+  },
   "panel-calendar-manager": {
     title: {
-      en: "Calendar Manager",
-      es: "Gestion de calendario",
+      en: "Calendar",
+      es: "Calendario",
       uz: "Taqvim boshqaruvi",
       ru: "Управление календарем"
     },
     chip: {
-      en: "Create events + reminders",
-      es: "Crear eventos y recordatorios",
+      en: "Schedule plans + assignments",
+      es: "Programa planes y asignaciones",
       uz: "Tadbirlar va eslatmalar yarating",
       ru: "Создайте события и напоминания"
     }
   },
-  "panel-media-library": {
+  "panel-assignments": {
     title: {
-      en: "Media Library",
-      es: "Biblioteca multimedia",
-      uz: "Media kutubxonasi",
-      ru: "Медиатека"
+      en: "Assignments",
+      es: "Asignaciones",
+      uz: "Topshiriqlar",
+      ru: "Назначения"
     },
     chip: {
-      en: "Upload - Tag - Assign",
-      es: "Subir - Etiquetar - Asignar",
-      uz: "Yuklash - Teg qo'yish - Belgilash",
-      ru: "Загрузить - Тег - Назначить"
+      en: "Send work to athletes",
+      es: "Enviar trabajo a atletas",
+      uz: "Topshiriqlarni sportchilarga yuborish",
+      ru: "Отправляйте задания спортсменам"
+    }
+  },
+  "panel-completion-tracking": {
+    title: {
+      en: "Completion Tracking",
+      es: "Seguimiento de cumplimiento",
+      uz: "Bajarilishni kuzatish",
+      ru: "Отслеживание выполнения"
+    },
+    chip: {
+      en: "Follow-up by athlete",
+      es: "Seguimiento por atleta",
+      uz: "Sportchi bo'yicha kuzatish",
+      ru: "Контроль по спортсмену"
     }
   },
   "panel-athlete-notes": {
@@ -2413,20 +2479,20 @@ const BUTTON_COPY = {
     ru: "Добавить заметку"
   },
   templatesBtn: {
-    en: "Templates",
-    es: "Plantillas",
+    en: "Open Templates",
+    es: "Abrir plantillas",
     uz: "Shablonlar",
     ru: "Шаблоны"
   },
   templateGoBtn: {
-    en: "Go ahead",
-    es: "Continuar",
+    en: "Pick a PDF",
+    es: "Elegir PDF",
     uz: "Davom etish",
     ru: "Продолжить"
   },
   templateNoBtn: {
-    en: "Nevermind",
-    es: "Cancelar",
+    en: "Hide tips",
+    es: "Ocultar ayuda",
     uz: "Bekor qilish",
     ru: "Не сейчас"
   },
@@ -3783,58 +3849,504 @@ const ANNOUNCEMENTS_ES = [
 ];
 
 const TEAM_STATS = [
-  { title: "Check-ins Today", value: "5/7", note: "2 athletes missing" },
-  { title: "Average Energy", value: "3.6", note: "Steady from last week" },
-  { title: "Compliance Rate", value: "84%", note: "Goal: 90%" },
-  { title: "Upcoming Events", value: "4", note: "2 in next 7 days" }
+  { title: "Active Athletes", value: "7", note: "5 ready for full training today" },
+  { title: "Pending Tasks", value: "6", note: "3 need coach follow-up before Friday" },
+  { title: "Upcoming Competitions", value: "2", note: "Next dual is Saturday, March 14" },
+  { title: "Recent Trainings", value: "4", note: "Sessions logged in the last 7 days" }
 ];
 
 const TEAM_STATS_ES = [
-  { title: "Chequeos hoy", value: "5/7", note: "Faltan 2 atletas" },
-  { title: "Energia promedio", value: "3.6", note: "Estable desde la semana pasada" },
-  { title: "Tasa de cumplimiento", value: "84%", note: "Meta: 90%" },
-  { title: "Eventos proximos", value: "4", note: "2 en los proximos 7 dias" }
+  { title: "Atletas activos", value: "7", note: "5 listos para entrenar hoy" },
+  { title: "Tareas pendientes", value: "6", note: "3 necesitan seguimiento antes del viernes" },
+  { title: "Competencias proximas", value: "2", note: "El proximo dual es el sabado 14 de marzo" },
+  { title: "Entrenamientos recientes", value: "4", note: "Sesiones registradas en los ultimos 7 dias" }
 ];
 
 const TEAM_OVERVIEW = [
-  "Athletes: 7 active",
-  "Training plans: 3 running",
-  "Upcoming tournaments: 2",
-  "Alerts flagged: 3"
+  "Review Maya Cruz ankle rehab update before today's session.",
+  "Finalize Saturday, March 14 dual lineup for 157 lb and 189 lb.",
+  "Send film assignment to Carlos Vega and Sophia Reyes.",
+  "Confirm Olivia Chen travel status for the weekend event."
 ];
 
 const TEAM_OVERVIEW_ES = [
-  "Atletas: 7 activos",
-  "Planes de entrenamiento: 3 en curso",
-  "Torneos proximos: 2",
-  "Alertas marcadas: 3"
+  "Revisar la actualizacion del tobillo de Maya Cruz antes de la practica de hoy.",
+  "Cerrar la alineacion del dual del sabado 14 de marzo para 157 lb y 189 lb.",
+  "Enviar la asignacion de video a Carlos Vega y Sophia Reyes.",
+  "Confirmar el estatus de viaje de Olivia Chen para el evento del fin de semana."
 ];
 
 const QUICK_ACTIONS = [
-  "Create training plan",
-  "Add calendar event",
-  "Upload media",
-  "View athlete profiles"
+  "Add Athlete",
+  "Create Plan",
+  "Send Assignment",
+  "Open Competition Mode"
 ];
 
 const QUICK_ACTIONS_ES = [
-  "Crear plan de entrenamiento",
-  "Agregar evento al calendario",
-  "Subir multimedia",
-  "Ver perfiles de atletas"
+  "Agregar atleta",
+  "Crear plan",
+  "Enviar asignacion",
+  "Abrir modo competencia"
+];
+
+const HOME_COMPETITIONS = [
+  { title: "Friday Night Dual", detail: "Lincoln High - Saturday, March 14 - 6:00 PM" },
+  { title: "Junior Worlds Prep Scrimmage", detail: "United WC room - Tuesday, March 17 - 4:30 PM" }
+];
+
+const HOME_COMPETITIONS_ES = [
+  { title: "Dual de viernes por la noche", detail: "Lincoln High - Sabado 14 de marzo - 6:00 PM" },
+  { title: "Scrimmage preparatorio Junior Worlds", detail: "United WC room - Martes 17 de marzo - 4:30 PM" }
+];
+
+const HOME_RECENT_TRAININGS = [
+  { title: "Chain wrestling", detail: "Completed by 6 athletes - Thursday, March 12" },
+  { title: "Top control review", detail: "Completed by 5 athletes - Wednesday, March 11" },
+  { title: "Conditioning circuit", detail: "Modified for 2 athletes - Tuesday, March 10" }
+];
+
+const HOME_RECENT_TRAININGS_ES = [
+  { title: "Cadena de lucha", detail: "Completado por 6 atletas - Jueves 12 de marzo" },
+  { title: "Revision de control arriba", detail: "Completado por 5 atletas - Miercoles 11 de marzo" },
+  { title: "Circuito de acondicionamiento", detail: "Modificado para 2 atletas - Martes 10 de marzo" }
 ];
 
 const ALERTS = [
-  "2 athletes reported high soreness (4+).",
-  "Low sleep detected for 3 athletes.",
-  "Weight check needed for 125 lb class."
+  "Maya Cruz reported ankle soreness after Thursday's session.",
+  "Ethan Brooks still needs a weight check before Saturday, March 14.",
+  "Olivia Chen remains marked as travel for the weekend competition."
 ];
 
 const ALERTS_ES = [
-  "2 atletas reportaron dolor alto (4+).",
-  "Se detecto poco sueno en 3 atletas.",
-  "Se necesita chequeo de peso para 125 lb."
+  "Maya Cruz reporto dolor en el tobillo despues de la sesion del jueves.",
+  "Ethan Brooks todavia necesita chequeo de peso antes del sabado 14 de marzo.",
+  "Olivia Chen sigue marcada como viaje para la competencia del fin de semana."
 ];
+
+const ATHLETE_TASK_BOARD = {
+  "Jaime Espinal": {
+    tasks: [
+      { en: "Review Friday opponent film", es: "Revisar video del rival del viernes" }
+    ],
+    journal: {
+      state: "fresh",
+      label: { en: "Updated today", es: "Actualizado hoy" }
+    }
+  },
+  "Maya Cruz": {
+    tasks: [
+      { en: "Adjust ankle rehab warm-up", es: "Ajustar el warm-up de rehabilitacion del tobillo" },
+      { en: "Send modified drill assignment", es: "Enviar la asignacion modificada de drills" }
+    ],
+    journal: {
+      state: "stale",
+      label: { en: "Journal missing since yesterday", es: "Falta el journal desde ayer" }
+    }
+  },
+  "Liam Park": {
+    tasks: [],
+    journal: {
+      state: "fresh",
+      label: { en: "Updated this morning", es: "Actualizado esta manana" }
+    }
+  },
+  "Olivia Chen": {
+    tasks: [
+      { en: "Confirm weekend travel schedule", es: "Confirmar el horario de viaje del fin de semana" }
+    ],
+    journal: {
+      state: "stale",
+      label: { en: "No journal in the last 2 days", es: "No hay journal en los ultimos 2 dias" }
+    }
+  },
+  "Carlos Vega": {
+    tasks: [
+      { en: "Complete assigned film review", es: "Completar la revision del video asignado" }
+    ],
+    journal: {
+      state: "fresh",
+      label: { en: "Updated today", es: "Actualizado hoy" }
+    }
+  },
+  "Sophia Reyes": {
+    tasks: [
+      { en: "Send top-turn clip before Friday", es: "Enviar el clip de turns arriba antes del viernes" }
+    ],
+    journal: {
+      state: "fresh",
+      label: { en: "Updated this afternoon", es: "Actualizado esta tarde" }
+    }
+  },
+  "Ethan Brooks": {
+    tasks: [
+      { en: "Schedule weight check", es: "Programar el chequeo de peso" },
+      { en: "Adjust conditioning load", es: "Ajustar la carga de acondicionamiento" }
+    ],
+    journal: {
+      state: "stale",
+      label: { en: "Journal overdue by 1 day", es: "El journal tiene 1 dia de atraso" }
+    }
+  }
+};
+
+const COACH_ASSIGNMENT_ITEMS = [
+  {
+    title: { en: "Friday opponent film", es: "Video del rival del viernes" },
+    assignee: { en: "Carlos Vega", es: "Carlos Vega" },
+    type: { en: "Video review", es: "Revision de video" },
+    dueDate: { en: "Today - 5:00 PM", es: "Hoy - 5:00 PM" },
+    source: { en: "Film library", es: "Biblioteca de video" },
+    note: { en: "Required before evening practice.", es: "Obligatorio antes de la practica de la tarde." },
+    status: "due"
+  },
+  {
+    title: { en: "Top-turn breakdown", es: "Analisis de turns arriba" },
+    assignee: { en: "Competition squad", es: "Grupo de competencia" },
+    type: { en: "Match analysis", es: "Analisis de combate" },
+    dueDate: { en: "Tomorrow - 10:00 AM", es: "Manana - 10:00 AM" },
+    source: { en: "Coach clip set", es: "Clips del coach" },
+    note: { en: "Reply with 3 scoring reads.", es: "Responder con 3 lecturas de puntuacion." },
+    status: "review"
+  },
+  {
+    title: { en: "Ankle-safe motion drill", es: "Drill de movimiento seguro para el tobillo" },
+    assignee: { en: "Maya Cruz", es: "Maya Cruz" },
+    type: { en: "Drill", es: "Drill" },
+    dueDate: { en: "Overdue - Thursday", es: "Atrasado - jueves" },
+    source: { en: "Modified rehab block", es: "Bloque modificado de rehab" },
+    note: { en: "Complete before the next live session.", es: "Completar antes de la siguiente sesion en vivo." },
+    status: "overdue"
+  },
+  {
+    title: { en: "Travel checklist + coach notes", es: "Checklist de viaje + notas del coach" },
+    assignee: { en: "Travel group", es: "Grupo de viaje" },
+    type: { en: "Coach notes", es: "Notas del coach" },
+    dueDate: { en: "Completed - Friday", es: "Completado - viernes" },
+    source: { en: "Competition packet", es: "Paquete de competencia" },
+    note: { en: "Travel details already confirmed.", es: "Los detalles de viaje ya estan confirmados." },
+    status: "complete"
+  },
+  {
+    title: { en: "Journal + weight check", es: "Journal + chequeo de peso" },
+    assignee: { en: "Ethan Brooks", es: "Ethan Brooks" },
+    type: { en: "Journal task", es: "Tarea de journal" },
+    dueDate: { en: "Today - before 7:00 PM", es: "Hoy - antes de las 7:00 PM" },
+    source: { en: "Readiness check", es: "Chequeo de readiness" },
+    note: { en: "Needs coach review before Saturday lineup.", es: "Necesita revision del coach antes de la alineacion del sabado." },
+    status: "due"
+  }
+];
+
+const COACH_ASSIGNMENT_TYPES = [
+  {
+    title: { en: "Video", es: "Video" },
+    detail: { en: "Watch a clip set or full match and send back coach takeaways.", es: "Ver clips o un combate completo y devolver ideas al coach." },
+    examples: [
+      { en: "Opponent study", es: "Estudio del rival" },
+      { en: "Technique demo", es: "Demo tecnica" }
+    ]
+  },
+  {
+    title: { en: "Match Analysis", es: "Analisis de combate" },
+    detail: { en: "Break down sequences, scoring windows, and tactical reads.", es: "Desglosar secuencias, ventanas de puntuacion y lecturas tacticas." },
+    examples: [
+      { en: "3 scoring moments", es: "3 momentos de puntuacion" },
+      { en: "Missed counters", es: "Contras perdidas" }
+    ]
+  },
+  {
+    title: { en: "Drill", es: "Drill" },
+    detail: { en: "Send movement, rehab, or technical reps to complete off-mat or before practice.", es: "Enviar movimientos, rehab o repeticiones tecnicas para completar fuera del mat o antes de la practica." },
+    examples: [
+      { en: "Footwork block", es: "Bloque de footwork" },
+      { en: "Rehab sequence", es: "Secuencia de rehab" }
+    ]
+  },
+  {
+    title: { en: "Coach Notes", es: "Notas del coach" },
+    detail: { en: "Push reminders, scouting notes, travel info, or mental cues.", es: "Enviar recordatorios, scouting, viaje o claves mentales." },
+    examples: [
+      { en: "Travel packet", es: "Paquete de viaje" },
+      { en: "Corner reminders", es: "Recordatorios de esquina" }
+    ]
+  },
+  {
+    title: { en: "Journal", es: "Journal" },
+    detail: { en: "Request reflection, readiness check-in, or written match prep.", es: "Pedir reflexion, readiness o preparacion escrita de competencia." },
+    examples: [
+      { en: "Daily check-in", es: "Chequeo diario" },
+      { en: "Tournament focus", es: "Enfoque para torneo" }
+    ]
+  }
+];
+
+const COACH_ASSIGNMENT_RESOURCES = [
+  {
+    en: "Attach video, PDF notes, drill blocks, or coach comments from the same assignment flow.",
+    es: "Adjunta video, notas en PDF, bloques de drills o comentarios del coach desde el mismo flujo."
+  },
+  {
+    en: "Assign by athlete, small group, weight class, or full team.",
+    es: "Asigna por atleta, grupo pequeno, peso o equipo completo."
+  },
+  {
+    en: "Set due date, required vs optional, and whether coach review is needed.",
+    es: "Define fecha, si es obligatorio u opcional, y si requiere revision del coach."
+  },
+  {
+    en: "Keep film, match study, drill, notes, and journal tasks under one queue.",
+    es: "Mantiene video, analisis, drills, notas y journal dentro de una sola cola."
+  }
+];
+
+const COACH_ASSIGNMENT_WORKFLOW = [
+  {
+    en: "Create the plan first when the assignment belongs to a structured practice block.",
+    es: "Crea primero el plan cuando la asignacion pertenece a un bloque estructurado."
+  },
+  {
+    en: "Send the assignment with athlete, due date, and completion expectation.",
+    es: "Enviala con atleta, fecha y expectativa de cumplimiento."
+  },
+  {
+    en: "Place it on the calendar if it belongs to a practice day, tournament week, or travel window.",
+    es: "Ponla en el calendario si pertenece a un dia de practica, semana de torneo o viaje."
+  },
+  {
+    en: "Use Completion Tracking for late work, missing journals, and coach follow-up.",
+    es: "Usa Seguimiento para trabajo tarde, journals faltantes y seguimiento del coach."
+  }
+];
+
+const COACH_COMPLETION_STATUS_COPY = {
+  ontrack: { en: "On track", es: "En camino" },
+  followup: { en: "Needs follow-up", es: "Necesita seguimiento" },
+  overdue: { en: "Overdue", es: "Atrasado" },
+  limited: { en: "Modified load", es: "Carga modificada" }
+};
+
+const COACH_COMPLETION_ROWS = {
+  "Jaime Espinal": {
+    plan: { en: "Competition prep week", es: "Semana de preparacion competitiva" },
+    progress: { en: "3 of 4 assignments completed", es: "3 de 4 asignaciones completadas" },
+    followUp: { en: "Review opponent notes tonight.", es: "Revisar las notas del rival esta noche." },
+    status: "ontrack"
+  },
+  "Maya Cruz": {
+    plan: { en: "Modified rehab week", es: "Semana modificada de rehabilitacion" },
+    progress: { en: "1 of 3 assignments completed", es: "1 de 3 asignaciones completadas" },
+    followUp: { en: "Check ankle-safe drill before next live session.", es: "Revisar el drill seguro para el tobillo antes de la proxima sesion en vivo." },
+    status: "limited"
+  },
+  "Olivia Chen": {
+    plan: { en: "Travel + competition week", es: "Semana de viaje + competencia" },
+    progress: { en: "Travel notes completed, journal still missing", es: "Notas de viaje completadas, journal aun pendiente" },
+    followUp: { en: "Confirm journal before departure.", es: "Confirmar journal antes de salir." },
+    status: "followup"
+  },
+  "Carlos Vega": {
+    plan: { en: "Film and finish week", es: "Semana de video y finalizacion" },
+    progress: { en: "Film assignment due today", es: "La asignacion de video vence hoy" },
+    followUp: { en: "Coach review right after practice.", es: "Revision del coach justo despues de la practica." },
+    status: "followup"
+  },
+  "Ethan Brooks": {
+    plan: { en: "Weight management block", es: "Bloque de manejo de peso" },
+    progress: { en: "Journal and weight check overdue", es: "Journal y chequeo de peso atrasados" },
+    followUp: { en: "Clear before Saturday lineup lock.", es: "Resolver antes de cerrar la alineacion del sabado." },
+    status: "overdue"
+  }
+};
+
+const ATHLETE_CORNER_PLANS = {
+  "Jaime Espinal": {
+    setups: [
+      { en: "Heavy collar tie to single", es: "Collar tie pesado a single" },
+      { en: "Inside control to snap", es: "Control interno a snap" },
+      { en: "Level change off fake step", es: "Cambio de nivel despues de fake step" }
+    ],
+    planA: { en: "Score first from single leg and keep center pressure.", es: "Anotar primero desde single leg y mantener presion en el centro." },
+    planB: { en: "Go snap-down to front headlock if the shot gets blocked.", es: "Ir a snap-down y front headlock si bloquean el tiro." },
+    planC: { en: "Win ties, hand fight, and score late off re-attack.", es: "Ganar los ties, pelear manos y anotar tarde con re-ataque." },
+    coachCues: [
+      { en: "Head to hip", es: "Cabeza a la cadera" },
+      { en: "Stay under him", es: "Mantente debajo de el" },
+      { en: "Re-attack fast", es: "Re-ataca rapido" }
+    ],
+    pressureErrors: [
+      { en: "Reaches with lead hand before moving feet.", es: "Extiende la mano adelantada antes de mover los pies." }
+    ],
+    physicalLimitations: [
+      { en: "Monitor lower-back fatigue late in match.", es: "Vigilar la fatiga lumbar al final del combate." }
+    ],
+    safetyWarnings: [
+      { en: "Do not hang on the shot if the head position is lost.", es: "No colgarse del tiro si pierde la posicion de la cabeza." }
+    ],
+    mentalReminders: [
+      { en: "First contact wins the pace.", es: "El primer contacto gana el ritmo." },
+      { en: "Stay patient after the first shot.", es: "Mantente paciente despues del primer tiro." }
+    ]
+  },
+  "Maya Cruz": {
+    setups: [
+      { en: "Short drag to ankle pick", es: "Short drag a ankle pick" },
+      { en: "Opponent reach to outside step", es: "Si extiende la mano, paso por fuera" },
+      { en: "Bottom explode on whistle", es: "Desde abajo explotar al silbato" }
+    ],
+    planA: { en: "Keep the match clean, score from ankle pick, and avoid extended scrambles.", es: "Mantener el combate limpio, anotar con ankle pick y evitar scrambles largos." },
+    planB: { en: "If neutral is slow, create offense from bottom with first-move urgency.", es: "Si el neutral esta lento, crear ofensiva desde abajo con urgencia." },
+    planC: { en: "Close the match with position and mat control, not risk.", es: "Cerrar el combate con posicion y control de mat, no con riesgo." },
+    coachCues: [
+      { en: "Short steps", es: "Pasos cortos" },
+      { en: "Hip down first", es: "Cadera abajo primero" },
+      { en: "Score and settle", es: "Anota y estabiliza" }
+    ],
+    pressureErrors: [
+      { en: "Backs straight up when the pace rises.", es: "Retrocede en linea recta cuando sube el ritmo." }
+    ],
+    physicalLimitations: [
+      { en: "Protect the recovering ankle on long scrambles.", es: "Proteger el tobillo en recuperacion en scrambles largos." }
+    ],
+    safetyWarnings: [
+      { en: "Avoid extended knee-on-ankle pressure in bad positions.", es: "Evitar presion prolongada sobre el tobillo en malas posiciones." }
+    ],
+    mentalReminders: [
+      { en: "Small wins every exchange.", es: "Pequenas victorias en cada intercambio." },
+      { en: "No rush after defending.", es: "No apresurarse despues de defender." }
+    ]
+  },
+  "Liam Park": {
+    setups: [
+      { en: "Head position before body lock", es: "Posicion de cabeza antes del body lock" },
+      { en: "Snap to underhook", es: "Snap a underhook" },
+      { en: "Upper-body fake to throw window", es: "Fake de torso a ventana de lanzamiento" }
+    ],
+    planA: { en: "Control ties and attack from upper-body pressure.", es: "Controlar ties y atacar desde la presion del torso." },
+    planB: { en: "If they square up, create scores off snap-downs and go-behinds.", es: "Si se cuadran, anotar con snap-downs y go-behinds." },
+    planC: { en: "Win every restart with position and heavy hands.", es: "Ganar cada reinicio con posicion y manos pesadas." },
+    coachCues: [
+      { en: "Head first", es: "Cabeza primero" },
+      { en: "Elbows in", es: "Codos adentro" },
+      { en: "Lock and move", es: "Traba y mueve" }
+    ],
+    pressureErrors: [
+      { en: "Waits too long before converting ties to offense.", es: "Espera demasiado para convertir los ties en ofensiva." }
+    ],
+    physicalLimitations: [],
+    safetyWarnings: [
+      { en: "Do not force throws when hips are behind the opponent.", es: "No forzar lanzamientos cuando las caderas estan detras del rival." }
+    ],
+    mentalReminders: [
+      { en: "Position before power.", es: "Posicion antes que fuerza." }
+    ]
+  },
+  "Olivia Chen": {
+    setups: [
+      { en: "Snap to double", es: "Snap a doble" },
+      { en: "Fake single to re-shot", es: "Fake de single a re-shot" },
+      { en: "Circle to open lane", es: "Circular para abrir la linea" }
+    ],
+    planA: { en: "Push pace early and score before the opponent settles.", es: "Subir el ritmo temprano y anotar antes de que el rival se acomode." },
+    planB: { en: "If tied late, own center and finish the best re-attack.", es: "Si esta empatada al final, dominar el centro y finalizar el mejor re-ataque." },
+    planC: { en: "When travel fatigue shows, stay efficient and win position by position.", es: "Si aparece fatiga por viaje, ser eficiente y ganar posicion por posicion." },
+    coachCues: [
+      { en: "Center first", es: "Centro primero" },
+      { en: "Hands then hips", es: "Manos y luego caderas" },
+      { en: "Finish clean", es: "Final limpio" }
+    ],
+    pressureErrors: [
+      { en: "Shoots from too far away under stress.", es: "Tira desde muy lejos cuando siente presion." }
+    ],
+    physicalLimitations: [
+      { en: "Monitor recovery if travel schedule is tight.", es: "Monitorear la recuperacion si el viaje es ajustado." }
+    ],
+    safetyWarnings: [
+      { en: "Do not chase low-percentage shots late if balance is off.", es: "No perseguir tiros de bajo porcentaje al final si el balance no esta bien." }
+    ],
+    mentalReminders: [
+      { en: "Own the center.", es: "Domina el centro." },
+      { en: "Late points come from calm pressure.", es: "Los puntos tardios salen de una presion calmada." }
+    ]
+  },
+  "Carlos Vega": {
+    setups: [
+      { en: "Inside tie to ankle pick", es: "Inside tie a ankle pick" },
+      { en: "Level fake to double", es: "Fake de nivel a doble" },
+      { en: "Reshot off first defense", es: "Reshot despues de la primera defensa" }
+    ],
+    planA: { en: "Chain the first attack into the second attack immediately.", es: "Encadenar el primer ataque con el segundo inmediatamente." },
+    planB: { en: "If the first score does not come, build with hand fight and reshot.", es: "Si no llega el primer punto, construir con pelea de manos y reshot." },
+    planC: { en: "In close matches, trust short offense and clean finishes.", es: "En combates cerrados, confiar en ofensiva corta y finales limpios." },
+    coachCues: [
+      { en: "First shot, second shot", es: "Primer tiro, segundo tiro" },
+      { en: "Stay on the leg", es: "Sigue en la pierna" }
+    ],
+    pressureErrors: [
+      { en: "Stops after the first defended attack.", es: "Se detiene despues del primer ataque defendido." }
+    ],
+    physicalLimitations: [],
+    safetyWarnings: [
+      { en: "Do not dive across the body on ankle picks.", es: "No lanzarse cruzado en los ankle picks." }
+    ],
+    mentalReminders: [
+      { en: "One more attack wins the exchange.", es: "Un ataque mas gana el intercambio." }
+    ]
+  },
+  "Sophia Reyes": {
+    setups: [
+      { en: "Inside tie to high crotch", es: "Inside tie a high crotch" },
+      { en: "Snap to angle change", es: "Snap a cambio de angulo" },
+      { en: "Top wrist to turn", es: "Control de muneca arriba para girar" }
+    ],
+    planA: { en: "Create offense early and look for top turns once she scores.", es: "Crear ofensiva temprano y buscar turns arriba despues de anotar." },
+    planB: { en: "If top turns are not there, ride and build pressure for the next opening.", es: "Si no salen los turns, montar y construir presion para la siguiente apertura." },
+    planC: { en: "Use short go pace and do not force the turn without control.", es: "Usar ritmo corto y no forzar el turn sin control." },
+    coachCues: [
+      { en: "Wrist first", es: "Muneca primero" },
+      { en: "Short motion", es: "Movimiento corto" },
+      { en: "Turn when set", es: "Gira cuando este listo" }
+    ],
+    pressureErrors: [
+      { en: "Forces turns before controlling hips and wrist.", es: "Fuerza los turns antes de controlar cadera y muneca." }
+    ],
+    physicalLimitations: [],
+    safetyWarnings: [
+      { en: "Avoid rolling through if position is not sealed.", es: "Evitar rodar si la posicion no esta asegurada." }
+    ],
+    mentalReminders: [
+      { en: "Control creates the turn.", es: "El control crea el turn." }
+    ]
+  },
+  "Ethan Brooks": {
+    setups: [
+      { en: "Snap to body lock", es: "Snap a body lock" },
+      { en: "Short drag to upper-body tie", es: "Short drag a tie de torso" },
+      { en: "Heavy hands on restart", es: "Manos pesadas al reiniciar" }
+    ],
+    planA: { en: "Win ties, slow the match, then score from upper-body control.", es: "Ganar ties, bajar el ritmo del combate y anotar desde el control de torso." },
+    planB: { en: "If pace rises, defend first and counter right away.", es: "Si sube el ritmo, defender primero y contraatacar enseguida." },
+    planC: { en: "Protect gas tank and win late with position.", es: "Proteger la gasolina y ganar tarde con posicion." },
+    coachCues: [
+      { en: "Heavy hands", es: "Manos pesadas" },
+      { en: "Short offense", es: "Ofensiva corta" },
+      { en: "Counter now", es: "Contra ahora" }
+    ],
+    pressureErrors: [
+      { en: "Pauses after defending instead of countering.", es: "Se pausa despues de defender en vez de contraatacar." }
+    ],
+    physicalLimitations: [
+      { en: "Manage conditioning load between periods.", es: "Manejar la carga fisica entre periodos." }
+    ],
+    safetyWarnings: [
+      { en: "Avoid forcing big throws when fatigued.", es: "Evitar forzar grandes lanzamientos cuando este fatigado." }
+    ],
+    mentalReminders: [
+      { en: "Stay composed in hand fight.", es: "Mantente compuesto en la pelea de manos." },
+      { en: "Position before explosion.", es: "Posicion antes de explotar." }
+    ]
+  }
+};
 
 const COACH_ACCOUNT = [
   "Email: coach@wrestlingapp.com",
@@ -4659,6 +5171,14 @@ function getAlertsData() {
   return currentLang === "es" ? ALERTS_ES : ALERTS;
 }
 
+function getHomeCompetitionsData() {
+  return currentLang === "es" ? HOME_COMPETITIONS_ES : HOME_COMPETITIONS;
+}
+
+function getHomeRecentTrainingsData() {
+  return currentLang === "es" ? HOME_RECENT_TRAININGS_ES : HOME_RECENT_TRAININGS;
+}
+
 function getCoachAccountData() {
   return currentLang === "es" ? COACH_ACCOUNT_ES : COACH_ACCOUNT;
 }
@@ -4826,8 +5346,10 @@ const panels = {
   athletes: document.getElementById("panel-athletes"),
   "coach-match": document.getElementById("panel-coach-match"),
   plans: document.getElementById("panel-plans"),
+  templates: document.getElementById("panel-templates"),
+  assignments: document.getElementById("panel-assignments"),
   "calendar-manager": document.getElementById("panel-calendar-manager"),
-  "media-library": document.getElementById("panel-media-library"),
+  "completion-tracking": document.getElementById("panel-completion-tracking"),
   "athlete-notes": document.getElementById("panel-athlete-notes"),
   skills: document.getElementById("panel-skills"),
   "journal-monitor": document.getElementById("panel-journal-monitor"),
@@ -4836,39 +5358,96 @@ const panels = {
   future: document.getElementById("panel-future"),
   "competition-preview": document.getElementById("panel-competition-preview")
 };
+const COACH_ROUTE_PANELS = {
+  "coach-home": ["dashboard"],
+  "coach-athletes": ["athletes", "coach-match", "skills", "journal-monitor", "athlete-notes"],
+  "coach-plans": ["plans", "templates", "assignments", "calendar-manager", "calendar", "completion-tracking"],
+  "coach-competition": ["competition-preview"]
+};
+const COACH_ROUTE_DEFAULT_PANEL = {
+  "coach-home": "dashboard",
+  "coach-athletes": "athletes",
+  "coach-plans": "plans",
+  "coach-competition": "competition-preview"
+};
+const COACH_ROUTE_BY_PANEL = Object.entries(COACH_ROUTE_PANELS).reduce((acc, [route, keys]) => {
+  keys.forEach((key) => {
+    acc[key] = route;
+  });
+  return acc;
+}, {});
+
+function isCoachRouteContext() {
+  return currentView === "coach" || currentView === "admin";
+}
+
+function resolveRouteTabRequest(name) {
+  if (!isCoachRouteContext()) {
+    return { tab: name, focusPanel: "" };
+  }
+  if (COACH_ROUTE_PANELS[name]) {
+    return { tab: name, focusPanel: COACH_ROUTE_DEFAULT_PANEL[name] || "" };
+  }
+  const route = COACH_ROUTE_BY_PANEL[name];
+  if (route) {
+    return { tab: route, focusPanel: name };
+  }
+  return { tab: name, focusPanel: "" };
+}
 
 async function showTab(name) {
-  const targetBtn = tabBtns.find((btn) => btn.dataset.tab === name && !btn.hidden);
+  const resolved = resolveRouteTabRequest(name);
+  const targetBtn = tabBtns.find((btn) => btn.dataset.tab === resolved.tab && !btn.hidden);
   const fallbackTab = tabBtns.find((btn) => !btn.hidden)?.dataset.tab;
-  const safeTab = targetBtn ? name : (fallbackTab || name);
+  const hasContent = Boolean(COACH_ROUTE_PANELS[resolved.tab] || panels[resolved.tab]);
+  const safeTab = targetBtn ? resolved.tab : (hasContent ? resolved.tab : (fallbackTab || resolved.tab));
+  const visiblePanels = COACH_ROUTE_PANELS[safeTab] || [safeTab];
+  const focusPanel = visiblePanels.includes(resolved.focusPanel)
+    ? resolved.focusPanel
+    : (COACH_ROUTE_DEFAULT_PANEL[safeTab] || "");
 
   tabBtns.forEach((b) => b.classList.toggle("active", b.dataset.tab === safeTab));
   Object.entries(panels).forEach(([k, el]) => {
     if (!el) return;
-    el.classList.toggle("hidden", k !== safeTab);
+    const orderIndex = visiblePanels.indexOf(k);
+    el.style.order = orderIndex >= 0 ? String(orderIndex + 1) : "999";
+    el.classList.toggle("hidden", orderIndex === -1);
   });
 
-  if (safeTab === "plans" && templatePdfBytes && window.PDFLib) {
+  if (visiblePanels.includes("plans") && templatePdfBytes && window.PDFLib) {
     await generateFilledPdf({ download: false });
   }
 
-  if (safeTab === "coach-match" && coachMatchSelect?.value) {
+  if (visiblePanels.includes("coach-match") && coachMatchSelect?.value) {
     renderCoachMatchView(coachMatchSelect.value);
   }
 
-  if (safeTab === "calendar-manager") {
+  if (visiblePanels.includes("competition-preview")) {
+    const selectedAthlete = getAthletesData().find((athlete) => athlete.name === coachMatchSelect?.value) || getAthletesData()[0] || getProfile();
+    if (selectedAthlete) {
+      renderCompetitionPreview(selectedAthlete);
+    }
+  }
+
+  if (visiblePanels.includes("calendar-manager")) {
     renderCalendarManager();
   }
 
-  if (safeTab === "permissions") {
+  if (visiblePanels.includes("permissions")) {
     maybeRefreshAdminUsers();
   }
 
-  if (safeTab === "messages") {
+  if (visiblePanels.includes("messages")) {
     ensureMessagesSession().catch((err) => {
       console.warn("Failed to open messages tab", err);
       setMessagesStatus(MESSAGES_COPY.loadError, "error");
       renderMessages();
+    });
+  }
+
+  if (focusPanel && panels[focusPanel]) {
+    requestAnimationFrame(() => {
+      panels[focusPanel]?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   }
 }
@@ -4904,8 +5483,8 @@ function setRoleUI(role, view = "athlete") {
     ? "permissions"
     : view === "parent"
       ? "athlete-notes"
-      : isCoachRole(roleName)
-        ? "dashboard"
+      : view === "coach" || isCoachRole(roleName)
+        ? "coach-home"
         : "today";
   toggleParentViewNotice(view);
   enforceStrictAuthUI();
@@ -4993,6 +5572,236 @@ const planMonthlySave = document.getElementById("planMonthlySave");
 const planMonthPrevBtn = document.getElementById("planMonthPrev");
 const planMonthNextBtn = document.getElementById("planMonthNext");
 const planCalendarLabel = document.getElementById("planCalendarLabel");
+const planSourceButtons = Array.from(document.querySelectorAll("[data-plan-source]"));
+const planBuildTitle = document.getElementById("planBuildTitle");
+const planBuildSubtitle = document.getElementById("planBuildSubtitle");
+const planSourceSelectWrapper = document.getElementById("planSourceSelectWrapper");
+const planSourceSelectLabel = document.getElementById("planSourceSelectLabel");
+const planSourceSelect = document.getElementById("planSourceSelect");
+const planSourceSummary = document.getElementById("planSourceSummary");
+const planAssignModeButtons = Array.from(document.querySelectorAll("[data-plan-assign-mode]"));
+const planAssignTitle = document.getElementById("planAssignTitle");
+const planAssignSubtitle = document.getElementById("planAssignSubtitle");
+const planAssignGroupWrapper = document.getElementById("planAssignGroupWrapper");
+const planAssignGroupLabel = document.getElementById("planAssignGroupLabel");
+const planAssignGroup = document.getElementById("planAssignGroup");
+const planAssignSelectAll = document.getElementById("planAssignSelectAll");
+const planAssignHint = document.getElementById("planAssignHint");
+const planAssignAthletes = document.getElementById("planAssignAthletes");
+const planAssignSummary = document.getElementById("planAssignSummary");
+const planQuickSummary = document.getElementById("planQuickSummary");
+let planSourceMode = "scratch";
+let planSourceSelection = "";
+let planAssignMode = "single";
+let planAssignedAthletes = [];
+let planAssignedGroup = "full-team";
+
+const PLAN_SOURCE_LIBRARY = {
+  scratch: {
+    label: { en: "From scratch", es: "Desde cero" },
+    summary: {
+      en: "Starting from scratch. Build the plan structure directly in this screen.",
+      es: "Empiezas desde cero. Construye el plan directamente en esta pantalla."
+    },
+    selectLabel: { en: "", es: "" },
+    options: []
+  },
+  template: {
+    label: { en: "From template", es: "Desde plantilla" },
+    summary: {
+      en: "Use a reusable template, then edit the plan details here.",
+      es: "Usa una plantilla reutilizable y luego ajusta los detalles aqui."
+    },
+    selectLabel: { en: "Template", es: "Plantilla" },
+    options: [
+      { value: "daily-tech", label: { en: "Daily technical session", es: "Sesion tecnica diaria" } },
+      { value: "high-volume-week", label: { en: "High-volume chain wrestling week", es: "Semana de alto volumen en cadena" } },
+      { value: "competition-taper", label: { en: "Competition taper week", es: "Semana de descarga competitiva" } }
+    ]
+  },
+  duplicate: {
+    label: { en: "Duplicate previous", es: "Duplicar anterior" },
+    summary: {
+      en: "Start from a recent plan and adjust dates, volume, or targets.",
+      es: "Parte de un plan reciente y ajusta fechas, volumen o destinatarios."
+    },
+    selectLabel: { en: "Previous plan", es: "Plan anterior" },
+    options: [
+      { value: "last-daily", label: { en: "Yesterday - Daily mat session", es: "Ayer - Sesion diaria de mat" } },
+      { value: "last-weekly", label: { en: "Last week - Competition prep", es: "Semana pasada - Preparacion competitiva" } },
+      { value: "last-season", label: { en: "Last season block - Strength phase", es: "Bloque anterior - Fase de fuerza" } }
+    ]
+  }
+};
+
+const PLAN_ASSIGN_GROUPS = [
+  { value: "full-team", label: { en: "Full team", es: "Equipo completo" } },
+  { value: "competition-squad", label: { en: "Competition squad", es: "Grupo de competencia" } },
+  { value: "light-day", label: { en: "Light day / modified group", es: "Grupo liviano / modificado" } },
+  { value: "rehab", label: { en: "Rehab group", es: "Grupo de rehabilitacion" } }
+];
+
+function getPlanScopeLabel() {
+  const scopeCopy = {
+    day: { en: "Daily plan", es: "Plan diario" },
+    week: { en: "Weekly plan", es: "Plan semanal" },
+    month: { en: "Monthly plan", es: "Plan mensual" },
+    season: { en: "Season plan", es: "Plan de temporada" }
+  };
+  return pickCopy(scopeCopy[planRangeType] || scopeCopy.day);
+}
+
+function getPlanTargetSummary() {
+  if (planAssignMode === "group") {
+    const group = PLAN_ASSIGN_GROUPS.find((item) => item.value === planAssignedGroup) || PLAN_ASSIGN_GROUPS[0];
+    return currentLang === "es"
+      ? `Asignado a ${pickCopy(group.label)}`
+      : `Assigned to ${pickCopy(group.label)}`;
+  }
+  if (!planAssignedAthletes.length) {
+    return currentLang === "es" ? "Sin destino seleccionado" : "No target selected yet";
+  }
+  if (planAssignMode === "single") {
+    return currentLang === "es"
+      ? `Asignado a ${planAssignedAthletes[0]}`
+      : `Assigned to ${planAssignedAthletes[0]}`;
+  }
+  return currentLang === "es"
+    ? `Asignado a ${planAssignedAthletes.length} atletas`
+    : `Assigned to ${planAssignedAthletes.length} athletes`;
+}
+
+function updatePlanQuickSummary() {
+  if (!planQuickSummary) return;
+  const source = PLAN_SOURCE_LIBRARY[planSourceMode];
+  const sourceLabel = pickCopy(source?.label || PLAN_SOURCE_LIBRARY.scratch.label);
+  planQuickSummary.textContent = `${getPlanScopeLabel()} • ${sourceLabel} • ${getPlanTargetSummary()}`;
+  if (planAssignSummary) {
+    planAssignSummary.textContent = getPlanTargetSummary();
+  }
+}
+
+function renderPlanSourceControls() {
+  if (planBuildTitle) planBuildTitle.textContent = currentLang === "es" ? "Inicia el plan" : "Start the plan";
+  if (planBuildSubtitle) {
+    planBuildSubtitle.textContent = currentLang === "es"
+      ? "Elige el tipo de plan y si empiezas desde cero, desde plantilla o duplicando uno anterior."
+      : "Choose the plan type, then decide whether to start from zero, a template, or a previous plan.";
+  }
+  planSourceButtons.forEach((btn) => {
+    const copy = {
+      scratch: { en: "From scratch", es: "Desde cero" },
+      template: { en: "From template", es: "Desde plantilla" },
+      duplicate: { en: "Duplicate previous", es: "Duplicar anterior" }
+    };
+    btn.textContent = pickCopy(copy[btn.dataset.planSource] || copy.scratch);
+    btn.classList.toggle("active", btn.dataset.planSource === planSourceMode);
+  });
+  const source = PLAN_SOURCE_LIBRARY[planSourceMode] || PLAN_SOURCE_LIBRARY.scratch;
+  if (planSourceSummary) {
+    const selection = source.options.find((item) => item.value === planSourceSelection);
+    planSourceSummary.textContent = selection
+      ? `${pickCopy(source.summary)} ${pickCopy(selection.label)}.`
+      : pickCopy(source.summary);
+  }
+  if (!planSourceSelectWrapper || !planSourceSelect || !planSourceSelectLabel) {
+    updatePlanQuickSummary();
+    return;
+  }
+  const hasOptions = source.options.length > 0;
+  planSourceSelectWrapper.classList.toggle("hidden", !hasOptions);
+  if (!hasOptions) {
+    updatePlanQuickSummary();
+    return;
+  }
+  planSourceSelectLabel.textContent = pickCopy(source.selectLabel);
+  planSourceSelect.innerHTML = "";
+  source.options.forEach((option) => {
+    const el = document.createElement("option");
+    el.value = option.value;
+    el.textContent = pickCopy(option.label);
+    planSourceSelect.appendChild(el);
+  });
+  if (!source.options.some((option) => option.value === planSourceSelection)) {
+    planSourceSelection = source.options[0]?.value || "";
+  }
+  planSourceSelect.value = planSourceSelection;
+  updatePlanQuickSummary();
+}
+
+function renderPlanAssignControls() {
+  if (planAssignMode === "single" && planAssignedAthletes.length > 1) {
+    planAssignedAthletes = planAssignedAthletes.slice(0, 1);
+  }
+  planAssignModeButtons.forEach((btn) => {
+    const copy = {
+      single: { en: "Single athlete", es: "Un atleta" },
+      multi: { en: "Multiple athletes", es: "Varios atletas" },
+      group: { en: "Group", es: "Grupo" }
+    };
+    btn.textContent = pickCopy(copy[btn.dataset.planAssignMode] || copy.single);
+    btn.classList.toggle("active", btn.dataset.planAssignMode === planAssignMode);
+  });
+  if (planAssignTitle) planAssignTitle.textContent = currentLang === "es" ? "Asigna este plan" : "Assign this plan";
+  if (planAssignSubtitle) {
+    planAssignSubtitle.textContent = currentLang === "es"
+      ? "Envialo a un atleta, varios atletas o un grupo completo sin salir de Create Plan."
+      : "Send it to one athlete, several athletes, or a full group without leaving Create Plan.";
+  }
+  if (planAssignGroupLabel) {
+    planAssignGroupLabel.textContent = currentLang === "es" ? "Grupo" : "Group";
+  }
+  if (planAssignSelectAll) {
+    planAssignSelectAll.hidden = planAssignMode !== "multi";
+    planAssignSelectAll.textContent = currentLang === "es" ? "Seleccionar equipo completo" : "Select full team";
+  }
+  if (planAssignHint) {
+    const hintMap = {
+      single: { en: "Pick one athlete.", es: "Elige un atleta." },
+      multi: { en: "Pick several athletes.", es: "Elige varios atletas." },
+      group: { en: "Pick a full group.", es: "Elige un grupo completo." }
+    };
+    planAssignHint.textContent = pickCopy(hintMap[planAssignMode] || hintMap.single);
+  }
+  if (planAssignGroupWrapper && planAssignGroup) {
+    planAssignGroupWrapper.classList.toggle("hidden", planAssignMode !== "group");
+    planAssignGroup.innerHTML = "";
+    PLAN_ASSIGN_GROUPS.forEach((group) => {
+      const option = document.createElement("option");
+      option.value = group.value;
+      option.textContent = pickCopy(group.label);
+      planAssignGroup.appendChild(option);
+    });
+    if (!PLAN_ASSIGN_GROUPS.some((group) => group.value === planAssignedGroup)) {
+      planAssignedGroup = PLAN_ASSIGN_GROUPS[0]?.value || "full-team";
+    }
+    planAssignGroup.value = planAssignedGroup;
+  }
+  if (planAssignAthletes) {
+    planAssignAthletes.classList.toggle("hidden", planAssignMode === "group");
+    planAssignAthletes.innerHTML = "";
+    getAthletesData().forEach((athlete) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = `plan-athlete-option${planAssignedAthletes.includes(athlete.name) ? " active" : ""}`;
+      btn.innerHTML = `<strong>${athlete.name}</strong><span>${athlete.weight} - ${athlete.style}</span>`;
+      btn.addEventListener("click", () => {
+        if (planAssignMode === "single") {
+          planAssignedAthletes = [athlete.name];
+        } else if (planAssignMode === "multi") {
+          if (planAssignedAthletes.includes(athlete.name)) {
+            planAssignedAthletes = planAssignedAthletes.filter((name) => name !== athlete.name);
+          } else {
+            planAssignedAthletes = [...planAssignedAthletes, athlete.name];
+          }
+        }
+        renderPlanAssignControls();
+      });
+      planAssignAthletes.appendChild(btn);
+    });
+  }
+  updatePlanQuickSummary();
+}
 
 function getCalendarContainers() {
     return [planCalendarContainer].filter(Boolean);
@@ -5111,6 +5920,8 @@ function initializePlanSelectors() {
     const today = getCurrentAppDate();
     renderPlanCalendar(today.getFullYear(), today.getMonth());
     updateRangeInputsFromSelection();
+    renderPlanSourceControls();
+    renderPlanAssignControls();
 }
 
 function toIsoDate(date) {
@@ -5214,9 +6025,9 @@ function handlePlanDayClick(dayEl) {
 }
 
 function updatePlanRangeType(subtabKey) {
-    const nextType = PLAN_RANGE_KEY_MAP[subtabKey] || "day";
-    planRangeType = nextType;
-    if (planRangeEndWrapper) {
+  const nextType = PLAN_RANGE_KEY_MAP[subtabKey] || "day";
+  planRangeType = nextType;
+  if (planRangeEndWrapper) {
         planRangeEndWrapper.classList.toggle("hidden", planRangeType === "day");
     }
     if (planRangeType === "day") {
@@ -5224,9 +6035,10 @@ function updatePlanRangeType(subtabKey) {
     }
     updateRangeInputsFromSelection();
     highlightPlanRange();
-    if (planRangeHint) {
-        planRangeHint.textContent = pickCopy(PLAN_RANGE_HINT[planRangeType]);
-    }
+  if (planRangeHint) {
+    planRangeHint.textContent = pickCopy(PLAN_RANGE_HINT[planRangeType]);
+  }
+  updatePlanQuickSummary();
 }
 
 if (initialPlanSubtab) {
@@ -5237,7 +6049,49 @@ if (planRangeStartInput) {
     planRangeStartInput.addEventListener("change", () => updateSelectionFromInputs());
 }
 if (planRangeEndInput) {
-    planRangeEndInput.addEventListener("change", () => updateSelectionFromInputs());
+  planRangeEndInput.addEventListener("change", () => updateSelectionFromInputs());
+}
+
+planSourceButtons.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const nextMode = btn.dataset.planSource || "scratch";
+    planSourceMode = nextMode;
+    const options = PLAN_SOURCE_LIBRARY[nextMode]?.options || [];
+    planSourceSelection = options[0]?.value || "";
+    renderPlanSourceControls();
+  });
+});
+
+if (planSourceSelect) {
+  planSourceSelect.addEventListener("change", () => {
+    planSourceSelection = planSourceSelect.value;
+    renderPlanSourceControls();
+  });
+}
+
+planAssignModeButtons.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    planAssignMode = btn.dataset.planAssignMode || "single";
+    if (planAssignMode === "single" && planAssignedAthletes.length > 1) {
+      planAssignedAthletes = planAssignedAthletes.slice(0, 1);
+    }
+    renderPlanAssignControls();
+  });
+});
+
+if (planAssignGroup) {
+  planAssignGroup.addEventListener("change", () => {
+    planAssignedGroup = planAssignGroup.value;
+    updatePlanQuickSummary();
+  });
+}
+
+if (planAssignSelectAll) {
+  planAssignSelectAll.addEventListener("click", () => {
+    planAssignMode = "multi";
+    planAssignedAthletes = getAthletesData().map((athlete) => athlete.name);
+    renderPlanAssignControls();
+  });
 }
 
 function addChosenItem(listEl, value) {
@@ -5659,15 +6513,17 @@ function setTemplateControlsEnabled(enabled) {
   updateTemplatePrintButton();
 }
 
-if (templatesBtn && templateConfirm) {
+if (templatesBtn) {
   templatesBtn.addEventListener("click", () => {
-    templateConfirm.classList.toggle("hidden");
+    showTab("templates");
+    if (templateConfirm && templateFile?.disabled) {
+      templateConfirm.classList.remove("hidden");
+    }
   });
 }
 
 if (templateGoBtn) {
   templateGoBtn.addEventListener("click", () => {
-    setTemplateControlsEnabled(true);
     if (templateConfirm) templateConfirm.classList.add("hidden");
     if (templateFile) templateFile.click();
   });
@@ -5675,7 +6531,6 @@ if (templateGoBtn) {
 
 if (templateNoBtn) {
   templateNoBtn.addEventListener("click", () => {
-    setTemplateControlsEnabled(false);
     if (templateConfirm) templateConfirm.classList.add("hidden");
   });
 }
@@ -6253,9 +7108,7 @@ if (openCoachMatchBtn) {
     renderCoachQuickPreview(draft);
     const role = (draft.role || getProfile()?.role || "athlete");
     if (isCoachRole(role)) {
-      if (coachMatchSelect && draft.name) coachMatchSelect.value = draft.name;
-      renderCoachMatchView(coachMatchSelect?.value || draft.name);
-      showTab("coach-match");
+      openAthleteSummaryView(draft.name);
     } else {
       renderCompetitionPreview(draft);
       showTab("competition-preview");
@@ -6971,20 +7824,20 @@ const calendarManagerNotificationsTitle = document.getElementById("calendarManag
 
 const CALENDAR_MANAGER_COPY = {
   title: {
-    en: "Calendar Manager",
-    es: "Gestion de calendario",
+    en: "Calendar",
+    es: "Calendario",
     uz: "Taqvim boshqaruvi",
     ru: "Управление календарём"
   },
   chip: {
-    en: "Create events + reminders",
-    es: "Crear eventos y recordatorios",
+    en: "Schedule plans + assignments",
+    es: "Programa planes y asignaciones",
     uz: "Tadbirlar va eslatmalar yarating",
     ru: "Создайте события и напоминания"
   },
   formTitle: {
-    en: "Create Event",
-    es: "Crear evento",
+    en: "Schedule Item",
+    es: "Programar elemento",
     uz: "Tadbir yaratish",
     ru: "Создать событие"
   },
@@ -6995,8 +7848,8 @@ const CALENDAR_MANAGER_COPY = {
     ru: "Дата"
   },
   eventLabel: {
-    en: "Event",
-    es: "Evento",
+    en: "Item",
+    es: "Elemento",
     uz: "Tadbir",
     ru: "Событие"
   },
@@ -7013,8 +7866,8 @@ const CALENDAR_MANAGER_COPY = {
     ru: "Заметка"
   },
   addBtn: {
-    en: "Add event",
-    es: "Agregar evento",
+    en: "Add to calendar",
+    es: "Agregar al calendario",
     uz: "Tadbir qo‘shish",
     ru: "Добавить событие"
   },
@@ -7025,8 +7878,8 @@ const CALENDAR_MANAGER_COPY = {
     ru: "Очистить дату"
   },
   listTitle: {
-    en: "Events on this date",
-    es: "Eventos en esta fecha",
+    en: "Scheduled on this date",
+    es: "Programado en esta fecha",
     uz: "Bu sanadagi tadbirlar",
     ru: "События на эту дату"
   },
@@ -7037,20 +7890,20 @@ const CALENDAR_MANAGER_COPY = {
     ru: "Еще нет событий."
   },
   actionsTitle: {
-    en: "Coach Actions",
-    es: "Acciones del coach",
+    en: "Scheduling Actions",
+    es: "Acciones de programacion",
     uz: "Murabbiy harakatlari",
     ru: "Действия тренера"
   },
   typesTitle: {
-    en: "Event Types",
-    es: "Tipos de evento",
+    en: "Schedule Types",
+    es: "Tipos de programacion",
     uz: "Tadbir turlari",
     ru: "Типы событий"
   },
   detailsTitle: {
-    en: "Event Details",
-    es: "Detalles del evento",
+    en: "What to Attach",
+    es: "Que adjuntar",
     uz: "Tadbir tafsilotlari",
     ru: "Детали события"
   },
@@ -7094,8 +7947,8 @@ const CALENDAR_MANAGER_COPY = {
 
 const CALENDAR_MANAGER_PLACEHOLDERS = {
   title: {
-    en: "Team practice",
-    es: "Practica del equipo",
+    en: "Team practice or assignment",
+    es: "Practica del equipo o asignacion",
     uz: "Jamoa mashg'uloti",
     ru: "Тренировка команды"
   },
@@ -7106,8 +7959,8 @@ const CALENDAR_MANAGER_PLACEHOLDERS = {
     ru: "15:30"
   },
   note: {
-    en: "Mat 2",
-    es: "Tapiz 2",
+    en: "Mat 2 / due before weigh-in",
+    es: "Tapiz 2 / vence antes del pesaje",
     uz: "2-mat",
     ru: "Мат 2"
   }
@@ -8165,18 +9018,268 @@ function renderAnnouncements() {
     announcementList.appendChild(li);
   });
 }
+
+// ---------- COACH: ASSIGNMENTS + COMPLETION ----------
+const assignmentStats = document.getElementById("assignmentStats");
+const assignmentList = document.getElementById("assignmentList");
+const assignmentTypeGrid = document.getElementById("assignmentTypeGrid");
+const assignmentQueueTitle = document.getElementById("assignmentQueueTitle");
+const assignmentTypesTitle = document.getElementById("assignmentTypesTitle");
+const assignmentResourceTitle = document.getElementById("assignmentResourceTitle");
+const assignmentResourceList = document.getElementById("assignmentResourceList");
+const assignmentWorkflowTitle = document.getElementById("assignmentWorkflowTitle");
+const assignmentWorkflowList = document.getElementById("assignmentWorkflowList");
+const completionStats = document.getElementById("completionStats");
+const completionList = document.getElementById("completionList");
+const completionRowsTitle = document.getElementById("completionRowsTitle");
+const completionAlertsTitle = document.getElementById("completionAlertsTitle");
+const completionAlertsList = document.getElementById("completionAlertsList");
+
+function getAssignmentStatusMeta(status) {
+  const copy = {
+    due: { en: "Due now", es: "Vence ahora" },
+    review: { en: "Coach review", es: "Revision coach" },
+    overdue: { en: "Overdue", es: "Atrasado" },
+    complete: { en: "Completed", es: "Completado" }
+  };
+  const classes = {
+    due: "status-pill-pending",
+    review: "status-pill-journal",
+    overdue: "status-pill-alert",
+    complete: "status-pill-active"
+  };
+  return {
+    label: pickCopy(copy[status] || copy.due),
+    className: classes[status] || "status-pill-pending"
+  };
+}
+
+function getCompletionStatusMeta(status) {
+  const classes = {
+    ontrack: "status-pill-active",
+    followup: "status-pill-pending",
+    overdue: "status-pill-alert",
+    limited: "status-pill-limited"
+  };
+  return {
+    label: pickCopy(COACH_COMPLETION_STATUS_COPY[status] || COACH_COMPLETION_STATUS_COPY.ontrack),
+    className: classes[status] || "status-pill-active"
+  };
+}
+
+function renderCoachAssignments() {
+  if (!assignmentStats || !assignmentList || !assignmentTypeGrid) return;
+
+  if (assignmentQueueTitle) assignmentQueueTitle.textContent = currentLang === "es" ? "Cola de asignaciones" : "Assignment Queue";
+  if (assignmentTypesTitle) assignmentTypesTitle.textContent = currentLang === "es" ? "Tipos de asignacion" : "Assignment Types";
+  if (assignmentResourceTitle) assignmentResourceTitle.textContent = currentLang === "es" ? "Biblioteca de recursos" : "Resource Library";
+  if (assignmentWorkflowTitle) assignmentWorkflowTitle.textContent = currentLang === "es" ? "Flujo de asignacion" : "Assignment Workflow";
+
+  const stats = [
+    {
+      title: currentLang === "es" ? "Vencen hoy" : "Due today",
+      value: String(COACH_ASSIGNMENT_ITEMS.filter((item) => item.status === "due").length),
+      note: currentLang === "es" ? "Tareas que el atleta debe cerrar hoy" : "Assignments athletes need to close today"
+    },
+    {
+      title: currentLang === "es" ? "Revision coach" : "Coach review",
+      value: String(COACH_ASSIGNMENT_ITEMS.filter((item) => item.status === "review").length),
+      note: currentLang === "es" ? "Trabajo listo para feedback del entrenador" : "Work ready for coach feedback"
+    },
+    {
+      title: currentLang === "es" ? "Atrasadas" : "Overdue",
+      value: String(COACH_ASSIGNMENT_ITEMS.filter((item) => item.status === "overdue").length),
+      note: currentLang === "es" ? "Requieren seguimiento inmediato" : "Needs immediate follow-up"
+    },
+    {
+      title: currentLang === "es" ? "Completadas" : "Completed",
+      value: String(COACH_ASSIGNMENT_ITEMS.filter((item) => item.status === "complete").length),
+      note: currentLang === "es" ? "Cerradas esta semana" : "Closed out this week"
+    }
+  ];
+
+  assignmentStats.innerHTML = "";
+  stats.forEach((stat) => {
+    const card = document.createElement("div");
+    card.className = "stat-card";
+    card.innerHTML = `<p class="small">${stat.title}</p><h3>${stat.value}</h3><p>${stat.note}</p>`;
+    assignmentStats.appendChild(card);
+  });
+
+  assignmentList.innerHTML = "";
+  COACH_ASSIGNMENT_ITEMS.forEach((item) => {
+    const status = getAssignmentStatusMeta(item.status);
+    const assignedLabel = currentLang === "es" ? "Asignado a" : "Assigned to";
+    const typeLabel = currentLang === "es" ? "Tipo" : "Type";
+    const dueLabel = currentLang === "es" ? "Entrega" : "Due";
+    const sourceLabel = currentLang === "es" ? "Origen" : "Source";
+    const card = document.createElement("article");
+    card.className = "assignment-card";
+    card.innerHTML = `
+      <div class="assignment-card-top">
+        <div>
+          <strong>${pickCopy(item.title)}</strong>
+        </div>
+        <span class="status-pill ${status.className}">${status.label}</span>
+      </div>
+      <div class="assignment-card-fields">
+        <div class="assignment-field">
+          <span class="assignment-field-label">${assignedLabel}</span>
+          <strong>${pickCopy(item.assignee)}</strong>
+        </div>
+        <div class="assignment-field">
+          <span class="assignment-field-label">${typeLabel}</span>
+          <strong>${pickCopy(item.type)}</strong>
+        </div>
+        <div class="assignment-field">
+          <span class="assignment-field-label">${dueLabel}</span>
+          <strong>${pickCopy(item.dueDate)}</strong>
+        </div>
+      </div>
+      <div class="assignment-card-meta">${sourceLabel}: ${pickCopy(item.source)}</div>
+      <p class="small">${pickCopy(item.note)}</p>
+    `;
+    assignmentList.appendChild(card);
+  });
+
+  assignmentTypeGrid.innerHTML = "";
+  COACH_ASSIGNMENT_TYPES.forEach((item) => {
+    const card = document.createElement("article");
+    card.className = "assignment-type-card";
+    card.innerHTML = `
+      <h4>${pickCopy(item.title)}</h4>
+      <p class="small">${pickCopy(item.detail)}</p>
+      <div class="tag-row">
+        ${item.examples.map((example) => `<span class="tag">${pickCopy(example)}</span>`).join("")}
+      </div>
+    `;
+    assignmentTypeGrid.appendChild(card);
+  });
+
+  if (assignmentResourceList) {
+    assignmentResourceList.innerHTML = "";
+    COACH_ASSIGNMENT_RESOURCES.forEach((item) => {
+      const li = document.createElement("li");
+      li.textContent = pickCopy(item);
+      assignmentResourceList.appendChild(li);
+    });
+  }
+
+  if (assignmentWorkflowList) {
+    assignmentWorkflowList.innerHTML = "";
+    COACH_ASSIGNMENT_WORKFLOW.forEach((item) => {
+      const li = document.createElement("li");
+      li.textContent = pickCopy(item);
+      assignmentWorkflowList.appendChild(li);
+    });
+  }
+}
+
+function renderCompletionTracking() {
+  if (!completionStats || !completionList || !completionAlertsList) return;
+
+  if (completionRowsTitle) completionRowsTitle.textContent = currentLang === "es" ? "Seguimiento por atleta" : "Athlete Follow-Up";
+  if (completionAlertsTitle) completionAlertsTitle.textContent = currentLang === "es" ? "Siguiente accion del coach" : "Coach Follow-Up";
+
+  const trackedAthletes = getAthletesData().filter((athlete) => COACH_COMPLETION_ROWS[athlete.name]);
+  const followUpCount = trackedAthletes.filter((athlete) => {
+    const status = COACH_COMPLETION_ROWS[athlete.name]?.status;
+    return status === "followup" || status === "overdue" || status === "limited";
+  }).length;
+  const staleJournalCount = trackedAthletes.filter((athlete) => getAthleteTaskBoard(athlete.name).journalState === "stale").length;
+
+  const stats = [
+    {
+      title: currentLang === "es" ? "Atletas al dia" : "Athletes on track",
+      value: String(trackedAthletes.filter((athlete) => COACH_COMPLETION_ROWS[athlete.name]?.status === "ontrack").length),
+      note: currentLang === "es" ? "Sin bloqueos urgentes esta semana" : "No urgent blockers this week"
+    },
+    {
+      title: currentLang === "es" ? "Seguimiento abierto" : "Follow-up open",
+      value: String(followUpCount),
+      note: currentLang === "es" ? "Requieren mensaje, ajuste o revision" : "Need message, adjustment, or review"
+    },
+    {
+      title: currentLang === "es" ? "Journal pendiente" : "Journal stale",
+      value: String(staleJournalCount),
+      note: currentLang === "es" ? "Afecta readiness y visibilidad" : "Impacts readiness and visibility"
+    },
+    {
+      title: currentLang === "es" ? "Revision coach" : "Coach review",
+      value: String(COACH_ASSIGNMENT_ITEMS.filter((item) => item.status === "review").length),
+      note: currentLang === "es" ? "Listo para feedback del entrenador" : "Ready for coach feedback"
+    }
+  ];
+
+  completionStats.innerHTML = "";
+  stats.forEach((stat) => {
+    const card = document.createElement("div");
+    card.className = "stat-card";
+    card.innerHTML = `<p class="small">${stat.title}</p><h3>${stat.value}</h3><p>${stat.note}</p>`;
+    completionStats.appendChild(card);
+  });
+
+  completionList.innerHTML = "";
+  trackedAthletes.forEach((athlete) => {
+    const taskBoard = getAthleteTaskBoard(athlete.name);
+    const row = COACH_COMPLETION_ROWS[athlete.name];
+    const status = getCompletionStatusMeta(row.status);
+    const card = document.createElement("article");
+    card.className = "completion-card";
+    card.innerHTML = `
+      <div class="completion-card-top">
+        <div>
+          <strong>${athlete.name}</strong>
+          <div class="small">${athlete.weight} - ${pickCopy(row.plan)}</div>
+        </div>
+        <span class="status-pill ${status.className}">${status.label}</span>
+      </div>
+      <div class="completion-card-meta">
+        <span>${pickCopy(row.progress)}</span>
+        <span>${currentLang === "es" ? `Pendientes: ${taskBoard.tasks.length}` : `Pending: ${taskBoard.tasks.length}`}</span>
+        <span>${taskBoard.journalLabel}</span>
+      </div>
+      <p class="small">${pickCopy(row.followUp)}</p>
+    `;
+    completionList.appendChild(card);
+  });
+
+  completionAlertsList.innerHTML = "";
+  trackedAthletes
+    .filter((athlete) => COACH_COMPLETION_ROWS[athlete.name]?.status !== "ontrack" || getAthleteTaskBoard(athlete.name).journalState === "stale")
+    .forEach((athlete) => {
+      const taskBoard = getAthleteTaskBoard(athlete.name);
+      const row = COACH_COMPLETION_ROWS[athlete.name];
+      const li = document.createElement("li");
+      li.textContent = `${athlete.name}: ${pickCopy(row.followUp)} ${taskBoard.journalState === "stale" ? `(${taskBoard.journalLabel})` : ""}`.trim();
+      completionAlertsList.appendChild(li);
+    });
+}
 // ---------- DASHBOARD ----------
 const teamStats = document.getElementById("teamStats");
 const alertList = document.getElementById("alertList");
 const teamOverview = document.getElementById("teamOverview");
 const quickActions = document.getElementById("quickActions");
+const homeTasksTitle = document.getElementById("homeTasksTitle");
+const homeActionsTitle = document.getElementById("homeActionsTitle");
+const homeCompetitionsTitle = document.getElementById("homeCompetitionsTitle");
+const homeRecentTrainingTitle = document.getElementById("homeRecentTrainingTitle");
+const homeAlertsTitle = document.getElementById("homeAlertsTitle");
+const homeCompetitions = document.getElementById("homeCompetitions");
+const homeRecentTrainings = document.getElementById("homeRecentTrainings");
 
 function renderDashboard() {
+  if (homeTasksTitle) homeTasksTitle.textContent = currentLang === "es" ? "Tareas pendientes" : "Pending Tasks";
+  if (homeActionsTitle) homeActionsTitle.textContent = currentLang === "es" ? "Accesos rapidos" : "Quick Actions";
+  if (homeCompetitionsTitle) homeCompetitionsTitle.textContent = currentLang === "es" ? "Competencias proximas" : "Upcoming Competitions";
+  if (homeRecentTrainingTitle) homeRecentTrainingTitle.textContent = currentLang === "es" ? "Entrenamientos recientes" : "Recent Trainings";
+  if (homeAlertsTitle) homeAlertsTitle.textContent = currentLang === "es" ? "Alertas importantes" : "Important Alerts";
+
   teamStats.innerHTML = "";
   getTeamStatsData().forEach((stat) => {
     const card = document.createElement("div");
     card.className = "stat-card";
-    card.innerHTML = `<h3>${stat.value}</h3><p>${stat.title} - ${stat.note}</p>`;
+    card.innerHTML = `<p class="small">${stat.title}</p><h3>${stat.value}</h3><p>${stat.note}</p>`;
     teamStats.appendChild(card);
   });
 
@@ -8188,12 +9291,32 @@ function renderDashboard() {
   });
 
   quickActions.innerHTML = "";
-  getQuickActionsData().forEach((action) => {
+  const quickActionTargets = ["coach-athletes", "plans", "assignments", "coach-competition"];
+  getQuickActionsData().forEach((action, index) => {
     const btn = document.createElement("button");
     btn.className = "action-btn";
     btn.textContent = action;
+    btn.addEventListener("click", () => showTab(quickActionTargets[index] || "coach-home"));
     quickActions.appendChild(btn);
   });
+
+  if (homeCompetitions) {
+    homeCompetitions.innerHTML = "";
+    getHomeCompetitionsData().forEach((item) => {
+      const li = document.createElement("li");
+      li.innerHTML = `<strong>${item.title}</strong><div class="small">${item.detail}</div>`;
+      homeCompetitions.appendChild(li);
+    });
+  }
+
+  if (homeRecentTrainings) {
+    homeRecentTrainings.innerHTML = "";
+    getHomeRecentTrainingsData().forEach((item) => {
+      const li = document.createElement("li");
+      li.innerHTML = `<strong>${item.title}</strong><div class="small">${item.detail}</div>`;
+      homeRecentTrainings.appendChild(li);
+    });
+  }
 
   alertList.innerHTML = "";
   getAlertsData().forEach((alert) => {
@@ -8253,13 +9376,444 @@ function renderCoachProfile() {
 // ---------- ATHLETE MANAGEMENT ----------
 const athleteFilters = document.getElementById("athleteFilters");
 const athleteList = document.getElementById("athleteList");
+const athleteSearchInput = document.getElementById("athleteSearchInput");
+const coachAthleteProfileCardTitle = document.querySelector("#coachAthleteProfileCard .card-header h2");
+const coachAthleteProfileCardChip = document.querySelector("#coachAthleteProfileCard .card-header .chip");
+const coachAthleteProfileAvatar = document.getElementById("coachAthleteProfileAvatar");
+const coachAthleteProfileName = document.getElementById("coachAthleteProfileName");
+const coachAthleteProfileMeta = document.getElementById("coachAthleteProfileMeta");
+const coachAthleteProfileStatus = document.getElementById("coachAthleteProfileStatus");
+const coachAthleteProfileContent = document.getElementById("coachAthleteProfileContent");
+const coachAthleteProfileTabButtons = Array.from(document.querySelectorAll("[data-coach-profile-tab]"));
 let selectedCoachTags = new Set();
+let athleteSearchQuery = "";
+let currentCoachAthleteProfileTab = "identity";
+
+const COACH_ATHLETE_PROFILE_TAB_COPY = {
+  identity: { en: "Identity", es: "Identidad" },
+  style: { en: "Style", es: "Estilo" },
+  performance: { en: "Performance", es: "Rendimiento" },
+  notes: { en: "Coach Notes", es: "Notas del entrenador" },
+  corner: { en: "Corner View", es: "Vista de esquina" }
+};
 
 function athleteMatchesTagFilter(tags = []) {
   const normalized = normalizeSmartTags(tags);
   if (!selectedCoachTags.size) return true;
   return normalized.some((tag) => selectedCoachTags.has(tag));
 }
+
+function getRawAthleteRecord(name) {
+  return ATHLETES.find((athlete) => athlete.name === name) || null;
+}
+
+function getRawJournalEntry(name) {
+  return JOURNAL_ATHLETES.find((entry) => entry.name === name) || null;
+}
+
+function getLocalizedJournalEntry(name) {
+  return getJournalAthletesData().find((entry) => entry.name === name) || null;
+}
+
+function parseScoreValue(value) {
+  const match = String(value || "").match(/(\d+(?:\.\d+)?)/);
+  return match ? Number(match[1]) : 0;
+}
+
+function parseHoursValue(value) {
+  const match = String(value || "").match(/(\d+(?:\.\d+)?)/);
+  return match ? Number(match[1]) : 0;
+}
+
+function normalizeAvailabilityKey(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (raw.startsWith("avail") || raw.startsWith("disp")) return "available";
+  if (raw.startsWith("limit")) return "limited";
+  if (raw.startsWith("travel") || raw.startsWith("via")) return "travel";
+  return "other";
+}
+
+function getAthleteTaskBoard(name) {
+  const entry = ATHLETE_TASK_BOARD[name] || {};
+  return {
+    tasks: (entry.tasks || []).map((item) => pickCopy(item)),
+    journalState: entry.journal?.state || "fresh",
+    journalLabel: pickCopy(entry.journal?.label || {
+      en: "Updated today",
+      es: "Actualizado hoy"
+    })
+  };
+}
+
+function localizeCornerItems(items = [], { translateMoves = false } = {}) {
+  return items
+    .map((item) => {
+      if (!item) return "";
+      if (typeof item === "string") {
+        return translateMoves ? translateTechnique(item) : item;
+      }
+      return pickCopy(item);
+    })
+    .filter(Boolean);
+}
+
+function getAthleteCornerPlan(athlete) {
+  if (!athlete) return null;
+  const saved = getOnePagerData(athlete.name) || {};
+  const plan = ATHLETE_CORNER_PLANS[athlete.name] || {};
+  const attacks = topThree(athlete.offenseTop3 || athlete.techniques?.neutral || []);
+  const setups = localizeCornerItems(plan.setups || [], { translateMoves: true });
+  const cuesFromSaved = localizeCornerItems(saved.cueWords || []);
+  const coachCues = cuesFromSaved.length
+    ? cuesFromSaved
+    : localizeCornerItems(plan.coachCues || []);
+  const mentalReminders = localizeCornerItems(plan.mentalReminders || []);
+  const planA = saved.plan || pickCopy(plan.planA || { en: athlete.strategyA || athlete.coachSignal || "", es: athlete.strategyA || athlete.coachSignal || "" });
+  const planB = pickCopy(plan.planB || { en: athlete.strategyB || athlete.preferred || "", es: athlete.strategyB || athlete.preferred || "" });
+  const planC = pickCopy(plan.planC || { en: athlete.strategyC || athlete.notes || "", es: athlete.strategyC || athlete.notes || "" });
+  const pressureErrors = [
+    athlete.pressureError,
+    ...localizeCornerItems(plan.pressureErrors || [])
+  ].filter(Boolean);
+  const physicalLimitations = [
+    athlete.injuryNotes,
+    ...localizeCornerItems(plan.physicalLimitations || [])
+  ].filter(Boolean);
+  const safetyWarnings = [
+    saved.injuryNotes,
+    ...localizeCornerItems(plan.safetyWarnings || [])
+  ].filter(Boolean);
+  const competitionCue = saved.cueNotes || athlete.coachSignal || coachCues[0] || "";
+
+  return {
+    attacks: localizeCornerItems(attacks, { translateMoves: true }),
+    setups,
+    planA,
+    planB,
+    planC,
+    coachCues,
+    pressureErrors: Array.from(new Set(pressureErrors)),
+    physicalLimitations: Array.from(new Set(physicalLimitations)),
+    safetyWarnings: Array.from(new Set(safetyWarnings)),
+    mentalReminders,
+    competitionCue
+  };
+}
+
+function getAthleteAlerts(athlete) {
+  const rawAthlete = getRawAthleteRecord(athlete.name) || athlete;
+  const rawJournal = getRawJournalEntry(athlete.name);
+  const alerts = [];
+  const availability = normalizeAvailabilityKey(rawAthlete.availability);
+  const rawNotes = String(rawAthlete.notes || "").toLowerCase();
+  const soreness = parseScoreValue(rawJournal?.soreness);
+  const sleep = parseHoursValue(rawJournal?.sleep);
+  const weightTrend = String(rawJournal?.weight || "").toLowerCase();
+
+  if (availability === "limited" || rawNotes.includes("injury")) {
+    alerts.push(currentLang === "es" ? "Lesion o limitacion activa" : "Injury or limitation active");
+  }
+  if (availability === "travel") {
+    alerts.push(currentLang === "es" ? "Viaje o competencia fuera del club" : "Travel or away from club");
+  }
+  if (soreness >= 4) {
+    alerts.push(currentLang === "es" ? "Dolor alto reportado en journal" : "High soreness reported in journal");
+  }
+  if (sleep && sleep < 6.5) {
+    alerts.push(currentLang === "es" ? "Sueno bajo en los ultimos reportes" : "Low sleep in recent check-ins");
+  }
+  if (weightTrend.includes("cut") || weightTrend.includes("down")) {
+    alerts.push(currentLang === "es" ? "Seguimiento de peso requerido" : "Weight management follow-up");
+  }
+
+  return Array.from(new Set(alerts)).slice(0, 3);
+}
+
+function buildAthleteIndicatorBadges(athlete, board, alerts) {
+  const availabilityKey = normalizeAvailabilityKey(getRawAthleteRecord(athlete.name)?.availability || athlete.availability);
+  const badges = [];
+
+  if (availabilityKey === "available") {
+    badges.push({
+      label: currentLang === "es" ? "Activo" : "Active",
+      className: "status-pill status-pill-active"
+    });
+  } else if (availabilityKey === "limited") {
+    badges.push({
+      label: currentLang === "es" ? "Limitado" : "Limited",
+      className: "status-pill status-pill-limited"
+    });
+  } else if (availabilityKey === "travel") {
+    badges.push({
+      label: currentLang === "es" ? "Viaje" : "Travel",
+      className: "status-pill status-pill-travel"
+    });
+  }
+
+  if (board.tasks.length) {
+    badges.push({
+      label: currentLang === "es" ? `${board.tasks.length} pendientes` : `${board.tasks.length} pending`,
+      className: "status-pill status-pill-pending"
+    });
+  }
+
+  if (board.journalState === "stale") {
+    badges.push({
+      label: currentLang === "es" ? "Journal sin actualizar" : "Journal stale",
+      className: "status-pill status-pill-journal"
+    });
+  }
+
+  if (alerts.length) {
+    badges.push({
+      label: currentLang === "es" ? `${alerts.length} alertas` : `${alerts.length} alerts`,
+      className: "status-pill status-pill-alert"
+    });
+  }
+
+  return badges;
+}
+
+function athleteMatchesSearch(athlete) {
+  const board = getAthleteTaskBoard(athlete.name);
+  const alerts = getAthleteAlerts(athlete);
+  if (!athleteSearchQuery) return true;
+  const haystack = [
+    athlete.name,
+    athlete.weight,
+    athlete.weightClass,
+    athlete.style,
+    athlete.availability,
+    athlete.preferred,
+    athlete.notes,
+    board.tasks.join(" "),
+    alerts.join(" ")
+  ].join(" ").toLowerCase();
+  return haystack.includes(athleteSearchQuery);
+}
+
+function getSelectedCoachAthleteName() {
+  return coachMatchSelect?.value || getAthletesData()[0]?.name || "";
+}
+
+function renderCoachAthleteProfile(athleteName = getSelectedCoachAthleteName()) {
+  if (!coachAthleteProfileName || !coachAthleteProfileMeta || !coachAthleteProfileContent) return;
+
+  if (coachAthleteProfileCardTitle) {
+    coachAthleteProfileCardTitle.textContent = currentLang === "es" ? "Perfil del atleta" : "Athlete Profile";
+  }
+  if (coachAthleteProfileCardChip) {
+    coachAthleteProfileCardChip.textContent = currentLang === "es" ? "Atleta seleccionado" : "Selected athlete";
+  }
+  coachAthleteProfileTabButtons.forEach((btn) => {
+    const tabKey = btn.dataset.coachProfileTab;
+    if (!tabKey) return;
+    btn.textContent = pickCopy(COACH_ATHLETE_PROFILE_TAB_COPY[tabKey] || { en: tabKey, es: tabKey });
+    btn.classList.toggle("active", tabKey === currentCoachAthleteProfileTab);
+  });
+
+  const athlete = getAthletesData().find((item) => item.name === athleteName);
+  const notSet = currentLang === "es" ? "No definido" : "Not set";
+  const selectPrompt = currentLang === "es" ? "Selecciona un atleta" : "Select an athlete";
+  const selectHint = currentLang === "es"
+    ? "Elige un atleta de la lista para ver su perfil centralizado."
+    : "Choose an athlete from the list to view the centralized profile.";
+
+  if (!athlete) {
+    if (coachAthleteProfileAvatar) coachAthleteProfileAvatar.textContent = "AT";
+    coachAthleteProfileName.textContent = selectPrompt;
+    coachAthleteProfileMeta.textContent = selectHint;
+    if (coachAthleteProfileStatus) coachAthleteProfileStatus.innerHTML = "";
+    coachAthleteProfileContent.innerHTML = `<div class="mini-card"><h3>${selectPrompt}</h3><p class="small muted">${selectHint}</p></div>`;
+    return;
+  }
+
+  const board = getAthleteTaskBoard(athlete.name);
+  const localizedJournal = getLocalizedJournalEntry(athlete.name);
+  const alerts = getAthleteAlerts(athlete);
+  const badges = buildAthleteIndicatorBadges(athlete, board, alerts);
+  const rawAthlete = getRawAthleteRecord(athlete.name) || athlete;
+  const cornerPlan = getAthleteCornerPlan(rawAthlete);
+  const initials = athlete.name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("") || "AT";
+  const experienceYears = athlete.experienceYears
+    ? `${athlete.experienceYears} ${currentLang === "es" ? "anos" : athlete.experienceYears === 1 ? "year" : "years"}`
+    : notSet;
+  const favoritePosition = translateOptionValue("aFavoritePosition", rawAthlete.favoritePosition) || athlete.favoritePosition || notSet;
+  const offense = translateTechniqueList(rawAthlete.offenseTop3 || []).join(", ") || notSet;
+  const defense = translateTechniqueList(rawAthlete.defenseTop3 || []).join(", ") || notSet;
+  const tags = normalizeSmartTags(rawAthlete.tags).map((tag) => formatSmartTag(tag)).join(" • ") || notSet;
+  const meta = [athlete.weight, `${currentLang === "es" ? "Cat." : "Class"} ${athlete.weightClass || notSet}`, athlete.style].filter(Boolean).join(" • ");
+  const taskListHtml = board.tasks.length
+    ? `<ul class="list tight">${board.tasks.map((task) => `<li>${task}</li>`).join("")}</ul>`
+    : `<p class="small muted">${currentLang === "es" ? "No hay tareas pendientes." : "No pending tasks."}</p>`;
+  const alertListHtml = alerts.length
+    ? `<ul class="list tight">${alerts.map((alert) => `<li>${alert}</li>`).join("")}</ul>`
+    : `<p class="small muted">${currentLang === "es" ? "Sin alertas activas." : "No active alerts."}</p>`;
+  const readinessListHtml = localizedJournal
+    ? `
+      <ul class="list tight">
+        <li><strong>${currentLang === "es" ? "Sueno" : "Sleep"}:</strong> ${localizedJournal.sleep || notSet}</li>
+        <li><strong>${currentLang === "es" ? "Energia" : "Energy"}:</strong> ${localizedJournal.energy || notSet}</li>
+        <li><strong>${currentLang === "es" ? "Dolor" : "Soreness"}:</strong> ${localizedJournal.soreness || notSet}</li>
+        <li><strong>${currentLang === "es" ? "Animo" : "Mood"}:</strong> ${localizedJournal.mood || notSet}</li>
+        <li><strong>${currentLang === "es" ? "Tendencia de peso" : "Weight trend"}:</strong> ${localizedJournal.weight || notSet}</li>
+      </ul>
+    `
+    : `<p class="small muted">${currentLang === "es" ? "No hay journal reciente." : "No recent journal update."}</p>`;
+
+  if (coachAthleteProfileAvatar) coachAthleteProfileAvatar.textContent = initials;
+  coachAthleteProfileName.textContent = athlete.name;
+  coachAthleteProfileMeta.textContent = meta || selectHint;
+
+  if (coachAthleteProfileStatus) {
+    coachAthleteProfileStatus.innerHTML = badges
+      .map((badge) => `<span class="${badge.className}">${badge.label}</span>`)
+      .join("");
+  }
+
+  const profileSections = {
+    identity: `
+      <div class="coach-profile-section-grid">
+        <div class="mini-card">
+          <h3>${pickCopy(COACH_ATHLETE_PROFILE_TAB_COPY.identity)}</h3>
+          <ul class="list tight">
+            <li><strong>${currentLang === "es" ? "Nombre" : "Name"}:</strong> ${athlete.name || notSet}</li>
+            <li><strong>${currentLang === "es" ? "Peso actual" : "Current weight"}:</strong> ${athlete.weight || notSet}</li>
+            <li><strong>${currentLang === "es" ? "Categoria" : "Weight class"}:</strong> ${athlete.weightClass || notSet}</li>
+            <li><strong>${currentLang === "es" ? "Nivel" : "Level"}:</strong> ${athlete.level || notSet}</li>
+            <li><strong>${currentLang === "es" ? "Estado actual" : "Current status"}:</strong> ${athlete.availability || notSet}</li>
+          </ul>
+        </div>
+        <div class="mini-card">
+          <h3>${currentLang === "es" ? "Estado rapido" : "Quick status"}</h3>
+          <ul class="list tight">
+            <li><strong>${currentLang === "es" ? "Journal" : "Journal"}:</strong> ${board.journalLabel}</li>
+            <li><strong>${currentLang === "es" ? "Tareas pendientes" : "Pending tasks"}:</strong> ${board.tasks.length}</li>
+            <li><strong>${currentLang === "es" ? "Alertas activas" : "Active alerts"}:</strong> ${alerts.length}</li>
+            <li><strong>${currentLang === "es" ? "Experiencia" : "Experience"}:</strong> ${experienceYears}</li>
+            <li><strong>${currentLang === "es" ? "Historial" : "History"}:</strong> ${athlete.history || notSet}</li>
+          </ul>
+        </div>
+      </div>
+    `,
+    style: `
+      <div class="coach-profile-section-grid">
+        <div class="mini-card">
+          <h3>${pickCopy(COACH_ATHLETE_PROFILE_TAB_COPY.style)}</h3>
+          <ul class="list tight">
+            <li><strong>${currentLang === "es" ? "Estilo" : "Style"}:</strong> ${athlete.style || notSet}</li>
+            <li><strong>${currentLang === "es" ? "Posicion favorita" : "Favorite position"}:</strong> ${favoritePosition}</li>
+            <li><strong>${currentLang === "es" ? "Estrategia" : "Strategy"}:</strong> ${athlete.strategy || notSet}</li>
+            <li><strong>${currentLang === "es" ? "Ataques preferidos" : "Preferred attacks"}:</strong> ${athlete.preferred || notSet}</li>
+          </ul>
+        </div>
+        <div class="mini-card">
+          <h3>${currentLang === "es" ? "Movimientos clave" : "Key movements"}</h3>
+          <ul class="list tight">
+            <li><strong>${currentLang === "es" ? "Top offense" : "Top offense"}:</strong> ${offense}</li>
+            <li><strong>${currentLang === "es" ? "Top defense" : "Top defense"}:</strong> ${defense}</li>
+            <li><strong>${currentLang === "es" ? "Internacional" : "International"}:</strong> ${athlete.international || notSet}</li>
+            <li><strong>${currentLang === "es" ? "Tags" : "Tags"}:</strong> ${tags}</li>
+          </ul>
+        </div>
+      </div>
+    `,
+    performance: `
+      <div class="coach-profile-section-grid">
+        <div class="mini-card">
+          <h3>${currentLang === "es" ? "Journal y readiness" : "Journal and readiness"}</h3>
+          ${readinessListHtml}
+        </div>
+        <div class="mini-card">
+          <h3>${pickCopy(COACH_ATHLETE_PROFILE_TAB_COPY.performance)}</h3>
+          <ul class="list tight">
+            <li><strong>${currentLang === "es" ? "Experiencia" : "Experience"}:</strong> ${experienceYears}</li>
+            <li><strong>${currentLang === "es" ? "Nivel" : "Level"}:</strong> ${athlete.level || notSet}</li>
+            <li><strong>${currentLang === "es" ? "Posicion base" : "Base position"}:</strong> ${athlete.position || notSet}</li>
+            <li><strong>${currentLang === "es" ? "Historial reciente" : "Recent history"}:</strong> ${athlete.history || notSet}</li>
+          </ul>
+        </div>
+      </div>
+    `,
+    notes: `
+      <div class="coach-profile-section-grid">
+        <div class="mini-card">
+          <h3>${pickCopy(COACH_ATHLETE_PROFILE_TAB_COPY.notes)}</h3>
+          <ul class="list tight">
+            <li><strong>${currentLang === "es" ? "Enfoque actual" : "Current focus"}:</strong> ${athlete.notes || notSet}</li>
+            <li><strong>${currentLang === "es" ? "Coach signal" : "Coach signal"}:</strong> ${rawAthlete.coachSignal || notSet}</li>
+            <li><strong>${currentLang === "es" ? "Journal" : "Journal"}:</strong> ${board.journalLabel}</li>
+          </ul>
+        </div>
+        <div class="mini-card">
+          <h3>${currentLang === "es" ? "Pendientes y alertas" : "Pending work and alerts"}</h3>
+          <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Tareas pendientes" : "Pending tasks"}</p>
+          ${taskListHtml}
+          <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Alertas" : "Alerts"}</p>
+          ${alertListHtml}
+        </div>
+      </div>
+    `,
+    corner: `
+      <div class="coach-profile-section-grid">
+        <div class="mini-card">
+          <h3>${pickCopy(COACH_ATHLETE_PROFILE_TAB_COPY.corner)}</h3>
+          <ul class="list tight">
+            <li><strong>${currentLang === "es" ? "Top 3 ataques" : "Top 3 attacks"}:</strong> ${cornerPlan?.attacks.join(", ") || offense}</li>
+            <li><strong>${currentLang === "es" ? "Top 3 setups" : "Top 3 setups"}:</strong> ${cornerPlan?.setups.join(", ") || notSet}</li>
+            <li><strong>Plan A:</strong> ${cornerPlan?.planA || notSet}</li>
+            <li><strong>Plan B:</strong> ${cornerPlan?.planB || notSet}</li>
+            <li><strong>Plan C:</strong> ${cornerPlan?.planC || notSet}</li>
+          </ul>
+        </div>
+        <div class="mini-card">
+          <h3>${currentLang === "es" ? "Cues y seguridad" : "Cues and safety"}</h3>
+          <ul class="list tight">
+            <li><strong>${currentLang === "es" ? "Cues del coach" : "Coach cues"}:</strong> ${cornerPlan?.coachCues.join(", ") || notSet}</li>
+            <li><strong>${currentLang === "es" ? "Errores bajo presion" : "Pressure errors"}:</strong> ${cornerPlan?.pressureErrors.join(" - ") || notSet}</li>
+            <li><strong>${currentLang === "es" ? "Limitaciones fisicas" : "Physical limitations"}:</strong> ${cornerPlan?.physicalLimitations.join(" - ") || notSet}</li>
+            <li><strong>${currentLang === "es" ? "Advertencias de seguridad" : "Safety warnings"}:</strong> ${cornerPlan?.safetyWarnings.join(" - ") || notSet}</li>
+            <li><strong>${currentLang === "es" ? "Recordatorios mentales" : "Mental reminders"}:</strong> ${cornerPlan?.mentalReminders.join(" - ") || notSet}</li>
+          </ul>
+          <p class="small muted">${currentLang === "es" ? "Abre la vista completa de corner o entra directo a Competition." : "Open the full corner view or jump straight into Competition."}</p>
+          <div class="row">
+            <button type="button" id="coachProfileOpenSummaryBtn" class="primary">${currentLang === "es" ? "Abrir Athlete Summary" : "Open Athlete Summary"}</button>
+            <button type="button" id="coachProfileOpenCompetitionBtn">${currentLang === "es" ? "Abrir Competition" : "Open Competition"}</button>
+          </div>
+        </div>
+      </div>
+    `
+  };
+
+  coachAthleteProfileContent.innerHTML = profileSections[currentCoachAthleteProfileTab] || profileSections.identity;
+
+  const coachProfileOpenSummaryBtn = document.getElementById("coachProfileOpenSummaryBtn");
+  if (coachProfileOpenSummaryBtn) {
+    coachProfileOpenSummaryBtn.addEventListener("click", () => openAthleteSummaryView(athlete.name));
+  }
+
+  const coachProfileOpenCompetitionBtn = document.getElementById("coachProfileOpenCompetitionBtn");
+  if (coachProfileOpenCompetitionBtn) {
+    coachProfileOpenCompetitionBtn.addEventListener("click", () => {
+      selectCoachMatchAthlete(athlete.name);
+      showTab("coach-competition");
+    });
+  }
+}
+
+coachAthleteProfileTabButtons.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const nextTab = btn.dataset.coachProfileTab;
+    if (!nextTab) return;
+    currentCoachAthleteProfileTab = nextTab;
+    renderCoachAthleteProfile(getSelectedCoachAthleteName());
+  });
+});
 
 function renderAthleteFilters() {
   if (!athleteFilters) return;
@@ -8302,53 +9856,101 @@ function renderAthleteFilters() {
 function renderAthleteManagement() {
   if (!athleteFilters || !athleteList) return;
   renderAthleteFilters();
+  if (athleteSearchInput && athleteSearchInput.value !== athleteSearchQuery) {
+    athleteSearchInput.value = athleteSearchQuery;
+  }
 
   athleteList.innerHTML = "";
-  const statusLabel = currentLang === "es" ? "Estado" : "Status";
-  const preferredLabel = currentLang === "es" ? "Preferido" : "Preferred";
-  const intlLabel = currentLang === "es" ? "Internacional" : "International";
   const athleteSummaryLabel = currentLang === "es" ? "Abrir resumen" : "Open athlete summary";
   const emptyLabel = currentLang === "es"
-    ? "No hay atletas con esos tags."
-    : "No athletes match those tags.";
+    ? "No hay atletas con esos filtros."
+    : "No athletes match those filters.";
   const athletes = getAthletesData();
-  const filtered = athletes.filter((athlete) => athleteMatchesTagFilter(athlete.tags));
+  const filtered = athletes.filter((athlete) => athleteMatchesTagFilter(athlete.tags) && athleteMatchesSearch(athlete));
+
+  let selectedName = getSelectedCoachAthleteName();
+  if (filtered.length && !filtered.some((athlete) => athlete.name === selectedName)) {
+    selectedName = filtered[0].name;
+    if (coachMatchSelect) coachMatchSelect.value = selectedName;
+  }
 
   if (!filtered.length) {
     const empty = document.createElement("div");
     empty.className = "mini-card";
     empty.innerHTML = `<h3>${emptyLabel}</h3>`;
     athleteList.appendChild(empty);
+    renderCoachAthleteProfile("");
     return;
   }
 
   filtered.forEach((athlete) => {
     const card = document.createElement("div");
     card.className = "athlete-card";
-    const tags = normalizeSmartTags(athlete.tags);
-    const tagRow = tags.length
-      ? `<div class="tag-row smart-tags">${tags
-          .map((tag) => `<span class="tag smart-tag">${formatSmartTag(tag)}</span>`)
-          .join("")}</div>`
-      : "";
+    card.classList.toggle("active", athlete.name === selectedName);
+    const board = getAthleteTaskBoard(athlete.name);
+    const alerts = getAthleteAlerts(athlete);
+    const badges = buildAthleteIndicatorBadges(athlete, board, alerts);
+    const taskSummary = board.tasks.length
+      ? board.tasks.slice(0, 2).join(" - ")
+      : (currentLang === "es" ? "Sin tareas pendientes" : "No pending tasks");
+    const alertSummary = alerts.length
+      ? alerts.slice(0, 2).join(" - ")
+      : (currentLang === "es" ? "Sin alertas activas" : "No active alerts");
+    const meta = [athlete.weight, `${currentLang === "es" ? "Cat." : "Class"} ${athlete.weightClass || "-"}`, athlete.style].join(" • ");
     card.innerHTML = `
-      <h4>${athlete.name}</h4>
-      <div class="small">${athlete.weight} - ${athlete.style}</div>
-      <div class="small">${statusLabel}: ${athlete.availability}</div>
-      <div class="small">${preferredLabel}: ${athlete.preferred}</div>
-      <div class="small">${intlLabel}: ${athlete.international}</div>
-      <div class="small">${athlete.history}</div>
-      <div class="small">${athlete.notes}</div>
-      ${tagRow}
+      <div class="athlete-card-header">
+        <div>
+          <h4>${athlete.name}</h4>
+          <div class="small athlete-card-meta">${meta}</div>
+        </div>
+        <div class="athlete-card-status">
+          ${badges.map((badge) => `<span class="${badge.className}">${badge.label}</span>`).join("")}
+        </div>
+      </div>
+      <div class="athlete-card-section">
+        <span class="small athlete-card-label">${currentLang === "es" ? "Estado actual" : "Current status"}</span>
+        <p class="small">${athlete.availability}</p>
+      </div>
+      <div class="athlete-card-section">
+        <span class="small athlete-card-label">${currentLang === "es" ? "Tareas pendientes" : "Pending tasks"}</span>
+        <p class="small">${taskSummary}</p>
+      </div>
+      <div class="athlete-card-section">
+        <span class="small athlete-card-label">${currentLang === "es" ? "Journal" : "Journal"}</span>
+        <p class="small">${board.journalLabel}</p>
+      </div>
+      <div class="athlete-card-section">
+        <span class="small athlete-card-label">${currentLang === "es" ? "Alertas" : "Alerts"}</span>
+        <p class="small">${alertSummary}</p>
+      </div>
     `;
+    card.addEventListener("click", () => {
+      selectCoachMatchAthlete(athlete.name);
+    });
     const btn = document.createElement("button");
     btn.textContent = athleteSummaryLabel;
-    btn.addEventListener("click", () => {
-      selectCoachMatchAthlete(athlete.name);
-      showTab("coach-match");
+    btn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openAthleteSummaryView(athlete.name);
     });
     card.appendChild(btn);
     athleteList.appendChild(card);
+  });
+
+  renderCoachAthleteProfile(selectedName);
+  const selectedAthlete = athletes.find((athlete) => athlete.name === selectedName);
+  if (selectedName) {
+    renderCoachMatchView(selectedName);
+  }
+  if (selectedAthlete) {
+    renderCompetitionPreview(selectedAthlete);
+  }
+}
+
+if (athleteSearchInput) {
+  athleteSearchInput.addEventListener("input", () => {
+    athleteSearchQuery = athleteSearchInput.value.trim().toLowerCase();
+    renderAthleteManagement();
   });
 }
 
@@ -8742,18 +10344,10 @@ function renderPermissions() {
 
 // ---------- ONE-PAGER ----------
 const onePagerHeader = document.getElementById("onePagerHeader");
-const onePagerIdentity = document.getElementById("onePagerIdentity");
-const onePagerTechniques = document.getElementById("onePagerTechniques");
-const onePagerPlan = document.getElementById("onePagerPlan");
-const onePagerDo = document.getElementById("onePagerDo");
-const onePagerDont = document.getElementById("onePagerDont");
-const onePagerCues = document.getElementById("onePagerCues");
-const onePagerCueNotes = document.getElementById("onePagerCueNotes");
-const onePagerSafety = document.getElementById("onePagerSafety");
-const saveOnePagerPlan = document.getElementById("saveOnePagerPlan");
-const saveOnePagerDos = document.getElementById("saveOnePagerDos");
-const saveOnePagerCues = document.getElementById("saveOnePagerCues");
-const saveOnePagerSafety = document.getElementById("saveOnePagerSafety");
+const summaryWeeklyBoard = document.getElementById("summaryWeeklyBoard");
+const summaryCornerBoard = document.getElementById("summaryCornerBoard");
+const summarySafetyBoard = document.getElementById("summarySafetyBoard");
+const summaryMentalBoard = document.getElementById("summaryMentalBoard");
 const messageAthleteBtn = document.getElementById("messageAthleteBtn");
 const openTrainingBtn = document.getElementById("openTrainingBtn");
 const openTournamentBtn = document.getElementById("openTournamentBtn");
@@ -8810,89 +10404,105 @@ function renderOnePager(athleteName) {
   const athlete = getAthletesData().find((a) => a.name === defaultName) || getProfile();
   if (!athlete) return;
   const base = buildOnePagerBase(athlete);
-  const saved = getOnePagerData(base.name) || {};
-  const defaultPlan =
-    currentLang === "es"
-      ? "Puntua primero con pierna simple. Mantente pesado arriba."
-      : "Score first with single leg. Stay heavy on top.";
-  const defaultDo =
-    currentLang === "es"
-      ? "Empuja el ritmo temprano. Mantener codos cerrados."
-      : "Push pace early. Keep elbows tight.";
-  const defaultDont =
-    currentLang === "es"
-      ? "Sobre extenderse en tiros. Colgarse en el underhook."
-      : "Overextend on shots. Hang in underhook.";
-  const merged = {
-    ...base,
-    plan: saved.plan || defaultPlan,
-    do: saved.do || defaultDo,
-    dont: saved.dont || defaultDont,
-    coachCues: saved.coachCues || base.coachCues,
-    cueNotes: saved.cueNotes || base.cueNotes,
-    injuryNotes: saved.injuryNotes || base.injuryNotes
-  };
+  const taskBoard = getAthleteTaskBoard(athlete.name);
+  const alerts = getAthleteAlerts(athlete);
+  const journalEntry = getLocalizedJournalEntry(athlete.name);
+  const cornerPlan = getAthleteCornerPlan(ATHLETES.find((a) => a.name === athlete.name) || athlete);
   const na = currentLang === "es" ? "N/D" : "N/A";
-  const schoolNA = currentLang === "es" ? "Escuela N/D" : "School N/A";
-  const yearsValue = merged.years || "";
-  const yearsDisplay = yearsValue ? getLevelLabel(yearsValue) || yearsValue : na;
-  const styleDisplay = merged.style
-    ? translateOptionValue("aStyle", merged.style) || translateValue(merged.style)
+  const styleDisplay = base.style
+    ? translateOptionValue("aStyle", base.style) || translateValue(base.style)
     : na;
-  const positionDisplay = translateOptionValue("pPosition", merged.position) || na;
-  const strategyDisplay = translateOptionValue("pStrategy", merged.strategy) || na;
-  const internationalDisplay = translateOptionValue("pInternational", merged.international) || na;
-  const intlEventsDisplay =
-    merged.internationalEvents ||
-    (currentLang === "es" ? "No hay eventos internacionales" : "No international events listed");
-  const neutralTech = translateTechniqueList(merged.techniques.neutral);
-  const topTech = translateTechniqueList(merged.techniques.top);
-  const bottomTech = translateTechniqueList(merged.techniques.bottom);
-  const defenseTech = translateTechniqueList(merged.techniques.defense);
+  const journalSummary = journalEntry
+    ? `
+      <ul class="list tight">
+        <li>${currentLang === "es" ? "Journal" : "Journal"}: ${taskBoard.journalLabel}</li>
+        <li>${currentLang === "es" ? "Sueno" : "Sleep"}: ${journalEntry.sleep || na}</li>
+        <li>${currentLang === "es" ? "Energia" : "Energy"}: ${journalEntry.energy || na}</li>
+        <li>${currentLang === "es" ? "Dolor" : "Soreness"}: ${journalEntry.soreness || na}</li>
+        <li>${currentLang === "es" ? "Peso" : "Weight trend"}: ${journalEntry.weight || na}</li>
+      </ul>
+    `
+    : `<p class="small muted">${currentLang === "es" ? "Sin actualizacion reciente de journal." : "No recent journal update."}</p>`;
+  const tasksSummary = taskBoard.tasks.length
+    ? `<ul class="list tight">${taskBoard.tasks.map((item) => `<li>${item}</li>`).join("")}</ul>`
+    : `<p class="small muted">${currentLang === "es" ? "Sin tareas pendientes." : "No pending tasks."}</p>`;
+  const alertsSummary = alerts.length
+    ? `<ul class="list tight">${alerts.map((item) => `<li>${item}</li>`).join("")}</ul>`
+    : `<p class="small muted">${currentLang === "es" ? "Sin alertas activas." : "No active alerts."}</p>`;
+  const plansSummary = `
+    <ul class="list tight">
+      <li><strong>Plan A:</strong> ${cornerPlan?.planA || na}</li>
+      <li><strong>Plan B:</strong> ${cornerPlan?.planB || na}</li>
+      <li><strong>Plan C:</strong> ${cornerPlan?.planC || na}</li>
+    </ul>
+  `;
+  const cornerSummary = `
+    <ul class="list tight">
+      <li><strong>${currentLang === "es" ? "Ataques" : "Attacks"}:</strong> ${cornerPlan?.attacks.join(", ") || na}</li>
+      <li><strong>${currentLang === "es" ? "Setups" : "Setups"}:</strong> ${cornerPlan?.setups.join(", ") || na}</li>
+      <li><strong>${currentLang === "es" ? "Cues" : "Cues"}:</strong> ${cornerPlan?.coachCues.join(", ") || na}</li>
+    </ul>
+  `;
+  const safetySummary = `
+    <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Limitaciones fisicas" : "Physical limitations"}</p>
+    ${cornerPlan?.physicalLimitations.length ? `<ul class="list tight">${cornerPlan.physicalLimitations.map((item) => `<li>${item}</li>`).join("")}</ul>` : `<p class="small muted">${currentLang === "es" ? "Sin limitaciones registradas." : "No physical limitations recorded."}</p>`}
+    <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Advertencias de seguridad" : "Safety warnings"}</p>
+    ${cornerPlan?.safetyWarnings.length ? `<ul class="list tight">${cornerPlan.safetyWarnings.map((item) => `<li>${item}</li>`).join("")}</ul>` : `<p class="small muted">${currentLang === "es" ? "Sin advertencias de seguridad." : "No safety warnings recorded."}</p>`}
+  `;
+  const mentalSummary = `
+    <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Errores bajo presion" : "Pressure errors"}</p>
+    ${cornerPlan?.pressureErrors.length ? `<ul class="list tight">${cornerPlan.pressureErrors.map((item) => `<li>${item}</li>`).join("")}</ul>` : `<p class="small muted">${na}</p>`}
+    <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Recordatorios mentales" : "Mental reminders"}</p>
+    ${cornerPlan?.mentalReminders.length ? `<ul class="list tight">${cornerPlan.mentalReminders.map((item) => `<li>${item}</li>`).join("")}</ul>` : `<p class="small muted">${na}</p>`}
+    <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Competition call" : "Competition call"}</p>
+    <div class="match-cue">${cornerPlan?.competitionCue || athlete.coachSignal || na}</div>
+  `;
 
   if (onePagerHeader) {
-    const initials = merged.name ? merged.name.split(" ").map((n) => n[0]).join("").slice(0, 2) : "AT";
+    const initials = athlete.name ? athlete.name.split(" ").map((n) => n[0]).join("").slice(0, 2) : "AT";
     onePagerHeader.innerHTML = `
       <div class="onepager-avatar">${initials}</div>
       <div>
-        <h3>${merged.name}</h3>
-        <div class="small">${styleDisplay} - ${merged.currentWeight} (${merged.weightClass})</div>
-        <div class="small">${merged.school || schoolNA} ${merged.club ? "- " + merged.club : ""}</div>
+        <h3>${athlete.name}</h3>
+        <div class="small">${styleDisplay} - ${athlete.currentWeight || athlete.weight || na} (${athlete.weightClass || na})</div>
+        <div class="small">${currentLang === "es" ? "Usar para seguimiento semanal y consulta rapida en torneo." : "Use for weekly follow-up and fast tournament consultation."}</div>
       </div>
     `;
   }
 
-  if (onePagerIdentity) {
-    onePagerIdentity.innerHTML = `
-      <h3>${currentLang === "es" ? "Experiencia e identidad" : "Experience & Identity"}</h3>
-      <ul class="list">
-        <li>${currentLang === "es" ? "Experiencia" : "Experience"}: ${yearsDisplay}</li>
-        <li>${currentLang === "es" ? "Internacional" : "International"}: ${internationalDisplay}</li>
-        <li>${intlEventsDisplay}</li>
-        <li>${currentLang === "es" ? "Posicion preferida" : "Preferred position"}: ${positionDisplay}</li>
-        <li>${currentLang === "es" ? "Estrategia" : "Strategy"}: ${strategyDisplay}</li>
-      </ul>
+  if (summaryWeeklyBoard) {
+    summaryWeeklyBoard.innerHTML = `
+      <h3>${currentLang === "es" ? "Seguimiento semanal" : "Weekly Follow-Up"}</h3>
+      ${journalSummary}
+      <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Pendientes" : "Pending"}</p>
+      ${tasksSummary}
+      <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Alertas" : "Alerts"}</p>
+      ${alertsSummary}
     `;
   }
 
-  if (onePagerTechniques) {
-    onePagerTechniques.innerHTML = `
-      <h3>${currentLang === "es" ? "Tecnicas predeterminadas" : "Default Techniques"}</h3>
-      <ul class="list">
-        <li>${currentLang === "es" ? "Neutral" : "Neutral"}: ${neutralTech.join(", ") || na}</li>
-        <li>${currentLang === "es" ? "Arriba" : "Top"}: ${topTech.join(", ") || na}</li>
-        <li>${currentLang === "es" ? "Abajo" : "Bottom"}: ${bottomTech.join(", ") || na}</li>
-        <li>${currentLang === "es" ? "Defensa" : "Defense"}: ${defenseTech.join(", ") || na}</li>
-      </ul>
+  if (summaryCornerBoard) {
+    summaryCornerBoard.innerHTML = `
+      <h3>${currentLang === "es" ? "Quick Corner" : "Quick Corner"}</h3>
+      ${cornerSummary}
+      <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Planes" : "Plans"}</p>
+      ${plansSummary}
     `;
   }
 
-  if (onePagerPlan) onePagerPlan.value = merged.plan;
-  if (onePagerDo) onePagerDo.value = merged.do;
-  if (onePagerDont) onePagerDont.value = merged.dont;
-  if (onePagerCues) onePagerCues.value = merged.coachCues;
-  if (onePagerCueNotes) onePagerCueNotes.value = merged.cueNotes;
-  if (onePagerSafety) onePagerSafety.value = merged.injuryNotes;
+  if (summarySafetyBoard) {
+    summarySafetyBoard.innerHTML = `
+      <h3>${currentLang === "es" ? "Seguridad y limitaciones" : "Safety and Limitations"}</h3>
+      ${safetySummary}
+    `;
+  }
+
+  if (summaryMentalBoard) {
+    summaryMentalBoard.innerHTML = `
+      <h3>${currentLang === "es" ? "Notas mentales y de presion" : "Mental and Pressure Notes"}</h3>
+      ${mentalSummary}
+    `;
+  }
 }
 
 function saveOnePagerField(field, value) {
@@ -8900,32 +10510,6 @@ function saveOnePagerField(field, value) {
   const current = getOnePagerData(name) || {};
   setOnePagerData(name, { ...current, [field]: value });
   toast(pickCopy({ en: "One-pager saved.", es: "Resumen guardado." }));
-}
-
-if (saveOnePagerPlan) {
-  saveOnePagerPlan.addEventListener("click", () => {
-    saveOnePagerField("plan", onePagerPlan.value.trim());
-  });
-}
-
-if (saveOnePagerDos) {
-  saveOnePagerDos.addEventListener("click", () => {
-    saveOnePagerField("do", onePagerDo.value.trim());
-    saveOnePagerField("dont", onePagerDont.value.trim());
-  });
-}
-
-if (saveOnePagerCues) {
-  saveOnePagerCues.addEventListener("click", () => {
-    saveOnePagerField("coachCues", onePagerCues.value);
-    saveOnePagerField("cueNotes", onePagerCueNotes.value.trim());
-  });
-}
-
-if (saveOnePagerSafety) {
-  saveOnePagerSafety.addEventListener("click", () => {
-    saveOnePagerField("injuryNotes", onePagerSafety.value.trim());
-  });
 }
 
 if (messageAthleteBtn) {
@@ -8954,6 +10538,7 @@ if (addQuickNoteBtn) {
 
 // ---------- COACH MATCH VIEW ----------
 const coachMatchSelect = document.getElementById("coachMatchSelect");
+const athleteSummaryCard = document.getElementById("athleteSummaryCard");
 const coachMatchSelectLabel = document.getElementById("coachMatchSelectLabel");
 const coachMatchAvatar = document.getElementById("coachMatchAvatar");
 const coachMatchName = document.getElementById("coachMatchName");
@@ -9150,6 +10735,10 @@ function buildCoachMatchData(athleteName) {
     getProfile();
   if (!athlete) return null;
   const saved = getOnePagerData(athlete.name) || {};
+  const taskBoard = getAthleteTaskBoard(athlete.name);
+  const journalEntry = getLocalizedJournalEntry(athlete.name);
+  const alerts = getAthleteAlerts(athlete);
+  const cornerPlan = getAthleteCornerPlan(ATHLETES.find((a) => a.name === athlete.name) || athlete);
   const positionKey = normalizePositionKey(athlete.favoritePosition || athlete.position);
   const offense = topThree(athlete.offenseTop3 || athlete.techniques?.neutral || []);
   const defense = topThree(athlete.defenseTop3 || athlete.techniques?.defense || []);
@@ -9173,6 +10762,10 @@ function buildCoachMatchData(athleteName) {
     positionKey,
     offense,
     defense,
+    taskBoard,
+    journalEntry,
+    alerts,
+    cornerPlan,
     tendency,
     pressureError: athlete.pressureError || saved.dont || "",
     coachSignal
@@ -9217,6 +10810,59 @@ function renderCoachMatchView(athleteName) {
     ? `<ul class="list tight cue-word-list">${cueWordsList.map((word) => `<li>${word}</li>`).join("")}</ul>`
     : `<div class="small muted">${matchCopy("cueWordsEmpty")}</div>`;
   const goalDisplay = data.goal || matchCopy("goalFallback");
+  const board = data.taskBoard || { tasks: [], journalLabel: na };
+  const weeklyAlerts = data.alerts || [];
+  const cornerPlan = data.cornerPlan || {
+    attacks: [],
+    setups: [],
+    planA: "",
+    planB: "",
+    planC: "",
+    coachCues: [],
+    pressureErrors: [],
+    physicalLimitations: [],
+    safetyWarnings: [],
+    mentalReminders: []
+  };
+  const journalEntry = data.journalEntry || null;
+  const tasksHtml = board.tasks.length
+    ? `<ul class="list tight">${board.tasks.map((item) => `<li>${item}</li>`).join("")}</ul>`
+    : `<div class="small muted">${currentLang === "es" ? "No hay pendientes esta semana." : "No pending work this week."}</div>`;
+  const weeklyAlertsHtml = weeklyAlerts.length
+    ? `<ul class="list tight">${weeklyAlerts.map((item) => `<li>${item}</li>`).join("")}</ul>`
+    : `<div class="small muted">${currentLang === "es" ? "Sin alertas activas." : "No active alerts."}</div>`;
+  const topAttacksHtml = cornerPlan.attacks.length
+    ? `<ul class="list tight">${cornerPlan.attacks.map((item) => `<li>${item}</li>`).join("")}</ul>`
+    : `<div class="small muted">${na}</div>`;
+  const topSetupsHtml = cornerPlan.setups.length
+    ? `<ul class="list tight">${cornerPlan.setups.map((item) => `<li>${item}</li>`).join("")}</ul>`
+    : `<div class="small muted">${na}</div>`;
+  const coachCuesHtml = cornerPlan.coachCues.length
+    ? `<ul class="list tight">${cornerPlan.coachCues.map((item) => `<li>${item}</li>`).join("")}</ul>`
+    : cueWordsHtml;
+  const pressureErrorsHtml = cornerPlan.pressureErrors.length
+    ? `<ul class="list tight">${cornerPlan.pressureErrors.map((item) => `<li>${item}</li>`).join("")}</ul>`
+    : `<div class="small muted">${errorDisplay}</div>`;
+  const physicalLimitsHtml = cornerPlan.physicalLimitations.length
+    ? `<ul class="list tight">${cornerPlan.physicalLimitations.map((item) => `<li>${item}</li>`).join("")}</ul>`
+    : `<div class="small muted">${currentLang === "es" ? "Sin limitaciones registradas." : "No physical limitations recorded."}</div>`;
+  const safetyWarningsHtml = cornerPlan.safetyWarnings.length
+    ? `<ul class="list tight">${cornerPlan.safetyWarnings.map((item) => `<li>${item}</li>`).join("")}</ul>`
+    : `<div class="small muted">${currentLang === "es" ? "Sin advertencias de seguridad." : "No safety warnings recorded."}</div>`;
+  const mentalRemindersHtml = cornerPlan.mentalReminders.length
+    ? `<ul class="list tight">${cornerPlan.mentalReminders.map((item) => `<li>${item}</li>`).join("")}</ul>`
+    : cueWordsHtml;
+  const weeklyReadinessHtml = journalEntry
+    ? `
+      <ul class="list tight">
+        <li>${currentLang === "es" ? "Journal" : "Journal"}: ${board.journalLabel}</li>
+        <li>${currentLang === "es" ? "Sueno" : "Sleep"}: ${journalEntry.sleep || na}</li>
+        <li>${currentLang === "es" ? "Energia" : "Energy"}: ${journalEntry.energy || na}</li>
+        <li>${currentLang === "es" ? "Dolor" : "Soreness"}: ${journalEntry.soreness || na}</li>
+        <li>${currentLang === "es" ? "Peso" : "Weight trend"}: ${journalEntry.weight || na}</li>
+      </ul>
+    `
+    : `<div class="small muted">${currentLang === "es" ? "Sin journal reciente." : "No recent journal update."}</div>`;
 
   if (coachMatchSelectLabel) coachMatchSelectLabel.textContent = matchCopy("selectAthlete");
   if (coachMatchAvatar) coachMatchAvatar.textContent = initials;
@@ -9225,99 +10871,111 @@ function renderCoachMatchView(athleteName) {
 
   if (coachMatchBasics) {
     coachMatchBasics.innerHTML = `
-      <h3>${matchCopy("snapshot")}</h3>
+      <h3>${currentLang === "es" ? "Lectura rapida" : "Fast Read"}</h3>
       <ul class="list tight">
         <li>${matchCopy("style")}: ${styleDisplay}</li>
         <li>${matchCopy("experience")}: ${experienceDisplay}</li>
         <li>${matchCopy("weight")}: ${weightDisplay}</li>
         <li>${matchCopy("category")}: ${categoryDisplay}</li>
+        <li>${currentLang === "es" ? "Pendientes" : "Pending"}: ${board.tasks.length}</li>
+        <li>${currentLang === "es" ? "Alertas" : "Alerts"}: ${weeklyAlerts.length}</li>
       </ul>
     `;
   }
 
   if (coachMatchPosition) {
-    const strengthItems = positionStrengthList.length
-      ? positionStrengthList
-          .map(
-            (entry) =>
-              `<li>${translateValue(entry.name)}: ${entry.strength}/10</li>`
-          )
-          .join("")
-      : `<li>${matchCopy("positionalStrengthFallback")}</li>`;
     coachMatchPosition.innerHTML = `
-      <h3>${matchCopy("positionalStrengthTitle")}</h3>
-      <ul class="list tight">
-        ${strengthItems}
-      </ul>
+      <h3>${currentLang === "es" ? "Seguimiento semanal" : "Weekly Snapshot"}</h3>
+      ${weeklyReadinessHtml}
     `;
   }
 
   if (coachMatchOffense) {
     coachMatchOffense.innerHTML = `
-      <h3>${matchCopy("offenseTitle")}</h3>
-      <div class="match-highlight">${offenseDisplay}</div>
+      <h3>${currentLang === "es" ? "Top 3 ataques" : "Top 3 Attacks"}</h3>
+      ${topAttacksHtml}
     `;
   }
 
   if (coachMatchDefense) {
     coachMatchDefense.innerHTML = `
-      <h3>${matchCopy("defenseTitle")}</h3>
-      <div class="match-highlight">${defenseDisplay}</div>
+      <h3>${currentLang === "es" ? "Top 3 setups" : "Top 3 Setups"}</h3>
+      ${topSetupsHtml}
     `;
   }
 
   if (coachMatchPsych) {
     coachMatchPsych.innerHTML = `
-      <h3>${matchCopy("psychTitle")}</h3>
+      <h3>${currentLang === "es" ? "Planes de competencia" : "Competition Plans"}</h3>
       <ul class="list tight">
-        <li>${matchCopy("tendency")}: ${tendencyDisplay}</li>
-        <li>${matchCopy("error")}: ${errorDisplay}</li>
+        <li><strong>Plan A:</strong> ${cornerPlan.planA || goalDisplay}</li>
+        <li><strong>Plan B:</strong> ${cornerPlan.planB || na}</li>
+        <li><strong>Plan C:</strong> ${cornerPlan.planC || na}</li>
       </ul>
     `;
   }
 
   if (coachMatchArchetype) {
     coachMatchArchetype.innerHTML = `
-      <h3>${matchCopy("archetypeTitle")}</h3>
-      <div class="match-highlight">${archetypeDisplay}</div>
+      <h3>${currentLang === "es" ? "Cues rapidos del coach" : "Coach Quick Cues"}</h3>
+      ${coachCuesHtml}
     `;
   }
 
   if (coachMatchCueWords) {
     coachMatchCueWords.innerHTML = `
-      <h3>${matchCopy("cueWordsTitle")}</h3>
-      <p class="small muted">${matchCopy("cueWordsHint")}</p>
-      ${cueWordsHtml}
+      <h3>${currentLang === "es" ? "Recordatorios mentales" : "Mental Reminders"}</h3>
+      ${mentalRemindersHtml}
     `;
   }
 
   if (coachMatchBodyType) {
     coachMatchBodyType.innerHTML = `
-      <h3>${matchCopy("bodyTypeTitle")}</h3>
-      <div class="match-highlight">${bodyTypeDisplay}</div>
+      <h3>${currentLang === "es" ? "Errores bajo presion" : "Pressure Errors"}</h3>
+      ${pressureErrorsHtml}
     `;
   }
 
   if (coachMatchGoal) {
     coachMatchGoal.innerHTML = `
-      <h3>${matchCopy("goalTitle")}</h3>
-      <div class="match-highlight">${goalDisplay}</div>
+      <h3>${currentLang === "es" ? "Limitaciones y seguridad" : "Limitations and Safety"}</h3>
+      <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Limitaciones fisicas" : "Physical limitations"}</p>
+      ${physicalLimitsHtml}
+      <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Advertencias de seguridad" : "Safety warnings"}</p>
+      ${safetyWarningsHtml}
     `;
   }
 
   if (coachMatchCue) {
     coachMatchCue.innerHTML = `
-      <h3>${matchCopy("cueTitle")}</h3>
-      <div class="match-cue">${cueDisplay}</div>
+      <h3>${currentLang === "es" ? "Llamado de competencia" : "Competition Call"}</h3>
+      <div class="match-cue">${cornerPlan.competitionCue || cueDisplay}</div>
+      <p class="small muted">${currentLang === "es" ? "Lo que el coach debe repetir en la esquina." : "What the coach should repeat mat-side."}</p>
     `;
   }
   renderOnePager(data.name);
 }
 
 function selectCoachMatchAthlete(name) {
-  if (!coachMatchSelect) return;
-  coachMatchSelect.value = name;
-  renderCoachMatchView(name);
+  const athletes = getAthletesData();
+  const selectedAthlete = athletes.find((athlete) => athlete.name === name) || athletes[0];
+  if (!selectedAthlete) return;
+  if (coachMatchSelect) coachMatchSelect.value = selectedAthlete.name;
+  renderCoachAthleteProfile(selectedAthlete.name);
+  renderCoachMatchView(selectedAthlete.name);
+  renderCompetitionPreview(selectedAthlete);
+  renderAthleteManagement();
+}
+
+function openAthleteSummaryView(name = "") {
+  if (name) {
+    selectCoachMatchAthlete(name);
+  } else if (coachMatchSelect?.value) {
+    selectCoachMatchAthlete(coachMatchSelect.value);
+  }
+  Promise.resolve(showTab("coach-match")).finally(() => {
+    athleteSummaryCard?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 }
 
 if (coachMatchSelect) {
@@ -9328,7 +10986,7 @@ if (coachMatchSelect) {
     option.textContent = athlete.name;
     coachMatchSelect.appendChild(option);
   });
-  coachMatchSelect.addEventListener("change", () => renderCoachMatchView(coachMatchSelect.value));
+  coachMatchSelect.addEventListener("change", () => selectCoachMatchAthlete(coachMatchSelect.value));
   const defaultName = getAthletesData()[0]?.name;
   if (defaultName) selectCoachMatchAthlete(defaultName);
 }
@@ -10122,6 +11780,8 @@ async function startApp() {
   renderCalendarManager();
   renderMedia();
   renderAnnouncements();
+  renderCoachAssignments();
+  renderCompletionTracking();
   renderDashboard();
   renderCoachProfile();
   renderAthleteManagement();
