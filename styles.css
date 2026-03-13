@@ -338,6 +338,40 @@ button:active{
   color: rgba(255,255,255,0.86);
 }
 
+.plan-meta-grid{
+  margin-bottom: 16px;
+  align-items: start;
+}
+
+.plan-inline-select input,
+.plan-inline-select textarea{
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(0,0,0,0.22);
+  color: var(--text);
+  padding: 10px 12px;
+}
+
+.plan-inline-select textarea{
+  resize: vertical;
+  min-height: 110px;
+}
+
+.plan-save-bar{
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.plan-save-bar .small{
+  margin: 0;
+}
+
+#planSaveStatus.error{
+  color: #d7263d;
+}
+
 .template-help{
   margin-top: 12px;
   padding: 12px;

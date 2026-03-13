@@ -128,6 +128,30 @@ service cloud.firestore {
       allow read, write: if signedIn();
     }
 
+    match /coach_workspaces/{coachUid} {
+      allow read, write: if isAdminEmail() || isSelf(coachUid);
+
+      match /plans/{planId} {
+        allow read, write: if isAdminEmail() || isSelf(coachUid);
+      }
+
+      match /templates/{templateId} {
+        allow read, write: if isAdminEmail() || isSelf(coachUid);
+      }
+
+      match /assignments/{assignmentId} {
+        allow read, write: if isAdminEmail() || isSelf(coachUid);
+      }
+
+      match /groups/{groupId} {
+        allow read, write: if isAdminEmail() || isSelf(coachUid);
+      }
+
+      match /calendar_entries/{entryId} {
+        allow read, write: if isAdminEmail() || isSelf(coachUid);
+      }
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

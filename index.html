@@ -1055,6 +1055,29 @@
             </div>
           </div>
           <div class="plan-quick-summary" id="planQuickSummary">Daily plan • From scratch • No target selected yet.</div>
+          <div class="section-grid plan-meta-grid">
+            <div class="mini-card">
+              <label class="plan-inline-select">
+                <span id="planTitleLabel">Plan title</span>
+                <input id="planTitleInput" type="text" placeholder="Competition prep - Week 1" >
+              </label>
+              <label class="plan-inline-select">
+                <span id="planFocusLabel">Main focus</span>
+                <input id="planFocusInput" type="text" placeholder="Chain wrestling, pace, and match finish" >
+              </label>
+            </div>
+            <div class="mini-card">
+              <label class="plan-inline-select">
+                <span id="planNotesLabel">Coach notes</span>
+                <textarea id="planNotesInput" rows="4" placeholder="What should this block accomplish and what should athletes feel by the end?"></textarea>
+              </label>
+            </div>
+          </div>
+          <div class="row plan-save-bar">
+            <button type="button" id="savePlanBtn" class="primary">Save Plan</button>
+            <button type="button" id="savePlanAssignBtn">Save Plan + Assign</button>
+            <span class="small muted" id="planSaveStatus"></span>
+          </div>
           <div class="subtabs" role="tablist" aria-label="Plan scope">
             <button type="button" class="subtab active" data-subtab="plan-daily">Daily</button>
             <button type="button" class="subtab" data-subtab="plan-weekly">Weekly</button>
@@ -1358,7 +1381,7 @@
           <div class="section-grid">
             <div class="mini-card">
               <h3>Template Library</h3>
-              <ul class="list">
+              <ul class="list" id="templateLibraryList">
                 <li>Daily technical session</li>
                 <li>High-volume chain wrestling week</li>
                 <li>Competition taper week</li>
@@ -1368,7 +1391,7 @@
             </div>
             <div class="mini-card">
               <h3>Template Workflow</h3>
-              <ul class="list">
+              <ul class="list" id="templateWorkflowList">
                 <li>Duplicate by phase, discipline, or athlete group</li>
                 <li>Keep recurring structures ready for fast edits</li>
                 <li>Upload a fillable PDF if your staff prints plans</li>
@@ -1729,7 +1752,7 @@
           <div class="section-grid">
             <div class="mini-card">
               <h3>Next Focus</h3>
-              <ul class="list">
+              <ul class="list" id="athleteNotesFocus">
                 <li>Improve bottom: switch + sit-out</li>
                 <li>Hand fight pressure</li>
                 <li>Finish single leg to shelf</li>
@@ -1737,7 +1760,7 @@
             </div>
             <div class="mini-card">
               <h3>Recent Notes</h3>
-              <ul class="list">
+              <ul class="list" id="athleteNotesRecent">
                 <li>10/12: Great pace in live</li>
                 <li>10/10: Needs tighter half</li>
                 <li>10/08: Weight on track</li>
