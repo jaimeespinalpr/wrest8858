@@ -39,6 +39,7 @@ const FIREBASE_USERS_COLLECTION = window.FIREBASE_USERS_COLLECTION || "users";
 const FIREBASE_SHARED_COLLECTION = window.FIREBASE_SHARED_COLLECTION || "shared_app";
 const FIREBASE_MEDIA_TREE_DOC = window.FIREBASE_MEDIA_TREE_DOC || "media_tree";
 const FIREBASE_MESSAGE_THREADS_COLLECTION = "message_threads";
+const FIREBASE_COACH_WORKSPACES_COLLECTION = "coach_workspaces";
 const WPL_MEDIA_UPLOADS_ROOT = String(window.WPL_MEDIA_UPLOADS_ROOT || "media_uploads").trim().replace(/^\/+|\/+$/g, "");
 let firebaseAuthInstance = null;
 let firebaseFirestoreInstance = null;
@@ -62,6 +63,21 @@ const OFFICIAL_COACH_EMAILS = new Set([
   "csizemore@united-wc.com"
 ]);
 const SIGNUP_ALLOWED_ROLES = new Set(["athlete", "coach", "parent"]);
+let coachWorkspaceRealtimeUserId = "";
+let coachWorkspaceUnsubs = [];
+let coachPlansCache = [];
+let coachTemplatesCache = [];
+let coachAssignmentsCache = [];
+let coachGroupsCache = [];
+let coachCalendarEntriesCache = {};
+let coachWorkspaceSeedPromise = null;
+let coachCalendarSyncTimeout = null;
+let coachPlanSyncState = {
+  lastSavedId: "",
+  lastSavedType: "",
+  saving: false
+};
+let currentEditingCoachPlanId = "";
 
 function initFirebaseClient() {
   if (typeof firebase === "undefined" || !window.FIREBASE_CONFIG) return null;
@@ -337,16 +353,16 @@ const VIEW_META_TEXT = {
 };
 const PARENT_VIEW_NOTICE_COPY = {
   title: {
-    en: "Parent view coming soon",
-    es: "Vista de padres próximamente",
-    uz: "Ota-ona ko'rinishi tez orada",
-    ru: "Родительский вид скоро"
+    en: "Parent view is active",
+    es: "La vista de padres está activa",
+    uz: "Ota-ona ko'rinishi faol",
+    ru: "Родительский вид активен"
   },
   message: {
-    en: "We’re building a dedicated experience for parents. Stay tuned!",
-    es: "Estamos creando una experiencia dedicada para padres. ¡Vuelve pronto!",
-    uz: "Ota-onalar uchun maxsus tajriba ustida ishlayapmiz. Yaqinda qaytib keling!",
-    ru: "Мы готовим отдельный опыт для родителей. Скоро будет доступно!"
+    en: "Parents can review schedule, media, notes, and coach communication from this view.",
+    es: "Los padres pueden revisar calendario, multimedia, notas y comunicación del coach desde esta vista.",
+    uz: "Ota-onalar ushbu ko'rinishdan jadval, media, eslatmalar va murabbiy xabarlarini ko'rishi mumkin.",
+    ru: "Из этого режима родители могут смотреть расписание, медиа, заметки и сообщения тренера."
   }
 };
 const VIEW_ROLE_MAP = {
@@ -504,6 +520,7 @@ function handleHeaderMenuAction(action) {
   if (action === "logout") {
     firebaseAuthInstance?.signOut().catch(() => {});
     stopMediaRealtimeSync();
+    stopCoachWorkspaceRealtimeSync();
     setProfile(null);
     setAuthUser(null);
     showOnboarding(null);
@@ -519,6 +536,7 @@ function handleHeaderMenuAction(action) {
   if (action === "switch") {
     firebaseAuthInstance?.signOut().catch(() => {});
     stopMediaRealtimeSync();
+    stopCoachWorkspaceRealtimeSync();
     setProfile(null);
     setAuthUser(null);
     showOnboarding(null);
@@ -866,10 +884,12 @@ function refreshLanguageUI() {
   renderDashboard();
   renderCoachProfile();
   renderAthleteManagement();
+  renderAthleteNotes();
   renderJournalMonitor();
   renderPermissions();
   renderMessages();
   renderSkills();
+  renderTemplatesPanel();
   if (typeof coachMatchSelect !== "undefined" && coachMatchSelect && coachMatchSelect.value) {
     renderCoachMatchView(coachMatchSelect.value);
   }
@@ -1014,6 +1034,7 @@ function setProfile(profile) {
 
 async function applyProfile(profile) {
   if (!profile) {
+    stopCoachWorkspaceRealtimeSync();
     setLanguage(getPreferredLang(), { skipConfirm: true, refresh: false });
     setView("athlete");
     refreshLanguageUI();
@@ -1026,6 +1047,11 @@ async function applyProfile(profile) {
   setView(view);
   if (view === "coach") {
     await loadSavedPdfTemplate();
+  }
+  if (isCoachRole(role)) {
+    startCoachWorkspaceRealtimeSync();
+  } else {
+    stopCoachWorkspaceRealtimeSync();
   }
   refreshLanguageUI();
 }
@@ -3201,6 +3227,724 @@ async function persistFirebaseProfile(uid, data, { required = false } = {}) {
   }
 }
 
+function getCoachWorkspaceDocRef(uid = getAuthUser()?.id) {
+  const safeUid = String(uid || "").trim();
+  if (!firebaseFirestoreInstance || !safeUid) return null;
+  return firebaseFirestoreInstance.collection(FIREBASE_COACH_WORKSPACES_COLLECTION).doc(safeUid);
+}
+
+function getCoachWorkspaceCollectionRef(name, uid = getAuthUser()?.id) {
+  const docRef = getCoachWorkspaceDocRef(uid);
+  if (!docRef || !name) return null;
+  return docRef.collection(name);
+}
+
+function isCoachWorkspaceActive() {
+  const authUser = getAuthUser();
+  const profile = getProfile();
+  return Boolean(
+    firebaseFirestoreInstance
+    && authUser?.id
+    && isCoachRole(profile?.role || authUser.role)
+  );
+}
+
+function coachWorkspaceSortByUpdated(items = []) {
+  return [...items].sort((a, b) => {
+    const left = Number(new Date(b.updatedAt || b.createdAt || 0));
+    const right = Number(new Date(a.updatedAt || a.createdAt || 0));
+    return left - right;
+  });
+}
+
+function normalizePlanType(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (raw === "daily" || raw === "day") return "day";
+  if (raw === "weekly" || raw === "week") return "week";
+  if (raw === "monthly" || raw === "month") return "month";
+  if (raw === "season") return "season";
+  return "day";
+}
+
+function normalizePlanItems(items) {
+  const keys = ["intro", "warmup", "drills", "live", "cooldown", "announcements"];
+  const next = {};
+  keys.forEach((key) => {
+    next[key] = Array.isArray(items?.[key])
+      ? items[key].map((item) => String(item).trim()).filter(Boolean)
+      : [];
+  });
+  return next;
+}
+
+function normalizePlanAudience(record = {}) {
+  const mode = ["single", "multi", "group"].includes(record.mode) ? record.mode : "single";
+  return {
+    mode,
+    athleteNames: uniqueNames(record.athleteNames || []),
+    groupId: String(record.groupId || "").trim(),
+    groupName: String(record.groupName || "").trim()
+  };
+}
+
+function normalizeCoachPlanRecord(id, data = {}) {
+  const type = normalizePlanType(data.type);
+  return {
+    id,
+    title: String(data.title || "").trim() || defaultPlanTitle(type),
+    type,
+    focus: String(data.focus || "").trim(),
+    coachNotes: String(data.coachNotes || "").trim(),
+    sourceMode: ["scratch", "template", "duplicate"].includes(data.sourceMode) ? data.sourceMode : "scratch",
+    sourceRefId: String(data.sourceRefId || "").trim(),
+    sourceLabel: String(data.sourceLabel || "").trim(),
+    range: {
+      startKey: normalizeDateKey(data.range?.startKey || data.startKey || getCurrentAppDateKey()),
+      endKey: normalizeDateKey(data.range?.endKey || data.endKey || data.range?.startKey || data.startKey || getCurrentAppDateKey())
+    },
+    items: normalizePlanItems(data.items),
+    monthlyNotes: String(data.monthlyNotes || "").trim(),
+    seasonYear: String(data.seasonYear || "").trim(),
+    audience: normalizePlanAudience(data.audience),
+    createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : String(data.createdAt || ""),
+    updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : String(data.updatedAt || ""),
+    createdBy: String(data.createdBy || "").trim(),
+    updatedBy: String(data.updatedBy || "").trim()
+  };
+}
+
+function normalizeCoachTemplateRecord(id, data = {}) {
+  return {
+    id,
+    name: String(data.name || "").trim(),
+    type: normalizePlanType(data.type || data.recommendedType),
+    focus: String(data.focus || "").trim(),
+    coachNotes: String(data.coachNotes || "").trim(),
+    items: normalizePlanItems(data.items),
+    monthlyNotes: String(data.monthlyNotes || "").trim(),
+    seasonYear: String(data.seasonYear || "").trim(),
+    system: data.system === true,
+    createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : String(data.createdAt || ""),
+    updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : String(data.updatedAt || "")
+  };
+}
+
+function normalizeCoachGroupRecord(id, data = {}) {
+  return {
+    id,
+    name: String(data.name || "").trim(),
+    memberNames: uniqueNames(data.memberNames || data.members || []),
+    system: data.system === true,
+    createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : String(data.createdAt || ""),
+    updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : String(data.updatedAt || "")
+  };
+}
+
+function normalizeAssignmentStatus(status) {
+  const raw = String(status || "").trim().toLowerCase();
+  if (raw === "review") return "review";
+  if (raw === "complete" || raw === "completed") return "complete";
+  if (raw === "overdue") return "overdue";
+  return "due";
+}
+
+function normalizeCoachAssignmentRecord(id, data = {}) {
+  return {
+    id,
+    title: String(data.title || "").trim(),
+    assigneeType: String(data.assigneeType || "athlete").trim(),
+    assigneeName: String(data.assigneeName || "").trim(),
+    assigneeNames: uniqueNames(data.assigneeNames || []),
+    assigneeId: String(data.assigneeId || "").trim(),
+    type: String(data.type || "Training Plan").trim(),
+    dueDateKey: isDateKey(data.dueDateKey) ? data.dueDateKey : "",
+    dueLabel: String(data.dueLabel || "").trim(),
+    status: normalizeAssignmentStatus(data.status),
+    note: String(data.note || "").trim(),
+    source: String(data.source || "").trim(),
+    planId: String(data.planId || "").trim(),
+    planType: normalizePlanType(data.planType || "day"),
+    createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : String(data.createdAt || ""),
+    updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : String(data.updatedAt || "")
+  };
+}
+
+function defaultPlanTitle(type = planRangeType) {
+  const map = {
+    day: { en: "Daily Training Plan", es: "Plan diario de entrenamiento" },
+    week: { en: "Weekly Training Plan", es: "Plan semanal de entrenamiento" },
+    month: { en: "Monthly Training Plan", es: "Plan mensual de entrenamiento" },
+    season: { en: "Season Training Plan", es: "Plan de temporada" }
+  };
+  return pickCopy(map[normalizePlanType(type)] || map.day);
+}
+
+function slugifyKey(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || `item-${Date.now()}`;
+}
+
+function getBuiltinCoachTemplateSeeds() {
+  return [
+    {
+      id: "technical-day",
+      name: "Technical Day",
+      type: "day",
+      focus: "Sharpen high-percentage offense and clean positional repetition.",
+      coachNotes: "Keep volume technical early, then finish with live goes tied to the main skill.",
+      items: {
+        intro: ["Review today's scoring focus", "Highlight one competition carryover cue"],
+        warmup: ["Dynamic movement and mobility", "Stance motion and footwork"],
+        drills: ["Single leg finish chain", "Snap to score series", "Short offense entries"],
+        live: ["3 x 1:00 situational goes", "3 x 1:00 live from neutral"],
+        cooldown: ["Breathing reset", "Mental rep of main finish"],
+        announcements: ["Log journal after practice"]
+      },
+      monthlyNotes: "Use as the anchor technical session when the room needs clean repetition."
+    },
+    {
+      id: "competition-prep",
+      name: "Competition Prep",
+      type: "week",
+      focus: "Build match readiness, sharp scoring volume, and competition confidence.",
+      coachNotes: "Keep intensity high but control total volume. Every session should connect to match execution.",
+      items: {
+        intro: ["Outline the week's match priorities"],
+        warmup: ["Dynamic movement and mobility", "Light hand-fighting"],
+        drills: ["Primary attack chain", "Counter to common reactions", "Finish under pressure"],
+        live: ["Short, intense live rounds", "Match-start scenarios", "End-of-period situations"],
+        cooldown: ["Recovery reset", "Review weight and travel checklist"],
+        announcements: ["Confirm competition logistics"]
+      },
+      monthlyNotes: "Good weekly build heading into a competition block."
+    },
+    {
+      id: "recovery-rehab",
+      name: "Recovery / Rehab",
+      type: "day",
+      focus: "Protect the athlete while keeping movement quality and technical intent.",
+      coachNotes: "Scale intensity down. Emphasize mobility, safe drilling, and readiness feedback.",
+      items: {
+        intro: ["Review physical limitations and session goal"],
+        warmup: ["Mobility circuit", "Low-impact activation"],
+        drills: ["Technique walkthrough", "Partner positioning", "Controlled reps only"],
+        live: ["No full live", "Short guided situations if cleared"],
+        cooldown: ["Soft tissue and breathing reset"],
+        announcements: ["Complete rehab notes in journal"]
+      },
+      monthlyNotes: "Use when load needs to be modified without removing technical intent."
+    },
+    {
+      id: "film-study",
+      name: "Film Study",
+      type: "day",
+      focus: "Improve tactical understanding and pattern recognition from match film.",
+      coachNotes: "Keep the assignment specific. One clip, one theme, one takeaway.",
+      items: {
+        intro: ["Set the tactical question for the film block"],
+        warmup: ["Short movement prep", "Stance motion and visualization"],
+        drills: ["Replay key sequence", "Walk through better reaction", "Partner shadow reps"],
+        live: ["Situational goes from the film position"],
+        cooldown: ["Write 3 takeaways"],
+        announcements: ["Upload notes before next practice"]
+      },
+      monthlyNotes: "Best paired with an assignment asking for written analysis."
+    },
+    {
+      id: "strength-wrestling",
+      name: "Strength + Wrestling",
+      type: "month",
+      focus: "Blend mat-specific strength work with wrestling development across the block.",
+      coachNotes: "Track fatigue closely and alternate loading days with technical emphasis.",
+      items: {
+        intro: ["Review the monthly training emphasis"],
+        warmup: ["Dynamic prep and activation"],
+        drills: ["Main technical chain for the block", "Finish series under fatigue"],
+        live: ["Progressive live intensity by week"],
+        cooldown: ["Mobility and recovery"],
+        announcements: ["Track lifting numbers and readiness weekly"]
+      },
+      monthlyNotes: "Monthly block with strength priorities layered into wrestling work."
+    },
+    {
+      id: "pre-tournament-week",
+      name: "Pre-Tournament Week",
+      type: "week",
+      focus: "Taper volume, keep speed, and dial in the competition plan.",
+      coachNotes: "Protect freshness. Short sessions, sharp scoring, zero wasted volume.",
+      items: {
+        intro: ["Review tournament goals and expected pace"],
+        warmup: ["Fast dynamic prep", "Reaction starts"],
+        drills: ["Top 3 attacks", "Top 3 setups", "Best finish reactions"],
+        live: ["Short burst goes", "Score-first situations only"],
+        cooldown: ["Weight check and mental reset"],
+        announcements: ["Travel, weigh-in, and match schedule reminders"]
+      },
+      monthlyNotes: "Use the week before tournament travel or a major event."
+    },
+    {
+      id: "post-match-review",
+      name: "Post-Match Review",
+      type: "season",
+      focus: "Capture lessons from recent competition and turn them into the next block.",
+      coachNotes: "Identify what carries forward, what needs fixing, and the next priority cycle.",
+      items: {
+        intro: ["Review tournament outcomes and key moments"],
+        warmup: ["Low-volume movement reset"],
+        drills: ["Recreate missed positions", "Correct late-match errors"],
+        live: ["Short scenario reviews only"],
+        cooldown: ["Write the next competition cue"],
+        announcements: ["Assign film and journal follow-up"]
+      },
+      monthlyNotes: "Use as a season checkpoint after a tournament stretch."
+    }
+  ].map((item) => ({
+    ...item,
+    items: normalizePlanItems(item.items)
+  }));
+}
+
+function getDefaultCoachGroupSeeds() {
+  const advanced = ATHLETES.filter((athlete) => String(athlete.level || "").toLowerCase() === "advanced").map((athlete) => athlete.name);
+  const intermediate = ATHLETES.filter((athlete) => String(athlete.level || "").toLowerCase() === "intermediate").map((athlete) => athlete.name);
+  const competition = ATHLETES.filter((athlete) => (
+    String(athlete.international || "").toLowerCase() !== "none"
+      || String(athlete.availability || "").toLowerCase() === "travel"
+      || String(athlete.level || "").toLowerCase() === "advanced"
+  )).map((athlete) => athlete.name);
+  const rehab = ATHLETES.filter((athlete) => String(athlete.availability || "").toLowerCase() === "limited").map((athlete) => athlete.name);
+  const remote = ATHLETES.filter((athlete) => String(athlete.availability || "").toLowerCase() === "travel").map((athlete) => athlete.name);
+
+  return [
+    { id: "varsity", name: "Varsity", memberNames: uniqueNames(advanced) },
+    { id: "jv", name: "JV", memberNames: uniqueNames(intermediate) },
+    { id: "beginners", name: "Beginners", memberNames: [] },
+    { id: "competition-team", name: "Competition Team", memberNames: uniqueNames(competition) },
+    { id: "rehab-return-to-play", name: "Rehab / Return to Play", memberNames: uniqueNames(rehab) },
+    { id: "remote-athletes", name: "Remote Athletes", memberNames: uniqueNames(remote) },
+    { id: "private-clients", name: "Private Clients", memberNames: [] }
+  ];
+}
+
+function getSeedCoachWorkspacePlans() {
+  const today = getCurrentAppDate();
+  const todayKey = toDateKey(today);
+  const weekStart = startOfWeek(today);
+  const weekStartKey = toDateKey(weekStart);
+  const weekEndKey = toDateKey(addDays(weekStart, 6));
+  const seasonYear = String(today.getFullYear());
+
+  return [
+    {
+      id: "seed-daily-finish-film",
+      title: "Daily Finish + Film Review",
+      type: "day",
+      focus: "Score cleaner off the single leg and connect the technique block to Friday opponent film.",
+      coachNotes: "Keep the room short and sharp. Carlos finishes every rep with head position to the hip and a clean shelf finish.",
+      sourceMode: "template",
+      sourceRefId: "technical-day",
+      sourceLabel: "Technical Day",
+      range: { startKey: todayKey, endKey: todayKey },
+      items: normalizePlanItems({
+        intro: ["Review Friday dual scoring priority", "Set one match cue for the room"],
+        warmup: ["Dynamic movement and mobility", "Stance motion and footwork"],
+        drills: ["Single leg shelf finish", "Re-shot to finish", "Hand fight to clean entry"],
+        live: ["3 x 1:00 neutral goes", "2 x 30s finish-on-the-edge situations"],
+        cooldown: ["Breathing reset", "Quick film notes before dismissal"],
+        announcements: ["Carlos Vega opponent film due tonight"]
+      }),
+      monthlyNotes: "Use this as the standard single-leg finish day when a competition is close.",
+      seasonYear,
+      audience: {
+        mode: "single",
+        athleteNames: ["Carlos Vega"],
+        groupId: "",
+        groupName: ""
+      }
+    },
+    {
+      id: "seed-weekly-pre-tournament",
+      title: "Pre-Tournament Week - Competition Team",
+      type: "week",
+      focus: "Taper volume, sharpen top 3 attacks, and lock in match-day decision making for the competition team.",
+      coachNotes: "Short sessions, clean reps, and no wasted volume. Everyone leaves with plan A/B/C and travel expectations clear.",
+      sourceMode: "template",
+      sourceRefId: "pre-tournament-week",
+      sourceLabel: "Pre-Tournament Week",
+      range: { startKey: weekStartKey, endKey: weekEndKey },
+      items: normalizePlanItems({
+        intro: ["Review tournament goals and top 3 attacks", "Confirm weigh-in and travel plan"],
+        warmup: ["Fast dynamic prep", "Reaction starts", "Short hand-fight exchanges"],
+        drills: ["Top 3 setup chains", "Front-headlock finish review", "Score-first scenarios"],
+        live: ["Short burst goes", "Start-on-the-whistle rounds", "Late-period closeout situations"],
+        cooldown: ["Recovery reset", "Mental rehearsal", "Corner cue review"],
+        announcements: ["Competition Team match analysis due before Thursday"]
+      }),
+      monthlyNotes: "Pre-tournament block for wrestlers traveling or projected in the varsity lineup.",
+      seasonYear,
+      audience: {
+        mode: "group",
+        athleteNames: [],
+        groupId: "competition-team",
+        groupName: "Competition Team"
+      }
+    }
+  ];
+}
+
+function getSeedCoachWorkspaceAssignments() {
+  const today = getCurrentAppDate();
+  const todayKey = toDateKey(today);
+  const tomorrowKey = toDateKey(addDays(today, 1));
+  const weekEndKey = toDateKey(addDays(startOfWeek(today), 6));
+
+  return [
+    {
+      id: "seed-assignment-video",
+      title: "Lincoln 157 opponent film",
+      assigneeType: "athlete",
+      assigneeName: "Carlos Vega",
+      assigneeNames: ["Carlos Vega"],
+      assigneeId: "carlos-vega",
+      type: "Video review",
+      dueDateKey: todayKey,
+      dueLabel: formatPlanDateLabel(todayKey),
+      status: "due",
+      note: "Watch the first attack sequence and write back 3 scoring reads.",
+      source: "Media - Match Analysis",
+      planId: "seed-daily-finish-film",
+      planType: "day"
+    },
+    {
+      id: "seed-assignment-drill",
+      title: "Single leg finish drill - 30 reps each side",
+      assigneeType: "athlete",
+      assigneeName: "Maya Cruz",
+      assigneeNames: ["Maya Cruz"],
+      assigneeId: "maya-cruz",
+      type: "Technique / Drill",
+      dueDateKey: tomorrowKey,
+      dueLabel: formatPlanDateLabel(tomorrowKey),
+      status: "overdue",
+      note: "Use ankle-safe entries and send completion before the next live session.",
+      source: "Modified rehab block",
+      planId: "",
+      planType: "day"
+    },
+    {
+      id: "seed-assignment-match-analysis",
+      title: "Top-turn match analysis - 3 scoring reads",
+      assigneeType: "group",
+      assigneeName: "Competition Team",
+      assigneeNames: getDefaultCoachGroupSeeds().find((group) => group.id === "competition-team")?.memberNames || [],
+      assigneeId: "competition-team",
+      type: "Match analysis",
+      dueDateKey: weekEndKey,
+      dueLabel: formatPlanDateLabel(weekEndKey),
+      status: "review",
+      note: "Reply with 3 scoring reads and one corner cue for the weekend event.",
+      source: "Pre-Tournament Week",
+      planId: "seed-weekly-pre-tournament",
+      planType: "week"
+    }
+  ];
+}
+
+function getSeedCoachCalendarEntries() {
+  const today = getCurrentAppDate();
+  const dualDate = addDays(startOfWeek(today), 5);
+  const filmDate = addDays(today, 1);
+  const dualKey = toDateKey(dualDate);
+  const filmKey = toDateKey(filmDate);
+
+  return {
+    [filmKey]: {
+      items: [
+        "Competition Team film review - 4:15 PM",
+        "Carlos Vega opponent film due before evening practice"
+      ],
+      audience: { all: false, athletes: ["Carlos Vega", "Jaime Espinal", "Olivia Chen"] }
+    },
+    [dualKey]: {
+      items: [
+        "Friday Night Dual - Lincoln High - 6:00 PM",
+        "Weigh-in check - 4:30 PM",
+        "Competition Team arrival - 5:15 PM"
+      ],
+      audience: { all: true, athletes: [] }
+    }
+  };
+}
+
+function getCoachTemplateOptionsForType(type = planRangeType) {
+  const targetType = normalizePlanType(type);
+  const seedTemplates = getBuiltinCoachTemplateSeeds();
+  const liveByType = coachTemplatesCache.filter((item) => item.type === targetType);
+  const fallbackByType = seedTemplates.filter((item) => item.type === targetType);
+  const live = liveByType.length ? liveByType : coachTemplatesCache;
+  const fallback = fallbackByType.length ? fallbackByType : seedTemplates;
+  const source = live.length ? live : fallback;
+  return source.map((item) => ({
+    value: item.id,
+    label: { en: item.name, es: item.name },
+    record: item
+  }));
+}
+
+function getDuplicatePlanOptionsForType(type = planRangeType) {
+  const targetType = normalizePlanType(type);
+  const live = coachWorkspaceSortByUpdated(coachPlansCache).filter((item) => item.type === targetType);
+  return live.map((item) => ({
+    value: item.id,
+    label: {
+      en: `${item.title} - ${item.range.startKey}`,
+      es: `${item.title} - ${item.range.startKey}`
+    },
+    record: item
+  }));
+}
+
+function getCoachAssignmentRecords() {
+  if (isCoachWorkspaceActive() && coachWorkspaceRealtimeUserId === getAuthUser()?.id) {
+    return coachWorkspaceSortByUpdated(coachAssignmentsCache);
+  }
+  if (coachAssignmentsCache.length) return coachWorkspaceSortByUpdated(coachAssignmentsCache);
+  return COACH_ASSIGNMENT_ITEMS.map((item, idx) => normalizeCoachAssignmentRecord(`seed-${idx + 1}`, {
+    title: pickCopy(item.title),
+    assigneeName: pickCopy(item.assignee),
+    assigneeType: String(pickCopy(item.assignee)).includes("Team") || String(pickCopy(item.assignee)).includes("Grupo") ? "group" : "athlete",
+    type: pickCopy(item.type),
+    dueLabel: pickCopy(item.dueDate),
+    dueDateKey: getCurrentAppDateKey(),
+    source: pickCopy(item.source),
+    note: pickCopy(item.note),
+    status: item.status
+  }));
+}
+
+function getCoachGroupRecords() {
+  return coachGroupsCache.length ? coachGroupsCache : getDefaultCoachGroupSeeds();
+}
+
+function getPlanAssignmentsForAthlete(name) {
+  const target = normalizeName(name);
+  if (!target) return [];
+  return getCoachAssignmentRecords().filter((assignment) => {
+    if (assignment.assigneeType === "athlete") {
+      return normalizeName(assignment.assigneeName) === target;
+    }
+    if (assignment.assigneeType === "group") {
+      const group = getCoachGroupRecords().find((item) => item.id === assignment.assigneeId || normalizeName(item.name) === normalizeName(assignment.assigneeName));
+      if (!group) return false;
+      return group.memberNames.some((member) => normalizeName(member) === target);
+    }
+    if (assignment.assigneeNames.length) {
+      return assignment.assigneeNames.some((member) => normalizeName(member) === target);
+    }
+    if (assignment.assigneeType === "team") {
+      return true;
+    }
+    return false;
+  });
+}
+
+function stopCoachWorkspaceRealtimeSync() {
+  if (coachCalendarSyncTimeout) {
+    clearTimeout(coachCalendarSyncTimeout);
+    coachCalendarSyncTimeout = null;
+  }
+  coachWorkspaceUnsubs.forEach((unsubscribe) => {
+    try {
+      unsubscribe();
+    } catch {
+      // ignore unsubscribe errors
+    }
+  });
+  coachWorkspaceUnsubs = [];
+  coachWorkspaceRealtimeUserId = "";
+  coachPlansCache = [];
+  coachTemplatesCache = [];
+  coachAssignmentsCache = [];
+  coachGroupsCache = [];
+  coachCalendarEntriesCache = {};
+  currentEditingCoachPlanId = "";
+}
+
+async function ensureCoachWorkspaceSeeded() {
+  if (!isCoachWorkspaceActive()) return;
+  if (coachWorkspaceSeedPromise) return coachWorkspaceSeedPromise;
+  const authUser = getAuthUser();
+  const profile = getProfile();
+  const workspaceRef = getCoachWorkspaceDocRef(authUser.id);
+  if (!workspaceRef) return;
+  coachWorkspaceSeedPromise = (async () => {
+    await withTimeout(
+      workspaceRef.set({
+        ownerUid: authUser.id,
+        ownerEmail: normalizeEmail(authUser.email || profile?.email || ""),
+        ownerName: String(profile?.name || "").trim(),
+        updatedAt: getFirestoreServerTimestamp()
+      }, { merge: true }),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_workspace_seed_timeout"
+    );
+
+    const [templatesSnap, groupsSnap, plansSnap, assignmentsSnap, calendarSnap] = await Promise.all([
+      withTimeout(getCoachWorkspaceCollectionRef("templates", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_templates_seed_timeout"),
+      withTimeout(getCoachWorkspaceCollectionRef("groups", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_groups_seed_timeout"),
+      withTimeout(getCoachWorkspaceCollectionRef("plans", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_plans_seed_timeout"),
+      withTimeout(getCoachWorkspaceCollectionRef("assignments", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_assignments_seed_timeout"),
+      withTimeout(getCoachWorkspaceCollectionRef("calendar_entries", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_calendar_seed_timeout")
+    ]);
+
+    if (templatesSnap.empty) {
+      const batch = firebaseFirestoreInstance.batch();
+      getBuiltinCoachTemplateSeeds().forEach((template) => {
+        const ref = getCoachWorkspaceCollectionRef("templates", authUser.id).doc(template.id);
+        batch.set(ref, {
+          ...template,
+          system: true,
+          createdAt: getFirestoreServerTimestamp(),
+          updatedAt: getFirestoreServerTimestamp()
+        }, { merge: true });
+      });
+      await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_templates_seed_commit_timeout");
+    }
+
+    if (groupsSnap.empty) {
+      const batch = firebaseFirestoreInstance.batch();
+      getDefaultCoachGroupSeeds().forEach((group) => {
+        const ref = getCoachWorkspaceCollectionRef("groups", authUser.id).doc(group.id);
+        batch.set(ref, {
+          ...group,
+          system: true,
+          createdAt: getFirestoreServerTimestamp(),
+          updatedAt: getFirestoreServerTimestamp()
+        }, { merge: true });
+      });
+      await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_groups_seed_commit_timeout");
+    }
+
+    if (plansSnap.empty) {
+      const batch = firebaseFirestoreInstance.batch();
+      getSeedCoachWorkspacePlans().forEach((plan) => {
+        const ref = getCoachWorkspaceCollectionRef("plans", authUser.id).doc(plan.id);
+        batch.set(ref, {
+          ...plan,
+          createdAt: getFirestoreServerTimestamp(),
+          updatedAt: getFirestoreServerTimestamp()
+        }, { merge: true });
+      });
+      await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_plans_seed_commit_timeout");
+    }
+
+    if (assignmentsSnap.empty) {
+      const batch = firebaseFirestoreInstance.batch();
+      getSeedCoachWorkspaceAssignments().forEach((assignment) => {
+        const ref = getCoachWorkspaceCollectionRef("assignments", authUser.id).doc(assignment.id);
+        batch.set(ref, {
+          ...assignment,
+          createdAt: getFirestoreServerTimestamp(),
+          updatedAt: getFirestoreServerTimestamp()
+        }, { merge: true });
+      });
+      await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_assignments_seed_commit_timeout");
+    }
+
+    if (calendarSnap.empty) {
+      const batch = firebaseFirestoreInstance.batch();
+      Object.entries(getSeedCoachCalendarEntries()).forEach(([dateKey, entry]) => {
+        const ref = getCoachWorkspaceCollectionRef("calendar_entries", authUser.id).doc(dateKey);
+        batch.set(ref, {
+          ...entry,
+          dateKey,
+          updatedAt: getFirestoreServerTimestamp()
+        }, { merge: true });
+      });
+      await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_calendar_seed_commit_timeout");
+    }
+  })().finally(() => {
+    coachWorkspaceSeedPromise = null;
+  });
+  return coachWorkspaceSeedPromise;
+}
+
+async function startCoachWorkspaceRealtimeSync() {
+  const authUser = getAuthUser();
+  if (!isCoachWorkspaceActive()) {
+    stopCoachWorkspaceRealtimeSync();
+    return;
+  }
+  if (coachWorkspaceRealtimeUserId === authUser.id && coachWorkspaceUnsubs.length) return;
+  stopCoachWorkspaceRealtimeSync();
+  coachWorkspaceRealtimeUserId = authUser.id;
+  try {
+    await ensureCoachWorkspaceSeeded();
+  } catch (err) {
+    console.warn("Failed to seed coach workspace", err);
+  }
+
+  const plansRef = getCoachWorkspaceCollectionRef("plans", authUser.id);
+  const templatesRef = getCoachWorkspaceCollectionRef("templates", authUser.id);
+  const assignmentsRef = getCoachWorkspaceCollectionRef("assignments", authUser.id);
+  const groupsRef = getCoachWorkspaceCollectionRef("groups", authUser.id);
+  const calendarRef = getCoachWorkspaceCollectionRef("calendar_entries", authUser.id);
+  if (!plansRef || !templatesRef || !assignmentsRef || !groupsRef || !calendarRef) return;
+
+  coachWorkspaceUnsubs.push(
+    plansRef.onSnapshot((snapshot) => {
+      coachPlansCache = coachWorkspaceSortByUpdated(
+        snapshot.docs.map((doc) => normalizeCoachPlanRecord(doc.id, doc.data()))
+      );
+      renderPlanSourceControls();
+      renderCompletionTracking();
+      renderDashboard();
+      renderAthleteNotes();
+    }, (err) => console.warn("Plan sync failed", err)),
+    templatesRef.onSnapshot((snapshot) => {
+      coachTemplatesCache = coachWorkspaceSortByUpdated(
+        snapshot.docs.map((doc) => normalizeCoachTemplateRecord(doc.id, doc.data()))
+      );
+      renderPlanSourceControls();
+      renderTemplatesPanel();
+    }, (err) => console.warn("Template sync failed", err)),
+    assignmentsRef.onSnapshot((snapshot) => {
+      coachAssignmentsCache = coachWorkspaceSortByUpdated(
+        snapshot.docs.map((doc) => normalizeCoachAssignmentRecord(doc.id, doc.data()))
+      );
+      renderCoachAssignments();
+      renderCompletionTracking();
+      renderDashboard();
+      renderAthleteManagement();
+      renderAthleteNotes();
+    }, (err) => console.warn("Assignment sync failed", err)),
+    groupsRef.onSnapshot((snapshot) => {
+      coachGroupsCache = coachWorkspaceSortByUpdated(
+        snapshot.docs.map((doc) => normalizeCoachGroupRecord(doc.id, doc.data()))
+      );
+      renderPlanAssignControls();
+      renderCoachAssignments();
+      renderCompletionTracking();
+      renderAthleteManagement();
+      renderAthleteNotes();
+    }, (err) => console.warn("Group sync failed", err)),
+    calendarRef.onSnapshot((snapshot) => {
+      const next = {};
+      snapshot.docs.forEach((doc) => {
+        next[doc.id] = normalizeCalendarEntry(doc.data());
+      });
+      coachCalendarEntriesCache = next;
+      localStorage.setItem(CALENDAR_EVENTS_KEY, JSON.stringify(next));
+      renderCalendar(calendarSelectedKey);
+      renderCalendarManager();
+      renderDashboard();
+    }, (err) => console.warn("Calendar sync failed", err))
+  );
+}
+
 function getSharedMediaTreeDocRef() {
   if (!firebaseFirestoreInstance) return null;
   return firebaseFirestoreInstance.collection(FIREBASE_SHARED_COLLECTION).doc(FIREBASE_MEDIA_TREE_DOC);
@@ -3408,6 +4152,7 @@ async function handleSuccessfulAuth(result) {
   } catch (err) {
     console.warn("Failed to hydrate shared media after auth", err);
   }
+  startCoachWorkspaceRealtimeSync();
   hideOnboarding();
   try {
     await applyProfile(profile);
@@ -3805,30 +4550,88 @@ const CALENDAR_EVENTS_KEY = "wpl_calendar_events";
 const MEDIA_TREE_KEY = "wpl_media_tree";
 
 const MEDIA_ITEMS = [
-  { title: "Single Leg Finish", type: "Video", tag: "Single Leg", assigned: "Today" },
-  { title: "Half Nelson Series", type: "Video", tag: "Top Control", assigned: "This week" },
-  { title: "Bottom Escape Drill", type: "Clip", tag: "Bottom", assigned: "Today" },
-  { title: "Hand Fight Notes", type: "Link", tag: "Neutral", assigned: "Optional" },
   {
-    title: "Espinal | Trailer oficial | 19 de febrero | Solo en cines",
+    title: "Single Leg Finish - Coach Chewy",
+    type: "Video",
+    tag: "Technique Library",
+    assigned: "This week",
+    note: "Use with the single-leg finish assignment for Carlos Vega.",
+    assetPath: "https://www.flowrestling.org/training?playing=7965907"
+  },
+  {
+    title: "World-Class Takedown Breakdown",
+    type: "Link",
+    tag: "Match Analysis",
+    assigned: "Today",
+    note: "Film-study example for reading chained re-attacks.",
+    assetPath: "https://www.jiujitsubrotherhood.com/blogs/blog/wrestling-takedowns"
+  },
+  {
+    title: "Single Leg Trip Finish - Nathan Tomasello",
+    type: "Link",
+    tag: "Drill Library",
+    assigned: "Today",
+    note: "Use as the reference clip for a finish drill block.",
+    assetPath: "https://coachesinsider.com/wrestling/single-leg-trip-finish-with-nathan-tomasello-usa-wrestling/"
+  },
+  {
+    title: "Hand Fight Notes - Inside Control to Shot",
+    type: "Link",
+    tag: "Coach Notes",
+    assigned: "Optional",
+    note: "Quick read before live goes or a short neutral session.",
+    assetPath: "https://coachesinsider.com/wrestling/takedown-setups-with-nathan-tomasello-usa-wrestling/"
+  },
+  {
+    title: "Takedown to Breakdown",
     type: "Link",
     tag: "Featured",
     assigned: "Today",
-    assetPath: "https://www.youtube.com/watch?v=FHHOgZ3QTSY"
+    note: "Featured film-study clip for transition scoring.",
+    assetPath: "https://www.flowrestling.org/video/6370427-takedown-to-breakdown"
   }
 ];
 
 const MEDIA_ITEMS_ES = [
-  { title: "Final de pierna simple", type: "Video", tag: "Pierna simple", assigned: "Hoy" },
-  { title: "Serie de medio nelson", type: "Video", tag: "Control arriba", assigned: "Esta semana" },
-  { title: "Drill de escape abajo", type: "Clip", tag: "Abajo", assigned: "Hoy" },
-  { title: "Notas de pelea de manos", type: "Enlace", tag: "Neutral", assigned: "Opcional" },
   {
-    title: "Espinal | Trailer oficial | 19 de febrero | Solo en cines",
+    title: "Final de pierna simple - Coach Chewy",
+    type: "Video",
+    tag: "Biblioteca tecnica",
+    assigned: "Esta semana",
+    note: "Usalo con la asignacion de finalizacion de single para Carlos Vega.",
+    assetPath: "https://www.flowrestling.org/training?playing=7965907"
+  },
+  {
+    title: "Analisis de derribos de nivel mundial",
+    type: "Enlace",
+    tag: "Analisis de combate",
+    assigned: "Hoy",
+    note: "Ejemplo de film study para leer re-ataques encadenados.",
+    assetPath: "https://www.jiujitsubrotherhood.com/blogs/blog/wrestling-takedowns"
+  },
+  {
+    title: "Final con trip de single - Nathan Tomasello",
+    type: "Enlace",
+    tag: "Biblioteca de drills",
+    assigned: "Hoy",
+    note: "Referencia para un bloque de drill de finalizacion.",
+    assetPath: "https://coachesinsider.com/wrestling/single-leg-trip-finish-with-nathan-tomasello-usa-wrestling/"
+  },
+  {
+    title: "Notas de pelea de manos - inside control a tiro",
+    type: "Enlace",
+    tag: "Notas del coach",
+    assigned: "Opcional",
+    note: "Lectura rapida antes de sparring neutral o trabajo en vivo.",
+    assetPath: "https://coachesinsider.com/wrestling/takedown-setups-with-nathan-tomasello-usa-wrestling/"
+  },
+  {
+    title: "Takedown to Breakdown",
     type: "Enlace",
     tag: "Destacado",
     assigned: "Hoy",
-    assetPath: "https://www.youtube.com/watch?v=FHHOgZ3QTSY"
+    note: "Clip destacado de film study para transiciones a control.",
+    assetPath: "https://www.flowrestling.org/video/6370427-takedown-to-breakdown"
   }
 ];
 
@@ -4156,6 +4959,45 @@ const COACH_COMPLETION_ROWS = {
     progress: { en: "Journal and weight check overdue", es: "Journal y chequeo de peso atrasados" },
     followUp: { en: "Clear before Saturday lineup lock.", es: "Resolver antes de cerrar la alineacion del sabado." },
     status: "overdue"
+  }
+};
+
+const COACH_ATHLETE_NOTE_BOARD = {
+  "Jaime Espinal": {
+    nextFocus: [
+      { en: "Start the single leg with cleaner head position.", es: "Iniciar el single leg con mejor posicion de cabeza." },
+      { en: "Score off the re-attack instead of forcing the first shot.", es: "Anotar en el re-ataque en vez de forzar el primer tiro." },
+      { en: "Own center mat after the first score.", es: "Dominar el centro despues de la primera anotacion." }
+    ],
+    recentNotes: [
+      { en: "Mar 12: Won neutral pace in live and finished better to the shelf.", es: "12 mar: Gano el ritmo en neutral y finalizo mejor a la shelf." },
+      { en: "Mar 10: Reached with lead hand when the pace sped up.", es: "10 mar: Extendio la mano adelantada cuando subio el ritmo." },
+      { en: "Mar 8: Responded well to short-go competition scenarios.", es: "8 mar: Respondio bien a escenarios cortos de competencia." }
+    ]
+  },
+  "Maya Cruz": {
+    nextFocus: [
+      { en: "Keep the ankle safe and finish short matches clean.", es: "Proteger el tobillo y cerrar combates cortos con limpieza." },
+      { en: "Hand fight first, then ankle pick off a real reaction.", es: "Pelear manos primero y luego ankle pick sobre una reaccion real." },
+      { en: "Journal every day during rehab week.", es: "Completar el journal todos los dias durante la semana de rehab." }
+    ],
+    recentNotes: [
+      { en: "Mar 12: Modified live went well; no swelling increase after practice.", es: "12 mar: La sesion modificada salio bien; no aumento de inflamacion." },
+      { en: "Mar 11: Needs a faster first move from bottom.", es: "11 mar: Necesita una primera salida mas rapida desde abajo." },
+      { en: "Mar 9: Good discipline on position, but too cautious late.", es: "9 mar: Buena disciplina de posicion, pero demasiado cauta al final." }
+    ]
+  },
+  "Carlos Vega": {
+    nextFocus: [
+      { en: "Finish the single leg immediately when the leg is collected.", es: "Finalizar el single leg de inmediato cuando recoge la pierna." },
+      { en: "Keep chain attacks alive after the first reshot.", es: "Mantener la cadena ofensiva despues del primer reshot." },
+      { en: "Turn Friday opponent film into three clear scoring reads.", es: "Convertir el video del rival del viernes en tres lecturas claras." }
+    ],
+    recentNotes: [
+      { en: "Mar 12: Best pace of the room in chain wrestling block.", es: "12 mar: Mejor ritmo del room en el bloque de chain wrestling." },
+      { en: "Mar 10: Still pauses after the first defended shot.", es: "10 mar: Todavia se detiene despues del primer tiro defendido." },
+      { en: "Mar 8: Weight and recovery both looked on target.", es: "8 mar: Peso y recuperacion se vieron encaminados." }
+    ]
   }
 };
 
@@ -5125,6 +5967,9 @@ function migrateLegacyCalendarEvents(events) {
 }
 
 function getStoredCalendarEvents() {
+  if (isCoachWorkspaceActive() && coachWorkspaceRealtimeUserId === getAuthUser()?.id) {
+    return coachCalendarEntriesCache;
+  }
   try {
     const raw = localStorage.getItem(CALENDAR_EVENTS_KEY);
     if (!raw) return {};
@@ -5359,7 +6204,7 @@ const panels = {
   "competition-preview": document.getElementById("panel-competition-preview")
 };
 const COACH_ROUTE_PANELS = {
-  "coach-home": ["dashboard"],
+  "coach-home": ["dashboard", "coach-profile"],
   "coach-athletes": ["athletes", "coach-match", "skills", "journal-monitor", "athlete-notes"],
   "coach-plans": ["plans", "templates", "assignments", "calendar-manager", "calendar", "completion-tracking"],
   "coach-competition": ["competition-preview"]
@@ -5538,6 +6383,8 @@ const templateConfirm = document.getElementById("templateConfirm");
 const templateGoBtn = document.getElementById("templateGoBtn");
 const templateNoBtn = document.getElementById("templateNoBtn");
 const templateDropzone = document.getElementById("templateDropzone");
+const templateLibraryList = document.getElementById("templateLibraryList");
+const templateWorkflowList = document.getElementById("templateWorkflowList");
 let templatePdfBytes = null;
 let lastFilledPdfUrl = null;
 let pendingTemplatePrint = false;
@@ -5590,11 +6437,17 @@ const planAssignHint = document.getElementById("planAssignHint");
 const planAssignAthletes = document.getElementById("planAssignAthletes");
 const planAssignSummary = document.getElementById("planAssignSummary");
 const planQuickSummary = document.getElementById("planQuickSummary");
+const planTitleInput = document.getElementById("planTitleInput");
+const planFocusInput = document.getElementById("planFocusInput");
+const planNotesInput = document.getElementById("planNotesInput");
+const planSaveStatus = document.getElementById("planSaveStatus");
+const savePlanBtn = document.getElementById("savePlanBtn");
+const savePlanAssignBtn = document.getElementById("savePlanAssignBtn");
 let planSourceMode = "scratch";
 let planSourceSelection = "";
 let planAssignMode = "single";
 let planAssignedAthletes = [];
-let planAssignedGroup = "full-team";
+let planAssignedGroup = "varsity";
 
 const PLAN_SOURCE_LIBRARY = {
   scratch: {
@@ -5634,13 +6487,6 @@ const PLAN_SOURCE_LIBRARY = {
   }
 };
 
-const PLAN_ASSIGN_GROUPS = [
-  { value: "full-team", label: { en: "Full team", es: "Equipo completo" } },
-  { value: "competition-squad", label: { en: "Competition squad", es: "Grupo de competencia" } },
-  { value: "light-day", label: { en: "Light day / modified group", es: "Grupo liviano / modificado" } },
-  { value: "rehab", label: { en: "Rehab group", es: "Grupo de rehabilitacion" } }
-];
-
 function getPlanScopeLabel() {
   const scopeCopy = {
     day: { en: "Daily plan", es: "Plan diario" },
@@ -5653,10 +6499,11 @@ function getPlanScopeLabel() {
 
 function getPlanTargetSummary() {
   if (planAssignMode === "group") {
-    const group = PLAN_ASSIGN_GROUPS.find((item) => item.value === planAssignedGroup) || PLAN_ASSIGN_GROUPS[0];
+    const group = getCoachGroupRecords().find((item) => item.id === planAssignedGroup) || getCoachGroupRecords()[0];
+    const groupName = group?.name || (currentLang === "es" ? "grupo" : "group");
     return currentLang === "es"
-      ? `Asignado a ${pickCopy(group.label)}`
-      : `Assigned to ${pickCopy(group.label)}`;
+      ? `Asignado a ${groupName}`
+      : `Assigned to ${groupName}`;
   }
   if (!planAssignedAthletes.length) {
     return currentLang === "es" ? "Sin destino seleccionado" : "No target selected yet";
@@ -5669,6 +6516,60 @@ function getPlanTargetSummary() {
   return currentLang === "es"
     ? `Asignado a ${planAssignedAthletes.length} atletas`
     : `Assigned to ${planAssignedAthletes.length} athletes`;
+}
+
+function getPlanSourceConfig(mode = planSourceMode) {
+  const source = PLAN_SOURCE_LIBRARY[mode] || PLAN_SOURCE_LIBRARY.scratch;
+  if (mode === "template") {
+    return { ...source, options: getCoachTemplateOptionsForType(planRangeType) };
+  }
+  if (mode === "duplicate") {
+    return { ...source, options: getDuplicatePlanOptionsForType(planRangeType) };
+  }
+  return { ...source, options: [] };
+}
+
+function ensurePlanSourceSelection(mode = planSourceMode) {
+  const source = getPlanSourceConfig(mode);
+  if (!source.options.length) {
+    planSourceSelection = "";
+    return;
+  }
+  if (!source.options.some((option) => option.value === planSourceSelection)) {
+    planSourceSelection = source.options[0]?.value || "";
+  }
+}
+
+function getSelectedPlanSourceRecord() {
+  const source = getPlanSourceConfig(planSourceMode);
+  return source.options.find((option) => option.value === planSourceSelection)?.record || null;
+}
+
+function getPlanAssignGroupOptions() {
+  return [
+    ...getCoachGroupRecords().map((group) => ({
+      value: group.id,
+      label: { en: group.name, es: group.name },
+      record: group
+    })),
+    {
+      value: "__create_new_group__",
+      label: {
+        en: "+ Create New Group",
+        es: "+ Crear grupo nuevo"
+      }
+    }
+  ];
+}
+
+function setPlanSaveStatusMessage(message, { error = false } = {}) {
+  if (!planSaveStatus) return;
+  planSaveStatus.textContent = message || "";
+  planSaveStatus.classList.toggle("error", error);
+}
+
+function clearPlanSaveStatus() {
+  setPlanSaveStatusMessage("");
 }
 
 function updatePlanQuickSummary() {
@@ -5697,12 +6598,25 @@ function renderPlanSourceControls() {
     btn.textContent = pickCopy(copy[btn.dataset.planSource] || copy.scratch);
     btn.classList.toggle("active", btn.dataset.planSource === planSourceMode);
   });
-  const source = PLAN_SOURCE_LIBRARY[planSourceMode] || PLAN_SOURCE_LIBRARY.scratch;
+  const source = getPlanSourceConfig(planSourceMode);
+  ensurePlanSourceSelection(planSourceMode);
   if (planSourceSummary) {
     const selection = source.options.find((item) => item.value === planSourceSelection);
-    planSourceSummary.textContent = selection
-      ? `${pickCopy(source.summary)} ${pickCopy(selection.label)}.`
-      : pickCopy(source.summary);
+    if (selection) {
+      planSourceSummary.textContent = `${pickCopy(source.summary)} ${pickCopy(selection.label)}.`;
+    } else if (planSourceMode === "template") {
+      planSourceSummary.textContent = pickCopy({
+        en: "No templates are available for this plan type yet. You can still build the plan here and save it.",
+        es: "Todavia no hay plantillas para este tipo de plan. Aun puedes construir el plan aqui y guardarlo."
+      });
+    } else if (planSourceMode === "duplicate") {
+      planSourceSummary.textContent = pickCopy({
+        en: "No previous plans of this type yet. Save one first, then duplicate it here.",
+        es: "Todavia no hay planes anteriores de este tipo. Guarda uno primero y luego duplicalo aqui."
+      });
+    } else {
+      planSourceSummary.textContent = pickCopy(source.summary);
+    }
   }
   if (!planSourceSelectWrapper || !planSourceSelect || !planSourceSelectLabel) {
     updatePlanQuickSummary();
@@ -5722,9 +6636,6 @@ function renderPlanSourceControls() {
     el.textContent = pickCopy(option.label);
     planSourceSelect.appendChild(el);
   });
-  if (!source.options.some((option) => option.value === planSourceSelection)) {
-    planSourceSelection = source.options[0]?.value || "";
-  }
   planSourceSelect.value = planSourceSelection;
   updatePlanQuickSummary();
 }
@@ -5766,14 +6677,15 @@ function renderPlanAssignControls() {
   if (planAssignGroupWrapper && planAssignGroup) {
     planAssignGroupWrapper.classList.toggle("hidden", planAssignMode !== "group");
     planAssignGroup.innerHTML = "";
-    PLAN_ASSIGN_GROUPS.forEach((group) => {
+    const options = getPlanAssignGroupOptions();
+    options.forEach((group) => {
       const option = document.createElement("option");
       option.value = group.value;
       option.textContent = pickCopy(group.label);
       planAssignGroup.appendChild(option);
     });
-    if (!PLAN_ASSIGN_GROUPS.some((group) => group.value === planAssignedGroup)) {
-      planAssignedGroup = PLAN_ASSIGN_GROUPS[0]?.value || "full-team";
+    if (!options.some((group) => group.value === planAssignedGroup)) {
+      planAssignedGroup = options[0]?.value || "varsity";
     }
     planAssignGroup.value = planAssignedGroup;
   }
@@ -5801,6 +6713,393 @@ function renderPlanAssignControls() {
     });
   }
   updatePlanQuickSummary();
+}
+
+function formatPlanDateLabel(dateKey) {
+  const key = normalizeDateKey(dateKey);
+  const locale = currentLang === "es" ? "es-ES" : "en-US";
+  return dateFromKey(key).toLocaleDateString(locale, {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  });
+}
+
+function formatPlanRangeLabel(range) {
+  if (!range?.startKey) return "";
+  if (!range.endKey || range.endKey === range.startKey) {
+    return formatPlanDateLabel(range.startKey);
+  }
+  return `${formatPlanDateLabel(range.startKey)} - ${formatPlanDateLabel(range.endKey)}`;
+}
+
+function populateSeasonYearSelect() {
+  if (!seasonYearSelect || seasonYearSelect.options.length) return;
+  const currentYear = getCurrentAppDate().getFullYear();
+  for (let year = currentYear - 1; year <= currentYear + 3; year += 1) {
+    const option = document.createElement("option");
+    option.value = String(year);
+    option.textContent = String(year);
+    seasonYearSelect.appendChild(option);
+  }
+  seasonYearSelect.value = String(currentYear);
+}
+
+function clearDailyPlanSelections() {
+  selectionBlocks.forEach((block) => {
+    const chosen = block.querySelector(".chosen-list");
+    if (chosen) chosen.innerHTML = "";
+  });
+}
+
+function applyDailyPlanSelections(items = {}) {
+  clearDailyPlanSelections();
+  selectionBlocks.forEach((block) => {
+    const key = block.dataset.block;
+    const chosen = block.querySelector(".chosen-list");
+    if (!chosen) return;
+    (items[key] || []).forEach((value) => addChosenItem(chosen, value));
+  });
+}
+
+function setPlanEditorRange(range = {}) {
+  const startKey = normalizeDateKey(range.startKey || getCurrentAppDateKey());
+  const endKey = normalizeDateKey(range.endKey || startKey);
+  planRangeSelection.start = dateFromKey(startKey);
+  planRangeSelection.end = dateFromKey(planRangeType === "day" ? startKey : endKey);
+  updateRangeInputsFromSelection();
+}
+
+function resetCoachPlanEditor() {
+  currentEditingCoachPlanId = "";
+  if (planTitleInput) planTitleInput.value = defaultPlanTitle(planRangeType);
+  if (planFocusInput) planFocusInput.value = "";
+  if (planNotesInput) planNotesInput.value = "";
+  if (planMonthlyNotes) planMonthlyNotes.value = "";
+  populateSeasonYearSelect();
+  if (seasonYearSelect) seasonYearSelect.value = String(getCurrentAppDate().getFullYear());
+  clearDailyPlanSelections();
+  clearPlanSaveStatus();
+  updatePlanQuickSummary();
+}
+
+function applyCoachPlanRecordToEditor(record, { clearEditingId = true } = {}) {
+  if (!record) return;
+  if (clearEditingId) currentEditingCoachPlanId = "";
+  if (planTitleInput) planTitleInput.value = record.title || defaultPlanTitle(planRangeType);
+  if (planFocusInput) planFocusInput.value = record.focus || "";
+  if (planNotesInput) planNotesInput.value = record.coachNotes || "";
+  if (planMonthlyNotes) planMonthlyNotes.value = record.monthlyNotes || "";
+  populateSeasonYearSelect();
+  if (seasonYearSelect) {
+    seasonYearSelect.value = String(record.seasonYear || seasonYearSelect.value || getCurrentAppDate().getFullYear());
+  }
+  applyDailyPlanSelections(record.items || {});
+  if (record.range?.startKey) {
+    setPlanEditorRange(record.range);
+  }
+  if (record.audience?.mode) {
+    planAssignMode = record.audience.mode;
+    planAssignedAthletes = [...(record.audience.athleteNames || [])];
+    planAssignedGroup = record.audience.groupId || planAssignedGroup;
+    renderPlanAssignControls();
+  }
+  clearPlanSaveStatus();
+}
+
+function applySelectedPlanSource() {
+  const record = getSelectedPlanSourceRecord();
+  if (!record) {
+    if (planSourceMode === "scratch") {
+      resetCoachPlanEditor();
+    }
+    return;
+  }
+  applyCoachPlanRecordToEditor(record);
+}
+
+function buildCurrentPlanRange() {
+  const startKey = normalizeDateKey(planRangeStartInput?.value || toDateKey(planRangeSelection.start));
+  const rawEndKey = planRangeEndInput?.value || toDateKey(planRangeSelection.end || planRangeSelection.start);
+  const endKey = normalizeDateKey(planRangeType === "day" ? startKey : rawEndKey);
+  if (planRangeType !== "day" && !planRangeEndInput?.value && (!planRangeSelection.end || endKey === startKey)) {
+    return null;
+  }
+  return { startKey, endKey };
+}
+
+function getPlanSourceDescriptor() {
+  if (planSourceMode === "scratch") {
+    return {
+      sourceMode: "scratch",
+      sourceRefId: "",
+      sourceLabel: pickCopy(PLAN_SOURCE_LIBRARY.scratch.label)
+    };
+  }
+  const source = getPlanSourceConfig(planSourceMode);
+  const selection = source.options.find((option) => option.value === planSourceSelection);
+  return {
+    sourceMode: planSourceMode,
+    sourceRefId: selection?.record?.id || planSourceSelection,
+    sourceLabel: selection ? pickCopy(selection.label) : pickCopy(source.label)
+  };
+}
+
+function getCurrentPlanAudience() {
+  if (planAssignMode === "group") {
+    const group = getCoachGroupRecords().find((item) => item.id === planAssignedGroup) || null;
+    return {
+      mode: "group",
+      athleteNames: [],
+      groupId: group?.id || "",
+      groupName: group?.name || ""
+    };
+  }
+  return {
+    mode: planAssignMode,
+    athleteNames: uniqueNames(planAssignedAthletes),
+    groupId: "",
+    groupName: ""
+  };
+}
+
+function buildCoachPlanDraft() {
+  const range = buildCurrentPlanRange();
+  if (!range) {
+    return {
+      error: pickCopy({
+        en: "Choose a start and end date for this plan.",
+        es: "Elige una fecha de inicio y una fecha final para este plan."
+      })
+    };
+  }
+
+  const sourceDescriptor = getPlanSourceDescriptor();
+  const title = String(planTitleInput?.value || "").trim() || defaultPlanTitle(planRangeType);
+  const sourceRecord = getSelectedPlanSourceRecord();
+
+  return normalizeCoachPlanRecord(currentEditingCoachPlanId || slugifyKey(`${title}-${range.startKey}`), {
+    title,
+    type: planRangeType,
+    focus: String(planFocusInput?.value || "").trim(),
+    coachNotes: String(planNotesInput?.value || "").trim(),
+    sourceMode: sourceDescriptor.sourceMode,
+    sourceRefId: sourceDescriptor.sourceRefId,
+    sourceLabel: sourceDescriptor.sourceLabel,
+    range,
+    items: normalizePlanItems(collectDailySelections()),
+    monthlyNotes: String(planMonthlyNotes?.value || "").trim() || String(sourceRecord?.monthlyNotes || "").trim(),
+    seasonYear: String(seasonYearSelect?.value || "").trim(),
+    audience: getCurrentPlanAudience(),
+    createdBy: String(getProfile()?.name || getAuthUser()?.email || "").trim(),
+    updatedBy: String(getProfile()?.name || getAuthUser()?.email || "").trim()
+  });
+}
+
+function getPlanAssignmentTypeLabel(type) {
+  const copy = {
+    day: { en: "Daily Plan", es: "Plan diario" },
+    week: { en: "Weekly Plan", es: "Plan semanal" },
+    month: { en: "Monthly Plan", es: "Plan mensual" },
+    season: { en: "Season Plan", es: "Plan de temporada" }
+  };
+  return pickCopy(copy[normalizePlanType(type)] || copy.day);
+}
+
+function getAssignmentTargetsFromPlan(plan) {
+  if (!plan?.audience) return [];
+  if (plan.audience.mode === "group") {
+    const group = getCoachGroupRecords().find((item) => item.id === plan.audience.groupId) || null;
+    if (!group) return [];
+    return [{
+      assigneeType: "group",
+      assigneeId: group.id,
+      assigneeName: group.name,
+      assigneeNames: [...group.memberNames]
+    }];
+  }
+  return uniqueNames(plan.audience.athleteNames).map((name) => ({
+    assigneeType: "athlete",
+    assigneeId: slugifyKey(name),
+    assigneeName: name,
+    assigneeNames: [name]
+  }));
+}
+
+async function replaceAssignmentsForPlan(plan) {
+  const assignmentsRef = getCoachWorkspaceCollectionRef("assignments");
+  if (!assignmentsRef || !plan?.id) return 0;
+  const targets = getAssignmentTargetsFromPlan(plan);
+  if (!targets.length) {
+    throw new Error("plan_assignment_target_required");
+  }
+
+  const existingSnap = await withTimeout(
+    assignmentsRef.where("planId", "==", plan.id).get(),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_assignments_fetch_timeout"
+  );
+
+  const batch = firebaseFirestoreInstance.batch();
+  existingSnap.forEach((doc) => batch.delete(doc.ref));
+  const timestamp = getFirestoreServerTimestamp();
+  const dueDateKey = plan.range?.endKey || plan.range?.startKey || getCurrentAppDateKey();
+  const dueLabel = formatPlanDateLabel(dueDateKey);
+
+  targets.forEach((target) => {
+    const ref = assignmentsRef.doc();
+    batch.set(ref, stripUndefinedDeep({
+      title: plan.title,
+      assigneeType: target.assigneeType,
+      assigneeId: target.assigneeId,
+      assigneeName: target.assigneeName,
+      assigneeNames: target.assigneeNames,
+      type: getPlanAssignmentTypeLabel(plan.type),
+      dueDateKey,
+      dueLabel,
+      status: "due",
+      note: plan.focus || plan.coachNotes || "",
+      source: plan.sourceLabel || getPlanScopeLabel(),
+      planId: plan.id,
+      planType: plan.type,
+      createdAt: timestamp,
+      updatedAt: timestamp
+    }));
+  });
+
+  await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_assignments_write_timeout");
+  return targets.length;
+}
+
+async function saveCoachPlan({ createAssignments = false, navigateAfterSave = false } = {}) {
+  if (coachPlanSyncState.saving) return;
+  if (!isCoachWorkspaceActive()) {
+    setPlanSaveStatusMessage(pickCopy({
+      en: "Coach workspace is not available for this account.",
+      es: "El espacio del coach no esta disponible para esta cuenta."
+    }), { error: true });
+    return;
+  }
+
+  const draft = buildCoachPlanDraft();
+  if (draft.error) {
+    setPlanSaveStatusMessage(draft.error, { error: true });
+    return;
+  }
+
+  if (createAssignments && getAssignmentTargetsFromPlan(draft).length === 0) {
+    setPlanSaveStatusMessage(pickCopy({
+      en: "Choose an athlete or group before sending assignments.",
+      es: "Elige un atleta o grupo antes de enviar asignaciones."
+    }), { error: true });
+    return;
+  }
+
+  const plansRef = getCoachWorkspaceCollectionRef("plans");
+  if (!plansRef) {
+    setPlanSaveStatusMessage(pickCopy({
+      en: "Plan storage is not configured.",
+      es: "El almacenamiento de planes no esta configurado."
+    }), { error: true });
+    return;
+  }
+
+  coachPlanSyncState.saving = true;
+  setPlanSaveStatusMessage(pickCopy({
+    en: "Saving plan...",
+    es: "Guardando plan..."
+  }));
+
+  try {
+    const planRef = currentEditingCoachPlanId ? plansRef.doc(currentEditingCoachPlanId) : plansRef.doc();
+    const timestamp = getFirestoreServerTimestamp();
+    await withTimeout(
+      planRef.set(stripUndefinedDeep({
+        ...draft,
+        id: undefined,
+        createdAt: currentEditingCoachPlanId ? undefined : timestamp,
+        updatedAt: timestamp
+      }), { merge: true }),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_plan_write_timeout"
+    );
+
+    currentEditingCoachPlanId = planRef.id;
+    coachPlanSyncState.lastSavedId = planRef.id;
+    coachPlanSyncState.lastSavedType = draft.type;
+
+    let assignmentCount = 0;
+    if (createAssignments) {
+      assignmentCount = await replaceAssignmentsForPlan({ ...draft, id: planRef.id });
+    }
+
+    localStorage.setItem("wpl_daily_plan", JSON.stringify(draft.items));
+
+    const successMessage = createAssignments
+      ? pickCopy({
+          en: `Plan saved and ${assignmentCount} assignment${assignmentCount === 1 ? "" : "s"} sent.`,
+          es: `Plan guardado y ${assignmentCount} asignacion${assignmentCount === 1 ? "" : "es"} enviada${assignmentCount === 1 ? "" : "s"}.`
+        })
+      : pickCopy({
+          en: `Plan saved for ${formatPlanRangeLabel(draft.range)}.`,
+          es: `Plan guardado para ${formatPlanRangeLabel(draft.range)}.`
+        });
+    setPlanSaveStatusMessage(successMessage);
+    toast(successMessage);
+    if (navigateAfterSave) {
+      showTab("coach-home");
+    }
+  } catch (err) {
+    console.warn("Failed to save coach plan", err);
+    setPlanSaveStatusMessage(pickCopy({
+      en: "Could not save the plan. Check Firebase and try again.",
+      es: "No se pudo guardar el plan. Revisa Firebase y vuelve a intentarlo."
+    }), { error: true });
+  } finally {
+    coachPlanSyncState.saving = false;
+  }
+}
+
+async function createNewCoachGroup() {
+  const namePrompt = pickCopy({
+    en: "New group name",
+    es: "Nombre del nuevo grupo"
+  });
+  const name = window.prompt(namePrompt, "");
+  if (name == null) return null;
+  const cleanName = String(name || "").trim();
+  if (!cleanName) return null;
+
+  const membersPrompt = pickCopy({
+    en: "Optional athlete names separated by commas",
+    es: "Nombres de atletas opcionales separados por comas"
+  });
+  const membersRaw = window.prompt(membersPrompt, planAssignedAthletes.join(", "));
+  const memberNames = uniqueNames(String(membersRaw || "").split(",").map((item) => item.trim()).filter(Boolean));
+  const id = slugifyKey(cleanName);
+  const payload = {
+    name: cleanName,
+    memberNames,
+    system: false,
+    updatedAt: getFirestoreServerTimestamp(),
+    createdAt: getFirestoreServerTimestamp()
+  };
+
+  const groupsRef = getCoachWorkspaceCollectionRef("groups");
+  if (groupsRef) {
+    await withTimeout(
+      groupsRef.doc(id).set(stripUndefinedDeep(payload), { merge: true }),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_group_write_timeout"
+    );
+  } else {
+    coachGroupsCache = coachWorkspaceSortByUpdated([
+      normalizeCoachGroupRecord(id, { ...payload, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }),
+      ...coachGroupsCache
+    ]);
+  }
+
+  return id;
 }
 
 function getCalendarContainers() {
@@ -5918,7 +7217,11 @@ function renderPlanCalendar(year, month) {
 function initializePlanSelectors() {
     if (!document.getElementById('panel-plans')) return;
     const today = getCurrentAppDate();
+    populateSeasonYearSelect();
     renderPlanCalendar(today.getFullYear(), today.getMonth());
+    if (planTitleInput && !planTitleInput.value.trim()) {
+      planTitleInput.value = defaultPlanTitle(planRangeType);
+    }
     updateRangeInputsFromSelection();
     renderPlanSourceControls();
     renderPlanAssignControls();
@@ -6038,6 +7341,13 @@ function updatePlanRangeType(subtabKey) {
   if (planRangeHint) {
     planRangeHint.textContent = pickCopy(PLAN_RANGE_HINT[planRangeType]);
   }
+  if (planSourceMode === "scratch" && planTitleInput && !currentEditingCoachPlanId) {
+    planTitleInput.value = defaultPlanTitle(planRangeType);
+  }
+  renderPlanSourceControls();
+  if (planSourceMode !== "scratch") {
+    applySelectedPlanSource();
+  }
   updatePlanQuickSummary();
 }
 
@@ -6056,8 +7366,12 @@ planSourceButtons.forEach((btn) => {
   btn.addEventListener("click", () => {
     const nextMode = btn.dataset.planSource || "scratch";
     planSourceMode = nextMode;
-    const options = PLAN_SOURCE_LIBRARY[nextMode]?.options || [];
-    planSourceSelection = options[0]?.value || "";
+    ensurePlanSourceSelection(nextMode);
+    if (nextMode === "scratch") {
+      resetCoachPlanEditor();
+    } else {
+      applySelectedPlanSource();
+    }
     renderPlanSourceControls();
   });
 });
@@ -6065,6 +7379,7 @@ planSourceButtons.forEach((btn) => {
 if (planSourceSelect) {
   planSourceSelect.addEventListener("change", () => {
     planSourceSelection = planSourceSelect.value;
+    applySelectedPlanSource();
     renderPlanSourceControls();
   });
 }
@@ -6080,8 +7395,26 @@ planAssignModeButtons.forEach((btn) => {
 });
 
 if (planAssignGroup) {
-  planAssignGroup.addEventListener("change", () => {
-    planAssignedGroup = planAssignGroup.value;
+  planAssignGroup.addEventListener("change", async () => {
+    const selectedValue = planAssignGroup.value;
+    if (selectedValue === "__create_new_group__") {
+      const previous = planAssignedGroup;
+      try {
+        const newGroupId = await createNewCoachGroup();
+        planAssignedGroup = newGroupId || previous;
+      } catch (err) {
+        console.warn("Failed to create group", err);
+        toast(pickCopy({
+          en: "Could not create group.",
+          es: "No se pudo crear el grupo."
+        }));
+        planAssignedGroup = previous;
+      }
+      renderPlanAssignControls();
+      return;
+    }
+    planAssignedGroup = selectedValue;
+    clearPlanSaveStatus();
     updatePlanQuickSummary();
   });
 }
@@ -6091,6 +7424,24 @@ if (planAssignSelectAll) {
     planAssignMode = "multi";
     planAssignedAthletes = getAthletesData().map((athlete) => athlete.name);
     renderPlanAssignControls();
+  });
+}
+
+[planTitleInput, planFocusInput, planNotesInput, planMonthlyNotes, seasonYearSelect].forEach((input) => {
+  if (!input) return;
+  input.addEventListener("input", () => clearPlanSaveStatus());
+  input.addEventListener("change", () => clearPlanSaveStatus());
+});
+
+if (savePlanBtn) {
+  savePlanBtn.addEventListener("click", async () => {
+    await saveCoachPlan({ createAssignments: false });
+  });
+}
+
+if (savePlanAssignBtn) {
+  savePlanAssignBtn.addEventListener("click", async () => {
+    await saveCoachPlan({ createAssignments: true });
   });
 }
 
@@ -6414,31 +7765,55 @@ function formatDailyPlanText(data) {
   return lines.join("\n");
 }
 
+function renderTemplatesPanel() {
+  if (templateLibraryList) {
+    const templates = coachTemplatesCache.length
+      ? coachWorkspaceSortByUpdated(coachTemplatesCache)
+      : getBuiltinCoachTemplateSeeds();
+    templateLibraryList.innerHTML = templates.slice(0, 7).map((template) => {
+      const typeLabel = getPlanAssignmentTypeLabel(template.type);
+      const detail = template.focus || template.monthlyNotes || "";
+      return `<li><strong>${template.name}</strong> - ${typeLabel}${detail ? ` - ${detail}` : ""}</li>`;
+    }).join("");
+  }
+
+  if (templateWorkflowList) {
+    const workflowItems = [
+      pickCopy({
+        en: "Start from a built-in wrestling template, then edit scope, dates, and audience in Create Plan.",
+        es: "Empieza desde una plantilla base de wrestling y luego ajusta alcance, fechas y audiencia en Create Plan."
+      }),
+      pickCopy({
+        en: "Duplicate the last plan of the same type when you want continuity instead of a blank draft.",
+        es: "Duplica el ultimo plan del mismo tipo cuando quieras continuidad en vez de empezar en blanco."
+      }),
+      pickCopy({
+        en: `Assign templates directly to ${getCoachGroupRecords()[0]?.name || "Varsity"} or to selected athletes without leaving the route.`,
+        es: `Asigna plantillas directamente a ${getCoachGroupRecords()[0]?.name || "Varsity"} o a atletas seleccionados sin salir de la ruta.`
+      }),
+      pickCopy({
+        en: "Use the PDF tools only when staff needs a printable version for practice or travel.",
+        es: "Usa las herramientas PDF solo cuando el staff necesite una version imprimible para practica o viaje."
+      })
+    ];
+    templateWorkflowList.innerHTML = workflowItems.map((item) => `<li>${item}</li>`).join("");
+  }
+}
+
 if (saveDailyPlan) {
-  saveDailyPlan.addEventListener("click", () => {
-    const data = collectDailySelections();
-    localStorage.setItem("wpl_daily_plan", JSON.stringify(data));
-    toast(pickCopy({ en: "Daily plan saved.", es: "Plan diario guardado." }));
+  saveDailyPlan.addEventListener("click", async () => {
+    localStorage.setItem("wpl_daily_plan", JSON.stringify(collectDailySelections()));
+    await saveCoachPlan({ createAssignments: false });
   });
 }
 
 if (doneDailyPlan) {
   doneDailyPlan.addEventListener("click", async () => {
-    const data = collectDailySelections();
-    localStorage.setItem("wpl_daily_plan", JSON.stringify(data));
+    localStorage.setItem("wpl_daily_plan", JSON.stringify(collectDailySelections()));
     if (templatePdfBytes && window.PDFLib) {
       await generateFilledPdf({ download: false });
-      toast(
-        pickCopy({
-          en: "Daily plan saved. Template ready.",
-          es: "Plan diario guardado. Plantilla lista."
-        })
-      );
-    } else {
-      toast(pickCopy({ en: "Daily plan saved.", es: "Plan diario guardado." }));
     }
-    const role = (getProfile() || {}).role || "athlete";
-    showTab(resolveCoachDashboardTab(role));
+    await saveCoachPlan({ createAssignments: false, navigateAfterSave: true });
   });
 }
 
@@ -6970,6 +8345,9 @@ function buildCompetitionPreview(profile) {
   const defense = translateTechniqueList(profile.defenseTop3 || []).join(", ") || na;
   const tags = normalizeSmartTags(profile.tags).map((tag) => formatSmartTag(tag)).join(" • ") || na;
   const strategyPlans = [profile.strategyA, profile.strategyB, profile.strategyC].filter(Boolean);
+  const latestPlan = profile.name ? getLatestCoachPlanForAthlete(profile.name) : null;
+  const liveAssignments = profile.name ? getPlanAssignmentsForAthlete(profile.name) : [];
+  const cornerPlan = getAthleteCornerPlan(getRawAthleteRecord(profile.name) || profile);
   return [
     {
       title: currentLang === "es" ? "Datos del atleta" : "Athlete Basics",
@@ -6997,6 +8375,15 @@ function buildCompetitionPreview(profile) {
         `${currentLang === "es" ? "Seguros" : "Safe moves"}: ${profile.safeMoves || na}`,
         `${currentLang === "es" ? "Arriesgados" : "Risky moves"}: ${profile.riskyMoves || na}`,
         `${currentLang === "es" ? "Resultados" : "Results"}: ${profile.resultsHistory || na}`
+      ]
+    },
+    {
+      title: currentLang === "es" ? "Resumen de torneo" : "Tournament Snapshot",
+      lines: [
+        `${currentLang === "es" ? "Plan activo" : "Active plan"}: ${latestPlan?.title || na}`,
+        `${currentLang === "es" ? "Siguiente tarea" : "Next assignment"}: ${liveAssignments[0]?.title || na}`,
+        `${currentLang === "es" ? "Competition cue" : "Competition cue"}: ${cornerPlan?.competitionCue || profile.coachSignal || na}`,
+        `${currentLang === "es" ? "Advertencia principal" : "Primary warning"}: ${cornerPlan?.safetyWarnings?.[0] || profile.injuryNotes || none}`
       ]
     },
     {
@@ -7430,6 +8817,34 @@ function setCalendarEntry(dateKey, entry) {
     delete events[key];
   }
   setStoredCalendarEvents(events);
+  if (isCoachWorkspaceActive()) {
+    if (coachCalendarSyncTimeout) clearTimeout(coachCalendarSyncTimeout);
+    coachCalendarSyncTimeout = setTimeout(async () => {
+      const calendarRef = getCoachWorkspaceCollectionRef("calendar_entries");
+      if (!calendarRef) return;
+      try {
+        if (normalized.items.length) {
+          await withTimeout(
+            calendarRef.doc(key).set(stripUndefinedDeep({
+              ...normalized,
+              dateKey: key,
+              updatedAt: getFirestoreServerTimestamp()
+            }), { merge: true }),
+            FIREBASE_OP_TIMEOUT_MS,
+            "firestore_calendar_write_timeout"
+          );
+        } else {
+          await withTimeout(
+            calendarRef.doc(key).delete(),
+            FIREBASE_OP_TIMEOUT_MS,
+            "firestore_calendar_delete_timeout"
+          );
+        }
+      } catch (err) {
+        console.warn("Failed to sync calendar entry", err);
+      }
+    }, 250);
+  }
   return normalized;
 }
 
@@ -8459,7 +9874,7 @@ function buildDefaultMediaTree() {
 
 function ensureYoutubeMediaNode(nodes) {
   const working = Array.isArray(nodes) ? nodes.slice() : [];
-  const targetUrl = "https://www.youtube.com/watch?v=FHHOgZ3QTSY";
+  const targetUrl = "https://www.flowrestling.org/training?playing=7965907";
   const normalizedTarget = normalizeMediaAssetPath(targetUrl);
   const exists = working.some(
     (node) =>
@@ -8487,14 +9902,73 @@ function ensureYoutubeMediaNode(nodes) {
   working.push({
     id: makeMediaId("item"),
     type: "item",
-    title: "Espinal | Trailer oficial | 19 de febrero | Solo en cines",
-    mediaType: currentLang === "es" ? "Enlace" : "Link",
+    title: currentLang === "es" ? "Final de pierna simple - Coach Chewy" : "Single Leg Finish - Coach Chewy",
+    mediaType: currentLang === "es" ? "Video" : "Video",
     assetPath: targetUrl,
     thumbnailPath: "",
     duration: "",
-    assigned: currentLang === "es" ? "Hoy" : "Today",
-    note: "",
+    assigned: currentLang === "es" ? "Esta semana" : "This week",
+    note: currentLang === "es"
+      ? "Recurso destacado para finalizacion de single leg."
+      : "Featured resource for single-leg finishes.",
     parentId: section.id
+  });
+
+  return working;
+}
+
+function ensureDemoMediaNodes(nodes) {
+  const legacyTarget = normalizeMediaAssetPath("https://www.youtube.com/watch?v=FHHOgZ3QTSY");
+  const working = (Array.isArray(nodes) ? nodes : []).filter((node) => {
+    if (node?.type !== "item") return true;
+    const asset = normalizeMediaAssetPath(node.assetPath || node.assetUrl || node.url || "");
+    const title = String(node.title || "").toLowerCase();
+    return asset !== legacyTarget && !title.includes("trailer oficial");
+  });
+
+  const sectionIds = new Map();
+  working.forEach((node) => {
+    if (node?.type === "section") {
+      sectionIds.set(String(node.name || "").trim().toLowerCase(), node.id);
+    }
+  });
+
+  getMediaItemsData().forEach((item) => {
+    const normalizedAsset = normalizeMediaAssetPath(item.assetPath || item.assetUrl || item.url || "");
+    const exists = working.some((node) => {
+      if (node?.type !== "item") return false;
+      const nodeAsset = normalizeMediaAssetPath(node.assetPath || node.assetUrl || node.url || "");
+      return String(node.title || "").trim() === String(item.title || "").trim()
+        || (normalizedAsset && nodeAsset === normalizedAsset);
+    });
+    if (exists) return;
+
+    const sectionName = String(item.tag || mediaCopy("root")).trim();
+    const sectionKey = sectionName.toLowerCase();
+    let sectionId = sectionIds.get(sectionKey);
+    if (!sectionId) {
+      sectionId = makeMediaId("sec");
+      sectionIds.set(sectionKey, sectionId);
+      working.push({
+        id: sectionId,
+        type: "section",
+        name: sectionName,
+        parentId: null
+      });
+    }
+
+    working.push({
+      id: makeMediaId("item"),
+      type: "item",
+      title: item.title,
+      mediaType: item.type,
+      assetPath: normalizedAsset,
+      thumbnailPath: normalizeMediaAssetPath(item.thumbnailPath || item.thumbnailUrl || ""),
+      duration: String(item.duration || ""),
+      assigned: item.assigned,
+      note: String(item.note || ""),
+      parentId: sectionId
+    });
   });
 
   return working;
@@ -8561,7 +10035,7 @@ function getMediaTreeFromLocalStorage() {
 
 function cacheAndPersistMediaTreeLocally(tree) {
   const normalized = normalizeMediaTree(tree);
-  const mergedNodes = ensureYoutubeMediaNode(normalized.nodes);
+  const mergedNodes = ensureDemoMediaNodes(ensureYoutubeMediaNode(normalized.nodes));
   const ready = mergedNodes.length ? { nodes: mergedNodes } : buildDefaultMediaTree();
   mediaTreeCache = ready;
   localStorage.setItem(MEDIA_TREE_KEY, JSON.stringify(ready));
@@ -9067,6 +10541,152 @@ function getCompletionStatusMeta(status) {
   };
 }
 
+function getCoachAssignmentAssigneeLabel(record) {
+  if (!record) return "";
+  if (record.assigneeType === "group") return record.assigneeName || record.assigneeId;
+  if (record.assigneeNames.length > 1) return record.assigneeNames.join(", ");
+  return record.assigneeName || record.assigneeNames[0] || record.assigneeId;
+}
+
+function isPlanAssignedToAthlete(plan, athleteName) {
+  const target = normalizeName(athleteName);
+  if (!plan?.audience || !target) return false;
+  if (plan.audience.mode === "group") {
+    const group = getCoachGroupRecords().find((item) => item.id === plan.audience.groupId || normalizeName(item.name) === normalizeName(plan.audience.groupName));
+    return group ? group.memberNames.some((member) => normalizeName(member) === target) : false;
+  }
+  return (plan.audience.athleteNames || []).some((name) => normalizeName(name) === target);
+}
+
+function getLatestCoachPlanForAthlete(athleteName) {
+  return coachWorkspaceSortByUpdated(coachPlansCache).find((plan) => isPlanAssignedToAthlete(plan, athleteName)) || null;
+}
+
+function getCoachCompletionRow(athlete) {
+  const fallback = COACH_COMPLETION_ROWS[athlete.name] || {};
+  const board = getAthleteTaskBoard(athlete.name);
+  const assignments = getPlanAssignmentsForAthlete(athlete.name);
+  const alerts = getAthleteAlerts(athlete);
+  const latestPlan = getLatestCoachPlanForAthlete(athlete.name);
+  const overdueCount = assignments.filter((item) => item.status === "overdue").length;
+  const reviewCount = assignments.filter((item) => item.status === "review").length;
+  const completeCount = assignments.filter((item) => item.status === "complete").length;
+  const openCount = assignments.filter((item) => item.status !== "complete").length;
+  const availabilityKey = normalizeAvailabilityKey(getRawAthleteRecord(athlete.name)?.availability || athlete.availability);
+
+  let status = "ontrack";
+  if (availabilityKey === "limited" || alerts.some((item) => String(item).toLowerCase().includes("injury") || String(item).toLowerCase().includes("lesion"))) {
+    status = "limited";
+  } else if (overdueCount > 0) {
+    status = "overdue";
+  } else if (openCount > 0 || reviewCount > 0 || board.journalState === "stale") {
+    status = "followup";
+  }
+
+  let progress = "";
+  if (assignments.length) {
+    progress = currentLang === "es"
+      ? `${completeCount}/${assignments.length} completadas`
+      : `${completeCount}/${assignments.length} completed`;
+  } else {
+    progress = pickCopy(fallback.progress || {
+      en: "No assignments yet",
+      es: "Todavia no hay asignaciones"
+    });
+  }
+
+  let followUp = "";
+  if (status === "limited") {
+    followUp = currentLang === "es"
+      ? "Revisa limitaciones fisicas y ajusta la carga."
+      : "Review physical limitations and adjust load.";
+  } else if (status === "overdue") {
+    followUp = currentLang === "es"
+      ? "Hay tareas atrasadas que requieren seguimiento."
+      : "There are overdue tasks that need follow-up.";
+  } else if (reviewCount > 0) {
+    followUp = currentLang === "es"
+      ? "Revisa trabajo entregado y deja feedback."
+      : "Review submitted work and leave feedback.";
+  } else if (board.journalState === "stale") {
+    followUp = currentLang === "es"
+      ? "Pide una actualizacion del journal."
+      : "Request a journal update.";
+  } else if (openCount > 0) {
+    followUp = currentLang === "es"
+      ? "Confirma el avance de las tareas pendientes."
+      : "Confirm progress on pending tasks.";
+  } else {
+    followUp = pickCopy(fallback.followUp || {
+      en: "No urgent follow-up.",
+      es: "No hay seguimiento urgente."
+    });
+  }
+
+  return {
+    status,
+    plan: latestPlan?.title || assignments[0]?.title || pickCopy(fallback.plan || {
+      en: "No saved plan yet",
+      es: "Todavia no hay plan guardado"
+    }),
+    progress,
+    followUp
+  };
+}
+
+function getCoachUpcomingCompetitionRows(limit = 3) {
+  const todayKey = getCurrentAppDateKey();
+  const keywords = ["competition", "tournament", "dual", "match", "meet", "weigh", "competencia", "torneo"];
+  const entries = Object.entries(getStoredCalendarEvents())
+    .map(([dateKey, entry]) => ({ dateKey, entry: normalizeCalendarEntry(entry) }))
+    .filter(({ dateKey, entry }) => dateKey >= todayKey && entry.items.length)
+    .sort((left, right) => left.dateKey.localeCompare(right.dateKey));
+
+  const matches = entries.filter(({ entry }) => entry.items.some((item) => {
+    const text = String(item || "").toLowerCase();
+    return keywords.some((keyword) => text.includes(keyword));
+  }));
+  const source = matches.length ? matches : entries;
+
+  return source.slice(0, limit).map(({ dateKey, entry }) => ({
+    title: entry.items[0],
+    detail: `${formatPlanDateLabel(dateKey)} • ${entry.items.length} ${currentLang === "es" ? "item(s)" : "item(s)"}`
+  }));
+}
+
+function getCoachRecentTrainingRows(limit = 3) {
+  if (coachPlansCache.length) {
+    return coachWorkspaceSortByUpdated(coachPlansCache).slice(0, limit).map((plan) => ({
+      title: plan.title,
+      detail: `${formatPlanRangeLabel(plan.range)} • ${plan.focus || getPlanAssignmentTypeLabel(plan.type)}`
+    }));
+  }
+  return getHomeRecentTrainingsData();
+}
+
+function getCoachHomeAlerts(limit = 4) {
+  const alerts = [];
+  getAthletesData().forEach((athlete) => {
+    const row = getCoachCompletionRow(athlete);
+    if (row.status !== "ontrack") {
+      alerts.push(`${athlete.name}: ${row.followUp}`);
+    }
+    getAthleteAlerts(athlete).forEach((alert) => {
+      alerts.push(`${athlete.name}: ${alert}`);
+    });
+  });
+  return Array.from(new Set(alerts)).slice(0, limit);
+}
+
+function getCoachAssignmentResourceRows(limit = 4) {
+  const mediaRows = getMediaNodes()
+    .filter((node) => node.type === "item")
+    .slice(0, limit)
+    .map((node) => `${node.mediaType}: ${node.title}${node.note ? ` - ${node.note}` : ""}`);
+  if (mediaRows.length) return mediaRows;
+  return COACH_ASSIGNMENT_RESOURCES.map((item) => pickCopy(item));
+}
+
 function renderCoachAssignments() {
   if (!assignmentStats || !assignmentList || !assignmentTypeGrid) return;
 
@@ -9075,25 +10695,26 @@ function renderCoachAssignments() {
   if (assignmentResourceTitle) assignmentResourceTitle.textContent = currentLang === "es" ? "Biblioteca de recursos" : "Resource Library";
   if (assignmentWorkflowTitle) assignmentWorkflowTitle.textContent = currentLang === "es" ? "Flujo de asignacion" : "Assignment Workflow";
 
+  const assignmentRecords = getCoachAssignmentRecords();
   const stats = [
     {
       title: currentLang === "es" ? "Vencen hoy" : "Due today",
-      value: String(COACH_ASSIGNMENT_ITEMS.filter((item) => item.status === "due").length),
+      value: String(assignmentRecords.filter((item) => item.status === "due").length),
       note: currentLang === "es" ? "Tareas que el atleta debe cerrar hoy" : "Assignments athletes need to close today"
     },
     {
       title: currentLang === "es" ? "Revision coach" : "Coach review",
-      value: String(COACH_ASSIGNMENT_ITEMS.filter((item) => item.status === "review").length),
+      value: String(assignmentRecords.filter((item) => item.status === "review").length),
       note: currentLang === "es" ? "Trabajo listo para feedback del entrenador" : "Work ready for coach feedback"
     },
     {
       title: currentLang === "es" ? "Atrasadas" : "Overdue",
-      value: String(COACH_ASSIGNMENT_ITEMS.filter((item) => item.status === "overdue").length),
+      value: String(assignmentRecords.filter((item) => item.status === "overdue").length),
       note: currentLang === "es" ? "Requieren seguimiento inmediato" : "Needs immediate follow-up"
     },
     {
       title: currentLang === "es" ? "Completadas" : "Completed",
-      value: String(COACH_ASSIGNMENT_ITEMS.filter((item) => item.status === "complete").length),
+      value: String(assignmentRecords.filter((item) => item.status === "complete").length),
       note: currentLang === "es" ? "Cerradas esta semana" : "Closed out this week"
     }
   ];
@@ -9107,7 +10728,10 @@ function renderCoachAssignments() {
   });
 
   assignmentList.innerHTML = "";
-  COACH_ASSIGNMENT_ITEMS.forEach((item) => {
+  if (!assignmentRecords.length) {
+    assignmentList.innerHTML = `<div class="mini-card"><h3>${currentLang === "es" ? "Todavia no hay asignaciones." : "No assignments sent yet."}</h3><p class="small muted">${currentLang === "es" ? "Guarda un plan y usa Save Plan + Assign para empezar." : "Save a plan and use Save Plan + Assign to start sending work."}</p></div>`;
+  }
+  assignmentRecords.forEach((item) => {
     const status = getAssignmentStatusMeta(item.status);
     const assignedLabel = currentLang === "es" ? "Asignado a" : "Assigned to";
     const typeLabel = currentLang === "es" ? "Tipo" : "Type";
@@ -9118,26 +10742,26 @@ function renderCoachAssignments() {
     card.innerHTML = `
       <div class="assignment-card-top">
         <div>
-          <strong>${pickCopy(item.title)}</strong>
+          <strong>${item.title}</strong>
         </div>
         <span class="status-pill ${status.className}">${status.label}</span>
       </div>
       <div class="assignment-card-fields">
         <div class="assignment-field">
           <span class="assignment-field-label">${assignedLabel}</span>
-          <strong>${pickCopy(item.assignee)}</strong>
+          <strong>${getCoachAssignmentAssigneeLabel(item)}</strong>
         </div>
         <div class="assignment-field">
           <span class="assignment-field-label">${typeLabel}</span>
-          <strong>${pickCopy(item.type)}</strong>
+          <strong>${item.type}</strong>
         </div>
         <div class="assignment-field">
           <span class="assignment-field-label">${dueLabel}</span>
-          <strong>${pickCopy(item.dueDate)}</strong>
+          <strong>${item.dueLabel || formatPlanDateLabel(item.dueDateKey || getCurrentAppDateKey())}</strong>
         </div>
       </div>
-      <div class="assignment-card-meta">${sourceLabel}: ${pickCopy(item.source)}</div>
-      <p class="small">${pickCopy(item.note)}</p>
+      <div class="assignment-card-meta">${sourceLabel}: ${item.source || getPlanAssignmentTypeLabel(item.planType)}</div>
+      <p class="small">${item.note || (currentLang === "es" ? "Sin nota adicional." : "No additional note.")}</p>
     `;
     assignmentList.appendChild(card);
   });
@@ -9158,9 +10782,9 @@ function renderCoachAssignments() {
 
   if (assignmentResourceList) {
     assignmentResourceList.innerHTML = "";
-    COACH_ASSIGNMENT_RESOURCES.forEach((item) => {
+    getCoachAssignmentResourceRows().forEach((item) => {
       const li = document.createElement("li");
-      li.textContent = pickCopy(item);
+      li.textContent = item;
       assignmentResourceList.appendChild(li);
     });
   }
@@ -9181,17 +10805,18 @@ function renderCompletionTracking() {
   if (completionRowsTitle) completionRowsTitle.textContent = currentLang === "es" ? "Seguimiento por atleta" : "Athlete Follow-Up";
   if (completionAlertsTitle) completionAlertsTitle.textContent = currentLang === "es" ? "Siguiente accion del coach" : "Coach Follow-Up";
 
-  const trackedAthletes = getAthletesData().filter((athlete) => COACH_COMPLETION_ROWS[athlete.name]);
+  const trackedAthletes = getAthletesData();
   const followUpCount = trackedAthletes.filter((athlete) => {
-    const status = COACH_COMPLETION_ROWS[athlete.name]?.status;
+    const status = getCoachCompletionRow(athlete).status;
     return status === "followup" || status === "overdue" || status === "limited";
   }).length;
   const staleJournalCount = trackedAthletes.filter((athlete) => getAthleteTaskBoard(athlete.name).journalState === "stale").length;
+  const assignmentRecords = getCoachAssignmentRecords();
 
   const stats = [
     {
       title: currentLang === "es" ? "Atletas al dia" : "Athletes on track",
-      value: String(trackedAthletes.filter((athlete) => COACH_COMPLETION_ROWS[athlete.name]?.status === "ontrack").length),
+      value: String(trackedAthletes.filter((athlete) => getCoachCompletionRow(athlete).status === "ontrack").length),
       note: currentLang === "es" ? "Sin bloqueos urgentes esta semana" : "No urgent blockers this week"
     },
     {
@@ -9206,7 +10831,7 @@ function renderCompletionTracking() {
     },
     {
       title: currentLang === "es" ? "Revision coach" : "Coach review",
-      value: String(COACH_ASSIGNMENT_ITEMS.filter((item) => item.status === "review").length),
+      value: String(assignmentRecords.filter((item) => item.status === "review").length),
       note: currentLang === "es" ? "Listo para feedback del entrenador" : "Ready for coach feedback"
     }
   ];
@@ -9222,7 +10847,7 @@ function renderCompletionTracking() {
   completionList.innerHTML = "";
   trackedAthletes.forEach((athlete) => {
     const taskBoard = getAthleteTaskBoard(athlete.name);
-    const row = COACH_COMPLETION_ROWS[athlete.name];
+    const row = getCoachCompletionRow(athlete);
     const status = getCompletionStatusMeta(row.status);
     const card = document.createElement("article");
     card.className = "completion-card";
@@ -9246,10 +10871,10 @@ function renderCompletionTracking() {
 
   completionAlertsList.innerHTML = "";
   trackedAthletes
-    .filter((athlete) => COACH_COMPLETION_ROWS[athlete.name]?.status !== "ontrack" || getAthleteTaskBoard(athlete.name).journalState === "stale")
+    .filter((athlete) => getCoachCompletionRow(athlete).status !== "ontrack" || getAthleteTaskBoard(athlete.name).journalState === "stale")
     .forEach((athlete) => {
       const taskBoard = getAthleteTaskBoard(athlete.name);
-      const row = COACH_COMPLETION_ROWS[athlete.name];
+      const row = getCoachCompletionRow(athlete);
       const li = document.createElement("li");
       li.textContent = `${athlete.name}: ${pickCopy(row.followUp)} ${taskBoard.journalState === "stale" ? `(${taskBoard.journalLabel})` : ""}`.trim();
       completionAlertsList.appendChild(li);
@@ -9275,8 +10900,40 @@ function renderDashboard() {
   if (homeRecentTrainingTitle) homeRecentTrainingTitle.textContent = currentLang === "es" ? "Entrenamientos recientes" : "Recent Trainings";
   if (homeAlertsTitle) homeAlertsTitle.textContent = currentLang === "es" ? "Alertas importantes" : "Important Alerts";
 
+  const athletes = getAthletesData();
+  const assignmentRecords = getCoachAssignmentRecords();
+  const activeAthletes = athletes.filter((athlete) => normalizeAvailabilityKey(athlete.availability) !== "other").length || athletes.length;
+  const pendingTaskCount = assignmentRecords.filter((item) => item.status !== "complete").length
+    + athletes.filter((athlete) => getAthleteTaskBoard(athlete.name).journalState === "stale").length;
+  const competitionRows = getCoachUpcomingCompetitionRows(3);
+  const recentTrainingRows = getCoachRecentTrainingRows(3);
+  const dashboardStats = isCoachWorkspaceActive()
+    ? [
+        {
+          title: currentLang === "es" ? "Atletas activos" : "Active athletes",
+          value: String(activeAthletes),
+          note: currentLang === "es" ? "Roster visible para el coach" : "Roster currently visible to the coach"
+        },
+        {
+          title: currentLang === "es" ? "Tareas pendientes" : "Pending tasks",
+          value: String(pendingTaskCount),
+          note: currentLang === "es" ? "Asignaciones abiertas + journals pendientes" : "Open assignments plus stale journals"
+        },
+        {
+          title: currentLang === "es" ? "Competencias proximas" : "Upcoming competitions",
+          value: String(competitionRows.length),
+          note: currentLang === "es" ? "Eventos futuros en calendario" : "Future events on the calendar"
+        },
+        {
+          title: currentLang === "es" ? "Entrenamientos recientes" : "Recent trainings",
+          value: String(coachPlansCache.length),
+          note: currentLang === "es" ? "Planes guardados en el workspace" : "Plans saved in the workspace"
+        }
+      ]
+    : getTeamStatsData();
+
   teamStats.innerHTML = "";
-  getTeamStatsData().forEach((stat) => {
+  dashboardStats.forEach((stat) => {
     const card = document.createElement("div");
     card.className = "stat-card";
     card.innerHTML = `<p class="small">${stat.title}</p><h3>${stat.value}</h3><p>${stat.note}</p>`;
@@ -9284,7 +10941,14 @@ function renderDashboard() {
   });
 
   teamOverview.innerHTML = "";
-  getTeamOverviewData().forEach((line) => {
+  const overviewLines = isCoachWorkspaceActive()
+    ? [
+        `${coachPlansCache.length} ${currentLang === "es" ? "planes guardados" : "saved plans"}`,
+        `${getCoachGroupRecords().length} ${currentLang === "es" ? "grupos listos para asignar" : "groups ready for assignment"}`,
+        `${(coachTemplatesCache.length || getBuiltinCoachTemplateSeeds().length)} ${currentLang === "es" ? "plantillas disponibles" : "templates available"}`
+      ]
+    : getTeamOverviewData();
+  overviewLines.forEach((line) => {
     const li = document.createElement("li");
     li.textContent = line;
     teamOverview.appendChild(li);
@@ -9302,7 +10966,8 @@ function renderDashboard() {
 
   if (homeCompetitions) {
     homeCompetitions.innerHTML = "";
-    getHomeCompetitionsData().forEach((item) => {
+    const items = isCoachWorkspaceActive() ? competitionRows : getHomeCompetitionsData();
+    items.forEach((item) => {
       const li = document.createElement("li");
       li.innerHTML = `<strong>${item.title}</strong><div class="small">${item.detail}</div>`;
       homeCompetitions.appendChild(li);
@@ -9311,7 +10976,8 @@ function renderDashboard() {
 
   if (homeRecentTrainings) {
     homeRecentTrainings.innerHTML = "";
-    getHomeRecentTrainingsData().forEach((item) => {
+    const items = isCoachWorkspaceActive() ? recentTrainingRows : getHomeRecentTrainingsData();
+    items.forEach((item) => {
       const li = document.createElement("li");
       li.innerHTML = `<strong>${item.title}</strong><div class="small">${item.detail}</div>`;
       homeRecentTrainings.appendChild(li);
@@ -9319,7 +10985,8 @@ function renderDashboard() {
   }
 
   alertList.innerHTML = "";
-  getAlertsData().forEach((alert) => {
+  const alerts = isCoachWorkspaceActive() ? getCoachHomeAlerts() : getAlertsData();
+  alerts.forEach((alert) => {
     const div = document.createElement("div");
     div.className = "alert";
     div.textContent = alert;
@@ -9435,8 +11102,16 @@ function normalizeAvailabilityKey(value) {
 
 function getAthleteTaskBoard(name) {
   const entry = ATHLETE_TASK_BOARD[name] || {};
+  const liveAssignments = getPlanAssignmentsForAthlete(name);
+  const pendingAssignments = liveAssignments
+    .filter((assignment) => assignment.status !== "complete")
+    .map((assignment) => assignment.title || assignment.type)
+    .filter(Boolean);
   return {
-    tasks: (entry.tasks || []).map((item) => pickCopy(item)),
+    tasks: uniqueNames([
+      ...(entry.tasks || []).map((item) => pickCopy(item)),
+      ...pendingAssignments
+    ]),
     journalState: entry.journal?.state || "fresh",
     journalLabel: pickCopy(entry.journal?.label || {
       en: "Updated today",
@@ -9952,6 +11627,37 @@ if (athleteSearchInput) {
     athleteSearchQuery = athleteSearchInput.value.trim().toLowerCase();
     renderAthleteManagement();
   });
+}
+
+const athleteNotesFocus = document.getElementById("athleteNotesFocus");
+const athleteNotesRecent = document.getElementById("athleteNotesRecent");
+
+function renderAthleteNotes() {
+  if (!athleteNotesFocus || !athleteNotesRecent) return;
+  const athleteName = getSelectedCoachAthleteName();
+  const athlete = getAthletesData().find((item) => item.name === athleteName) || getAthletesData()[0];
+  const noteBoard = COACH_ATHLETE_NOTE_BOARD[athlete?.name] || COACH_ATHLETE_NOTE_BOARD["Jaime Espinal"];
+  const latestPlan = athlete ? getLatestCoachPlanForAthlete(athlete.name) : null;
+  const openAssignments = athlete ? getPlanAssignmentsForAthlete(athlete.name).filter((item) => item.status !== "complete") : [];
+
+  const focusItems = [
+    ...(noteBoard?.nextFocus || []).map((item) => pickCopy(item)),
+    latestPlan
+      ? `${currentLang === "es" ? "Plan activo" : "Active plan"}: ${latestPlan.title}`
+      : "",
+    openAssignments[0]
+      ? `${currentLang === "es" ? "Siguiente tarea" : "Next task"}: ${openAssignments[0].title}`
+      : ""
+  ].filter(Boolean).slice(0, 4);
+
+  const recentItems = (noteBoard?.recentNotes || []).map((item) => pickCopy(item)).slice(0, 3);
+
+  athleteNotesFocus.innerHTML = focusItems
+    .map((line) => `<li>${line}</li>`)
+    .join("");
+  athleteNotesRecent.innerHTML = recentItems
+    .map((line) => `<li>${line}</li>`)
+    .join("");
 }
 
 // ---------- JOURNAL MONITOR ----------
@@ -10965,6 +12671,7 @@ function selectCoachMatchAthlete(name) {
   renderCoachMatchView(selectedAthlete.name);
   renderCompetitionPreview(selectedAthlete);
   renderAthleteManagement();
+  renderAthleteNotes();
 }
 
 function openAthleteSummaryView(name = "") {
@@ -11716,6 +13423,19 @@ function getJournalEntries() {
   }
 }
 
+function ensureSeedJournalEntries() {
+  const existing = getJournalEntries();
+  if (existing.length) return existing;
+  const seeded = [
+    {
+      date: new Date(Date.now() - 1000 * 60 * 60 * 18).toISOString(),
+      note: "Sleep was solid. Best feel today was on single-leg finishes after the re-shot. Need to stay patient when the first attack gets blocked."
+    }
+  ];
+  localStorage.setItem(JOURNAL_ENTRIES_KEY, JSON.stringify(seeded));
+  return seeded;
+}
+
 function formatJournalDate(timestamp) {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return "";
@@ -11768,6 +13488,7 @@ if (saveJournalBtn) {
 
 async function startApp() {
   clearLegacyRegisteredUsersCache();
+  ensureSeedJournalEntries();
   renderJournalEntries();
   await bootProfile();
   startClock();
