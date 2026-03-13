@@ -70,8 +70,14 @@ let coachTemplatesCache = [];
 let coachAssignmentsCache = [];
 let coachGroupsCache = [];
 let coachCalendarEntriesCache = {};
+let coachAthletesCache = [];
+let coachNotesCache = [];
+let coachJournalEntriesCache = [];
+let coachCompletionCache = [];
+let coachMatchAnalysisCache = [];
 let coachWorkspaceSeedPromise = null;
 let coachCalendarSyncTimeout = null;
+let coachCompletionSyncTimeout = null;
 let coachPlanSyncState = {
   lastSavedId: "",
   lastSavedType: "",
@@ -3340,15 +3346,131 @@ function normalizeCoachGroupRecord(id, data = {}) {
   };
 }
 
+function normalizeCoachAthleteRecord(id, data = {}) {
+  return {
+    id,
+    name: String(data.name || "").trim(),
+    weight: String(data.weight || data.currentWeight || "").trim(),
+    currentWeight: String(data.currentWeight || data.weight || "").trim(),
+    weightClass: String(data.weightClass || "").trim(),
+    style: String(data.style || "").trim(),
+    availability: String(data.availability || "Available").trim(),
+    preferred: String(data.preferred || "").trim(),
+    international: String(data.international || "None").trim(),
+    history: String(data.history || "").trim(),
+    notes: String(data.notes || "").trim(),
+    experienceYears: data.experienceYears ?? data.years ?? "",
+    level: String(data.level || "").trim(),
+    position: String(data.position || "").trim(),
+    strategy: String(data.strategy || "").trim(),
+    favoritePosition: String(data.favoritePosition || data.position || "").trim(),
+    psychTendency: String(data.psychTendency || "").trim(),
+    offenseTop3: Array.isArray(data.offenseTop3) ? data.offenseTop3.map((item) => String(item).trim()).filter(Boolean) : [],
+    defenseTop3: Array.isArray(data.defenseTop3) ? data.defenseTop3.map((item) => String(item).trim()).filter(Boolean) : [],
+    pressureError: String(data.pressureError || "").trim(),
+    coachSignal: String(data.coachSignal || "").trim(),
+    tags: normalizeSmartTags(data.tags || []),
+    injuryNotes: String(data.injuryNotes || "").trim(),
+    cueNotes: String(data.cueNotes || "").trim(),
+    safeMoves: String(data.safeMoves || "").trim(),
+    riskyMoves: String(data.riskyMoves || "").trim(),
+    strategyA: String(data.strategyA || "").trim(),
+    strategyB: String(data.strategyB || "").trim(),
+    strategyC: String(data.strategyC || "").trim(),
+    resultsHistory: String(data.resultsHistory || "").trim(),
+    internationalEvents: String(data.internationalEvents || "").trim(),
+    internationalYears: String(data.internationalYears || "").trim(),
+    techniques: {
+      neutral: Array.isArray(data.techniques?.neutral) ? data.techniques.neutral.map((item) => String(item).trim()).filter(Boolean) : [],
+      top: Array.isArray(data.techniques?.top) ? data.techniques.top.map((item) => String(item).trim()).filter(Boolean) : [],
+      bottom: Array.isArray(data.techniques?.bottom) ? data.techniques.bottom.map((item) => String(item).trim()).filter(Boolean) : [],
+      defense: Array.isArray(data.techniques?.defense) ? data.techniques.defense.map((item) => String(item).trim()).filter(Boolean) : [],
+      neutralOther: String(data.techniques?.neutralOther || "").trim(),
+      topOther: String(data.techniques?.topOther || "").trim(),
+      bottomOther: String(data.techniques?.bottomOther || "").trim(),
+      defenseOther: String(data.techniques?.defenseOther || "").trim()
+    },
+    createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : String(data.createdAt || ""),
+    updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : String(data.updatedAt || "")
+  };
+}
+
+function normalizeCoachNoteRecord(id, data = {}) {
+  return {
+    id,
+    athleteName: String(data.athleteName || data.name || "").trim(),
+    nextFocus: Array.isArray(data.nextFocus) ? data.nextFocus.map((item) => String(item).trim()).filter(Boolean) : [],
+    recentNotes: Array.isArray(data.recentNotes) ? data.recentNotes.map((item) => String(item).trim()).filter(Boolean) : [],
+    updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : String(data.updatedAt || "")
+  };
+}
+
+function normalizeCoachJournalRecord(id, data = {}) {
+  return {
+    id,
+    athleteName: String(data.athleteName || data.name || "").trim(),
+    entryDate: isDateKey(data.entryDate) ? data.entryDate : getCurrentAppDateKey(),
+    sleep: String(data.sleep || "").trim(),
+    energy: String(data.energy || "").trim(),
+    soreness: String(data.soreness || "").trim(),
+    mood: String(data.mood || "").trim(),
+    weight: String(data.weight || "").trim(),
+    note: String(data.note || "").trim(),
+    updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : String(data.updatedAt || ""),
+    createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : String(data.createdAt || "")
+  };
+}
+
+function normalizeCoachCompletionRecord(id, data = {}) {
+  return {
+    id,
+    athleteName: String(data.athleteName || data.name || "").trim(),
+    status: String(data.status || "").trim(),
+    plan: String(data.plan || "").trim(),
+    progress: String(data.progress || "").trim(),
+    followUp: String(data.followUp || "").trim(),
+    pendingCount: Number.isFinite(Number(data.pendingCount)) ? Number(data.pendingCount) : 0,
+    journalState: String(data.journalState || "").trim(),
+    updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : String(data.updatedAt || "")
+  };
+}
+
+function normalizeMatchAnalysisEntry(entry = {}) {
+  return {
+    timestamp: String(entry.timestamp || "").trim(),
+    note: String(entry.note || "").trim()
+  };
+}
+
+function normalizeCoachMatchAnalysisRecord(id, data = {}) {
+  return {
+    id,
+    mediaId: String(data.mediaId || "").trim(),
+    mediaTitle: String(data.mediaTitle || "").trim(),
+    mediaAssetPath: String(data.mediaAssetPath || "").trim(),
+    athleteName: String(data.athleteName || "").trim(),
+    groupId: String(data.groupId || "").trim(),
+    summary: String(data.summary || "").trim(),
+    entries: Array.isArray(data.entries) ? data.entries.map((entry) => normalizeMatchAnalysisEntry(entry)).filter((entry) => entry.timestamp || entry.note) : [],
+    updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : String(data.updatedAt || ""),
+    createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : String(data.createdAt || "")
+  };
+}
+
 function normalizeAssignmentStatus(status) {
   const raw = String(status || "").trim().toLowerCase();
-  if (raw === "review") return "review";
-  if (raw === "complete" || raw === "completed") return "complete";
+  if (raw === "review" || raw === "in_progress" || raw === "in-progress" || raw === "progress") return "in_progress";
+  if (raw === "complete" || raw === "completed") return "completed";
   if (raw === "overdue") return "overdue";
-  return "due";
+  return "not_started";
 }
 
 function normalizeCoachAssignmentRecord(id, data = {}) {
+  const dueDateKey = isDateKey(data.dueDateKey) ? data.dueDateKey : "";
+  const normalizedStatus = normalizeAssignmentStatus(data.status);
+  const derivedStatus = dueDateKey && dueDateKey < getCurrentAppDateKey() && normalizedStatus !== "completed"
+    ? "overdue"
+    : normalizedStatus;
   return {
     id,
     title: String(data.title || "").trim(),
@@ -3357,13 +3479,18 @@ function normalizeCoachAssignmentRecord(id, data = {}) {
     assigneeNames: uniqueNames(data.assigneeNames || []),
     assigneeId: String(data.assigneeId || "").trim(),
     type: String(data.type || "Training Plan").trim(),
-    dueDateKey: isDateKey(data.dueDateKey) ? data.dueDateKey : "",
+    dueDateKey,
     dueLabel: String(data.dueLabel || "").trim(),
-    status: normalizeAssignmentStatus(data.status),
+    status: derivedStatus,
     note: String(data.note || "").trim(),
     source: String(data.source || "").trim(),
     planId: String(data.planId || "").trim(),
     planType: normalizePlanType(data.planType || "day"),
+    mediaId: String(data.mediaId || "").trim(),
+    mediaTitle: String(data.mediaTitle || "").trim(),
+    mediaAssetPath: String(data.mediaAssetPath || "").trim(),
+    notifiedAt: data.notifiedAt?.toDate ? data.notifiedAt.toDate().toISOString() : String(data.notifiedAt || ""),
+    notificationStatus: String(data.notificationStatus || "").trim(),
     createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : String(data.createdAt || ""),
     updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : String(data.updatedAt || "")
   };
@@ -3612,11 +3739,12 @@ function getSeedCoachWorkspaceAssignments() {
       type: "Video review",
       dueDateKey: todayKey,
       dueLabel: formatPlanDateLabel(todayKey),
-      status: "due",
+      status: "not_started",
       note: "Watch the first attack sequence and write back 3 scoring reads.",
       source: "Media - Match Analysis",
       planId: "seed-daily-finish-film",
-      planType: "day"
+      planType: "day",
+      notificationStatus: "notified:1"
     },
     {
       id: "seed-assignment-drill",
@@ -3632,7 +3760,8 @@ function getSeedCoachWorkspaceAssignments() {
       note: "Use ankle-safe entries and send completion before the next live session.",
       source: "Modified rehab block",
       planId: "",
-      planType: "day"
+      planType: "day",
+      notificationStatus: "pending"
     },
     {
       id: "seed-assignment-match-analysis",
@@ -3644,11 +3773,12 @@ function getSeedCoachWorkspaceAssignments() {
       type: "Match analysis",
       dueDateKey: weekEndKey,
       dueLabel: formatPlanDateLabel(weekEndKey),
-      status: "review",
+      status: "in_progress",
       note: "Reply with 3 scoring reads and one corner cue for the weekend event.",
       source: "Pre-Tournament Week",
       planId: "seed-weekly-pre-tournament",
-      planType: "week"
+      planType: "week",
+      notificationStatus: "logged"
     }
   ];
 }
@@ -3677,6 +3807,292 @@ function getSeedCoachCalendarEntries() {
       audience: { all: true, athletes: [] }
     }
   };
+}
+
+function getSeedCopyValue(value) {
+  if (value && typeof value === "object") {
+    return String(value.en || value.es || Object.values(value)[0] || "").trim();
+  }
+  return String(value || "").trim();
+}
+
+function getCoachAthleteRecords() {
+  if (coachAthletesCache.length) return coachAthletesCache;
+  return ATHLETES.map((athlete) => normalizeCoachAthleteRecord(slugifyKey(athlete.name), athlete));
+}
+
+function getCoachNoteRecords() {
+  if (coachNotesCache.length) return coachNotesCache;
+  return Object.entries(COACH_ATHLETE_NOTE_BOARD).map(([athleteName, data]) => normalizeCoachNoteRecord(slugifyKey(athleteName), {
+    athleteName,
+    nextFocus: Array.isArray(data?.nextFocus) ? data.nextFocus.map((item) => getSeedCopyValue(item)).filter(Boolean) : [],
+    recentNotes: Array.isArray(data?.recentNotes) ? data.recentNotes.map((item) => getSeedCopyValue(item)).filter(Boolean) : []
+  }));
+}
+
+function getCoachNoteRecord(athleteName) {
+  const target = normalizeName(athleteName);
+  return getCoachNoteRecords().find((item) => normalizeName(item.athleteName) === target) || null;
+}
+
+function getCoachJournalRecords() {
+  return coachWorkspaceSortByUpdated(coachJournalEntriesCache);
+}
+
+function getCoachJournalRecordSetForAthlete(athleteName) {
+  const target = normalizeName(athleteName);
+  return getCoachJournalRecords()
+    .filter((entry) => normalizeName(entry.athleteName) === target)
+    .sort((left, right) => {
+      const leftScore = Date.parse(left.updatedAt || left.createdAt || `${left.entryDate}T23:59:59`);
+      const rightScore = Date.parse(right.updatedAt || right.createdAt || `${right.entryDate}T23:59:59`);
+      return rightScore - leftScore;
+    });
+}
+
+function getLatestCoachJournalRecord(athleteName) {
+  return getCoachJournalRecordSetForAthlete(athleteName)[0] || null;
+}
+
+function getCoachCompletionRecord(athleteName) {
+  const target = normalizeName(athleteName);
+  return coachCompletionCache.find((item) => normalizeName(item.athleteName) === target) || null;
+}
+
+function getCoachMatchAnalysisRecords() {
+  return coachWorkspaceSortByUpdated(coachMatchAnalysisCache);
+}
+
+function getLatestCoachMatchAnalysisForAthlete(athleteName) {
+  const target = normalizeName(athleteName);
+  return getCoachMatchAnalysisRecords().find((item) => normalizeName(item.athleteName) === target) || null;
+}
+
+function getCoachMatchAnalysisRecordForMediaTarget({ mediaId = "", mediaAssetPath = "", athleteName = "", groupId = "" } = {}) {
+  const targetMediaId = String(mediaId || "").trim();
+  const targetMediaAssetPath = normalizeMediaAssetPath(mediaAssetPath);
+  const targetAthlete = normalizeName(athleteName);
+  const targetGroup = String(groupId || "").trim();
+  return getCoachMatchAnalysisRecords().find((record) => (
+    (
+      (targetMediaId && String(record.mediaId || "").trim() === targetMediaId)
+        || (targetMediaAssetPath && normalizeMediaAssetPath(record.mediaAssetPath) === targetMediaAssetPath)
+    )
+      && normalizeName(record.athleteName) === targetAthlete
+      && String(record.groupId || "").trim() === targetGroup
+  )) || null;
+}
+
+function getSeedCoachAthleteRecords() {
+  return ATHLETES.map((athlete) => ({
+    id: slugifyKey(athlete.name),
+    ...normalizeCoachAthleteRecord(slugifyKey(athlete.name), athlete)
+  }));
+}
+
+function getSeedCoachNoteRecords() {
+  return Object.entries(COACH_ATHLETE_NOTE_BOARD).map(([athleteName, data]) => ({
+    id: slugifyKey(athleteName),
+    athleteName,
+    nextFocus: Array.isArray(data?.nextFocus) ? data.nextFocus.map((item) => getSeedCopyValue(item)).filter(Boolean) : [],
+    recentNotes: Array.isArray(data?.recentNotes) ? data.recentNotes.map((item) => getSeedCopyValue(item)).filter(Boolean) : []
+  }));
+}
+
+function getSeedCoachJournalRecords() {
+  const today = getCurrentAppDate();
+  const offsets = {
+    "Jaime Espinal": 0,
+    "Carlos Vega": 0,
+    "Maya Cruz": 2
+  };
+  return JOURNAL_ATHLETES.map((entry, index) => {
+    const offset = Object.prototype.hasOwnProperty.call(offsets, entry.name) ? offsets[entry.name] : (index % 2);
+    const dateKey = toDateKey(addDays(today, -offset));
+    return {
+      id: `${slugifyKey(entry.name)}-${dateKey}`,
+      athleteName: entry.name,
+      entryDate: dateKey,
+      sleep: entry.sleep,
+      energy: entry.energy,
+      soreness: entry.soreness,
+      mood: entry.mood,
+      weight: entry.weight,
+      note: entry.name === "Carlos Vega"
+        ? "Film week. Good pace today and the re-shot looked sharper once the hand-fight opened up."
+        : entry.name === "Maya Cruz"
+          ? "Ankle tolerated modified drilling. Keep live volume short and prioritize journal follow-up."
+          : "General readiness check-in captured by the coach."
+    };
+  });
+}
+
+function getSeedCoachMatchAnalysisRecords() {
+  const mediaItem = getMediaItemsData().find((item) => String(item.title || "").toLowerCase().includes("world-class takedown"))
+    || getMediaItemsData()[0]
+    || { title: "Opponent film", assetPath: "" };
+  return [
+    {
+      id: "seed-match-analysis-carlos-vega",
+      mediaId: slugifyKey(mediaItem.title),
+      mediaTitle: mediaItem.title,
+      mediaAssetPath: mediaItem.assetPath || "",
+      athleteName: "Carlos Vega",
+      groupId: "",
+      summary: "Inside control to re-shot is the cleanest scoring read. The second finish is there when he keeps his head on the hip and runs through contact.",
+      entries: [
+        { timestamp: "00:18", note: "Inside control wins the angle before the first committed shot." },
+        { timestamp: "01:24", note: "Best finish comes after the re-shot, not the first reach." },
+        { timestamp: "02:42", note: "Stay under the hips when the edge gets crowded." }
+      ]
+    }
+  ];
+}
+
+function getAssignmentStatusCounts(records = getCoachAssignmentRecords()) {
+  const counts = {
+    not_started: 0,
+    in_progress: 0,
+    completed: 0,
+    overdue: 0
+  };
+  records.forEach((record) => {
+    const key = normalizeAssignmentStatus(record.status);
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  return counts;
+}
+
+function getCoachJournalState(athleteName) {
+  const latest = getLatestCoachJournalRecord(athleteName);
+  if (!latest?.entryDate) return getCoachCompletionRecord(athleteName)?.journalState || "stale";
+  const diff = Math.floor((dateFromKey(getCurrentAppDateKey()) - dateFromKey(latest.entryDate)) / (1000 * 60 * 60 * 24));
+  return diff > 1 ? "stale" : "fresh";
+}
+
+function buildCoachCompletionSnapshot(athlete) {
+  const fallback = COACH_COMPLETION_ROWS[athlete.name] || {};
+  const assignments = getPlanAssignmentsForAthlete(athlete.name);
+  const alerts = getAthleteAlerts(athlete);
+  const latestPlan = getLatestCoachPlanForAthlete(athlete.name);
+  const counts = getAssignmentStatusCounts(assignments);
+  const board = getAthleteTaskBoard(athlete.name);
+  const availabilityKey = normalizeAvailabilityKey(getRawAthleteRecord(athlete.name)?.availability || athlete.availability);
+
+  let status = "ontrack";
+  if (availabilityKey === "limited" || alerts.some((item) => String(item).toLowerCase().includes("injury") || String(item).toLowerCase().includes("lesion"))) {
+    status = "limited";
+  } else if (counts.overdue > 0) {
+    status = "overdue";
+  } else if (counts.not_started > 0 || counts.in_progress > 0 || board.journalState === "stale") {
+    status = "followup";
+  }
+
+  const progress = assignments.length
+    ? (currentLang === "es" ? `${counts.completed}/${assignments.length} completadas` : `${counts.completed}/${assignments.length} completed`)
+    : pickCopy(fallback.progress || {
+        en: "No assignments yet",
+        es: "Todavia no hay asignaciones"
+      });
+
+  let followUp = "";
+  if (status === "limited") {
+    followUp = currentLang === "es"
+      ? "Revisa limitaciones fisicas y ajusta la carga."
+      : "Review physical limitations and adjust load.";
+  } else if (status === "overdue") {
+    followUp = currentLang === "es"
+      ? "Hay tareas atrasadas que requieren seguimiento."
+      : "There are overdue tasks that need follow-up.";
+  } else if (counts.in_progress > 0) {
+    followUp = currentLang === "es"
+      ? "Confirma el avance y deja feedback sobre las tareas activas."
+      : "Confirm progress and leave feedback on active work.";
+  } else if (board.journalState === "stale") {
+    followUp = currentLang === "es"
+      ? "Pide una actualizacion del journal."
+      : "Request a journal update.";
+  } else if (counts.not_started > 0) {
+    followUp = currentLang === "es"
+      ? "Recuerda al atleta que inicie la tarea asignada."
+      : "Remind the athlete to start the assigned work.";
+  } else {
+    followUp = pickCopy(fallback.followUp || {
+      en: "No urgent follow-up.",
+      es: "No hay seguimiento urgente."
+    });
+  }
+
+  return {
+    athleteName: athlete.name,
+    status,
+    plan: latestPlan?.title || assignments[0]?.title || pickCopy(fallback.plan || {
+      en: "No saved plan yet",
+      es: "Todavia no hay plan guardado"
+    }),
+    progress,
+    followUp,
+    pendingCount: counts.not_started + counts.in_progress + counts.overdue,
+    journalState: board.journalState
+  };
+}
+
+function scheduleCoachCompletionSync() {
+  if (!isCoachWorkspaceActive()) return;
+  if (coachCompletionSyncTimeout) clearTimeout(coachCompletionSyncTimeout);
+  coachCompletionSyncTimeout = setTimeout(() => {
+    syncCoachCompletionStatus().catch((err) => {
+      console.warn("Completion sync failed", err);
+    });
+  }, 250);
+}
+
+async function syncCoachCompletionStatus() {
+  const authUser = getAuthUser();
+  const completionRef = getCoachWorkspaceCollectionRef("completion_status", authUser?.id);
+  if (!completionRef || !firebaseFirestoreInstance) return;
+  const athletes = getCoachAthleteRecords();
+  if (!athletes.length) return;
+  const batch = firebaseFirestoreInstance.batch();
+  const timestamp = getFirestoreServerTimestamp();
+  athletes.forEach((athlete) => {
+    const payload = buildCoachCompletionSnapshot(athlete);
+    batch.set(completionRef.doc(slugifyKey(athlete.name)), stripUndefinedDeep({
+      ...payload,
+      updatedAt: timestamp
+    }), { merge: true });
+  });
+  await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_completion_write_timeout");
+}
+
+function scheduleCoachAssignmentStatusSync() {
+  if (!isCoachWorkspaceActive()) return;
+  setTimeout(() => {
+    syncDerivedAssignmentStatuses().catch((err) => {
+      console.warn("Assignment status sync failed", err);
+    });
+  }, 50);
+}
+
+async function syncDerivedAssignmentStatuses() {
+  const assignmentsRef = getCoachWorkspaceCollectionRef("assignments");
+  if (!assignmentsRef || !firebaseFirestoreInstance) return;
+  const todayKey = getCurrentAppDateKey();
+  const stale = coachAssignmentsCache.filter((assignment) => (
+    assignment.status !== "completed"
+      && assignment.status !== "overdue"
+      && assignment.dueDateKey
+      && assignment.dueDateKey < todayKey
+  ));
+  if (!stale.length) return;
+  const batch = firebaseFirestoreInstance.batch();
+  stale.forEach((assignment) => {
+    batch.set(assignmentsRef.doc(assignment.id), {
+      status: "overdue",
+      updatedAt: getFirestoreServerTimestamp()
+    }, { merge: true });
+  });
+  await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_assignment_status_sync_timeout");
 }
 
 function getCoachTemplateOptionsForType(type = planRangeType) {
@@ -3756,6 +4172,10 @@ function stopCoachWorkspaceRealtimeSync() {
     clearTimeout(coachCalendarSyncTimeout);
     coachCalendarSyncTimeout = null;
   }
+  if (coachCompletionSyncTimeout) {
+    clearTimeout(coachCompletionSyncTimeout);
+    coachCompletionSyncTimeout = null;
+  }
   coachWorkspaceUnsubs.forEach((unsubscribe) => {
     try {
       unsubscribe();
@@ -3770,6 +4190,11 @@ function stopCoachWorkspaceRealtimeSync() {
   coachAssignmentsCache = [];
   coachGroupsCache = [];
   coachCalendarEntriesCache = {};
+  coachAthletesCache = [];
+  coachNotesCache = [];
+  coachJournalEntriesCache = [];
+  coachCompletionCache = [];
+  coachMatchAnalysisCache = [];
   currentEditingCoachPlanId = "";
 }
 
@@ -3792,12 +4217,16 @@ async function ensureCoachWorkspaceSeeded() {
       "firestore_workspace_seed_timeout"
     );
 
-    const [templatesSnap, groupsSnap, plansSnap, assignmentsSnap, calendarSnap] = await Promise.all([
+    const [templatesSnap, groupsSnap, plansSnap, assignmentsSnap, calendarSnap, athletesSnap, notesSnap, journalSnap, matchAnalysisSnap] = await Promise.all([
       withTimeout(getCoachWorkspaceCollectionRef("templates", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_templates_seed_timeout"),
       withTimeout(getCoachWorkspaceCollectionRef("groups", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_groups_seed_timeout"),
       withTimeout(getCoachWorkspaceCollectionRef("plans", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_plans_seed_timeout"),
       withTimeout(getCoachWorkspaceCollectionRef("assignments", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_assignments_seed_timeout"),
-      withTimeout(getCoachWorkspaceCollectionRef("calendar_entries", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_calendar_seed_timeout")
+      withTimeout(getCoachWorkspaceCollectionRef("calendar_entries", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_calendar_seed_timeout"),
+      withTimeout(getCoachWorkspaceCollectionRef("athletes", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_athletes_seed_timeout"),
+      withTimeout(getCoachWorkspaceCollectionRef("coach_notes", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_notes_seed_timeout"),
+      withTimeout(getCoachWorkspaceCollectionRef("journal_entries", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_journal_seed_timeout"),
+      withTimeout(getCoachWorkspaceCollectionRef("match_analysis", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_match_analysis_seed_timeout")
     ]);
 
     if (templatesSnap.empty) {
@@ -3866,6 +4295,60 @@ async function ensureCoachWorkspaceSeeded() {
       });
       await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_calendar_seed_commit_timeout");
     }
+
+    if (athletesSnap.empty) {
+      const batch = firebaseFirestoreInstance.batch();
+      getSeedCoachAthleteRecords().forEach((athlete) => {
+        const ref = getCoachWorkspaceCollectionRef("athletes", authUser.id).doc(athlete.id);
+        batch.set(ref, {
+          ...athlete,
+          createdAt: getFirestoreServerTimestamp(),
+          updatedAt: getFirestoreServerTimestamp()
+        }, { merge: true });
+      });
+      await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_athletes_seed_commit_timeout");
+    }
+
+    if (notesSnap.empty) {
+      const batch = firebaseFirestoreInstance.batch();
+      getSeedCoachNoteRecords().forEach((noteRecord) => {
+        const ref = getCoachWorkspaceCollectionRef("coach_notes", authUser.id).doc(noteRecord.id);
+        batch.set(ref, {
+          ...noteRecord,
+          createdAt: getFirestoreServerTimestamp(),
+          updatedAt: getFirestoreServerTimestamp()
+        }, { merge: true });
+      });
+      await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_notes_seed_commit_timeout");
+    }
+
+    if (journalSnap.empty) {
+      const batch = firebaseFirestoreInstance.batch();
+      getSeedCoachJournalRecords().forEach((entry) => {
+        const ref = getCoachWorkspaceCollectionRef("journal_entries", authUser.id).doc(entry.id);
+        batch.set(ref, {
+          ...entry,
+          createdAt: getFirestoreServerTimestamp(),
+          updatedAt: getFirestoreServerTimestamp()
+        }, { merge: true });
+      });
+      await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_journal_seed_commit_timeout");
+    }
+
+    if (matchAnalysisSnap.empty) {
+      const batch = firebaseFirestoreInstance.batch();
+      getSeedCoachMatchAnalysisRecords().forEach((analysisRecord) => {
+        const ref = getCoachWorkspaceCollectionRef("match_analysis", authUser.id).doc(analysisRecord.id);
+        batch.set(ref, {
+          ...analysisRecord,
+          createdAt: getFirestoreServerTimestamp(),
+          updatedAt: getFirestoreServerTimestamp()
+        }, { merge: true });
+      });
+      await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_match_analysis_seed_commit_timeout");
+    }
+
+    await syncCoachCompletionStatus();
   })().finally(() => {
     coachWorkspaceSeedPromise = null;
   });
@@ -3892,7 +4375,12 @@ async function startCoachWorkspaceRealtimeSync() {
   const assignmentsRef = getCoachWorkspaceCollectionRef("assignments", authUser.id);
   const groupsRef = getCoachWorkspaceCollectionRef("groups", authUser.id);
   const calendarRef = getCoachWorkspaceCollectionRef("calendar_entries", authUser.id);
-  if (!plansRef || !templatesRef || !assignmentsRef || !groupsRef || !calendarRef) return;
+  const athletesRef = getCoachWorkspaceCollectionRef("athletes", authUser.id);
+  const notesRef = getCoachWorkspaceCollectionRef("coach_notes", authUser.id);
+  const journalRef = getCoachWorkspaceCollectionRef("journal_entries", authUser.id);
+  const completionRef = getCoachWorkspaceCollectionRef("completion_status", authUser.id);
+  const matchAnalysisRef = getCoachWorkspaceCollectionRef("match_analysis", authUser.id);
+  if (!plansRef || !templatesRef || !assignmentsRef || !groupsRef || !calendarRef || !athletesRef || !notesRef || !journalRef || !completionRef || !matchAnalysisRef) return;
 
   coachWorkspaceUnsubs.push(
     plansRef.onSnapshot((snapshot) => {
@@ -3903,6 +4391,8 @@ async function startCoachWorkspaceRealtimeSync() {
       renderCompletionTracking();
       renderDashboard();
       renderAthleteNotes();
+      renderCompetitionPreview(getAthletesData().find((item) => item.name === getSelectedCoachAthleteName()) || getAthletesData()[0] || null);
+      scheduleCoachCompletionSync();
     }, (err) => console.warn("Plan sync failed", err)),
     templatesRef.onSnapshot((snapshot) => {
       coachTemplatesCache = coachWorkspaceSortByUpdated(
@@ -3920,6 +4410,9 @@ async function startCoachWorkspaceRealtimeSync() {
       renderDashboard();
       renderAthleteManagement();
       renderAthleteNotes();
+      renderCompetitionPreview(getAthletesData().find((item) => item.name === getSelectedCoachAthleteName()) || getAthletesData()[0] || null);
+      scheduleCoachAssignmentStatusSync();
+      scheduleCoachCompletionSync();
     }, (err) => console.warn("Assignment sync failed", err)),
     groupsRef.onSnapshot((snapshot) => {
       coachGroupsCache = coachWorkspaceSortByUpdated(
@@ -3930,6 +4423,8 @@ async function startCoachWorkspaceRealtimeSync() {
       renderCompletionTracking();
       renderAthleteManagement();
       renderAthleteNotes();
+      renderMedia();
+      scheduleCoachCompletionSync();
     }, (err) => console.warn("Group sync failed", err)),
     calendarRef.onSnapshot((snapshot) => {
       const next = {};
@@ -3941,7 +4436,58 @@ async function startCoachWorkspaceRealtimeSync() {
       renderCalendar(calendarSelectedKey);
       renderCalendarManager();
       renderDashboard();
-    }, (err) => console.warn("Calendar sync failed", err))
+    }, (err) => console.warn("Calendar sync failed", err)),
+    athletesRef.onSnapshot((snapshot) => {
+      coachAthletesCache = coachWorkspaceSortByUpdated(
+        snapshot.docs.map((doc) => normalizeCoachAthleteRecord(doc.id, doc.data()))
+      );
+      syncCoachMatchAthleteSelect();
+      renderAthleteManagement();
+      renderAthleteNotes();
+      renderJournalMonitor();
+      renderCompletionTracking();
+      renderDashboard();
+      renderCompetitionPreview(getAthletesData().find((item) => item.name === getSelectedCoachAthleteName()) || getAthletesData()[0] || null);
+      scheduleCoachCompletionSync();
+    }, (err) => console.warn("Athlete sync failed", err)),
+    notesRef.onSnapshot((snapshot) => {
+      coachNotesCache = coachWorkspaceSortByUpdated(
+        snapshot.docs.map((doc) => normalizeCoachNoteRecord(doc.id, doc.data()))
+      );
+      renderAthleteNotes();
+      renderCoachAthleteProfile(getSelectedCoachAthleteName());
+      renderCoachMatchView(getSelectedCoachAthleteName());
+      renderCompetitionPreview(getAthletesData().find((item) => item.name === getSelectedCoachAthleteName()) || getAthletesData()[0] || null);
+    }, (err) => console.warn("Coach note sync failed", err)),
+    journalRef.onSnapshot((snapshot) => {
+      coachJournalEntriesCache = coachWorkspaceSortByUpdated(
+        snapshot.docs.map((doc) => normalizeCoachJournalRecord(doc.id, doc.data()))
+      );
+      renderJournalMonitor();
+      renderAthleteManagement();
+      renderCoachAthleteProfile(getSelectedCoachAthleteName());
+      renderCoachMatchView(getSelectedCoachAthleteName());
+      renderCompetitionPreview(getAthletesData().find((item) => item.name === getSelectedCoachAthleteName()) || getAthletesData()[0] || null);
+      renderCompletionTracking();
+      renderDashboard();
+      scheduleCoachCompletionSync();
+    }, (err) => console.warn("Journal sync failed", err)),
+    completionRef.onSnapshot((snapshot) => {
+      coachCompletionCache = coachWorkspaceSortByUpdated(
+        snapshot.docs.map((doc) => normalizeCoachCompletionRecord(doc.id, doc.data()))
+      );
+      renderCompletionTracking();
+      renderDashboard();
+      renderAthleteManagement();
+    }, (err) => console.warn("Completion sync failed", err)),
+    matchAnalysisRef.onSnapshot((snapshot) => {
+      coachMatchAnalysisCache = coachWorkspaceSortByUpdated(
+        snapshot.docs.map((doc) => normalizeCoachMatchAnalysisRecord(doc.id, doc.data()))
+      );
+      renderMedia();
+      renderCoachMatchView(getSelectedCoachAthleteName());
+      renderCompetitionPreview(getAthletesData().find((item) => item.name === getSelectedCoachAthleteName()) || getAthletesData()[0] || null);
+    }, (err) => console.warn("Match analysis sync failed", err))
   );
 }
 
@@ -4801,7 +5347,7 @@ const COACH_ASSIGNMENT_ITEMS = [
     dueDate: { en: "Today - 5:00 PM", es: "Hoy - 5:00 PM" },
     source: { en: "Film library", es: "Biblioteca de video" },
     note: { en: "Required before evening practice.", es: "Obligatorio antes de la practica de la tarde." },
-    status: "due"
+    status: "not_started"
   },
   {
     title: { en: "Top-turn breakdown", es: "Analisis de turns arriba" },
@@ -4810,7 +5356,7 @@ const COACH_ASSIGNMENT_ITEMS = [
     dueDate: { en: "Tomorrow - 10:00 AM", es: "Manana - 10:00 AM" },
     source: { en: "Coach clip set", es: "Clips del coach" },
     note: { en: "Reply with 3 scoring reads.", es: "Responder con 3 lecturas de puntuacion." },
-    status: "review"
+    status: "in_progress"
   },
   {
     title: { en: "Ankle-safe motion drill", es: "Drill de movimiento seguro para el tobillo" },
@@ -4828,7 +5374,7 @@ const COACH_ASSIGNMENT_ITEMS = [
     dueDate: { en: "Completed - Friday", es: "Completado - viernes" },
     source: { en: "Competition packet", es: "Paquete de competencia" },
     note: { en: "Travel details already confirmed.", es: "Los detalles de viaje ya estan confirmados." },
-    status: "complete"
+    status: "completed"
   },
   {
     title: { en: "Journal + weight check", es: "Journal + chequeo de peso" },
@@ -4837,7 +5383,7 @@ const COACH_ASSIGNMENT_ITEMS = [
     dueDate: { en: "Today - before 7:00 PM", es: "Hoy - antes de las 7:00 PM" },
     source: { en: "Readiness check", es: "Chequeo de readiness" },
     note: { en: "Needs coach review before Saturday lineup.", es: "Necesita revision del coach antes de la alineacion del sabado." },
-    status: "due"
+    status: "not_started"
   }
 ];
 
@@ -6089,7 +6635,10 @@ function localizeAthlete(athlete) {
 
 function getAthletesData() {
   const profile = getProfile();
-  const merged = ATHLETES.map((athlete) => {
+  const sourceAthletes = isCoachRole(profile?.role) && getCoachAthleteRecords().length
+    ? getCoachAthleteRecords()
+    : ATHLETES;
+  const merged = sourceAthletes.map((athlete) => {
     if (!profile || profile.role !== "athlete" || !profile.name || profile.name !== athlete.name) {
       return { ...athlete, tags: normalizeSmartTags(athlete.tags) };
     }
@@ -6145,6 +6694,19 @@ function getJournalFlagsData() {
 }
 
 function getJournalAthletesData() {
+  if (coachJournalEntriesCache.length) {
+    const latestEntries = getAthletesData().map((athlete) => getLatestCoachJournalRecord(athlete.name)).filter(Boolean);
+    return latestEntries.map((entry) => ({
+      name: entry.athleteName,
+      sleep: entry.sleep,
+      energy: entry.energy,
+      soreness: entry.soreness,
+      mood: entry.mood,
+      weight: entry.weight,
+      note: entry.note,
+      entryDate: entry.entryDate
+    }));
+  }
   return currentLang === "es" ? JOURNAL_ATHLETES_ES : JOURNAL_ATHLETES;
 }
 
@@ -6957,11 +7519,12 @@ async function replaceAssignmentsForPlan(plan) {
       type: getPlanAssignmentTypeLabel(plan.type),
       dueDateKey,
       dueLabel,
-      status: "due",
+      status: "not_started",
       note: plan.focus || plan.coachNotes || "",
       source: plan.sourceLabel || getPlanScopeLabel(),
       planId: plan.id,
       planType: plan.type,
+      notificationStatus: "pending",
       createdAt: timestamp,
       updatedAt: timestamp
     }));
@@ -8347,6 +8910,9 @@ function buildCompetitionPreview(profile) {
   const strategyPlans = [profile.strategyA, profile.strategyB, profile.strategyC].filter(Boolean);
   const latestPlan = profile.name ? getLatestCoachPlanForAthlete(profile.name) : null;
   const liveAssignments = profile.name ? getPlanAssignmentsForAthlete(profile.name) : [];
+  const latestJournal = profile.name ? getLatestCoachJournalRecord(profile.name) : null;
+  const latestNotes = profile.name ? getCoachNoteRecord(profile.name) : null;
+  const latestAnalysis = profile.name ? getLatestCoachMatchAnalysisForAthlete(profile.name) : null;
   const cornerPlan = getAthleteCornerPlan(getRawAthleteRecord(profile.name) || profile);
   return [
     {
@@ -8383,7 +8949,8 @@ function buildCompetitionPreview(profile) {
         `${currentLang === "es" ? "Plan activo" : "Active plan"}: ${latestPlan?.title || na}`,
         `${currentLang === "es" ? "Siguiente tarea" : "Next assignment"}: ${liveAssignments[0]?.title || na}`,
         `${currentLang === "es" ? "Competition cue" : "Competition cue"}: ${cornerPlan?.competitionCue || profile.coachSignal || na}`,
-        `${currentLang === "es" ? "Advertencia principal" : "Primary warning"}: ${cornerPlan?.safetyWarnings?.[0] || profile.injuryNotes || none}`
+        `${currentLang === "es" ? "Advertencia principal" : "Primary warning"}: ${cornerPlan?.safetyWarnings?.[0] || profile.injuryNotes || none}`,
+        `${currentLang === "es" ? "Journal" : "Journal"}: ${latestJournal?.entryDate ? `${formatPlanDateLabel(latestJournal.entryDate)} - ${latestJournal.energy || na}` : na}`
       ]
     },
     {
@@ -8410,7 +8977,9 @@ function buildCompetitionPreview(profile) {
         `${currentLang === "es" ? "Senal clave" : "Coach signal"}: ${profile.coachSignal || na}`,
         `${currentLang === "es" ? "Top ofensivo" : "Top offense"}: ${offense}`,
         `${currentLang === "es" ? "Top defensivo" : "Top defense"}: ${defense}`,
-        `Tags: ${tags}`
+        `Tags: ${tags}`,
+        `${currentLang === "es" ? "Focus actual" : "Current focus"}: ${(latestNotes?.nextFocus || []).slice(0, 2).join(" | ") || na}`,
+        `${currentLang === "es" ? "Ultimo match analysis" : "Latest match analysis"}: ${latestAnalysis?.summary || na}`
       ]
     },
     {
@@ -9542,6 +10111,26 @@ const mediaNewItemAssigned = document.getElementById("mediaNewItemAssigned");
 const mediaNewItemNoteLabel = document.getElementById("mediaNewItemNoteLabel");
 const mediaNewItemNote = document.getElementById("mediaNewItemNote");
 const mediaAddItemBtn = document.getElementById("mediaAddItemBtn");
+const mediaAssignmentTitle = document.getElementById("mediaAssignmentTitle");
+const mediaSelectedItemLabel = document.getElementById("mediaSelectedItemLabel");
+const mediaAssignmentMode = document.getElementById("mediaAssignmentMode");
+const mediaAssignmentTarget = document.getElementById("mediaAssignmentTarget");
+const mediaAssignmentType = document.getElementById("mediaAssignmentType");
+const mediaAssignmentDueDate = document.getElementById("mediaAssignmentDueDate");
+const mediaAssignmentTitleInput = document.getElementById("mediaAssignmentTitleInput");
+const mediaAssignmentNote = document.getElementById("mediaAssignmentNote");
+const mediaAssignBtn = document.getElementById("mediaAssignBtn");
+const mediaAssignmentStatus = document.getElementById("mediaAssignmentStatus");
+const mediaAnalysisTitle = document.getElementById("mediaAnalysisTitle");
+const mediaAnalysisSelectedLabel = document.getElementById("mediaAnalysisSelectedLabel");
+const mediaAnalysisMode = document.getElementById("mediaAnalysisMode");
+const mediaAnalysisTarget = document.getElementById("mediaAnalysisTarget");
+const mediaAnalysisSummary = document.getElementById("mediaAnalysisSummary");
+const mediaAnalysisTimestamp = document.getElementById("mediaAnalysisTimestamp");
+const mediaAnalysisNote = document.getElementById("mediaAnalysisNote");
+const mediaAnalysisAddBtn = document.getElementById("mediaAnalysisAddBtn");
+const mediaAnalysisEntries = document.getElementById("mediaAnalysisEntries");
+const mediaAnalysisStatus = document.getElementById("mediaAnalysisStatus");
 
 const MEDIA_COPY = {
   root: {
@@ -9791,6 +10380,7 @@ const MEDIA_PLACEHOLDERS = {
 
 let mediaActiveSectionId = null;
 let mediaToolsBound = false;
+let selectedMediaItemId = "";
 let mediaTreeCache = null;
 let mediaSyncTimeout = null;
 let mediaRealtimeUnsub = null;
@@ -10207,6 +10797,198 @@ function sectionMetaText(counts) {
   return `${counts.sections} ${sectionsWord} - ${counts.items} ${itemsWord}`;
 }
 
+function syncSelectedMediaNode(nodes = getMediaNodes()) {
+  const selected = findMediaNode(nodes, selectedMediaItemId);
+  if (selected?.type === "item") return selected;
+  const sectionItems = getMediaChildren(nodes, mediaActiveSectionId, "item");
+  const fallback = sectionItems[0] || nodes.find((node) => node.type === "item") || null;
+  selectedMediaItemId = fallback?.id || "";
+  return fallback;
+}
+
+function getMediaAssignmentTargetOptions(mode = mediaAssignmentMode?.value || "athlete") {
+  if (mode === "group") {
+    return getCoachGroupRecords().map((group) => ({
+      value: group.id,
+      label: group.name
+    }));
+  }
+  return getAthletesData().map((athlete) => ({
+    value: athlete.name,
+    label: athlete.name
+  }));
+}
+
+function populateMediaTargetSelect(selectEl, mode, selectedValue = "") {
+  if (!selectEl) return;
+  const options = getMediaAssignmentTargetOptions(mode);
+  selectEl.innerHTML = options.map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`).join("");
+  if (!options.length) return;
+  selectEl.value = options.some((option) => option.value === selectedValue) ? selectedValue : options[0].value;
+}
+
+function buildMediaAnalysisRecordId(mediaNode, mode, targetValue) {
+  const suffix = mode === "group" ? targetValue : slugifyKey(targetValue);
+  return `${mediaNode.id}-${suffix}`;
+}
+
+function getMediaAnalysisTargetLabel(mode, targetValue) {
+  if (mode === "group") {
+    return getCoachGroupRecords().find((group) => group.id === targetValue)?.name || targetValue;
+  }
+  return targetValue;
+}
+
+function renderMediaAnalysisEntries(mediaNode) {
+  if (!mediaAnalysisEntries) return;
+  const mode = mediaAnalysisMode?.value || "athlete";
+  const targetValue = mediaAnalysisTarget?.value || "";
+  const targetLabel = getMediaAnalysisTargetLabel(mode, targetValue);
+  const record = getCoachMatchAnalysisRecordForMediaTarget({
+    mediaId: mediaNode?.id || "",
+    mediaAssetPath: mediaNode?.assetPath || "",
+    athleteName: mode === "athlete" ? targetValue : "",
+    groupId: mode === "group" ? targetValue : ""
+  });
+  const entries = record?.entries || [];
+  mediaAnalysisEntries.innerHTML = "";
+  if (!mediaNode || !entries.length) {
+    mediaAnalysisEntries.innerHTML = `<div class="mini-card"><p class="small muted">${currentLang === "es" ? "Todavia no hay analisis guardado para este video." : "No match analysis saved for this media yet."}</p></div>`;
+    return;
+  }
+  const summaryCard = document.createElement("div");
+  summaryCard.className = "mini-card";
+  summaryCard.innerHTML = `
+    <h4>${record.mediaTitle || mediaNode.title}</h4>
+    <div class="small">${targetLabel}</div>
+    <p class="small">${record.summary || (currentLang === "es" ? "Sin resumen todavia." : "No summary yet.")}</p>
+  `;
+  mediaAnalysisEntries.appendChild(summaryCard);
+  entries.forEach((entry) => {
+    const card = document.createElement("div");
+    card.className = "mini-card";
+    card.innerHTML = `<strong>${entry.timestamp || "--:--"}</strong><p class="small">${entry.note || ""}</p>`;
+    mediaAnalysisEntries.appendChild(card);
+  });
+}
+
+function renderMediaCoachActions(nodes = getMediaNodes()) {
+  const selectedMedia = syncSelectedMediaNode(nodes);
+  const selectedLabel = selectedMedia
+    ? `${currentLang === "es" ? "Seleccionado" : "Selected"}: ${selectedMedia.title}`
+    : (currentLang === "es" ? "Selecciona un media para crear la tarea." : "Select a media item to create the assignment.");
+  if (mediaSelectedItemLabel) mediaSelectedItemLabel.textContent = selectedLabel;
+  if (mediaAnalysisSelectedLabel) mediaAnalysisSelectedLabel.textContent = selectedLabel;
+  if (mediaAssignmentDueDate && !mediaAssignmentDueDate.value) mediaAssignmentDueDate.value = getCurrentAppDateKey();
+  if (mediaAssignmentTitleInput && selectedMedia && !mediaAssignmentTitleInput.value.trim()) {
+    mediaAssignmentTitleInput.value = selectedMedia.title;
+  }
+  populateMediaTargetSelect(mediaAssignmentTarget, mediaAssignmentMode?.value || "athlete", mediaAssignmentTarget?.value || getSelectedCoachAthleteName());
+  populateMediaTargetSelect(mediaAnalysisTarget, mediaAnalysisMode?.value || "athlete", mediaAnalysisTarget?.value || getSelectedCoachAthleteName());
+  const existingAnalysis = getCoachMatchAnalysisRecordForMediaTarget({
+    mediaId: selectedMedia?.id || "",
+    mediaAssetPath: selectedMedia?.assetPath || "",
+    athleteName: (mediaAnalysisMode?.value || "athlete") === "athlete" ? (mediaAnalysisTarget?.value || "") : "",
+    groupId: (mediaAnalysisMode?.value || "athlete") === "group" ? (mediaAnalysisTarget?.value || "") : ""
+  });
+  if (mediaAnalysisSummary && existingAnalysis && !mediaAnalysisSummary.value.trim()) {
+    mediaAnalysisSummary.value = existingAnalysis.summary || "";
+  }
+  renderMediaAnalysisEntries(selectedMedia);
+}
+
+async function createAssignmentFromSelectedMedia() {
+  const mediaNode = syncSelectedMediaNode(getMediaNodes());
+  const assignmentsRef = getCoachWorkspaceCollectionRef("assignments");
+  if (!mediaNode || !assignmentsRef) {
+    throw new Error("media_assignment_requires_selection");
+  }
+  const mode = mediaAssignmentMode?.value || "athlete";
+  const targetValue = mediaAssignmentTarget?.value || "";
+  const dueDateKey = normalizeDateKey(mediaAssignmentDueDate?.value || getCurrentAppDateKey());
+  const type = String(mediaAssignmentType?.value || "Video review").trim();
+  const title = String(mediaAssignmentTitleInput?.value || mediaNode.title || "").trim();
+  const note = String(mediaAssignmentNote?.value || mediaNode.note || "").trim();
+  if (!targetValue || !title) {
+    throw new Error("media_assignment_target_required");
+  }
+  const payload = {
+    title,
+    assigneeType: mode,
+    assigneeId: mode === "group" ? targetValue : slugifyKey(targetValue),
+    assigneeName: getMediaAnalysisTargetLabel(mode, targetValue),
+    assigneeNames: mode === "group"
+      ? (getCoachGroupRecords().find((group) => group.id === targetValue)?.memberNames || [])
+      : [targetValue],
+    type,
+    dueDateKey,
+    dueLabel: formatPlanDateLabel(dueDateKey),
+    status: "not_started",
+    note,
+    source: `Media - ${mediaNode.mediaType || "Video"}`,
+    mediaId: mediaNode.id,
+    mediaTitle: mediaNode.title,
+    mediaAssetPath: mediaNode.assetPath || "",
+    notificationStatus: "pending"
+  };
+  const ref = assignmentsRef.doc();
+  await withTimeout(
+    ref.set(stripUndefinedDeep({
+      ...payload,
+      createdAt: getFirestoreServerTimestamp(),
+      updatedAt: getFirestoreServerTimestamp()
+    }), { merge: true }),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_media_assignment_timeout"
+  );
+}
+
+async function saveSelectedMediaAnalysis() {
+  const mediaNode = syncSelectedMediaNode(getMediaNodes());
+  const analysisRef = getCoachWorkspaceCollectionRef("match_analysis");
+  if (!mediaNode || !analysisRef) {
+    throw new Error("media_analysis_requires_selection");
+  }
+  const mode = mediaAnalysisMode?.value || "athlete";
+  const targetValue = mediaAnalysisTarget?.value || "";
+  const targetLabel = getMediaAnalysisTargetLabel(mode, targetValue);
+  const summary = String(mediaAnalysisSummary?.value || "").trim();
+  const timestamp = String(mediaAnalysisTimestamp?.value || "").trim();
+  const note = String(mediaAnalysisNote?.value || "").trim();
+  if (!targetValue || (!summary && !timestamp && !note)) {
+    throw new Error("media_analysis_target_required");
+  }
+  const existing = getCoachMatchAnalysisRecordForMediaTarget({
+    mediaId: mediaNode.id,
+    mediaAssetPath: mediaNode.assetPath || "",
+    athleteName: mode === "athlete" ? targetValue : "",
+    groupId: mode === "group" ? targetValue : ""
+  });
+  const recordId = existing?.id || buildMediaAnalysisRecordId(mediaNode, mode, targetValue);
+  const nextEntries = [...(existing?.entries || [])];
+  if (timestamp || note) {
+    nextEntries.push({
+      timestamp,
+      note
+    });
+  }
+  await withTimeout(
+    analysisRef.doc(recordId).set(stripUndefinedDeep({
+      mediaId: mediaNode.id,
+      mediaTitle: mediaNode.title,
+      mediaAssetPath: mediaNode.assetPath || "",
+      athleteName: mode === "athlete" ? targetLabel : "",
+      groupId: mode === "group" ? targetValue : "",
+      summary: summary || existing?.summary || "",
+      entries: nextEntries,
+      createdAt: existing ? undefined : getFirestoreServerTimestamp(),
+      updatedAt: getFirestoreServerTimestamp()
+    }), { merge: true }),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_match_analysis_write_timeout"
+  );
+}
+
 function renderMediaBreadcrumb(nodes) {
   if (!mediaBreadcrumb) return;
   mediaBreadcrumb.innerHTML = "";
@@ -10279,14 +11061,16 @@ function renderMediaItems(nodes) {
   const durationLabel = mediaCopy("duration");
   const saveFavLabel = mediaCopy("saveFav");
   const openMediaLabel = mediaCopy("openMedia");
+  const selectMediaLabel = currentLang === "es" ? "Seleccionar" : "Select";
   const missingAssetLabel = mediaCopy("missingAsset");
   const parent = mediaActiveSectionId ? findMediaNode(nodes, mediaActiveSectionId) : null;
   const parentName = parent?.type === "section" ? parent.name : "";
+  const selectedNode = syncSelectedMediaNode(nodes);
 
   mediaItemList.innerHTML = "";
   items.forEach((item) => {
     const card = document.createElement("div");
-    card.className = "media-item-card";
+    card.className = `media-item-card${selectedNode?.id === item.id ? " active" : ""}`;
     const assetPath = normalizeMediaAssetPath(item.assetPath || item.assetUrl || item.url || "");
     const thumbnailPath = normalizeMediaAssetPath(item.thumbnailPath || item.thumbnailUrl || "");
     const assetUrl = resolveMediaLocation(assetPath);
@@ -10310,6 +11094,17 @@ function renderMediaItems(nodes) {
 
     const actions = document.createElement("div");
     actions.className = "media-item-actions";
+    const selectBtn = document.createElement("button");
+    selectBtn.type = "button";
+    selectBtn.className = selectedNode?.id === item.id ? "ghost" : "";
+    selectBtn.textContent = selectMediaLabel;
+    selectBtn.addEventListener("click", () => {
+      selectedMediaItemId = item.id;
+      if (mediaAssignmentTitleInput) mediaAssignmentTitleInput.value = item.title || "";
+      if (mediaAssignmentNote && !mediaAssignmentNote.value.trim()) mediaAssignmentNote.value = item.note || "";
+      renderMedia();
+    });
+    actions.appendChild(selectBtn);
     if (assetUrl) {
       const openBtn = document.createElement("button");
       openBtn.type = "button";
@@ -10434,6 +11229,73 @@ function bindMediaTools() {
     });
   }
 
+  if (mediaAssignmentMode) {
+    mediaAssignmentMode.addEventListener("change", () => {
+      populateMediaTargetSelect(mediaAssignmentTarget, mediaAssignmentMode.value, "");
+      renderMediaCoachActions();
+    });
+  }
+
+  if (mediaAnalysisMode) {
+    mediaAnalysisMode.addEventListener("change", () => {
+      populateMediaTargetSelect(mediaAnalysisTarget, mediaAnalysisMode.value, "");
+      renderMediaCoachActions();
+    });
+  }
+
+  if (mediaAnalysisTarget) {
+    mediaAnalysisTarget.addEventListener("change", () => {
+      renderMediaCoachActions();
+    });
+  }
+
+  if (mediaAssignBtn) {
+    mediaAssignBtn.addEventListener("click", async () => {
+      if (mediaAssignmentStatus) mediaAssignmentStatus.textContent = "";
+      try {
+        await createAssignmentFromSelectedMedia();
+        if (mediaAssignmentStatus) {
+          mediaAssignmentStatus.textContent = currentLang === "es"
+            ? "Asignacion creada desde Media."
+            : "Assignment created from Media.";
+        }
+        toast(currentLang === "es" ? "Asignacion creada." : "Assignment created.");
+        renderCoachAssignments();
+      } catch (err) {
+        console.warn("Media assignment create failed", err);
+        if (mediaAssignmentStatus) {
+          mediaAssignmentStatus.textContent = currentLang === "es"
+            ? "No se pudo crear la asignacion."
+            : "Could not create the assignment.";
+        }
+      }
+    });
+  }
+
+  if (mediaAnalysisAddBtn) {
+    mediaAnalysisAddBtn.addEventListener("click", async () => {
+      if (mediaAnalysisStatus) mediaAnalysisStatus.textContent = "";
+      try {
+        await saveSelectedMediaAnalysis();
+        if (mediaAnalysisTimestamp) mediaAnalysisTimestamp.value = "";
+        if (mediaAnalysisNote) mediaAnalysisNote.value = "";
+        if (mediaAnalysisStatus) {
+          mediaAnalysisStatus.textContent = currentLang === "es"
+            ? "Analisis guardado."
+            : "Analysis saved.";
+        }
+        renderMediaCoachActions();
+      } catch (err) {
+        console.warn("Media analysis save failed", err);
+        if (mediaAnalysisStatus) {
+          mediaAnalysisStatus.textContent = currentLang === "es"
+            ? "No se pudo guardar el analisis."
+            : "Could not save the analysis.";
+        }
+      }
+    });
+  }
+
   mediaToolsBound = true;
 }
 
@@ -10465,6 +11327,11 @@ function renderMediaCoachTools(isCoach) {
   if (mediaNewItemDuration) mediaNewItemDuration.placeholder = pickCopy(MEDIA_PLACEHOLDERS.duration);
   if (mediaNewItemAssigned) mediaNewItemAssigned.placeholder = pickCopy(MEDIA_PLACEHOLDERS.assigned);
   if (mediaNewItemNote) mediaNewItemNote.placeholder = pickCopy(MEDIA_PLACEHOLDERS.note);
+  if (mediaAssignmentTitle) mediaAssignmentTitle.textContent = currentLang === "es" ? "Asignar tarea desde media" : "Assign Media Task";
+  if (mediaAnalysisTitle) mediaAnalysisTitle.textContent = currentLang === "es" ? "Analisis de combate" : "Match Analysis";
+  if (mediaAssignBtn) mediaAssignBtn.textContent = currentLang === "es" ? "Crear asignacion" : "Create assignment";
+  if (mediaAnalysisAddBtn) mediaAnalysisAddBtn.textContent = currentLang === "es" ? "Guardar analisis" : "Save analysis";
+  renderMediaCoachActions();
 }
 
 function renderMedia() {
@@ -10503,28 +11370,40 @@ const assignmentResourceTitle = document.getElementById("assignmentResourceTitle
 const assignmentResourceList = document.getElementById("assignmentResourceList");
 const assignmentWorkflowTitle = document.getElementById("assignmentWorkflowTitle");
 const assignmentWorkflowList = document.getElementById("assignmentWorkflowList");
+const assignmentFilterAthlete = document.getElementById("assignmentFilterAthlete");
+const assignmentFilterStatus = document.getElementById("assignmentFilterStatus");
+const assignmentFilterType = document.getElementById("assignmentFilterType");
+const assignmentFilterDate = document.getElementById("assignmentFilterDate");
+const assignmentFilterClear = document.getElementById("assignmentFilterClear");
 const completionStats = document.getElementById("completionStats");
 const completionList = document.getElementById("completionList");
 const completionRowsTitle = document.getElementById("completionRowsTitle");
 const completionAlertsTitle = document.getElementById("completionAlertsTitle");
 const completionAlertsList = document.getElementById("completionAlertsList");
+let assignmentFilterState = {
+  athlete: "",
+  status: "",
+  type: "",
+  date: ""
+};
 
 function getAssignmentStatusMeta(status) {
   const copy = {
-    due: { en: "Due now", es: "Vence ahora" },
-    review: { en: "Coach review", es: "Revision coach" },
+    not_started: { en: "Not started", es: "Sin empezar" },
+    in_progress: { en: "In progress", es: "En progreso" },
     overdue: { en: "Overdue", es: "Atrasado" },
-    complete: { en: "Completed", es: "Completado" }
+    completed: { en: "Completed", es: "Completado" }
   };
   const classes = {
-    due: "status-pill-pending",
-    review: "status-pill-journal",
+    not_started: "status-pill-pending",
+    in_progress: "status-pill-journal",
     overdue: "status-pill-alert",
-    complete: "status-pill-active"
+    completed: "status-pill-active"
   };
+  const key = normalizeAssignmentStatus(status);
   return {
-    label: pickCopy(copy[status] || copy.due),
-    className: classes[status] || "status-pill-pending"
+    label: pickCopy(copy[key] || copy.not_started),
+    className: classes[key] || "status-pill-pending"
   };
 }
 
@@ -10563,75 +11442,17 @@ function getLatestCoachPlanForAthlete(athleteName) {
 }
 
 function getCoachCompletionRow(athlete) {
-  const fallback = COACH_COMPLETION_ROWS[athlete.name] || {};
-  const board = getAthleteTaskBoard(athlete.name);
-  const assignments = getPlanAssignmentsForAthlete(athlete.name);
-  const alerts = getAthleteAlerts(athlete);
-  const latestPlan = getLatestCoachPlanForAthlete(athlete.name);
-  const overdueCount = assignments.filter((item) => item.status === "overdue").length;
-  const reviewCount = assignments.filter((item) => item.status === "review").length;
-  const completeCount = assignments.filter((item) => item.status === "complete").length;
-  const openCount = assignments.filter((item) => item.status !== "complete").length;
-  const availabilityKey = normalizeAvailabilityKey(getRawAthleteRecord(athlete.name)?.availability || athlete.availability);
-
-  let status = "ontrack";
-  if (availabilityKey === "limited" || alerts.some((item) => String(item).toLowerCase().includes("injury") || String(item).toLowerCase().includes("lesion"))) {
-    status = "limited";
-  } else if (overdueCount > 0) {
-    status = "overdue";
-  } else if (openCount > 0 || reviewCount > 0 || board.journalState === "stale") {
-    status = "followup";
+  const saved = getCoachCompletionRecord(athlete.name);
+  const live = buildCoachCompletionSnapshot(athlete);
+  if (saved) {
+    return {
+      ...live,
+      status: saved.status || live.status,
+      pendingCount: saved.pendingCount ?? live.pendingCount,
+      journalState: saved.journalState || live.journalState
+    };
   }
-
-  let progress = "";
-  if (assignments.length) {
-    progress = currentLang === "es"
-      ? `${completeCount}/${assignments.length} completadas`
-      : `${completeCount}/${assignments.length} completed`;
-  } else {
-    progress = pickCopy(fallback.progress || {
-      en: "No assignments yet",
-      es: "Todavia no hay asignaciones"
-    });
-  }
-
-  let followUp = "";
-  if (status === "limited") {
-    followUp = currentLang === "es"
-      ? "Revisa limitaciones fisicas y ajusta la carga."
-      : "Review physical limitations and adjust load.";
-  } else if (status === "overdue") {
-    followUp = currentLang === "es"
-      ? "Hay tareas atrasadas que requieren seguimiento."
-      : "There are overdue tasks that need follow-up.";
-  } else if (reviewCount > 0) {
-    followUp = currentLang === "es"
-      ? "Revisa trabajo entregado y deja feedback."
-      : "Review submitted work and leave feedback.";
-  } else if (board.journalState === "stale") {
-    followUp = currentLang === "es"
-      ? "Pide una actualizacion del journal."
-      : "Request a journal update.";
-  } else if (openCount > 0) {
-    followUp = currentLang === "es"
-      ? "Confirma el avance de las tareas pendientes."
-      : "Confirm progress on pending tasks.";
-  } else {
-    followUp = pickCopy(fallback.followUp || {
-      en: "No urgent follow-up.",
-      es: "No hay seguimiento urgente."
-    });
-  }
-
-  return {
-    status,
-    plan: latestPlan?.title || assignments[0]?.title || pickCopy(fallback.plan || {
-      en: "No saved plan yet",
-      es: "Todavia no hay plan guardado"
-    }),
-    progress,
-    followUp
-  };
+  return live;
 }
 
 function getCoachUpcomingCompetitionRows(limit = 3) {
@@ -10687,6 +11508,146 @@ function getCoachAssignmentResourceRows(limit = 4) {
   return COACH_ASSIGNMENT_RESOURCES.map((item) => pickCopy(item));
 }
 
+function renderAssignmentFilters(records = getCoachAssignmentRecords()) {
+  if (!assignmentFilterAthlete || !assignmentFilterStatus || !assignmentFilterType || !assignmentFilterDate) return;
+  const assignees = Array.from(new Set(records.map((record) => getCoachAssignmentAssigneeLabel(record)).filter(Boolean))).sort();
+  const types = Array.from(new Set(records.map((record) => record.type).filter(Boolean))).sort();
+  const statuses = ["not_started", "in_progress", "completed", "overdue"];
+  const statusMeta = Object.fromEntries(statuses.map((status) => [status, getAssignmentStatusMeta(status)]));
+
+  assignmentFilterAthlete.innerHTML = [`<option value="">${currentLang === "es" ? "Todos" : "All"}</option>`]
+    .concat(assignees.map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`))
+    .join("");
+  assignmentFilterStatus.innerHTML = [`<option value="">${currentLang === "es" ? "Todos" : "All"}</option>`]
+    .concat(statuses.map((status) => `<option value="${status}">${escapeHtml(statusMeta[status].label)}</option>`))
+    .join("");
+  assignmentFilterType.innerHTML = [`<option value="">${currentLang === "es" ? "Todos" : "All"}</option>`]
+    .concat(types.map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`))
+    .join("");
+  assignmentFilterAthlete.value = assignmentFilterState.athlete;
+  assignmentFilterStatus.value = assignmentFilterState.status;
+  assignmentFilterType.value = assignmentFilterState.type;
+  assignmentFilterDate.value = assignmentFilterState.date;
+}
+
+function getFilteredCoachAssignments(records = getCoachAssignmentRecords()) {
+  return records.filter((record) => {
+    if (assignmentFilterState.athlete && getCoachAssignmentAssigneeLabel(record) !== assignmentFilterState.athlete) return false;
+    if (assignmentFilterState.status && normalizeAssignmentStatus(record.status) !== assignmentFilterState.status) return false;
+    if (assignmentFilterState.type && record.type !== assignmentFilterState.type) return false;
+    if (assignmentFilterState.date && record.dueDateKey !== assignmentFilterState.date) return false;
+    return true;
+  });
+}
+
+function getAssignmentNotificationText(record) {
+  const raw = String(record?.notificationStatus || "").trim().toLowerCase();
+  if (!raw || raw === "pending") {
+    return currentLang === "es" ? "Notificacion pendiente" : "Notification pending";
+  }
+  if (raw === "logged") {
+    return currentLang === "es" ? "Notificacion registrada en el task flow" : "Notification logged in the task flow";
+  }
+  if (raw.startsWith("notified:")) {
+    const count = Number.parseInt(raw.split(":")[1], 10) || 1;
+    return currentLang === "es"
+      ? `Notificado a ${count} atleta${count === 1 ? "" : "s"}`
+      : `Notified ${count} athlete${count === 1 ? "" : "s"}`;
+  }
+  return raw;
+}
+
+async function updateCoachAssignmentStatus(assignmentId, status) {
+  const assignmentsRef = getCoachWorkspaceCollectionRef("assignments");
+  if (!assignmentsRef || !assignmentId) return;
+  await withTimeout(
+    assignmentsRef.doc(assignmentId).set({
+      status: normalizeAssignmentStatus(status),
+      updatedAt: getFirestoreServerTimestamp()
+    }, { merge: true }),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_assignment_update_timeout"
+  );
+}
+
+async function findFirebaseUserByName(name) {
+  if (!firebaseFirestoreInstance || !name) return null;
+  const snapshot = await withTimeout(
+    firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION).where("name", "==", name).limit(1).get(),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_user_lookup_timeout"
+  );
+  if (snapshot.empty) return null;
+  const doc = snapshot.docs[0];
+  return normalizeManagedUserRecord(doc.id, doc.data() || {});
+}
+
+async function sendCoachAssignmentNotification(assignment) {
+  const current = getMessagesCurrentUser();
+  const assignmentsRef = getCoachWorkspaceCollectionRef("assignments");
+  const threadsRef = getMessageThreadsCollectionRef();
+  if (!assignment?.id || !assignmentsRef) return;
+
+  const targetNames = assignment.assigneeType === "group"
+    ? uniqueNames(assignment.assigneeNames)
+    : uniqueNames(assignment.assigneeNames.length ? assignment.assigneeNames : [assignment.assigneeName]);
+  let notifiedCount = 0;
+
+  if (current?.uid && threadsRef && isCoachMessagingUser(current)) {
+    for (const targetName of targetNames) {
+      const user = await findFirebaseUserByName(targetName);
+      if (!user?.uid) continue;
+      const threadId = buildDirectMessageThreadId(current.uid, user.uid);
+      const threadRef = threadsRef.doc(threadId);
+      const message = `${assignment.title} - ${currentLang === "es" ? "vence" : "due"} ${assignment.dueLabel || formatPlanDateLabel(assignment.dueDateKey || getCurrentAppDateKey())}. ${assignment.note || ""}`.trim();
+
+      await withTimeout(
+        threadRef.set({
+          participantIds: [current.uid, user.uid].sort(),
+          participants: {
+            [current.uid]: true,
+            [user.uid]: true
+          },
+          coachUid: current.uid,
+          coachName: current.name,
+          userUid: user.uid,
+          userName: user.name || targetName,
+          userRole: normalizeAuthRole(user.role || "athlete"),
+          updatedAt: getFirestoreServerTimestamp(),
+          lastMessageAt: getFirestoreServerTimestamp(),
+          lastMessageText: message,
+          lastSenderUid: current.uid
+        }, { merge: true }),
+        FIREBASE_OP_TIMEOUT_MS,
+        "firestore_assignment_thread_timeout"
+      );
+      await withTimeout(
+        threadRef.collection("messages").add({
+          threadId,
+          text: message,
+          senderUid: current.uid,
+          senderName: current.name,
+          senderRole: current.role,
+          createdAt: getFirestoreServerTimestamp()
+        }),
+        FIREBASE_OP_TIMEOUT_MS,
+        "firestore_assignment_message_timeout"
+      );
+      notifiedCount += 1;
+    }
+  }
+
+  await withTimeout(
+    assignmentsRef.doc(assignment.id).set({
+      notificationStatus: notifiedCount ? `notified:${notifiedCount}` : "logged",
+      notifiedAt: getFirestoreServerTimestamp(),
+      updatedAt: getFirestoreServerTimestamp()
+    }, { merge: true }),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_assignment_notify_timeout"
+  );
+}
+
 function renderCoachAssignments() {
   if (!assignmentStats || !assignmentList || !assignmentTypeGrid) return;
 
@@ -10696,25 +11657,28 @@ function renderCoachAssignments() {
   if (assignmentWorkflowTitle) assignmentWorkflowTitle.textContent = currentLang === "es" ? "Flujo de asignacion" : "Assignment Workflow";
 
   const assignmentRecords = getCoachAssignmentRecords();
+  const counts = getAssignmentStatusCounts(assignmentRecords);
+  renderAssignmentFilters(assignmentRecords);
+  const visibleAssignments = getFilteredCoachAssignments(assignmentRecords);
   const stats = [
     {
-      title: currentLang === "es" ? "Vencen hoy" : "Due today",
-      value: String(assignmentRecords.filter((item) => item.status === "due").length),
-      note: currentLang === "es" ? "Tareas que el atleta debe cerrar hoy" : "Assignments athletes need to close today"
+      title: currentLang === "es" ? "Sin empezar" : "Not started",
+      value: String(counts.not_started),
+      note: currentLang === "es" ? "Tareas aun sin abrir" : "Assignments still waiting to start"
     },
     {
-      title: currentLang === "es" ? "Revision coach" : "Coach review",
-      value: String(assignmentRecords.filter((item) => item.status === "review").length),
-      note: currentLang === "es" ? "Trabajo listo para feedback del entrenador" : "Work ready for coach feedback"
+      title: currentLang === "es" ? "En progreso" : "In progress",
+      value: String(counts.in_progress),
+      note: currentLang === "es" ? "Trabajo que sigue abierto" : "Work that is currently active"
     },
     {
       title: currentLang === "es" ? "Atrasadas" : "Overdue",
-      value: String(assignmentRecords.filter((item) => item.status === "overdue").length),
+      value: String(counts.overdue),
       note: currentLang === "es" ? "Requieren seguimiento inmediato" : "Needs immediate follow-up"
     },
     {
       title: currentLang === "es" ? "Completadas" : "Completed",
-      value: String(assignmentRecords.filter((item) => item.status === "complete").length),
+      value: String(counts.completed),
       note: currentLang === "es" ? "Cerradas esta semana" : "Closed out this week"
     }
   ];
@@ -10731,12 +11695,26 @@ function renderCoachAssignments() {
   if (!assignmentRecords.length) {
     assignmentList.innerHTML = `<div class="mini-card"><h3>${currentLang === "es" ? "Todavia no hay asignaciones." : "No assignments sent yet."}</h3><p class="small muted">${currentLang === "es" ? "Guarda un plan y usa Save Plan + Assign para empezar." : "Save a plan and use Save Plan + Assign to start sending work."}</p></div>`;
   }
-  assignmentRecords.forEach((item) => {
+  if (assignmentRecords.length && !visibleAssignments.length) {
+    assignmentList.innerHTML = `<div class="mini-card"><h3>${currentLang === "es" ? "No hay resultados para esos filtros." : "No assignments match those filters."}</h3></div>`;
+  }
+  visibleAssignments.forEach((item) => {
     const status = getAssignmentStatusMeta(item.status);
     const assignedLabel = currentLang === "es" ? "Asignado a" : "Assigned to";
     const typeLabel = currentLang === "es" ? "Tipo" : "Type";
     const dueLabel = currentLang === "es" ? "Entrega" : "Due";
     const sourceLabel = currentLang === "es" ? "Origen" : "Source";
+    const notifyLabel = currentLang === "es" ? "Notificar atleta" : "Notify athlete";
+    const updateLabel = currentLang === "es" ? "Actualizar estado" : "Update status";
+    const mediaLabel = currentLang === "es" ? "Abrir media" : "Open media";
+    const statusOptions = ["not_started", "in_progress", "completed", "overdue"]
+      .map((option) => {
+        const meta = getAssignmentStatusMeta(option);
+        const selected = normalizeAssignmentStatus(item.status) === option ? " selected" : "";
+        return `<option value="${option}"${selected}>${escapeHtml(meta.label)}</option>`;
+      })
+      .join("");
+    const notificationText = getAssignmentNotificationText(item);
     const card = document.createElement("article");
     card.className = "assignment-card";
     card.innerHTML = `
@@ -10762,7 +11740,53 @@ function renderCoachAssignments() {
       </div>
       <div class="assignment-card-meta">${sourceLabel}: ${item.source || getPlanAssignmentTypeLabel(item.planType)}</div>
       <p class="small">${item.note || (currentLang === "es" ? "Sin nota adicional." : "No additional note.")}</p>
+      <div class="assignment-card-meta">${notificationText}</div>
     `;
+    const actions = document.createElement("div");
+    actions.className = "assignment-card-actions";
+    const statusSelect = document.createElement("select");
+    statusSelect.className = "assignment-status-select";
+    statusSelect.innerHTML = statusOptions;
+    actions.appendChild(statusSelect);
+    const updateBtn = document.createElement("button");
+    updateBtn.type = "button";
+    updateBtn.className = "ghost";
+    updateBtn.textContent = updateLabel;
+    updateBtn.addEventListener("click", async () => {
+      try {
+        await updateCoachAssignmentStatus(item.id, statusSelect.value);
+        toast(currentLang === "es" ? "Estado actualizado." : "Status updated.");
+      } catch (err) {
+        console.warn("Assignment status update failed", err);
+        toast(currentLang === "es" ? "No se pudo actualizar el estado." : "Could not update the status.");
+      }
+    });
+    actions.appendChild(updateBtn);
+    const notifyBtn = document.createElement("button");
+    notifyBtn.type = "button";
+    notifyBtn.textContent = notifyLabel;
+    notifyBtn.addEventListener("click", async () => {
+      try {
+        await sendCoachAssignmentNotification(item);
+        toast(currentLang === "es" ? "Notificacion registrada." : "Notification recorded.");
+      } catch (err) {
+        console.warn("Assignment notification failed", err);
+        toast(currentLang === "es" ? "No se pudo notificar." : "Could not notify athlete.");
+      }
+    });
+    actions.appendChild(notifyBtn);
+    if (item.mediaAssetPath) {
+      const mediaBtn = document.createElement("button");
+      mediaBtn.type = "button";
+      mediaBtn.className = "ghost";
+      mediaBtn.textContent = mediaLabel;
+      mediaBtn.addEventListener("click", () => {
+        const url = resolveMediaLocation(item.mediaAssetPath);
+        if (url) window.open(url, "_blank", "noopener,noreferrer");
+      });
+      actions.appendChild(mediaBtn);
+    }
+    card.appendChild(actions);
     assignmentList.appendChild(card);
   });
 
@@ -10830,9 +11854,9 @@ function renderCompletionTracking() {
       note: currentLang === "es" ? "Afecta readiness y visibilidad" : "Impacts readiness and visibility"
     },
     {
-      title: currentLang === "es" ? "Revision coach" : "Coach review",
-      value: String(assignmentRecords.filter((item) => item.status === "review").length),
-      note: currentLang === "es" ? "Listo para feedback del entrenador" : "Ready for coach feedback"
+      title: currentLang === "es" ? "Assignments activos" : "Active assignments",
+      value: String(assignmentRecords.filter((item) => item.status === "in_progress" || item.status === "not_started").length),
+      note: currentLang === "es" ? "Trabajo abierto que sigue en curso" : "Open work that still needs coach visibility"
     }
   ];
 
@@ -10880,6 +11904,41 @@ function renderCompletionTracking() {
       completionAlertsList.appendChild(li);
     });
 }
+
+if (assignmentFilterAthlete) {
+  assignmentFilterAthlete.addEventListener("change", () => {
+    assignmentFilterState.athlete = assignmentFilterAthlete.value;
+    renderCoachAssignments();
+  });
+}
+
+if (assignmentFilterStatus) {
+  assignmentFilterStatus.addEventListener("change", () => {
+    assignmentFilterState.status = assignmentFilterStatus.value;
+    renderCoachAssignments();
+  });
+}
+
+if (assignmentFilterType) {
+  assignmentFilterType.addEventListener("change", () => {
+    assignmentFilterState.type = assignmentFilterType.value;
+    renderCoachAssignments();
+  });
+}
+
+if (assignmentFilterDate) {
+  assignmentFilterDate.addEventListener("change", () => {
+    assignmentFilterState.date = assignmentFilterDate.value;
+    renderCoachAssignments();
+  });
+}
+
+if (assignmentFilterClear) {
+  assignmentFilterClear.addEventListener("click", () => {
+    assignmentFilterState = { athlete: "", status: "", type: "", date: "" };
+    renderCoachAssignments();
+  });
+}
 // ---------- DASHBOARD ----------
 const teamStats = document.getElementById("teamStats");
 const alertList = document.getElementById("alertList");
@@ -10903,7 +11962,7 @@ function renderDashboard() {
   const athletes = getAthletesData();
   const assignmentRecords = getCoachAssignmentRecords();
   const activeAthletes = athletes.filter((athlete) => normalizeAvailabilityKey(athlete.availability) !== "other").length || athletes.length;
-  const pendingTaskCount = assignmentRecords.filter((item) => item.status !== "complete").length
+  const pendingTaskCount = assignmentRecords.filter((item) => item.status !== "completed").length
     + athletes.filter((athlete) => getAthleteTaskBoard(athlete.name).journalState === "stale").length;
   const competitionRows = getCoachUpcomingCompetitionRows(3);
   const recentTrainingRows = getCoachRecentTrainingRows(3);
@@ -11071,14 +12130,27 @@ function athleteMatchesTagFilter(tags = []) {
 }
 
 function getRawAthleteRecord(name) {
-  return ATHLETES.find((athlete) => athlete.name === name) || null;
+  return getCoachAthleteRecords().find((athlete) => athlete.name === name) || ATHLETES.find((athlete) => athlete.name === name) || null;
 }
 
 function getRawJournalEntry(name) {
-  return JOURNAL_ATHLETES.find((entry) => entry.name === name) || null;
+  return getLatestCoachJournalRecord(name) || JOURNAL_ATHLETES.find((entry) => entry.name === name) || null;
 }
 
 function getLocalizedJournalEntry(name) {
+  const live = getLatestCoachJournalRecord(name);
+  if (live) {
+    return {
+      name: live.athleteName,
+      sleep: live.sleep,
+      energy: live.energy,
+      soreness: live.soreness,
+      mood: live.mood,
+      weight: live.weight,
+      note: live.note,
+      entryDate: live.entryDate
+    };
+  }
   return getJournalAthletesData().find((entry) => entry.name === name) || null;
 }
 
@@ -11104,19 +12176,25 @@ function getAthleteTaskBoard(name) {
   const entry = ATHLETE_TASK_BOARD[name] || {};
   const liveAssignments = getPlanAssignmentsForAthlete(name);
   const pendingAssignments = liveAssignments
-    .filter((assignment) => assignment.status !== "complete")
+    .filter((assignment) => assignment.status !== "completed")
     .map((assignment) => assignment.title || assignment.type)
     .filter(Boolean);
+  const journalState = getCoachJournalState(name) || entry.journal?.state || "fresh";
   return {
     tasks: uniqueNames([
       ...(entry.tasks || []).map((item) => pickCopy(item)),
       ...pendingAssignments
     ]),
-    journalState: entry.journal?.state || "fresh",
-    journalLabel: pickCopy(entry.journal?.label || {
-      en: "Updated today",
-      es: "Actualizado hoy"
-    })
+    journalState,
+    journalLabel: journalState === "stale"
+      ? pickCopy({
+          en: "Journal overdue by 1 day",
+          es: "El journal tiene 1 dia de atraso"
+        })
+      : pickCopy(entry.journal?.label || {
+          en: "Updated today",
+          es: "Actualizado hoy"
+        })
   };
 }
 
@@ -11267,6 +12345,21 @@ function athleteMatchesSearch(athlete) {
   return haystack.includes(athleteSearchQuery);
 }
 
+function syncCoachMatchAthleteSelect() {
+  if (!coachMatchSelect) return;
+  const athletes = getAthletesData();
+  const currentValue = coachMatchSelect.value;
+  coachMatchSelect.innerHTML = "";
+  athletes.forEach((athlete) => {
+    const option = document.createElement("option");
+    option.value = athlete.name;
+    option.textContent = athlete.name;
+    coachMatchSelect.appendChild(option);
+  });
+  const nextValue = athletes.some((athlete) => athlete.name === currentValue) ? currentValue : athletes[0]?.name || "";
+  coachMatchSelect.value = nextValue;
+}
+
 function getSelectedCoachAthleteName() {
   return coachMatchSelect?.value || getAthletesData()[0]?.name || "";
 }
@@ -11309,6 +12402,8 @@ function renderCoachAthleteProfile(athleteName = getSelectedCoachAthleteName()) 
   const badges = buildAthleteIndicatorBadges(athlete, board, alerts);
   const rawAthlete = getRawAthleteRecord(athlete.name) || athlete;
   const cornerPlan = getAthleteCornerPlan(rawAthlete);
+  const noteBoard = getCoachNoteRecord(athlete.name);
+  const latestAnalysis = getLatestCoachMatchAnalysisForAthlete(athlete.name);
   const initials = athlete.name
     .split(/\s+/)
     .filter(Boolean)
@@ -11420,9 +12515,10 @@ function renderCoachAthleteProfile(athleteName = getSelectedCoachAthleteName()) 
         <div class="mini-card">
           <h3>${pickCopy(COACH_ATHLETE_PROFILE_TAB_COPY.notes)}</h3>
           <ul class="list tight">
-            <li><strong>${currentLang === "es" ? "Enfoque actual" : "Current focus"}:</strong> ${athlete.notes || notSet}</li>
+            <li><strong>${currentLang === "es" ? "Enfoque actual" : "Current focus"}:</strong> ${(noteBoard?.nextFocus || []).slice(0, 3).join(" • ") || athlete.notes || notSet}</li>
             <li><strong>${currentLang === "es" ? "Coach signal" : "Coach signal"}:</strong> ${rawAthlete.coachSignal || notSet}</li>
             <li><strong>${currentLang === "es" ? "Journal" : "Journal"}:</strong> ${board.journalLabel}</li>
+            <li><strong>${currentLang === "es" ? "Ultimo match analysis" : "Latest match analysis"}:</strong> ${latestAnalysis?.summary || notSet}</li>
           </ul>
         </div>
         <div class="mini-card">
@@ -11431,6 +12527,8 @@ function renderCoachAthleteProfile(athleteName = getSelectedCoachAthleteName()) 
           ${taskListHtml}
           <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Alertas" : "Alerts"}</p>
           ${alertListHtml}
+          <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Notas recientes" : "Recent notes"}</p>
+          ${(noteBoard?.recentNotes || []).length ? `<ul class="list tight">${noteBoard.recentNotes.slice(0, 3).map((item) => `<li>${item}</li>`).join("")}</ul>` : `<p class="small muted">${currentLang === "es" ? "No hay notas recientes." : "No recent notes yet."}</p>`}
         </div>
       </div>
     `,
@@ -11631,17 +12729,25 @@ if (athleteSearchInput) {
 
 const athleteNotesFocus = document.getElementById("athleteNotesFocus");
 const athleteNotesRecent = document.getElementById("athleteNotesRecent");
+const athleteNotesSelectedAthlete = document.getElementById("athleteNotesSelectedAthlete");
+const coachAthleteNotesForm = document.getElementById("coachAthleteNotesForm");
+const coachAthleteFocus1 = document.getElementById("coachAthleteFocus1");
+const coachAthleteFocus2 = document.getElementById("coachAthleteFocus2");
+const coachAthleteFocus3 = document.getElementById("coachAthleteFocus3");
+const coachAthleteRecentNote = document.getElementById("coachAthleteRecentNote");
+const coachAthleteNotesStatus = document.getElementById("coachAthleteNotesStatus");
+const coachAthleteNotesClearBtn = document.getElementById("coachAthleteNotesClearBtn");
 
 function renderAthleteNotes() {
   if (!athleteNotesFocus || !athleteNotesRecent) return;
   const athleteName = getSelectedCoachAthleteName();
   const athlete = getAthletesData().find((item) => item.name === athleteName) || getAthletesData()[0];
-  const noteBoard = COACH_ATHLETE_NOTE_BOARD[athlete?.name] || COACH_ATHLETE_NOTE_BOARD["Jaime Espinal"];
+  const noteBoard = getCoachNoteRecord(athlete?.name) || getCoachNoteRecord("Jaime Espinal");
   const latestPlan = athlete ? getLatestCoachPlanForAthlete(athlete.name) : null;
-  const openAssignments = athlete ? getPlanAssignmentsForAthlete(athlete.name).filter((item) => item.status !== "complete") : [];
+  const openAssignments = athlete ? getPlanAssignmentsForAthlete(athlete.name).filter((item) => item.status !== "completed") : [];
 
   const focusItems = [
-    ...(noteBoard?.nextFocus || []).map((item) => pickCopy(item)),
+    ...(noteBoard?.nextFocus || []).map((item) => getSeedCopyValue(item)),
     latestPlan
       ? `${currentLang === "es" ? "Plan activo" : "Active plan"}: ${latestPlan.title}`
       : "",
@@ -11650,7 +12756,7 @@ function renderAthleteNotes() {
       : ""
   ].filter(Boolean).slice(0, 4);
 
-  const recentItems = (noteBoard?.recentNotes || []).map((item) => pickCopy(item)).slice(0, 3);
+  const recentItems = (noteBoard?.recentNotes || []).map((item) => getSeedCopyValue(item)).slice(0, 3);
 
   athleteNotesFocus.innerHTML = focusItems
     .map((line) => `<li>${line}</li>`)
@@ -11658,14 +12764,35 @@ function renderAthleteNotes() {
   athleteNotesRecent.innerHTML = recentItems
     .map((line) => `<li>${line}</li>`)
     .join("");
+  if (athleteNotesSelectedAthlete) {
+    athleteNotesSelectedAthlete.textContent = athlete?.name
+      ? `${currentLang === "es" ? "Atleta seleccionado" : "Selected athlete"}: ${athlete.name}`
+      : (currentLang === "es" ? "Selecciona un atleta." : "Select an athlete.");
+  }
+  const editableFocus = (noteBoard?.nextFocus || []).map((item) => getSeedCopyValue(item));
+  if (coachAthleteFocus1) coachAthleteFocus1.value = editableFocus[0] || "";
+  if (coachAthleteFocus2) coachAthleteFocus2.value = editableFocus[1] || "";
+  if (coachAthleteFocus3) coachAthleteFocus3.value = editableFocus[2] || "";
 }
 
 // ---------- JOURNAL MONITOR ----------
 const journalInsights = document.getElementById("journalInsights");
 const journalFlags = document.getElementById("journalFlags");
 const journalAthletes = document.getElementById("journalAthletes");
+const coachJournalSelectedAthlete = document.getElementById("coachJournalSelectedAthlete");
+const coachJournalForm = document.getElementById("coachJournalForm");
+const coachJournalSleep = document.getElementById("coachJournalSleep");
+const coachJournalEnergy = document.getElementById("coachJournalEnergy");
+const coachJournalSoreness = document.getElementById("coachJournalSoreness");
+const coachJournalMood = document.getElementById("coachJournalMood");
+const coachJournalWeight = document.getElementById("coachJournalWeight");
+const coachJournalNote = document.getElementById("coachJournalNote");
+const coachJournalStatus = document.getElementById("coachJournalStatus");
+const coachJournalClearBtn = document.getElementById("coachJournalClearBtn");
+const coachJournalRecentList = document.getElementById("coachJournalRecentList");
 
 function renderJournalMonitor() {
+  if (!journalInsights || !journalFlags || !journalAthletes) return;
   journalInsights.innerHTML = "";
   getJournalInsightsData().forEach((line) => {
     const li = document.createElement("li");
@@ -11696,6 +12823,148 @@ function renderJournalMonitor() {
       <div class="small">${weightLabel}: ${athlete.weight}</div>
     `;
     journalAthletes.appendChild(card);
+  });
+
+  const selectedAthleteName = getSelectedCoachAthleteName();
+  const selectedJournal = getLatestCoachJournalRecord(selectedAthleteName);
+  if (coachJournalSelectedAthlete) {
+    coachJournalSelectedAthlete.textContent = selectedAthleteName
+      ? `${currentLang === "es" ? "Atleta seleccionado" : "Selected athlete"}: ${selectedAthleteName}`
+      : (currentLang === "es" ? "Selecciona un atleta." : "Select an athlete.");
+  }
+  if (coachJournalSleep) coachJournalSleep.value = selectedJournal?.sleep || "";
+  if (coachJournalEnergy) coachJournalEnergy.value = selectedJournal?.energy || "";
+  if (coachJournalSoreness) coachJournalSoreness.value = selectedJournal?.soreness || "";
+  if (coachJournalMood) coachJournalMood.value = selectedJournal?.mood || "";
+  if (coachJournalWeight) coachJournalWeight.value = selectedJournal?.weight || "";
+  if (coachJournalNote) coachJournalNote.value = selectedJournal?.note || "";
+
+  if (coachJournalRecentList) {
+    coachJournalRecentList.innerHTML = "";
+    const recentEntries = selectedAthleteName ? getCoachJournalRecordSetForAthlete(selectedAthleteName).slice(0, 4) : [];
+    if (!recentEntries.length) {
+      coachJournalRecentList.innerHTML = `<div class="mini-card"><p class="small muted">${currentLang === "es" ? "Todavia no hay entradas guardadas." : "No readiness entries saved yet."}</p></div>`;
+    } else {
+      recentEntries.forEach((entry) => {
+        const card = document.createElement("article");
+        card.className = "completion-card";
+        card.innerHTML = `
+          <div class="completion-card-top">
+            <div>
+              <strong>${formatPlanDateLabel(entry.entryDate)}</strong>
+              <div class="small">${sleepLabel}: ${entry.sleep || "-"} • ${energyLabel}: ${entry.energy || "-"}</div>
+            </div>
+            <span class="status-pill ${getCoachJournalState(selectedAthleteName) === "stale" ? "status-pill-journal" : "status-pill-active"}">${getCoachJournalState(selectedAthleteName) === "stale" ? (currentLang === "es" ? "Atrasado" : "Stale") : (currentLang === "es" ? "Al dia" : "Fresh")}</span>
+          </div>
+          <div class="completion-card-meta">
+            <span>${sorenessLabel}: ${entry.soreness || "-"}</span>
+            <span>${moodLabel}: ${entry.mood || "-"}</span>
+            <span>${weightLabel}: ${entry.weight || "-"}</span>
+          </div>
+          <p class="small">${entry.note || (currentLang === "es" ? "Sin nota adicional." : "No additional note.")}</p>
+        `;
+        coachJournalRecentList.appendChild(card);
+      });
+    }
+  }
+}
+
+async function saveCoachAthleteNotes(event) {
+  event?.preventDefault?.();
+  const athleteName = getSelectedCoachAthleteName();
+  const notesRef = getCoachWorkspaceCollectionRef("coach_notes");
+  if (!athleteName || !notesRef) return;
+  const nextFocus = [coachAthleteFocus1?.value, coachAthleteFocus2?.value, coachAthleteFocus3?.value]
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
+  const newNote = String(coachAthleteRecentNote?.value || "").trim();
+  const existing = getCoachNoteRecord(athleteName);
+  const recentNotes = uniqueNames([
+    newNote,
+    ...(existing?.recentNotes || [])
+  ]).slice(0, 6);
+  try {
+    await withTimeout(
+      notesRef.doc(slugifyKey(athleteName)).set({
+        athleteName,
+        nextFocus,
+        recentNotes,
+        updatedAt: getFirestoreServerTimestamp(),
+        createdAt: existing ? undefined : getFirestoreServerTimestamp()
+      }, { merge: true }),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_note_write_timeout"
+    );
+    if (coachAthleteRecentNote) coachAthleteRecentNote.value = "";
+    if (coachAthleteNotesStatus) {
+      coachAthleteNotesStatus.textContent = currentLang === "es" ? "Notas guardadas." : "Notes saved.";
+    }
+  } catch (err) {
+    console.warn("Coach notes save failed", err);
+    if (coachAthleteNotesStatus) {
+      coachAthleteNotesStatus.textContent = currentLang === "es" ? "No se pudieron guardar las notas." : "Could not save notes.";
+    }
+  }
+}
+
+async function saveCoachJournalEntry(event) {
+  event?.preventDefault?.();
+  const athleteName = getSelectedCoachAthleteName();
+  const journalRef = getCoachWorkspaceCollectionRef("journal_entries");
+  if (!athleteName || !journalRef) return;
+  const entryDate = getCurrentAppDateKey();
+  const payload = {
+    athleteName,
+    entryDate,
+    sleep: String(coachJournalSleep?.value || "").trim(),
+    energy: String(coachJournalEnergy?.value || "").trim(),
+    soreness: String(coachJournalSoreness?.value || "").trim(),
+    mood: String(coachJournalMood?.value || "").trim(),
+    weight: String(coachJournalWeight?.value || "").trim(),
+    note: String(coachJournalNote?.value || "").trim()
+  };
+  try {
+    await withTimeout(
+      journalRef.doc(`${slugifyKey(athleteName)}-${entryDate}`).set({
+        ...payload,
+        updatedAt: getFirestoreServerTimestamp(),
+        createdAt: getFirestoreServerTimestamp()
+      }, { merge: true }),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_journal_write_timeout"
+    );
+    if (coachJournalStatus) {
+      coachJournalStatus.textContent = currentLang === "es" ? "Journal guardado." : "Journal entry saved.";
+    }
+  } catch (err) {
+    console.warn("Coach journal save failed", err);
+    if (coachJournalStatus) {
+      coachJournalStatus.textContent = currentLang === "es" ? "No se pudo guardar el journal." : "Could not save the journal entry.";
+    }
+  }
+}
+
+if (coachAthleteNotesForm) {
+  coachAthleteNotesForm.addEventListener("submit", saveCoachAthleteNotes);
+}
+
+if (coachAthleteNotesClearBtn) {
+  coachAthleteNotesClearBtn.addEventListener("click", () => {
+    [coachAthleteFocus1, coachAthleteFocus2, coachAthleteFocus3, coachAthleteRecentNote].forEach((field) => {
+      if (field) field.value = "";
+    });
+  });
+}
+
+if (coachJournalForm) {
+  coachJournalForm.addEventListener("submit", saveCoachJournalEntry);
+}
+
+if (coachJournalClearBtn) {
+  coachJournalClearBtn.addEventListener("click", () => {
+    [coachJournalSleep, coachJournalEnergy, coachJournalSoreness, coachJournalMood, coachJournalWeight, coachJournalNote].forEach((field) => {
+      if (field) field.value = "";
+    });
   });
 }
 
@@ -12113,6 +13382,7 @@ function renderOnePager(athleteName) {
   const taskBoard = getAthleteTaskBoard(athlete.name);
   const alerts = getAthleteAlerts(athlete);
   const journalEntry = getLocalizedJournalEntry(athlete.name);
+  const latestAnalysis = getLatestCoachMatchAnalysisForAthlete(athlete.name);
   const cornerPlan = getAthleteCornerPlan(ATHLETES.find((a) => a.name === athlete.name) || athlete);
   const na = currentLang === "es" ? "N/D" : "N/A";
   const styleDisplay = base.style
@@ -12184,6 +13454,8 @@ function renderOnePager(athleteName) {
       ${tasksSummary}
       <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Alertas" : "Alerts"}</p>
       ${alertsSummary}
+      <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Ultimo match analysis" : "Latest match analysis"}</p>
+      <p class="small">${latestAnalysis?.summary || (currentLang === "es" ? "Sin analisis guardado." : "No saved analysis yet.")}</p>
     `;
   }
 
@@ -12445,6 +13717,7 @@ function buildCoachMatchData(athleteName) {
   const journalEntry = getLocalizedJournalEntry(athlete.name);
   const alerts = getAthleteAlerts(athlete);
   const cornerPlan = getAthleteCornerPlan(ATHLETES.find((a) => a.name === athlete.name) || athlete);
+  const latestAnalysis = getLatestCoachMatchAnalysisForAthlete(athlete.name);
   const positionKey = normalizePositionKey(athlete.favoritePosition || athlete.position);
   const offense = topThree(athlete.offenseTop3 || athlete.techniques?.neutral || []);
   const defense = topThree(athlete.defenseTop3 || athlete.techniques?.defense || []);
@@ -12472,6 +13745,7 @@ function buildCoachMatchData(athleteName) {
     journalEntry,
     alerts,
     cornerPlan,
+    latestAnalysis,
     tendency,
     pressureError: athlete.pressureError || saved.dont || "",
     coachSignal
@@ -12518,6 +13792,7 @@ function renderCoachMatchView(athleteName) {
   const goalDisplay = data.goal || matchCopy("goalFallback");
   const board = data.taskBoard || { tasks: [], journalLabel: na };
   const weeklyAlerts = data.alerts || [];
+  const latestAnalysis = data.latestAnalysis || null;
   const cornerPlan = data.cornerPlan || {
     attacks: [],
     setups: [],
@@ -12593,6 +13868,8 @@ function renderCoachMatchView(athleteName) {
     coachMatchPosition.innerHTML = `
       <h3>${currentLang === "es" ? "Seguimiento semanal" : "Weekly Snapshot"}</h3>
       ${weeklyReadinessHtml}
+      <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Ultimo match analysis" : "Latest match analysis"}</p>
+      <p class="small">${latestAnalysis?.summary || (currentLang === "es" ? "Sin analisis guardado." : "No saved analysis yet.")}</p>
     `;
   }
 
@@ -12672,6 +13949,8 @@ function selectCoachMatchAthlete(name) {
   renderCompetitionPreview(selectedAthlete);
   renderAthleteManagement();
   renderAthleteNotes();
+  renderJournalMonitor();
+  renderMedia();
 }
 
 function openAthleteSummaryView(name = "") {
@@ -12686,13 +13965,7 @@ function openAthleteSummaryView(name = "") {
 }
 
 if (coachMatchSelect) {
-  coachMatchSelect.innerHTML = "";
-  getAthletesData().forEach((athlete) => {
-    const option = document.createElement("option");
-    option.value = athlete.name;
-    option.textContent = athlete.name;
-    coachMatchSelect.appendChild(option);
-  });
+  syncCoachMatchAthleteSelect();
   coachMatchSelect.addEventListener("change", () => selectCoachMatchAthlete(coachMatchSelect.value));
   const defaultName = getAthletesData()[0]?.name;
   if (defaultName) selectCoachMatchAthlete(defaultName);

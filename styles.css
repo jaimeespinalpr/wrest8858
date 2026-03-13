@@ -2208,6 +2208,14 @@ textarea:focus{
   gap: 12px;
 }
 
+.assignment-toolbar{
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  gap: 10px;
+  margin-bottom: 14px;
+  align-items: end;
+}
+
 .assignment-type-grid{
   display: grid;
   gap: 12px;
@@ -2268,6 +2276,17 @@ textarea:focus{
 .assignment-type-card .small,
 .completion-card .small{
   margin-top: 10px;
+}
+
+.assignment-card-actions{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.assignment-status-select{
+  min-width: 180px;
 }
 
 .assignment-type-card h4{
@@ -2402,6 +2421,11 @@ textarea:focus{
   margin-top: 4px;
 }
 
+.media-item-card.active{
+  border-color: rgba(59,130,246,0.35);
+  box-shadow: 0 0 0 1px rgba(59,130,246,0.18);
+}
+
 .media-tools{
   display: grid;
   grid-template-columns: repeat(2, minmax(0,1fr));
@@ -2429,7 +2453,8 @@ textarea:focus{
 }
 
 .media-tool-card input,
-.media-tool-card select{
+.media-tool-card select,
+.media-tool-card textarea{
   width: 100%;
 }
 
@@ -3253,6 +3278,7 @@ textarea:focus{
   .selection-block,
   .template-help-grid,
   .assignment-type-grid,
+  .assignment-toolbar,
   .plan-athlete-picker,
   .assignment-card-fields{
     grid-template-columns: 1fr;
