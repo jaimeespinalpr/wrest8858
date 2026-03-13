@@ -16,6 +16,14 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    function isCoachDirectoryProfile(data) {
+      return signedIn()
+        && (
+          data.role == "coach"
+          || data.email == "gmunch@united-wc.com"
+        );
+    }
+
     function isSelfAllowedRole(role) {
       return role == "athlete" || role == "coach" || role == "parent";
     }
@@ -35,7 +43,7 @@ service cloud.firestore {
 
     // User profiles: self-manage + global admin access for account administration.
     match /users/{uid} {
-      allow read: if isSelf(uid) || isAdminEmail();
+      allow read: if isSelf(uid) || isAdminEmail() || isCoachDirectoryProfile(resource.data);
       allow create: if (
         isAdminEmail()
         && isAdminAllowedRole(request.resource.data.role)
@@ -56,6 +64,63 @@ service cloud.firestore {
         && resource.data.role == request.resource.data.role
       );
       allow delete: if isAdminEmail();
+    }
+
+    match /message_threads/{threadId} {
+      allow read: if isAdminEmail() || (
+        signedIn()
+        && (
+          resource.data.coachUid == request.auth.uid
+          || resource.data.userUid == request.auth.uid
+        )
+      );
+      allow create: if signedIn()
+        && request.resource.data.participantIds is list
+        && request.resource.data.participantIds.size() == 2
+        && request.resource.data.coachUid is string
+        && request.resource.data.userUid is string
+        && (
+          request.resource.data.coachUid == request.auth.uid
+          || request.resource.data.userUid == request.auth.uid
+        )
+        && request.resource.data.coachUid in request.resource.data.participantIds
+        && request.resource.data.userUid in request.resource.data.participantIds;
+      allow update: if signedIn()
+        && (
+          resource.data.coachUid == request.auth.uid
+          || resource.data.userUid == request.auth.uid
+        )
+        && request.resource.data.participantIds is list
+        && request.resource.data.coachUid is string
+        && request.resource.data.userUid is string
+        && (
+          request.resource.data.coachUid == request.auth.uid
+          || request.resource.data.userUid == request.auth.uid
+        )
+        && request.resource.data.coachUid in request.resource.data.participantIds
+        && request.resource.data.userUid in request.resource.data.participantIds;
+      allow delete: if isAdminEmail();
+
+      match /messages/{messageId} {
+        allow read: if isAdminEmail() || (
+          signedIn()
+          && (
+            get(/databases/$(database)/documents/message_threads/$(threadId)).data.coachUid == request.auth.uid
+            || get(/databases/$(database)/documents/message_threads/$(threadId)).data.userUid == request.auth.uid
+          )
+        );
+        allow create: if signedIn()
+          && (
+            get(/databases/$(database)/documents/message_threads/$(threadId)).data.coachUid == request.auth.uid
+            || get(/databases/$(database)/documents/message_threads/$(threadId)).data.userUid == request.auth.uid
+          )
+          && request.resource.data.senderUid == request.auth.uid
+          && request.resource.data.threadId == threadId
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 1000;
+        allow update, delete: if false;
+      }
     }
 
     // Shared media tree is collaborative between authenticated users.
