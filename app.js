@@ -38,6 +38,7 @@ let storageSyncAttached = false;
 const FIREBASE_USERS_COLLECTION = window.FIREBASE_USERS_COLLECTION || "users";
 const FIREBASE_SHARED_COLLECTION = window.FIREBASE_SHARED_COLLECTION || "shared_app";
 const FIREBASE_MEDIA_TREE_DOC = window.FIREBASE_MEDIA_TREE_DOC || "media_tree";
+const FIREBASE_MESSAGE_THREADS_COLLECTION = "message_threads";
 const WPL_MEDIA_UPLOADS_ROOT = String(window.WPL_MEDIA_UPLOADS_ROOT || "media_uploads").trim().replace(/^\/+|\/+$/g, "");
 let firebaseAuthInstance = null;
 let firebaseFirestoreInstance = null;
@@ -51,6 +52,15 @@ const TEST_USER_DEFAULTS = {
   "gmunch@united-wc.com": { role: "admin", name: "System Admin" }
 };
 const FORCED_ADMIN_EMAILS = new Set(["gmunch@united-wc.com"]);
+const OFFICIAL_COACH_EMAILS = new Set([
+  "jespinal@united-wc.com",
+  "avalencia@united-wc.com",
+  "gmunch@united-wc.com",
+  "cwitte@united-wc.com",
+  "smunch@united-wc.com",
+  "zspence@united-wc.com",
+  "csizemore@united-wc.com"
+]);
 const SIGNUP_ALLOWED_ROLES = new Set(["athlete", "coach", "parent"]);
 
 function initFirebaseClient() {
@@ -2247,16 +2257,16 @@ const PANEL_COPY = {
   },
   "panel-messages": {
     title: {
-      en: "Coach Messages",
-      es: "Mensajes del entrenador",
-      uz: "Murabbiy xabarlari",
-      ru: "Сообщения тренера"
+      en: "Messages",
+      es: "Mensajes",
+      uz: "Xabarlar",
+      ru: "Сообщения"
     },
     chip: {
-      en: "1:1 + tags",
-      es: "1:1 + etiquetas",
-      uz: "1:1 + teglar",
-      ru: "1:1 + метки"
+      en: "Private coach threads",
+      es: "Chats privados con coaches",
+      uz: "Murabbiylar bilan shaxsiy chatlar",
+      ru: "Личные чаты с тренерами"
     }
   },
   "panel-permissions": {
@@ -4852,6 +4862,14 @@ async function showTab(name) {
 
   if (safeTab === "permissions") {
     maybeRefreshAdminUsers();
+  }
+
+  if (safeTab === "messages") {
+    ensureMessagesSession().catch((err) => {
+      console.warn("Failed to open messages tab", err);
+      setMessagesStatus(MESSAGES_COPY.loadError, "error");
+      renderMessages();
+    });
   }
 }
 
@@ -9317,21 +9335,687 @@ if (coachMatchSelect) {
 
 // ---------- MESSAGES ----------
 const messageList = document.getElementById("messageList");
+const messagesCoachList = document.getElementById("messagesCoachList");
+const messagesPanelTitle = document.getElementById("messagesPanelTitle");
+const messagesPanelSubtitle = document.getElementById("messagesPanelSubtitle");
+const messagesPanelChip = document.getElementById("messagesPanelChip");
+const messagesSidebarTitle = document.getElementById("messagesSidebarTitle");
+const messagesSidebarHint = document.getElementById("messagesSidebarHint");
+const messagesEmptyState = document.getElementById("messagesEmptyState");
+const messagesEmptyTitle = document.getElementById("messagesEmptyTitle");
+const messagesEmptyBody = document.getElementById("messagesEmptyBody");
+const messagesThreadView = document.getElementById("messagesThreadView");
+const messagesThreadTitle = document.getElementById("messagesThreadTitle");
+const messagesThreadMeta = document.getElementById("messagesThreadMeta");
+const messagesThreadBadge = document.getElementById("messagesThreadBadge");
+const messagesStatus = document.getElementById("messagesStatus");
+const messagesFeed = document.getElementById("messagesFeed");
+const messageComposer = document.getElementById("messageComposer");
+const messageComposerLabel = document.getElementById("messageComposerLabel");
+const messageComposerInput = document.getElementById("messageComposerInput");
+const messageSendBtn = document.getElementById("messageSendBtn");
+
+const MESSAGES_COPY = {
+  title: { en: "Messages", es: "Mensajes" },
+  subtitle: {
+    en: "Private 1:1 communication between athletes, parents, and coaches.",
+    es: "Comunicacion privada 1:1 entre atletas, padres y entrenadores."
+  },
+  chip: { en: "Private threads", es: "Chats privados" },
+  sidebarTitle: { en: "Conversations", es: "Conversaciones" },
+  sidebarHintCoach: {
+    en: "Open any athlete or parent thread and reply directly from here.",
+    es: "Abre cualquier chat de atleta o padre y responde directamente aqui."
+  },
+  sidebarHintUser: {
+    en: "Start a private thread with any coach, then continue the conversation here.",
+    es: "Comienza un chat privado con cualquier coach y sigue la conversacion aqui."
+  },
+  emptyTitle: { en: "No conversation selected", es: "No hay una conversacion seleccionada" },
+  emptyBodyUser: {
+    en: "Choose a coach from the left column to open a private thread.",
+    es: "Selecciona un coach en la columna izquierda para abrir un chat privado."
+  },
+  emptyBodyCoach: {
+    en: "As soon as an athlete or parent writes to you, the thread will appear here.",
+    es: "Tan pronto un atleta o padre te escriba, el chat aparecera aqui."
+  },
+  emptyBodyAuth: {
+    en: "Sign in to load private coach conversations.",
+    es: "Inicia sesion para cargar las conversaciones privadas con coaches."
+  },
+  emptyBodyNoCoaches: {
+    en: "No coach accounts are available yet. Provision the coach roster first.",
+    es: "Todavia no hay cuentas de coach disponibles. Primero crea el roster de coaches."
+  },
+  composerLabel: { en: "Message", es: "Mensaje" },
+  composerPlaceholder: { en: "Write your message here", es: "Escribe tu mensaje aqui" },
+  send: { en: "Send message", es: "Enviar mensaje" },
+  sending: { en: "Sending...", es: "Enviando..." },
+  loading: { en: "Loading conversations...", es: "Cargando conversaciones..." },
+  loadingFeed: { en: "Loading thread...", es: "Cargando chat..." },
+  loadError: {
+    en: "Could not load messages. Check Firebase rules and auth.",
+    es: "No se pudieron cargar los mensajes. Revisa reglas de Firebase y autenticacion."
+  },
+  sendError: {
+    en: "Could not send this message.",
+    es: "No se pudo enviar este mensaje."
+  },
+  sentToast: { en: "Message sent.", es: "Mensaje enviado." },
+  noMessages: {
+    en: "No messages yet. Start the conversation below.",
+    es: "Todavia no hay mensajes. Empieza la conversacion abajo."
+  },
+  noThreads: {
+    en: "No threads yet.",
+    es: "Todavia no hay chats."
+  },
+  coachesHeader: { en: "Coaches", es: "Coaches" },
+  threadsHeader: { en: "Active threads", es: "Chats activos" },
+  startThread: { en: "Start thread", es: "Abrir chat" },
+  openThread: { en: "Open thread", es: "Ver chat" },
+  coachAvailable: { en: "Coach account ready", es: "Cuenta de coach lista" },
+  privateBadge: { en: "Private", es: "Privado" },
+  you: { en: "You", es: "Tu" },
+  needText: { en: "Write a message before sending.", es: "Escribe un mensaje antes de enviar." },
+  signedOut: { en: "Signed out", es: "Sesion cerrada" }
+};
+
+let messagesThreadRows = [];
+let messagesCoachRows = [];
+let messagesFeedRows = [];
+let messagesThreadsUnsub = null;
+let messagesFeedUnsub = null;
+let messagesSessionUid = "";
+let messagesSelectedThreadId = "";
+let messagesBound = false;
+let messagesFeedLoading = false;
+let messagesStatusCopy = "";
+let messagesStatusType = "";
+
+function getMessagesCurrentUser() {
+  const authUser = getAuthUser();
+  if (!authUser?.id) return null;
+  const profile = getProfile() || {};
+  const role = normalizeAuthRole(profile.role || authUser.role);
+  return {
+    uid: String(authUser.id || "").trim(),
+    email: normalizeEmail(authUser.email || profile.email || ""),
+    role,
+    name: String(profile.name || authUser.email || "").trim() || "User"
+  };
+}
+
+function isCoachMessagingUser(user) {
+  if (!user) return false;
+  return normalizeAuthRole(user.role) === "coach" || OFFICIAL_COACH_EMAILS.has(normalizeEmail(user.email));
+}
+
+function getMessageThreadsCollectionRef() {
+  if (!firebaseFirestoreInstance) return null;
+  return firebaseFirestoreInstance.collection(FIREBASE_MESSAGE_THREADS_COLLECTION);
+}
+
+function getFirestoreServerTimestamp() {
+  if (typeof firebase !== "undefined" && firebase.firestore?.FieldValue?.serverTimestamp) {
+    return firebase.firestore.FieldValue.serverTimestamp();
+  }
+  return new Date().toISOString();
+}
+
+function messageTimestampToMillis(value) {
+  if (!value) return 0;
+  if (typeof value.toMillis === "function") return value.toMillis();
+  if (typeof value.toDate === "function") return value.toDate().getTime();
+  return parseIsoTimestamp(value);
+}
+
+function formatMessageTimestamp(value) {
+  const ms = messageTimestampToMillis(value);
+  if (!ms) return "";
+  const locale = currentLang === "es" ? "es-ES" : "en-US";
+  return new Date(ms).toLocaleString(locale, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: APP_TIMEZONE
+  });
+}
+
+function buildDirectMessageThreadId(uidA, uidB) {
+  return [String(uidA || "").trim(), String(uidB || "").trim()].filter(Boolean).sort().join("__");
+}
+
+function normalizeMessageCoachRecord(uid, data = {}) {
+  return normalizeManagedUserRecord(uid, { ...data, role: "coach", view: "coach" });
+}
+
+function normalizeMessageThreadRecord(doc) {
+  const data = doc.data() || {};
+  const participantIds = Array.isArray(data.participantIds)
+    ? data.participantIds.map((value) => String(value || "").trim()).filter(Boolean)
+    : [];
+  return {
+    id: doc.id,
+    participantIds,
+    participants: data.participants && typeof data.participants === "object" ? data.participants : {},
+    coachUid: String(data.coachUid || "").trim(),
+    coachName: String(data.coachName || "").trim() || "Coach",
+    userUid: String(data.userUid || "").trim(),
+    userName: String(data.userName || "").trim() || "User",
+    userRole: normalizeAuthRole(data.userRole || "athlete"),
+    lastMessageText: String(data.lastMessageText || "").trim(),
+    lastMessageAt: data.lastMessageAt || data.updatedAt || data.createdAt || "",
+    lastSenderUid: String(data.lastSenderUid || "").trim(),
+    createdAt: data.createdAt || "",
+    updatedAt: data.updatedAt || data.lastMessageAt || data.createdAt || ""
+  };
+}
+
+function normalizeMessageEntry(doc) {
+  const data = doc.data() || {};
+  return {
+    id: doc.id,
+    text: String(data.text || "").trim(),
+    senderUid: String(data.senderUid || "").trim(),
+    senderName: String(data.senderName || "").trim() || "User",
+    senderRole: normalizeAuthRole(data.senderRole || "athlete"),
+    createdAt: data.createdAt || data.updatedAt || ""
+  };
+}
+
+function getSelectedMessageThread() {
+  return messagesThreadRows.find((thread) => thread.id === messagesSelectedThreadId) || null;
+}
+
+function getMessageOtherParticipant(thread, currentUid) {
+  if (!thread) return { uid: "", name: "", role: "athlete" };
+  if (thread.coachUid === currentUid) {
+    return {
+      uid: thread.userUid,
+      name: thread.userName || "User",
+      role: normalizeAuthRole(thread.userRole)
+    };
+  }
+  return {
+    uid: thread.coachUid,
+    name: thread.coachName || "Coach",
+    role: "coach"
+  };
+}
+
+function setMessagesStatus(copy, type = "") {
+  messagesStatusCopy = copy;
+  messagesStatusType = type;
+  if (!messagesStatus) return;
+  messagesStatus.textContent = pickCopy(copy);
+  messagesStatus.dataset.state = type || "";
+}
+
+function resetMessagesStatus() {
+  setMessagesStatus("", "");
+}
+
+function teardownMessagesSession({ preserveSelection = false } = {}) {
+  if (messagesThreadsUnsub) {
+    messagesThreadsUnsub();
+    messagesThreadsUnsub = null;
+  }
+  if (messagesFeedUnsub) {
+    messagesFeedUnsub();
+    messagesFeedUnsub = null;
+  }
+  messagesSessionUid = "";
+  messagesThreadRows = [];
+  messagesCoachRows = [];
+  messagesFeedRows = [];
+  messagesFeedLoading = false;
+  if (!preserveSelection) messagesSelectedThreadId = "";
+  resetMessagesStatus();
+}
+
+function sortMessageThreads(items = []) {
+  return items.slice().sort((a, b) => {
+    return messageTimestampToMillis(b.updatedAt) - messageTimestampToMillis(a.updatedAt);
+  });
+}
+
+async function loadCoachDirectoryForMessages() {
+  const current = getMessagesCurrentUser();
+  if (!current || !firebaseFirestoreInstance) {
+    messagesCoachRows = [];
+    return;
+  }
+
+  try {
+    const [coachSnapshot, adminCoachSnapshot] = await withTimeout(
+      Promise.all([
+        firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION).where("role", "==", "coach").get(),
+        firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION).where("email", "==", "gmunch@united-wc.com").get()
+      ]),
+      FIREBASE_OP_TIMEOUT_MS * 2,
+      "firestore_coach_directory_timeout"
+    );
+    const byUid = new Map();
+    [...coachSnapshot.docs, ...adminCoachSnapshot.docs].forEach((doc) => {
+      const normalized = normalizeMessageCoachRecord(doc.id, doc.data() || {});
+      if (normalized.uid) byUid.set(normalized.uid, normalized);
+    });
+    messagesCoachRows = Array.from(byUid.values())
+      .filter((coach) => coach.uid && coach.uid !== current.uid)
+      .filter((coach) => OFFICIAL_COACH_EMAILS.has(normalizeEmail(coach.email)))
+      .sort((a, b) => a.name.localeCompare(b.name || "", undefined, { sensitivity: "base" }));
+  } catch (err) {
+    console.warn("Failed to load coach directory", err);
+    messagesCoachRows = [];
+    setMessagesStatus(MESSAGES_COPY.loadError, "error");
+  }
+}
+
+function subscribeToMessageFeed(threadId) {
+  if (messagesFeedUnsub) {
+    messagesFeedUnsub();
+    messagesFeedUnsub = null;
+  }
+  messagesFeedRows = [];
+  if (!threadId) return;
+
+  const threadsRef = getMessageThreadsCollectionRef();
+  if (!threadsRef) return;
+  messagesFeedLoading = true;
+  setMessagesStatus(MESSAGES_COPY.loadingFeed, "");
+  messagesFeedUnsub = threadsRef
+    .doc(threadId)
+    .collection("messages")
+    .orderBy("createdAt", "asc")
+    .onSnapshot((snapshot) => {
+      messagesFeedRows = snapshot.docs.map((doc) => normalizeMessageEntry(doc));
+      messagesFeedLoading = false;
+      resetMessagesStatus();
+      renderMessages();
+      if (messagesFeed) {
+        requestAnimationFrame(() => {
+          messagesFeed.scrollTop = messagesFeed.scrollHeight;
+        });
+      }
+    }, (err) => {
+      console.warn("Failed to subscribe to message feed", err);
+      messagesFeedLoading = false;
+      setMessagesStatus(MESSAGES_COPY.loadError, "error");
+      renderMessages();
+    });
+}
+
+function selectMessageThread(threadId) {
+  if (!threadId || messagesSelectedThreadId === threadId) return;
+  messagesSelectedThreadId = threadId;
+  subscribeToMessageFeed(threadId);
+  renderMessages();
+}
+
+function ensureSelectedMessageThread() {
+  if (messagesSelectedThreadId && messagesThreadRows.some((thread) => thread.id === messagesSelectedThreadId)) {
+    return;
+  }
+  const firstThread = messagesThreadRows[0];
+  messagesSelectedThreadId = firstThread?.id || "";
+  subscribeToMessageFeed(messagesSelectedThreadId);
+}
+
+function subscribeToMessageThreads(current) {
+  const threadsRef = getMessageThreadsCollectionRef();
+  const uid = String(current?.uid || "").trim();
+  if (!threadsRef || !uid) return;
+  if (messagesThreadsUnsub) {
+    messagesThreadsUnsub();
+    messagesThreadsUnsub = null;
+  }
+
+  const inboxField = isCoachMessagingUser(current) ? "coachUid" : "userUid";
+  setMessagesStatus(MESSAGES_COPY.loading, "");
+  messagesThreadsUnsub = threadsRef
+    .where(inboxField, "==", uid)
+    .onSnapshot((snapshot) => {
+      messagesThreadRows = sortMessageThreads(snapshot.docs.map((doc) => normalizeMessageThreadRecord(doc)));
+      ensureSelectedMessageThread();
+      resetMessagesStatus();
+      renderMessages();
+    }, (err) => {
+      console.warn("Failed to subscribe to threads", err);
+      messagesThreadRows = [];
+      setMessagesStatus(MESSAGES_COPY.loadError, "error");
+      renderMessages();
+    });
+}
+
+async function ensureMessagesSession() {
+  const current = getMessagesCurrentUser();
+  if (!current || !firebaseFirestoreInstance) {
+    teardownMessagesSession();
+    renderMessages();
+    return;
+  }
+
+  if (messagesSessionUid === current.uid) return;
+
+  teardownMessagesSession();
+  messagesSessionUid = current.uid;
+  renderMessages();
+  await loadCoachDirectoryForMessages();
+  subscribeToMessageThreads(current);
+  renderMessages();
+}
+
+async function ensureDirectMessageThread(coach) {
+  const current = getMessagesCurrentUser();
+  const threadsRef = getMessageThreadsCollectionRef();
+  if (!current || !threadsRef || !coach?.uid) {
+    throw new Error("firestore_not_configured");
+  }
+
+  const threadId = buildDirectMessageThreadId(current.uid, coach.uid);
+  const threadRef = threadsRef.doc(threadId);
+  const existing = await withTimeout(threadRef.get(), FIREBASE_OP_TIMEOUT_MS, "firestore_thread_read_timeout");
+  if (!existing.exists) {
+    await withTimeout(
+      threadRef.set({
+        participantIds: [current.uid, coach.uid].sort(),
+        participants: {
+          [current.uid]: true,
+          [coach.uid]: true
+        },
+        coachUid: coach.uid,
+        coachName: coach.name,
+        userUid: current.uid,
+        userName: current.name,
+        userRole: current.role,
+        createdAt: getFirestoreServerTimestamp(),
+        updatedAt: getFirestoreServerTimestamp(),
+        lastMessageText: "",
+        lastSenderUid: ""
+      }, { merge: true }),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_thread_write_timeout"
+    );
+  }
+  return threadId;
+}
+
+async function openMessageThreadForCoach(coachUid) {
+  const coach = messagesCoachRows.find((item) => item.uid === coachUid);
+  if (!coach) return;
+  try {
+    const existingThread = messagesThreadRows.find((thread) => thread.coachUid === coach.uid);
+    const threadId = existingThread?.id || await ensureDirectMessageThread(coach);
+    selectMessageThread(threadId);
+  } catch (err) {
+    console.warn("Failed to open direct coach thread", err);
+    setMessagesStatus(MESSAGES_COPY.loadError, "error");
+    renderMessages();
+  }
+}
+
+function renderMessagesCoachList(current) {
+  if (!messagesCoachList) return;
+  messagesCoachList.innerHTML = "";
+  const isCoach = isCoachMessagingUser(current);
+  messagesCoachList.hidden = isCoach;
+  if (isCoach) return;
+
+  const title = document.createElement("div");
+  title.className = "small muted";
+  title.textContent = pickCopy(MESSAGES_COPY.coachesHeader);
+  messagesCoachList.appendChild(title);
+
+  if (!messagesCoachRows.length) {
+    const empty = document.createElement("div");
+    empty.className = "small muted";
+    empty.textContent = pickCopy(MESSAGES_COPY.emptyBodyNoCoaches);
+    messagesCoachList.appendChild(empty);
+    return;
+  }
+
+  messagesCoachRows.forEach((coach) => {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "messages-coach-card";
+    const linkedThread = messagesThreadRows.find((thread) => thread.coachUid === coach.uid);
+    if (linkedThread && linkedThread.id === messagesSelectedThreadId) {
+      card.classList.add("active");
+    }
+    card.innerHTML = `
+      <h4>${escapeHtml(coach.name || coach.email || "Coach")}</h4>
+      <small>${escapeHtml(coach.email || "")}</small>
+      <small>${escapeHtml(linkedThread ? pickCopy(MESSAGES_COPY.openThread) : pickCopy(MESSAGES_COPY.coachAvailable))}</small>
+    `;
+    card.addEventListener("click", () => {
+      openMessageThreadForCoach(coach.uid);
+    });
+    messagesCoachList.appendChild(card);
+  });
+}
+
+function renderMessagesThreadList(current) {
+  if (!messageList) return;
+  messageList.innerHTML = "";
+
+  const title = document.createElement("div");
+  title.className = "small muted";
+  title.textContent = pickCopy(MESSAGES_COPY.threadsHeader);
+  messageList.appendChild(title);
+
+  if (!current) return;
+
+  if (!messagesThreadRows.length) {
+    const empty = document.createElement("div");
+    empty.className = "small muted";
+    empty.textContent = pickCopy(MESSAGES_COPY.noThreads);
+    messageList.appendChild(empty);
+    return;
+  }
+
+  messagesThreadRows.forEach((thread) => {
+    const other = getMessageOtherParticipant(thread, current.uid);
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "message-thread-card";
+    if (thread.id === messagesSelectedThreadId) {
+      card.classList.add("active");
+    }
+    const preview = thread.lastMessageText || pickCopy(MESSAGES_COPY.noMessages);
+    const meta = formatMessageTimestamp(thread.lastMessageAt || thread.updatedAt);
+    card.innerHTML = `
+      <h4>${escapeHtml(other.name || "Conversation")}</h4>
+      <small>${escapeHtml(meta || other.role)}</small>
+      <span class="message-thread-preview">${escapeHtml(preview)}</span>
+    `;
+    card.addEventListener("click", () => {
+      selectMessageThread(thread.id);
+    });
+    messageList.appendChild(card);
+  });
+}
+
+function renderMessagesFeed(current) {
+  if (!messagesFeed) return;
+  messagesFeed.innerHTML = "";
+  if (!messagesFeedRows.length) {
+    const empty = document.createElement("div");
+    empty.className = "small muted";
+    empty.textContent = pickCopy(MESSAGES_COPY.noMessages);
+    messagesFeed.appendChild(empty);
+    return;
+  }
+
+  messagesFeedRows.forEach((entry) => {
+    const bubble = document.createElement("div");
+    bubble.className = "message-bubble";
+    if (entry.senderUid === current?.uid) {
+      bubble.classList.add("own");
+    }
+
+    const header = document.createElement("div");
+    header.className = "message-bubble-header";
+    const sender = document.createElement("strong");
+    sender.textContent = entry.senderUid === current?.uid
+      ? pickCopy(MESSAGES_COPY.you)
+      : entry.senderName;
+    const time = document.createElement("span");
+    time.textContent = formatMessageTimestamp(entry.createdAt);
+    header.appendChild(sender);
+    header.appendChild(time);
+
+    const body = document.createElement("div");
+    body.className = "message-bubble-body";
+    body.textContent = entry.text;
+
+    bubble.appendChild(header);
+    bubble.appendChild(body);
+    messagesFeed.appendChild(bubble);
+  });
+}
 
 function renderMessages() {
   if (!messageList) return;
-  messageList.innerHTML = "";
-  getCoachMessagesData().forEach((msg) => {
-    const card = document.createElement("div");
-    card.className = "message-card";
-    card.innerHTML = `
-      <div class="tag-pill">${msg.tag}</div>
-      <h4>${msg.athlete}</h4>
-      <div class="small">${msg.text}</div>
-      <div class="small">${msg.time}</div>
-    `;
-    messageList.appendChild(card);
-  });
+
+  setTextContent(messagesPanelTitle, MESSAGES_COPY.title);
+  setTextContent(messagesPanelSubtitle, MESSAGES_COPY.subtitle);
+  setTextContent(messagesPanelChip, MESSAGES_COPY.chip);
+  setTextContent(messagesSidebarTitle, MESSAGES_COPY.sidebarTitle);
+  setTextContent(messageComposerLabel, MESSAGES_COPY.composerLabel);
+  if (messageComposerInput) {
+    messageComposerInput.placeholder = pickCopy(MESSAGES_COPY.composerPlaceholder);
+  }
+  if (messageSendBtn) {
+    messageSendBtn.textContent = pickCopy(MESSAGES_COPY.send);
+  }
+
+  const current = getMessagesCurrentUser();
+  const isCoach = isCoachMessagingUser(current);
+  setTextContent(messagesSidebarHint, isCoach ? MESSAGES_COPY.sidebarHintCoach : MESSAGES_COPY.sidebarHintUser);
+
+  if (!current || !firebaseFirestoreInstance) {
+    setTextContent(messagesEmptyTitle, MESSAGES_COPY.emptyTitle);
+    setTextContent(messagesEmptyBody, MESSAGES_COPY.emptyBodyAuth);
+    messagesEmptyState?.classList.remove("hidden");
+    messagesThreadView?.classList.add("hidden");
+    if (messagesCoachList) messagesCoachList.innerHTML = "";
+    if (messageList) messageList.innerHTML = "";
+    if (messagesStatus) messagesStatus.textContent = pickCopy(MESSAGES_COPY.signedOut);
+    return;
+  }
+
+  if (messagesSessionUid !== current.uid) {
+    ensureMessagesSession().catch((err) => {
+      console.warn("Failed to initialize messages session", err);
+      setMessagesStatus(MESSAGES_COPY.loadError, "error");
+      renderMessages();
+    });
+  }
+
+  renderMessagesCoachList(current);
+  renderMessagesThreadList(current);
+
+  const selectedThread = getSelectedMessageThread();
+  if (!selectedThread) {
+    setTextContent(messagesEmptyTitle, MESSAGES_COPY.emptyTitle);
+    if (!isCoach && !messagesCoachRows.length) {
+      setTextContent(messagesEmptyBody, MESSAGES_COPY.emptyBodyNoCoaches);
+    } else {
+      setTextContent(messagesEmptyBody, isCoach ? MESSAGES_COPY.emptyBodyCoach : MESSAGES_COPY.emptyBodyUser);
+    }
+    messagesEmptyState?.classList.remove("hidden");
+    messagesThreadView?.classList.add("hidden");
+    if (messagesFeed) messagesFeed.innerHTML = "";
+    return;
+  }
+
+  const other = getMessageOtherParticipant(selectedThread, current.uid);
+  messagesEmptyState?.classList.add("hidden");
+  messagesThreadView?.classList.remove("hidden");
+  if (messagesThreadTitle) messagesThreadTitle.textContent = other.name || pickCopy(MESSAGES_COPY.title);
+  if (messagesThreadMeta) {
+    const metaBits = [other.role === "coach" ? "Coach" : getRoleLabelEnglish(other.role)];
+    if (selectedThread.lastMessageAt) {
+      metaBits.push(formatMessageTimestamp(selectedThread.lastMessageAt));
+    }
+    messagesThreadMeta.textContent = metaBits.filter(Boolean).join(" - ");
+  }
+  if (messagesThreadBadge) messagesThreadBadge.textContent = pickCopy(MESSAGES_COPY.privateBadge);
+  if (messagesStatus) {
+    messagesStatus.textContent = pickCopy(messagesStatusCopy);
+    messagesStatus.dataset.state = messagesStatusType || "";
+  }
+  renderMessagesFeed(current);
+}
+
+async function handleMessageComposerSubmit(event) {
+  event.preventDefault();
+  const current = getMessagesCurrentUser();
+  const selectedThread = getSelectedMessageThread();
+  const threadsRef = getMessageThreadsCollectionRef();
+  const text = String(messageComposerInput?.value || "").trim();
+
+  if (!text) {
+    toast(pickCopy(MESSAGES_COPY.needText));
+    return;
+  }
+  if (!current || !selectedThread || !threadsRef) {
+    setMessagesStatus(MESSAGES_COPY.loadError, "error");
+    return;
+  }
+
+  if (messageSendBtn) {
+    messageSendBtn.disabled = true;
+    messageSendBtn.textContent = pickCopy(MESSAGES_COPY.sending);
+  }
+
+  try {
+    const threadRef = threadsRef.doc(selectedThread.id);
+    await withTimeout(
+      threadRef.collection("messages").add({
+        threadId: selectedThread.id,
+        text,
+        senderUid: current.uid,
+        senderName: current.name,
+        senderRole: current.role,
+        createdAt: getFirestoreServerTimestamp()
+      }),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_message_write_timeout"
+    );
+    await withTimeout(
+      threadRef.set({
+        updatedAt: getFirestoreServerTimestamp(),
+        lastMessageAt: getFirestoreServerTimestamp(),
+        lastMessageText: text,
+        lastSenderUid: current.uid,
+        coachName: selectedThread.coachName,
+        userName: selectedThread.userName
+      }, { merge: true }),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_thread_touch_timeout"
+    );
+    if (messageComposerInput) messageComposerInput.value = "";
+    toast(pickCopy(MESSAGES_COPY.sentToast));
+    resetMessagesStatus();
+  } catch (err) {
+    console.warn("Failed to send message", err);
+    setMessagesStatus(MESSAGES_COPY.sendError, "error");
+    renderMessages();
+  } finally {
+    if (messageSendBtn) {
+      messageSendBtn.disabled = false;
+      messageSendBtn.textContent = pickCopy(MESSAGES_COPY.send);
+    }
+  }
+}
+
+if (messageComposer && !messagesBound) {
+  messageComposer.addEventListener("submit", handleMessageComposerSubmit);
+  messagesBound = true;
 }
 
 // ---------- SKILLS ----------
