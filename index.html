@@ -856,13 +856,13 @@
                   </div>
                 </div>
                 <div class="media-tool-card">
-                  <h3 id="mediaAddItemTitle">Add Video</h3>
-                  <label for="mediaNewItemTitle" id="mediaNewItemLabel">Video title</label>
+                  <h3 id="mediaAddItemTitle">Add Media</h3>
+                  <label for="mediaNewItemTitle" id="mediaNewItemLabel">Media title</label>
                   <input id="mediaNewItemTitle" type="text" placeholder="e.g., Double leg finish" >
                   <label for="mediaNewItemAssetPath" id="mediaNewItemAssetPathLabel">NAS path or URL</label>
                   <input id="mediaNewItemAssetPath" type="text" placeholder="e.g., wrestling/drills/double-leg.mp4" >
-                  <label for="mediaNewItemFile" id="mediaNewItemFileLabel">Upload video file (optional)</label>
-                  <input id="mediaNewItemFile" type="file" accept="video/*" >
+                  <label for="mediaNewItemFile" id="mediaNewItemFileLabel">Upload photo or video (optional)</label>
+                  <input id="mediaNewItemFile" type="file" accept="image/*,video/*" >
                   <label for="mediaNewItemThumbPath" id="mediaNewItemThumbPathLabel">Thumbnail path (optional)</label>
                   <input id="mediaNewItemThumbPath" type="text" placeholder="e.g., wrestling/thumbnails/double-leg.jpg" >
                   <label for="mediaNewItemDuration" id="mediaNewItemDurationLabel">Duration (optional)</label>
@@ -871,6 +871,7 @@
                   <select id="mediaNewItemType">
                     <option value="Video">Video</option>
                     <option value="Clip">Clip</option>
+                    <option value="Photo">Photo</option>
                     <option value="Link">Link</option>
                   </select>
                   <label for="mediaNewItemAssigned" id="mediaNewItemAssignedLabel">Assigned</label>
@@ -878,7 +879,7 @@
                   <label for="mediaNewItemNote" id="mediaNewItemNoteLabel">Notes</label>
                   <input id="mediaNewItemNote" type="text" placeholder="Optional note" >
                   <div class="form-actions">
-                    <button type="button" id="mediaAddItemBtn" class="primary">Add video</button>
+                    <button type="button" id="mediaAddItemBtn" class="primary">Add media</button>
                   </div>
                 </div>
                 <div class="media-tool-card">
