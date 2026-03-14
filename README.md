@@ -85,7 +85,7 @@ The onboarding overlay now prioritizes log in / create account so athletes and c
    - Provision a Firestore database (mode: Production or Test) so user metadata can be stored. The app writes to the `users` collection by default.
 2. **Provide your config.**
    - For hosted environments (including GitHub Pages), keep Firebase web config in `firebase-config.public.js` so it is versioned and deployed.
-   - If you want local overrides, copy `firebase-config.example.js` to `firebase-config.js` and change values there. `firebase-config.js` is ignored by git and loads after the public file.
+   - If you want local overrides, copy `firebase-config.example.js` to `firebase-config.js` and change values there. `firebase-config.js` is ignored by git. To load it, open the app with `?firebaseConfig=local` or set `localStorage.wplFirebaseConfigOverride = "local"` before reloading.
    - Optionally override `window.FIREBASE_USERS_COLLECTION` inside that file if you prefer a different collection name.
 3. **Answer onboarding questions.**
    - The create-account form now asks for preferred move(s), years of experience, stance, weight class, and a short notes field; that metadata gets stored in your Firestore `users` document alongside the standard profile fields so you can target the experience later.
