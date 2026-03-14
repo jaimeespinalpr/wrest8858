@@ -4047,6 +4047,7 @@ body::before{
   padding: 20px;
   border-radius: 28px;
   backdrop-filter: blur(18px);
+  overflow: visible;
 }
 
 .app-header::after,
@@ -4067,6 +4068,16 @@ body::before{
 .card{
   position: relative;
   overflow: hidden;
+}
+
+.app-header{
+  overflow: visible;
+}
+
+.app-header > *,
+.app.parent-view-active .app-header > *{
+  position: relative;
+  z-index: 1;
 }
 
 .app-header h1,
@@ -4220,7 +4231,6 @@ button.ghost,
   border-color: rgba(148,163,184,0.16) !important;
 }
 
-.header-actions,
 .lang-switch,
 .view-switch,
 .header-menu,
@@ -4230,10 +4240,43 @@ button.ghost,
   border-color: rgba(109, 139, 191, 0.18);
 }
 
+.header-actions{
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  gap: 8px;
+}
+
+.header-profile,
+.view-switch{
+  position: relative;
+  z-index: 80;
+}
+
+#editProfileBtn,
+#viewSwitchBtn{
+  min-height: 46px;
+  border-radius: 16px;
+}
+
+#editProfileBtn{
+  min-width: 46px;
+  width: 46px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
 .header-menu,
 .app.parent-view-active .header-menu{
+  top: calc(100% + 10px);
+  min-width: 190px;
   border-radius: 20px;
   backdrop-filter: blur(18px);
+  z-index: 140;
 }
 
 .header-menu button,
@@ -4245,6 +4288,22 @@ button.ghost,
 .header-menu button:hover,
 .app.parent-view-active .header-menu button:hover{
   background: rgba(79,124,255,0.12);
+}
+
+.view-menu{
+  top: calc(100% + 10px);
+  min-width: 190px;
+  z-index: 140;
+  backdrop-filter: blur(18px);
+}
+
+.tabs{
+  scroll-snap-type: x proximity;
+}
+
+.tab{
+  scroll-snap-align: start;
+  flex: 0 0 auto;
 }
 
 .stat-card,
