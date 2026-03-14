@@ -2006,7 +2006,15 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
   <script src="firebase-config.public.js"></script>
-  <script src="firebase-config.js"></script>
+  <script>
+    (function loadOptionalLocalFirebaseConfig() {
+      const params = new URLSearchParams(window.location.search);
+      const wantsLocalOverride = params.get("firebaseConfig") === "local"
+        || window.localStorage.getItem("wplFirebaseConfigOverride") === "local";
+      if (!wantsLocalOverride) return;
+      document.write('<script src="firebase-config.js"><\\/script>');
+    }());
+  </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <script src="app.js"></script>
 </body>

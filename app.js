@@ -6767,8 +6767,8 @@ const panels = {
 };
 const COACH_ROUTE_PANELS = {
   "coach-home": ["dashboard", "coach-profile"],
-  "coach-athletes": ["athletes", "coach-match", "skills", "journal-monitor", "athlete-notes"],
-  "coach-plans": ["plans", "templates", "assignments", "calendar-manager", "calendar", "completion-tracking"],
+  "coach-athletes": ["athletes", "coach-match", "skills", "journal-monitor", "athlete-notes", "messages"],
+  "coach-plans": ["plans", "templates", "media", "assignments", "calendar-manager", "calendar", "completion-tracking"],
   "coach-competition": ["competition-preview"]
 };
 const COACH_ROUTE_DEFAULT_PANEL = {
@@ -12885,13 +12885,13 @@ async function saveCoachAthleteNotes(event) {
   ]).slice(0, 6);
   try {
     await withTimeout(
-      notesRef.doc(slugifyKey(athleteName)).set({
+      notesRef.doc(slugifyKey(athleteName)).set(stripUndefinedDeep({
         athleteName,
         nextFocus,
         recentNotes,
         updatedAt: getFirestoreServerTimestamp(),
         createdAt: existing ? undefined : getFirestoreServerTimestamp()
-      }, { merge: true }),
+      }), { merge: true }),
       FIREBASE_OP_TIMEOUT_MS,
       "firestore_note_write_timeout"
     );
