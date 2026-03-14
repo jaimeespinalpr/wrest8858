@@ -75,6 +75,9 @@ let coachNotesCache = [];
 let coachJournalEntriesCache = [];
 let coachCompletionCache = [];
 let coachMatchAnalysisCache = [];
+let coachParentApprovalsCache = [];
+let coachDirectoryCache = [];
+let coachParentScoutingCache = [];
 let coachWorkspaceSeedPromise = null;
 let coachCalendarSyncTimeout = null;
 let coachCompletionSyncTimeout = null;
@@ -84,6 +87,21 @@ let coachPlanSyncState = {
   saving: false
 };
 let currentEditingCoachPlanId = "";
+let parentPortalUserUnsub = null;
+let parentPortalDataUnsubs = [];
+let parentPortalAthleteCache = null;
+let parentPortalTeamCache = [];
+let parentPortalAssignmentsCache = [];
+let parentPortalPlansCache = [];
+let parentPortalJournalCache = [];
+let parentPortalScoutingCache = [];
+let parentPortalPlanFetchKey = "";
+let parentScoutingRecorder = null;
+let parentScoutingStream = null;
+let parentScoutingAudioChunks = [];
+let parentScoutingAudioBlob = null;
+let parentScoutingAudioUrl = "";
+const PARENT_INLINE_MEDIA_MAX_BYTES = 240 * 1024;
 
 function initFirebaseClient() {
   if (typeof firebase === "undefined" || !window.FIREBASE_CONFIG) return null;
@@ -496,7 +514,7 @@ function resolveProfileShortcutTab(role = getProfile()?.role) {
   const normalized = normalizeAuthRole(role);
   if (normalized === "admin") return "permissions";
   if (normalized === "coach") return "coach-profile";
-  if (normalized === "parent") return "athlete-notes";
+  if (normalized === "parent") return "parent-home";
   return "athlete-profile";
 }
 
@@ -527,6 +545,7 @@ function handleHeaderMenuAction(action) {
     firebaseAuthInstance?.signOut().catch(() => {});
     stopMediaRealtimeSync();
     stopCoachWorkspaceRealtimeSync();
+    stopParentPortalRealtimeSync();
     setProfile(null);
     setAuthUser(null);
     showOnboarding(null);
@@ -543,6 +562,7 @@ function handleHeaderMenuAction(action) {
     firebaseAuthInstance?.signOut().catch(() => {});
     stopMediaRealtimeSync();
     stopCoachWorkspaceRealtimeSync();
+    stopParentPortalRealtimeSync();
     setProfile(null);
     setAuthUser(null);
     showOnboarding(null);
@@ -598,7 +618,7 @@ function toggleParentViewNotice(view) {
     parentViewNotice.setAttribute("aria-hidden", (!isParentView).toString());
   }
   if (appRoot) {
-    appRoot.classList.toggle("parent-view-mode", isParentView);
+    appRoot.classList.toggle("parent-view-active", isParentView);
   }
 }
 
@@ -636,23 +656,32 @@ const pExperienceYears = document.getElementById("pExperienceYears");
 const pStance = document.getElementById("pStance");
 const pWeightClass = document.getElementById("pWeightClass");
 const pNotes = document.getElementById("pNotes");
-const athleteOnlySections = Array.from(document.querySelectorAll(".role-athlete"));
-const athleteOnlyControls = Array.from(
-  document.querySelectorAll(".role-athlete input, .role-athlete select, .role-athlete textarea")
-);
-
-athleteOnlyControls.forEach((control) => {
-  if (control.required) control.dataset.wasRequired = "true";
-});
+const pParentAthleteName = document.getElementById("pParentAthleteName");
+const parentAthleteField = document.getElementById("parentAthleteField");
+const parentVerificationText = document.getElementById("parentVerificationText");
+const registerAthleteExtras = [
+  pPreferredMoves?.closest("label"),
+  pExperienceYears?.closest("label"),
+  pStance?.closest("label"),
+  pWeightClass?.closest("label"),
+  pNotes?.closest("label")
+].filter(Boolean);
 
 function updateRoleSections(role) {
-  if (!athleteOnlySections.length) return;
-  const isAthlete = normalizeAuthRole(role) === "athlete";
-  athleteOnlySections.forEach((section) => section.classList.toggle("hidden", !isAthlete));
-  athleteOnlyControls.forEach((control) => {
-    control.disabled = !isAthlete;
-    control.required = isAthlete && control.dataset.wasRequired === "true";
+  const normalizedRole = normalizeAuthRole(role);
+  const isParent = normalizedRole === "parent";
+  registerAthleteExtras.forEach((section) => {
+    section.classList.toggle("hidden", isParent);
+    section.querySelectorAll("input, select, textarea").forEach((control) => {
+      control.disabled = isParent;
+    });
   });
+  if (parentAthleteField) parentAthleteField.classList.toggle("hidden", !isParent);
+  if (parentVerificationText) parentVerificationText.classList.toggle("hidden", !isParent);
+  if (pParentAthleteName) {
+    pParentAthleteName.disabled = !isParent;
+    pParentAthleteName.required = isParent;
+  }
 }
 
 const LANG_KEY = "wpl_lang_pref";
@@ -889,6 +918,8 @@ function refreshLanguageUI() {
   renderCompletionTracking();
   renderDashboard();
   renderCoachProfile();
+  renderParentHome();
+  renderParentScouting();
   renderAthleteManagement();
   renderAthleteNotes();
   renderJournalMonitor();
@@ -900,6 +931,7 @@ function refreshLanguageUI() {
     renderCoachMatchView(coachMatchSelect.value);
   }
   initializePlanSelectors();
+  updateParentFab();
 }
 
 function setLanguage(lang, { source = "system", skipConfirm = false, refresh = true } = {}) {
@@ -1002,6 +1034,13 @@ function normalizeProfileForAuth(profile, authUser) {
     : requestedRole;
   base.role = role;
   base.view = resolveViewForRole(role, base.view);
+  if (role === "parent") {
+    base.status = normalizeParentVerificationStatus(base.status);
+    base.athleteName = getParentLinkedAthleteName(base);
+    base.linkedAthleteId = getParentLinkedAthleteId(base);
+    base.linkedCoachUid = getParentLinkedCoachUid(base);
+    base.linkedCoachName = getParentLinkedCoachName(base);
+  }
   if (!base.lang) {
     const storedLang = localStorage.getItem(LANG_KEY);
     base.lang = storedLang && SUPPORTED_LANGS.has(storedLang) ? storedLang : DEFAULT_LANG;
@@ -1021,7 +1060,7 @@ function getProfile() {
   return fallback ? normalizeProfileForAuth(fallback, authUser) : null;
 }
 
-function setProfile(profile) {
+function setProfile(profile, { sync = true } = {}) {
   const authUser = getAuthUser();
   if (!profile || typeof profile !== "object") {
     localStorage.removeItem(PROFILE_KEY);
@@ -1034,13 +1073,16 @@ function setProfile(profile) {
   localStorage.setItem(PROFILE_KEY, JSON.stringify(normalized));
   if (authUser?.id) {
     localStorage.setItem(profileStorageKey(authUser.id), JSON.stringify(normalized));
-    queueFirebaseProfileSync(authUser.id, normalized);
+    if (sync) {
+      queueFirebaseProfileSync(authUser.id, normalized);
+    }
   }
 }
 
 async function applyProfile(profile) {
   if (!profile) {
     stopCoachWorkspaceRealtimeSync();
+    stopParentPortalRealtimeSync();
     setLanguage(getPreferredLang(), { skipConfirm: true, refresh: false });
     setView("athlete");
     refreshLanguageUI();
@@ -1058,6 +1100,11 @@ async function applyProfile(profile) {
     startCoachWorkspaceRealtimeSync();
   } else {
     stopCoachWorkspaceRealtimeSync();
+  }
+  if (role === "parent") {
+    startParentPortalRealtimeSync();
+  } else {
+    stopParentPortalRealtimeSync();
   }
   refreshLanguageUI();
 }
@@ -3179,6 +3226,43 @@ function normalizeSignupRole(role) {
   return SIGNUP_ALLOWED_ROLES.has(normalized) ? normalized : "athlete";
 }
 
+function normalizeParentVerificationStatus(status) {
+  const value = String(status || "").trim().toLowerCase();
+  return value === "verified" ? "verified" : "pending_verification";
+}
+
+function isParentRole(role = getProfile()?.role || getAuthUser()?.role) {
+  return normalizeAuthRole(role) === "parent";
+}
+
+function isParentVerified(profile = getProfile()) {
+  return isParentRole(profile?.role) && normalizeParentVerificationStatus(profile?.status) === "verified";
+}
+
+function getParentLinkedAthleteName(profile = getProfile()) {
+  return String(profile?.athleteName || profile?.linkedAthleteName || "").trim();
+}
+
+function getParentLinkedAthleteId(profile = getProfile()) {
+  const explicitId = String(profile?.linkedAthleteId || "").trim();
+  return explicitId || slugifyKey(getParentLinkedAthleteName(profile));
+}
+
+function getParentLinkedCoachUid(profile = getProfile()) {
+  return String(profile?.linkedCoachUid || "").trim();
+}
+
+function getParentLinkedCoachName(profile = getProfile()) {
+  return String(profile?.linkedCoachName || "").trim();
+}
+
+function canVerifyParentAccounts() {
+  const authUser = getAuthUser();
+  const profile = getProfile();
+  if (!authUser?.id) return false;
+  return isCoachRole(profile?.role || authUser.role);
+}
+
 function stripUndefinedDeep(value) {
   if (value === undefined) return undefined;
   if (Array.isArray(value)) {
@@ -3452,6 +3536,24 @@ function normalizeCoachMatchAnalysisRecord(id, data = {}) {
     groupId: String(data.groupId || "").trim(),
     summary: String(data.summary || "").trim(),
     entries: Array.isArray(data.entries) ? data.entries.map((entry) => normalizeMatchAnalysisEntry(entry)).filter((entry) => entry.timestamp || entry.note) : [],
+    updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : String(data.updatedAt || ""),
+    createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : String(data.createdAt || "")
+  };
+}
+
+function normalizeParentScoutingRecord(id, data = {}) {
+  return {
+    id,
+    parentUid: String(data.parentUid || "").trim(),
+    parentName: String(data.parentName || "").trim(),
+    parentEmail: normalizeEmail(data.parentEmail || ""),
+    athleteName: String(data.athleteName || "").trim(),
+    athleteId: String(data.athleteId || "").trim(),
+    subjectType: String(data.subjectType || "athlete").trim(),
+    targetAthleteName: String(data.targetAthleteName || "").trim(),
+    text: String(data.text || "").trim(),
+    attachments: Array.isArray(data.attachments) ? data.attachments : [],
+    audioAttachment: data.audioAttachment || null,
     updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : String(data.updatedAt || ""),
     createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : String(data.createdAt || "")
   };
@@ -4195,6 +4297,9 @@ function stopCoachWorkspaceRealtimeSync() {
   coachJournalEntriesCache = [];
   coachCompletionCache = [];
   coachMatchAnalysisCache = [];
+  coachParentApprovalsCache = [];
+  coachDirectoryCache = [];
+  coachParentScoutingCache = [];
   currentEditingCoachPlanId = "";
 }
 
@@ -4380,7 +4485,9 @@ async function startCoachWorkspaceRealtimeSync() {
   const journalRef = getCoachWorkspaceCollectionRef("journal_entries", authUser.id);
   const completionRef = getCoachWorkspaceCollectionRef("completion_status", authUser.id);
   const matchAnalysisRef = getCoachWorkspaceCollectionRef("match_analysis", authUser.id);
-  if (!plansRef || !templatesRef || !assignmentsRef || !groupsRef || !calendarRef || !athletesRef || !notesRef || !journalRef || !completionRef || !matchAnalysisRef) return;
+  const parentScoutingRef = getCoachWorkspaceCollectionRef("parent_scouting", authUser.id);
+  const usersRef = firebaseFirestoreInstance?.collection(FIREBASE_USERS_COLLECTION) || null;
+  if (!plansRef || !templatesRef || !assignmentsRef || !groupsRef || !calendarRef || !athletesRef || !notesRef || !journalRef || !completionRef || !matchAnalysisRef || !parentScoutingRef) return;
 
   coachWorkspaceUnsubs.push(
     plansRef.onSnapshot((snapshot) => {
@@ -4487,8 +4594,30 @@ async function startCoachWorkspaceRealtimeSync() {
       renderMedia();
       renderCoachMatchView(getSelectedCoachAthleteName());
       renderCompetitionPreview(getAthletesData().find((item) => item.name === getSelectedCoachAthleteName()) || getAthletesData()[0] || null);
-    }, (err) => console.warn("Match analysis sync failed", err))
+    }, (err) => console.warn("Match analysis sync failed", err)),
+    parentScoutingRef.onSnapshot((snapshot) => {
+      coachParentScoutingCache = coachWorkspaceSortByUpdated(
+        snapshot.docs.map((doc) => normalizeParentScoutingRecord(doc.id, doc.data() || {}))
+      );
+      renderDashboard();
+    }, (err) => console.warn("Parent scouting feed sync failed", err))
   );
+
+  if (canVerifyParentAccounts() && usersRef) {
+    coachWorkspaceUnsubs.push(
+      usersRef.where("role", "==", "parent").onSnapshot((snapshot) => {
+        coachParentApprovalsCache = snapshot.docs.map((doc) => normalizeManagedUserRecord(doc.id, doc.data() || {}));
+        renderDashboard();
+      }, (err) => console.warn("Parent approval sync failed", err)),
+      usersRef.where("role", "==", "coach").onSnapshot((snapshot) => {
+        coachDirectoryCache = snapshot.docs
+          .map((doc) => normalizeManagedUserRecord(doc.id, doc.data() || {}))
+          .filter((record) => Boolean(record.uid))
+          .sort((a, b) => a.name.localeCompare(b.name || "", undefined, { sensitivity: "base" }));
+        renderDashboard();
+      }, (err) => console.warn("Coach directory sync failed", err))
+    );
+  }
 }
 
 function getSharedMediaTreeDocRef() {
@@ -4618,6 +4747,7 @@ async function registerWithFirebase({
   name,
   role,
   lang,
+  athleteName = "",
   preferredMoves = "",
   experienceYears = "",
   stance = "",
@@ -4651,6 +4781,7 @@ async function registerWithFirebase({
   }
   const now = new Date().toISOString();
   const resolvedRole = signupRole;
+  const cleanAthleteName = String(athleteName || "").trim();
   const profilePayload = {
     user_id: user.uid,
     email: normalizedEmail,
@@ -4658,6 +4789,12 @@ async function registerWithFirebase({
     role: resolvedRole,
     view: getDefaultViewForRole(resolvedRole),
     lang: resolveLang(lang || currentLang),
+    athleteName: resolvedRole === "parent" ? cleanAthleteName : "",
+    linkedAthleteId: resolvedRole === "parent" ? slugifyKey(cleanAthleteName) : "",
+    linkedCoachUid: "",
+    linkedCoachName: "",
+    linkedCoachEmail: "",
+    status: resolvedRole === "parent" ? "pending_verification" : "verified",
     preferredMoves,
     preferred_moves: preferredMoves,
     experienceYears,
@@ -4686,12 +4823,14 @@ async function handleSuccessfulAuth(result) {
     { ...(result.profile || {}), role: resolvedRole, view: targetView },
     resolvedAuthUser
   );
-  await persistFirebaseProfile(resolvedAuthUser.id, {
-    ...profile,
-    user_id: resolvedAuthUser.id,
-    updatedAt: new Date().toISOString()
-  }, { required: true });
-  setProfile(profile);
+  if (resolvedRole !== "parent") {
+    await persistFirebaseProfile(resolvedAuthUser.id, {
+      ...profile,
+      user_id: resolvedAuthUser.id,
+      updatedAt: new Date().toISOString()
+    }, { required: true });
+  }
+  setProfile(profile, { sync: resolvedRole !== "parent" });
   try {
     await hydrateMediaTreeFromSharedStore();
     startMediaRealtimeSync();
@@ -4755,9 +4894,14 @@ if (profileForm) {
     const confirm = pPasswordConfirm.value;
     const role = pRole.value;
     const lang = pLang?.value || currentLang;
+    const athleteName = String(pParentAthleteName?.value || "").trim();
 
     if (!name || !email || !password || !confirm) {
       alert("Please fill all fields.");
+      return;
+    }
+    if (normalizeAuthRole(role) === "parent" && !athleteName) {
+      alert(currentLang === "es" ? "Ingresa el nombre del atleta vinculado." : "Enter the linked athlete name.");
       return;
     }
     if (password.length < 8) {
@@ -4782,6 +4926,7 @@ if (profileForm) {
         name,
         role,
         lang,
+        athleteName,
         preferredMoves,
         experienceYears,
         stance,
@@ -6741,6 +6886,8 @@ function getDayAbbr() {
 const tabBtns = Array.from(document.querySelectorAll(".tab"));
 const panels = {
   today: document.getElementById("panel-today"),
+  "parent-home": document.getElementById("panel-parent-home"),
+  "parent-scouting": document.getElementById("panel-parent-scouting"),
   "athlete-profile": document.getElementById("panel-athlete-profile"),
   training: document.getElementById("panel-training"),
   calendar: document.getElementById("panel-calendar"),
@@ -6889,7 +7036,7 @@ function setRoleUI(role, view = "athlete") {
   const defaultTab = view === "admin"
     ? "permissions"
     : view === "parent"
-      ? "athlete-notes"
+      ? "parent-home"
       : view === "coach" || isCoachRole(roleName)
         ? "coach-home"
         : "today";
@@ -11939,6 +12086,255 @@ if (assignmentFilterClear) {
     renderCoachAssignments();
   });
 }
+
+function getParentVerificationMeta(status) {
+  const key = normalizeParentVerificationStatus(status);
+  if (key === "verified") {
+    return {
+      label: currentLang === "es" ? "Verificado" : "Verified",
+      className: "status-pill status-pill-active"
+    };
+  }
+  return {
+    label: currentLang === "es" ? "Pendiente" : "Pending",
+    className: "status-pill status-pill-pending"
+  };
+}
+
+function resolveParentApprovalAthleteRecord(athleteName, fallbackCoachUid = getAuthUser()?.id) {
+  const target = normalizeName(athleteName);
+  const athlete = getCoachAthleteRecords().find((entry) => normalizeName(entry.name) === target)
+    || ATHLETES.find((entry) => normalizeName(entry.name) === target)
+    || null;
+  if (!athlete) return null;
+  return {
+    athleteName: athlete.name,
+    linkedAthleteId: athlete.id || slugifyKey(athlete.name),
+    linkedCoachUid: String(athlete.coachUid || fallbackCoachUid || "").trim(),
+    linkedCoachName: String(athlete.coachName || "").trim(),
+    linkedCoachEmail: normalizeEmail(athlete.coachEmail || "")
+  };
+}
+
+function getCoachDirectoryOptions() {
+  return coachDirectoryCache.length
+    ? coachDirectoryCache
+    : [{
+        uid: String(getAuthUser()?.id || "").trim(),
+        name: String(getProfile()?.name || getAuthUser()?.email || "").trim() || "Coach",
+        email: normalizeEmail(getAuthUser()?.email || "")
+      }];
+}
+
+async function updateParentVerificationRequest(parentRecord, {
+  status = "verified",
+  coachUid = "",
+  coachName = "",
+  coachEmail = ""
+} = {}) {
+  if (!parentRecord?.uid) return;
+  const nextStatus = normalizeParentVerificationStatus(status);
+  const resolvedAthlete = resolveParentApprovalAthleteRecord(parentRecord.athleteName, coachUid || getAuthUser()?.id);
+  if (!resolvedAthlete) {
+    throw new Error("parent_athlete_not_found");
+  }
+  const nextCoachUid = String(coachUid || resolvedAthlete.linkedCoachUid || getAuthUser()?.id || "").trim();
+  const nextCoachName = String(coachName || resolvedAthlete.linkedCoachName || getProfile()?.name || "").trim();
+  const nextCoachEmail = normalizeEmail(coachEmail || resolvedAthlete.linkedCoachEmail || getAuthUser()?.email || "");
+  await persistFirebaseProfile(parentRecord.uid, {
+    status: nextStatus,
+    athleteName: resolvedAthlete.athleteName,
+    linkedAthleteId: resolvedAthlete.linkedAthleteId,
+    linkedCoachUid: nextCoachUid,
+    linkedCoachName: nextCoachName,
+    linkedCoachEmail: nextCoachEmail,
+    view: "parent",
+    updatedAt: new Date().toISOString()
+  }, { required: true });
+}
+
+function renderParentApprovalList() {
+  if (!parentApprovalList) return;
+  parentApprovalList.innerHTML = "";
+  if (!canVerifyParentAccounts()) {
+    parentApprovalList.innerHTML = `<div class="mini-card"><p class="small muted">${currentLang === "es" ? "Solo coach y admin pueden verificar accesos de padres." : "Only coach and admin users can verify parent access."}</p></div>`;
+    return;
+  }
+
+  if (homeParentApprovalsTitle) {
+    homeParentApprovalsTitle.textContent = currentLang === "es" ? "Solicitudes de acceso de padres" : "Parent Access Requests";
+  }
+
+  const requests = coachParentApprovalsCache
+    .slice()
+    .sort((a, b) => parseIsoTimestamp(b.updatedAt || b.createdAt) - parseIsoTimestamp(a.updatedAt || a.createdAt));
+
+  if (!requests.length) {
+    parentApprovalList.innerHTML = `<div class="mini-card"><p class="small muted">${currentLang === "es" ? "No hay cuentas de padres registradas todavia." : "No parent accounts have registered yet."}</p></div>`;
+    return;
+  }
+
+  requests.forEach((request) => {
+    const card = document.createElement("article");
+    card.className = "completion-card";
+    const statusMeta = getParentVerificationMeta(request.status);
+    const coachOptions = getCoachDirectoryOptions();
+    const selectedCoachUid = coachOptions.some((item) => item.uid === request.linkedCoachUid)
+      ? request.linkedCoachUid
+      : (normalizeAuthRole(getProfile()?.role) === "admin" ? coachOptions[0]?.uid || "" : String(getAuthUser()?.id || ""));
+    card.innerHTML = `
+      <div class="completion-card-top">
+        <div>
+          <strong>${escapeHtml(request.name || request.email)}</strong>
+          <div class="small">${escapeHtml(request.email)}</div>
+        </div>
+        <span class="${statusMeta.className}">${statusMeta.label}</span>
+      </div>
+      <div class="completion-card-meta">
+        <span>${currentLang === "es" ? "Atleta" : "Athlete"}: ${escapeHtml(request.athleteName || "-")}</span>
+        <span>${currentLang === "es" ? "Coach" : "Coach"}: ${escapeHtml(request.linkedCoachName || coachOptions.find((item) => item.uid === selectedCoachUid)?.name || "-")}</span>
+      </div>
+    `;
+
+    const actions = document.createElement("div");
+    actions.className = "assignment-card-actions";
+
+    if (normalizeAuthRole(getProfile()?.role) === "admin") {
+      const select = document.createElement("select");
+      select.className = "assignment-status-select";
+      select.innerHTML = coachOptions.map((coach) => (
+        `<option value="${escapeHtml(coach.uid)}"${coach.uid === selectedCoachUid ? " selected" : ""}>${escapeHtml(coach.name)}</option>`
+      )).join("");
+      actions.appendChild(select);
+      card.dataset.selectedCoachUid = selectedCoachUid;
+      select.addEventListener("change", () => {
+        card.dataset.selectedCoachUid = select.value;
+      });
+    }
+
+    const verifyBtn = document.createElement("button");
+    verifyBtn.type = "button";
+    verifyBtn.className = "primary";
+    verifyBtn.textContent = request.status === "verified"
+      ? (currentLang === "es" ? "Re-verificar" : "Re-verify")
+      : (currentLang === "es" ? "Verificar acceso" : "Verify access");
+    verifyBtn.addEventListener("click", async () => {
+      verifyBtn.disabled = true;
+      try {
+        const selectedUid = card.dataset.selectedCoachUid || selectedCoachUid || String(getAuthUser()?.id || "");
+        const selectedCoach = coachOptions.find((coach) => coach.uid === selectedUid) || null;
+        await updateParentVerificationRequest(request, {
+          status: "verified",
+          coachUid: selectedCoach?.uid || selectedUid,
+          coachName: selectedCoach?.name || "",
+          coachEmail: selectedCoach?.email || ""
+        });
+        toast(currentLang === "es" ? "Acceso de padre verificado." : "Parent access verified.");
+      } catch (err) {
+        console.warn("Parent verification failed", err);
+        toast(
+          err?.message === "parent_athlete_not_found"
+            ? (currentLang === "es" ? "No se encontro el atleta para esta solicitud." : "Could not find the athlete for this request.")
+            : (currentLang === "es" ? "No se pudo verificar el acceso del padre." : "Could not verify parent access.")
+        );
+      } finally {
+        verifyBtn.disabled = false;
+      }
+    });
+    actions.appendChild(verifyBtn);
+
+    if (request.status === "verified") {
+      const pendingBtn = document.createElement("button");
+      pendingBtn.type = "button";
+      pendingBtn.className = "ghost";
+      pendingBtn.textContent = currentLang === "es" ? "Volver a pendiente" : "Set pending";
+      pendingBtn.addEventListener("click", async () => {
+        pendingBtn.disabled = true;
+        try {
+          await persistFirebaseProfile(request.uid, {
+            status: "pending_verification",
+            updatedAt: new Date().toISOString()
+          }, { required: true });
+          toast(currentLang === "es" ? "Solicitud devuelta a pendiente." : "Request returned to pending.");
+        } catch (err) {
+          console.warn("Parent request reset failed", err);
+          toast(currentLang === "es" ? "No se pudo actualizar la solicitud." : "Could not update the request.");
+        } finally {
+          pendingBtn.disabled = false;
+        }
+      });
+      actions.appendChild(pendingBtn);
+    }
+
+    card.appendChild(actions);
+    parentApprovalList.appendChild(card);
+  });
+}
+
+function renderParentScoutingFeed() {
+  if (!homeParentScoutingList) return;
+  homeParentScoutingList.innerHTML = "";
+  if (homeParentScoutingTitle) {
+    homeParentScoutingTitle.textContent = currentLang === "es" ? "Scouting de padres" : "Parent Scouting Feed";
+  }
+  if (!coachParentScoutingCache.length) {
+    homeParentScoutingList.innerHTML = `<div class="mini-card"><p class="small muted">${currentLang === "es" ? "Todavia no hay scouting enviado por padres." : "No parent scouting has been submitted yet."}</p></div>`;
+    return;
+  }
+
+  coachWorkspaceSortByUpdated(coachParentScoutingCache).slice(0, 4).forEach((entry) => {
+    const card = document.createElement("article");
+    card.className = "completion-card";
+    const attachments = Array.isArray(entry.attachments) ? entry.attachments : [];
+    const audioCount = entry.audioAttachment?.url ? 1 : 0;
+    const targetLabel = entry.subjectType === "teammate"
+      ? `${currentLang === "es" ? "Companero" : "Teammate"}: ${entry.targetAthleteName || "-"}`
+      : `${currentLang === "es" ? "Atleta" : "Athlete"}: ${entry.athleteName || entry.targetAthleteName || "-"}`;
+    card.innerHTML = `
+      <div class="completion-card-top">
+        <div>
+          <strong>${escapeHtml(entry.parentName || entry.parentEmail || "Parent")}</strong>
+          <div class="small">${escapeHtml(targetLabel)} - ${escapeHtml(formatAdminTimestamp(entry.updatedAt || entry.createdAt))}</div>
+        </div>
+        <span class="status-pill status-pill-active">${currentLang === "es" ? "Nuevo" : "New"}</span>
+      </div>
+      <p class="small">${escapeHtml(entry.text || (currentLang === "es" ? "Sin texto adicional." : "No extra text added."))}</p>
+      <div class="completion-card-meta">
+        <span>${currentLang === "es" ? "Fotos / video" : "Photos / video"}: ${attachments.length}</span>
+        <span>${currentLang === "es" ? "Audio" : "Audio"}: ${audioCount}</span>
+      </div>
+    `;
+    if (attachments.length || audioCount) {
+      const actions = document.createElement("div");
+      actions.className = "assignment-card-actions";
+      attachments.slice(0, 3).forEach((file) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "ghost";
+        button.textContent = file.type?.startsWith("video")
+          ? (currentLang === "es" ? "Abrir video" : "Open video")
+          : (currentLang === "es" ? "Abrir foto" : "Open photo");
+        button.addEventListener("click", () => {
+          if (file.url) window.open(file.url, "_blank", "noopener,noreferrer");
+        });
+        actions.appendChild(button);
+      });
+      if (entry.audioAttachment?.url) {
+        const audioButton = document.createElement("button");
+        audioButton.type = "button";
+        audioButton.className = "ghost";
+        audioButton.textContent = currentLang === "es" ? "Escuchar audio" : "Play audio";
+        audioButton.addEventListener("click", () => {
+          window.open(entry.audioAttachment.url, "_blank", "noopener,noreferrer");
+        });
+        actions.appendChild(audioButton);
+      }
+      card.appendChild(actions);
+    }
+    homeParentScoutingList.appendChild(card);
+  });
+}
+
 // ---------- DASHBOARD ----------
 const teamStats = document.getElementById("teamStats");
 const alertList = document.getElementById("alertList");
@@ -11949,8 +12345,12 @@ const homeActionsTitle = document.getElementById("homeActionsTitle");
 const homeCompetitionsTitle = document.getElementById("homeCompetitionsTitle");
 const homeRecentTrainingTitle = document.getElementById("homeRecentTrainingTitle");
 const homeAlertsTitle = document.getElementById("homeAlertsTitle");
+const homeParentApprovalsTitle = document.getElementById("homeParentApprovalsTitle");
+const homeParentScoutingTitle = document.getElementById("homeParentScoutingTitle");
 const homeCompetitions = document.getElementById("homeCompetitions");
 const homeRecentTrainings = document.getElementById("homeRecentTrainings");
+const parentApprovalList = document.getElementById("parentApprovalList");
+const homeParentScoutingList = document.getElementById("homeParentScoutingList");
 
 function renderDashboard() {
   if (homeTasksTitle) homeTasksTitle.textContent = currentLang === "es" ? "Tareas pendientes" : "Pending Tasks";
@@ -11958,6 +12358,8 @@ function renderDashboard() {
   if (homeCompetitionsTitle) homeCompetitionsTitle.textContent = currentLang === "es" ? "Competencias proximas" : "Upcoming Competitions";
   if (homeRecentTrainingTitle) homeRecentTrainingTitle.textContent = currentLang === "es" ? "Entrenamientos recientes" : "Recent Trainings";
   if (homeAlertsTitle) homeAlertsTitle.textContent = currentLang === "es" ? "Alertas importantes" : "Important Alerts";
+  if (homeParentApprovalsTitle) homeParentApprovalsTitle.textContent = currentLang === "es" ? "Solicitudes de acceso de padres" : "Parent Access Requests";
+  if (homeParentScoutingTitle) homeParentScoutingTitle.textContent = currentLang === "es" ? "Scouting de padres" : "Parent Scouting Feed";
 
   const athletes = getAthletesData();
   const assignmentRecords = getCoachAssignmentRecords();
@@ -12051,6 +12453,9 @@ function renderDashboard() {
     div.textContent = alert;
     alertList.appendChild(div);
   });
+
+  renderParentApprovalList();
+  renderParentScoutingFeed();
 }
 
 // ---------- COACH PROFILE ----------
@@ -12096,6 +12501,657 @@ function renderCoachProfile() {
     const li = document.createElement("li");
     li.textContent = line;
     coachInternational.appendChild(li);
+  });
+}
+
+// ---------- PARENT PORTAL ----------
+const parentStatusChip = document.getElementById("parentStatusChip");
+const parentStatusCard = document.getElementById("parentStatusCard");
+const parentTrainingCard = document.getElementById("parentTrainingCard");
+const parentReadinessCard = document.getElementById("parentReadinessCard");
+const parentCoachCard = document.getElementById("parentCoachCard");
+const parentAssignmentsCard = document.getElementById("parentAssignmentsCard");
+const parentScoutingForm = document.getElementById("parentScoutingForm");
+const parentScoutingSubjectType = document.getElementById("parentScoutingSubjectType");
+const parentScoutingTargetWrap = document.getElementById("parentScoutingTargetWrap");
+const parentScoutingTarget = document.getElementById("parentScoutingTarget");
+const parentScoutingFiles = document.getElementById("parentScoutingFiles");
+const parentScoutingText = document.getElementById("parentScoutingText");
+const parentScoutingSaveBtn = document.getElementById("parentScoutingSaveBtn");
+const parentScoutingStatus = document.getElementById("parentScoutingStatus");
+const parentScoutingList = document.getElementById("parentScoutingList");
+const parentAudioStartBtn = document.getElementById("parentAudioStartBtn");
+const parentAudioStopBtn = document.getElementById("parentAudioStopBtn");
+const parentAudioClearBtn = document.getElementById("parentAudioClearBtn");
+const parentAudioStatus = document.getElementById("parentAudioStatus");
+const parentAudioPreview = document.getElementById("parentAudioPreview");
+const parentFab = document.getElementById("parentFab");
+
+function clearParentPortalDataListeners() {
+  parentPortalDataUnsubs.forEach((unsubscribe) => {
+    try {
+      unsubscribe();
+    } catch {
+      // ignore unsubscribe errors
+    }
+  });
+  parentPortalDataUnsubs = [];
+}
+
+function resetParentPortalCaches() {
+  parentPortalAthleteCache = null;
+  parentPortalTeamCache = [];
+  parentPortalAssignmentsCache = [];
+  parentPortalPlansCache = [];
+  parentPortalJournalCache = [];
+  parentPortalScoutingCache = [];
+  parentPortalPlanFetchKey = "";
+}
+
+function stopParentAudioTracks() {
+  if (!parentScoutingStream) return;
+  parentScoutingStream.getTracks().forEach((track) => track.stop());
+  parentScoutingStream = null;
+}
+
+function clearParentAudioDraft() {
+  if (parentScoutingAudioUrl) {
+    URL.revokeObjectURL(parentScoutingAudioUrl);
+  }
+  parentScoutingAudioUrl = "";
+  parentScoutingAudioBlob = null;
+  parentScoutingAudioChunks = [];
+  if (parentAudioPreview) {
+    parentAudioPreview.pause();
+    parentAudioPreview.removeAttribute("src");
+    parentAudioPreview.classList.add("hidden");
+  }
+  if (parentAudioStatus) {
+    parentAudioStatus.textContent = currentLang === "es" ? "Todavia no hay nota de audio grabada." : "No audio note recorded yet.";
+  }
+}
+
+function stopParentPortalRealtimeSync() {
+  if (parentPortalUserUnsub) {
+    try {
+      parentPortalUserUnsub();
+    } catch {
+      // ignore unsubscribe errors
+    }
+    parentPortalUserUnsub = null;
+  }
+  clearParentPortalDataListeners();
+  resetParentPortalCaches();
+  if (parentScoutingRecorder && parentScoutingRecorder.state !== "inactive") {
+    parentScoutingRecorder.stop();
+  }
+  parentScoutingRecorder = null;
+  stopParentAudioTracks();
+  clearParentAudioDraft();
+  renderParentHome();
+  renderParentScouting();
+  updateParentFab();
+}
+
+function getParentPortalLinkedAthlete() {
+  if (parentPortalAthleteCache) return parentPortalAthleteCache;
+  const athleteName = getParentLinkedAthleteName();
+  if (!athleteName) return null;
+  return getAthletesData().find((entry) => normalizeName(entry.name) === normalizeName(athleteName))
+    || ATHLETES.find((entry) => normalizeName(entry.name) === normalizeName(athleteName))
+    || null;
+}
+
+function getParentPortalCoachRecord() {
+  const linkedCoachUid = getParentLinkedCoachUid();
+  return getCoachDirectoryOptions().find((item) => item.uid === linkedCoachUid) || {
+    uid: linkedCoachUid,
+    name: getParentLinkedCoachName() || "Coach",
+    email: getProfile()?.linkedCoachEmail || ""
+  };
+}
+
+function getParentPortalLatestJournal() {
+  return coachWorkspaceSortByUpdated(parentPortalJournalCache)[0] || null;
+}
+
+function getParentPortalActiveAssignments() {
+  return coachWorkspaceSortByUpdated(parentPortalAssignmentsCache).filter((item) => item.status !== "completed");
+}
+
+function getParentPortalPrimaryAssignment() {
+  const todayKey = getCurrentAppDateKey();
+  const assignments = getParentPortalActiveAssignments();
+  return assignments.find((item) => item.dueDateKey === todayKey)
+    || assignments.find((item) => item.planId)
+    || assignments[0]
+    || coachWorkspaceSortByUpdated(parentPortalAssignmentsCache)[0]
+    || null;
+}
+
+function renderParentAssignmentSummary(record) {
+  if (!record) {
+    return `<p class="small muted">${currentLang === "es" ? "Todavia no hay trabajo asignado para este atleta." : "No assigned work is available for this athlete yet."}</p>`;
+  }
+  const status = getAssignmentStatusMeta(record.status);
+  const linkedPlan = parentPortalPlansCache.find((plan) => plan.id === record.planId) || null;
+  const planLists = linkedPlan
+    ? Object.entries(linkedPlan.items || {})
+        .filter(([, values]) => Array.isArray(values) && values.length)
+        .slice(0, 4)
+        .map(([key, values]) => `<li><strong>${escapeHtml(key)}:</strong> ${escapeHtml(values.join(", "))}</li>`)
+        .join("")
+    : "";
+  return `
+    <div class="parent-summary-stack">
+      <div class="completion-card-top">
+        <div>
+          <strong>${escapeHtml(record.title)}</strong>
+          <div class="small">${escapeHtml(record.type)} - ${escapeHtml(record.dueLabel || formatPlanDateLabel(record.dueDateKey || getCurrentAppDateKey()))}</div>
+        </div>
+        <span class="status-pill ${status.className}">${escapeHtml(status.label)}</span>
+      </div>
+      <p class="small">${escapeHtml(record.note || (currentLang === "es" ? "Sin nota adicional." : "No extra note attached."))}</p>
+      ${linkedPlan ? `<div class="small muted">${escapeHtml(linkedPlan.focus || linkedPlan.coachNotes || "")}</div>` : ""}
+      ${planLists ? `<ul class="list tight">${planLists}</ul>` : ""}
+    </div>
+  `;
+}
+
+function renderParentReadinessSummary(entry) {
+  if (!entry) {
+    return `<p class="small muted">${currentLang === "es" ? "Todavia no hay check-in reciente del atleta." : "No recent athlete check-in is available yet."}</p>`;
+  }
+  const metrics = [
+    { label: currentLang === "es" ? "Sueno" : "Sleep", value: entry.sleep || "-" },
+    { label: currentLang === "es" ? "Energia" : "Energy", value: entry.energy || "-" },
+    { label: currentLang === "es" ? "Fatiga / dolor" : "Fatigue / soreness", value: entry.soreness || "-" },
+    { label: currentLang === "es" ? "Animo" : "Mood", value: entry.mood || "-" }
+  ];
+  return `
+    <div class="parent-readiness-grid">
+      ${metrics.map((metric) => `
+        <div class="parent-readiness-metric">
+          <span>${escapeHtml(metric.label)}</span>
+          <strong>${escapeHtml(metric.value)}</strong>
+        </div>
+      `).join("")}
+    </div>
+    <p class="small">${escapeHtml(entry.note || (currentLang === "es" ? "Sin observacion adicional del coach." : "No extra coach observation added."))}</p>
+  `;
+}
+
+function renderParentHome() {
+  if (!parentStatusCard || !parentTrainingCard || !parentReadinessCard || !parentCoachCard || !parentAssignmentsCard) return;
+  const profile = getProfile() || {};
+  const verified = isParentVerified(profile);
+  const statusMeta = getParentVerificationMeta(profile.status);
+  const athleteName = getParentLinkedAthleteName(profile);
+  const coachRecord = getParentPortalCoachRecord();
+  const primaryAssignment = getParentPortalPrimaryAssignment();
+  const latestJournal = getParentPortalLatestJournal();
+
+  if (parentStatusChip) parentStatusChip.textContent = statusMeta.label;
+  if (parentStatusChip) parentStatusChip.className = statusMeta.className;
+
+  if (!verified) {
+    parentStatusCard.innerHTML = `
+      <h3>${currentLang === "es" ? "Acceso pendiente de verificacion" : "Access pending verification"}</h3>
+      <p class="small">${currentLang === "es" ? "La cuenta del padre esta vinculada al atleta indicado, pero el coach debe verificarla antes de desbloquear los datos." : "This parent account is linked to the athlete you entered, but a coach must verify the relationship before athlete data unlocks."}</p>
+      <ul class="list tight">
+        <li>${currentLang === "es" ? "Atleta solicitado" : "Requested athlete"}: ${escapeHtml(athleteName || "-")}</li>
+        <li>${currentLang === "es" ? "Estado" : "Status"}: ${escapeHtml(statusMeta.label)}</li>
+      </ul>
+    `;
+    parentTrainingCard.innerHTML = `<p class="small muted">${currentLang === "es" ? "El plan de hoy aparecera aqui en cuanto el coach verifique el acceso." : "Today's training will appear here as soon as the coach verifies access."}</p>`;
+    parentReadinessCard.innerHTML = `<p class="small muted">${currentLang === "es" ? "El readiness snapshot se mostrara aqui despues de la verificacion." : "The readiness snapshot will show here after verification."}</p>`;
+    parentCoachCard.innerHTML = `<p class="small muted">${currentLang === "es" ? "Usa Messaging para avisarle al coach que ya solicitaste acceso." : "Use Messaging to let the coach know the parent account is waiting for approval."}</p>`;
+    parentAssignmentsCard.innerHTML = `<p class="small muted">${currentLang === "es" ? "Las tareas abiertas del atleta se desbloquean cuando la cuenta este verificada." : "Open athlete work unlocks once the account is verified."}</p>`;
+    updateParentFab();
+    return;
+  }
+
+  parentStatusCard.innerHTML = `
+    <h3>${escapeHtml(athleteName || (currentLang === "es" ? "Atleta vinculado" : "Linked athlete"))}</h3>
+    <p class="small">${currentLang === "es" ? "Solo lectura del entrenamiento y readiness del atleta, mas un canal rapido para scouting y mensajes." : "Read-only training and readiness access for the athlete, plus a quick scouting and messaging channel."}</p>
+    <ul class="list tight">
+      <li>${currentLang === "es" ? "Coach vinculado" : "Linked coach"}: ${escapeHtml(coachRecord.name || "-")}</li>
+      <li>${currentLang === "es" ? "Estado" : "Status"}: ${escapeHtml(statusMeta.label)}</li>
+    </ul>
+  `;
+  parentTrainingCard.innerHTML = renderParentAssignmentSummary(primaryAssignment);
+  parentReadinessCard.innerHTML = renderParentReadinessSummary(latestJournal);
+  parentCoachCard.innerHTML = `
+    <div class="parent-summary-stack">
+      <strong>${escapeHtml(coachRecord.name || "Coach")}</strong>
+      <p class="small">${currentLang === "es" ? "Este es el coach conectado a la cuenta del padre. Usa Messaging para enviar fotos, video y preguntas del torneo." : "This is the coach linked to the parent account. Use Messaging to send tournament photos, video, and questions."}</p>
+      <div class="row">
+        <button type="button" id="parentCoachMessageBtn">${currentLang === "es" ? "Abrir Messaging" : "Open Messaging"}</button>
+      </div>
+    </div>
+  `;
+  const openAssignments = getParentPortalActiveAssignments().slice(0, 4);
+  parentAssignmentsCard.innerHTML = openAssignments.length
+    ? `<ul class="list tight">${openAssignments.map((item) => `<li><strong>${escapeHtml(item.title)}</strong> - ${escapeHtml(getAssignmentStatusMeta(item.status).label)}</li>`).join("")}</ul>`
+    : `<p class="small muted">${currentLang === "es" ? "No hay tareas abiertas para este atleta." : "No open tasks for this athlete right now."}</p>`;
+  document.getElementById("parentCoachMessageBtn")?.addEventListener("click", async () => {
+    showTab("messages");
+    if (coachRecord.uid) {
+      await openDirectMessageThreadWithRetry(coachRecord.uid);
+    }
+  });
+  updateParentFab();
+}
+
+function getParentPortalTeammates() {
+  const linkedAthleteId = getParentLinkedAthleteId();
+  return parentPortalTeamCache.filter((athlete) => athlete.id !== linkedAthleteId && normalizeName(athlete.name) !== normalizeName(getParentLinkedAthleteName()));
+}
+
+function renderParentScouting() {
+  if (!parentScoutingList || !parentScoutingTarget || !parentScoutingTargetWrap) return;
+  const verified = isParentVerified();
+  const teammates = getParentPortalTeammates();
+  [
+    parentScoutingSubjectType,
+    parentScoutingTarget,
+    parentScoutingFiles,
+    parentScoutingText,
+    parentScoutingSaveBtn,
+    parentAudioStartBtn,
+    parentAudioStopBtn,
+    parentAudioClearBtn
+  ].filter(Boolean).forEach((control) => {
+    control.disabled = !verified;
+  });
+  if (parentScoutingTargetWrap) {
+    parentScoutingTargetWrap.classList.toggle("hidden", (parentScoutingSubjectType?.value || "athlete") !== "teammate");
+  }
+  parentScoutingTarget.innerHTML = teammates.length
+    ? teammates.map((athlete) => `<option value="${escapeHtml(athlete.name)}">${escapeHtml(athlete.name)}</option>`).join("")
+    : `<option value="">${currentLang === "es" ? "No hay companeros disponibles" : "No teammates available"}</option>`;
+  if (!verified) {
+    if (parentScoutingStatus) {
+      parentScoutingStatus.textContent = currentLang === "es" ? "Scouting se desbloquea cuando el coach verifique la cuenta." : "Scouting unlocks after the coach verifies the parent account.";
+    }
+    parentScoutingList.innerHTML = `<div class="mini-card"><p class="small muted">${currentLang === "es" ? "La subida de fotos, videos y audio estara disponible una vez la cuenta quede verificada." : "Photo, video, and audio uploads become available once the parent account is verified."}</p></div>`;
+    return;
+  }
+
+  if (parentScoutingStatus && !parentScoutingStatus.textContent) {
+    parentScoutingStatus.textContent = "";
+  }
+  parentScoutingList.innerHTML = "";
+  if (!parentPortalScoutingCache.length) {
+    parentScoutingList.innerHTML = `<div class="mini-card"><p class="small muted">${currentLang === "es" ? "Todavia no hay scouting notes subidas desde esta cuenta." : "No scouting notes have been uploaded from this account yet."}</p></div>`;
+    return;
+  }
+
+  coachWorkspaceSortByUpdated(parentPortalScoutingCache).forEach((item) => {
+    const card = document.createElement("article");
+    card.className = "completion-card";
+    const attachments = Array.isArray(item.attachments) ? item.attachments : [];
+    const targetLabel = item.subjectType === "teammate"
+      ? `${currentLang === "es" ? "Companero" : "Teammate"}: ${item.targetAthleteName || "-"}`
+      : `${currentLang === "es" ? "Mi atleta" : "My athlete"}: ${item.targetAthleteName || getParentLinkedAthleteName()}`;
+    card.innerHTML = `
+      <div class="completion-card-top">
+        <div>
+          <strong>${escapeHtml(targetLabel)}</strong>
+          <div class="small">${escapeHtml(formatAdminTimestamp(item.updatedAt || item.createdAt))}</div>
+        </div>
+        <span class="status-pill status-pill-active">${currentLang === "es" ? "Enviado" : "Sent"}</span>
+      </div>
+      <p class="small">${escapeHtml(item.text || (currentLang === "es" ? "Sin texto adicional." : "No extra text added."))}</p>
+      <div class="completion-card-meta">
+        <span>${currentLang === "es" ? "Adjuntos" : "Attachments"}: ${attachments.length}</span>
+        <span>${currentLang === "es" ? "Audio" : "Audio"}: ${item.audioAttachment?.url ? "1" : "0"}</span>
+      </div>
+    `;
+    if (attachments.length || item.audioAttachment?.url) {
+      const links = document.createElement("div");
+      links.className = "assignment-card-actions";
+      attachments.forEach((file) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "ghost";
+        btn.textContent = file.type?.startsWith("video") ? (currentLang === "es" ? "Abrir video" : "Open video") : (currentLang === "es" ? "Abrir foto" : "Open photo");
+        btn.addEventListener("click", () => window.open(file.url, "_blank", "noopener,noreferrer"));
+        links.appendChild(btn);
+      });
+      if (item.audioAttachment?.url) {
+        const audioBtn = document.createElement("button");
+        audioBtn.type = "button";
+        audioBtn.className = "ghost";
+        audioBtn.textContent = currentLang === "es" ? "Escuchar audio" : "Play audio";
+        audioBtn.addEventListener("click", () => window.open(item.audioAttachment.url, "_blank", "noopener,noreferrer"));
+        links.appendChild(audioBtn);
+      }
+      card.appendChild(links);
+    }
+    parentScoutingList.appendChild(card);
+  });
+}
+
+async function refreshParentPortalPlansFromAssignments() {
+  const coachUid = getParentLinkedCoachUid();
+  const planIds = Array.from(new Set(parentPortalAssignmentsCache.map((item) => item.planId).filter(Boolean))).sort();
+  const nextKey = `${coachUid}:${planIds.join("|")}`;
+  if (nextKey === parentPortalPlanFetchKey) return;
+  parentPortalPlanFetchKey = nextKey;
+  if (!coachUid || !planIds.length) {
+    parentPortalPlansCache = [];
+    renderParentHome();
+    return;
+  }
+  const plansRef = getCoachWorkspaceCollectionRef("plans", coachUid);
+  if (!plansRef) {
+    parentPortalPlansCache = [];
+    renderParentHome();
+    return;
+  }
+  const snapshots = await Promise.all(planIds.map((planId) => withTimeout(
+    plansRef.doc(planId).get(),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_parent_plan_read_timeout"
+  ).catch(() => null)));
+  parentPortalPlansCache = snapshots
+    .filter((snapshot) => snapshot?.exists)
+    .map((snapshot) => normalizeCoachPlanRecord(snapshot.id, snapshot.data() || {}));
+  renderParentHome();
+}
+
+function refreshParentPortalDataSync() {
+  clearParentPortalDataListeners();
+  resetParentPortalCaches();
+  const profile = getProfile();
+  const authUser = getAuthUser();
+  if (!isParentRole(profile?.role) || !authUser?.id || !firebaseFirestoreInstance) {
+    renderParentHome();
+    renderParentScouting();
+    updateParentFab();
+    return;
+  }
+  if (!isParentVerified(profile) || !getParentLinkedCoachUid(profile) || !getParentLinkedAthleteName(profile)) {
+    renderParentHome();
+    renderParentScouting();
+    updateParentFab();
+    return;
+  }
+  const coachUid = getParentLinkedCoachUid(profile);
+  const athleteId = getParentLinkedAthleteId(profile);
+  const athleteName = getParentLinkedAthleteName(profile);
+  const workspaceAthletesRef = getCoachWorkspaceCollectionRef("athletes", coachUid);
+  const assignmentsRef = getCoachWorkspaceCollectionRef("assignments", coachUid);
+  const journalRef = getCoachWorkspaceCollectionRef("journal_entries", coachUid);
+  const scoutingRef = getCoachWorkspaceCollectionRef("parent_scouting", coachUid);
+  if (!workspaceAthletesRef || !assignmentsRef || !journalRef || !scoutingRef) return;
+
+  parentPortalDataUnsubs.push(
+    workspaceAthletesRef.doc(athleteId).onSnapshot((snapshot) => {
+      parentPortalAthleteCache = snapshot.exists
+        ? normalizeCoachAthleteRecord(snapshot.id, snapshot.data() || {})
+        : null;
+      renderParentHome();
+      renderParentScouting();
+    }, (err) => console.warn("Parent athlete sync failed", err)),
+    workspaceAthletesRef.onSnapshot((snapshot) => {
+      parentPortalTeamCache = snapshot.docs.map((doc) => normalizeCoachAthleteRecord(doc.id, doc.data() || {}));
+      renderParentScouting();
+    }, (err) => console.warn("Parent teammate sync failed", err)),
+    assignmentsRef.where("assigneeNames", "array-contains", athleteName).onSnapshot((snapshot) => {
+      parentPortalAssignmentsCache = coachWorkspaceSortByUpdated(
+        snapshot.docs.map((doc) => normalizeCoachAssignmentRecord(doc.id, doc.data() || {}))
+      );
+      refreshParentPortalPlansFromAssignments().catch((err) => console.warn("Parent plan refresh failed", err));
+      renderParentHome();
+    }, (err) => console.warn("Parent assignment sync failed", err)),
+    journalRef.where("athleteName", "==", athleteName).onSnapshot((snapshot) => {
+      parentPortalJournalCache = coachWorkspaceSortByUpdated(
+        snapshot.docs.map((doc) => normalizeCoachJournalRecord(doc.id, doc.data() || {}))
+      );
+      renderParentHome();
+    }, (err) => console.warn("Parent journal sync failed", err)),
+    scoutingRef.where("parentUid", "==", authUser.id).onSnapshot((snapshot) => {
+      parentPortalScoutingCache = coachWorkspaceSortByUpdated(
+        snapshot.docs.map((doc) => normalizeParentScoutingRecord(doc.id, doc.data() || {}))
+      );
+      renderParentScouting();
+    }, (err) => console.warn("Parent scouting sync failed", err))
+  );
+
+  renderParentHome();
+  renderParentScouting();
+  updateParentFab();
+}
+
+function startParentPortalRealtimeSync() {
+  const authUser = getAuthUser();
+  const profile = getProfile();
+  if (!isParentRole(profile?.role) || !authUser?.id || !firebaseFirestoreInstance) {
+    stopParentPortalRealtimeSync();
+    return;
+  }
+  if (parentPortalUserUnsub) return;
+  parentPortalUserUnsub = firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION).doc(authUser.id).onSnapshot((snapshot) => {
+    if (!snapshot.exists) return;
+    const currentProfile = getProfile() || {};
+    const nextProfile = normalizeProfileForAuth({ ...currentProfile, ...snapshot.data() }, authUser);
+    const shouldRefresh = normalizeParentVerificationStatus(currentProfile.status) !== normalizeParentVerificationStatus(nextProfile.status)
+      || getParentLinkedCoachUid(currentProfile) !== getParentLinkedCoachUid(nextProfile)
+      || getParentLinkedAthleteName(currentProfile) !== getParentLinkedAthleteName(nextProfile);
+    setProfile(nextProfile, { sync: false });
+    if (shouldRefresh) {
+      refreshParentPortalDataSync();
+      renderMessages();
+    }
+    renderParentHome();
+    renderParentScouting();
+    updateParentFab();
+  }, (err) => console.warn("Parent profile sync failed", err));
+  refreshParentPortalDataSync();
+}
+
+async function uploadParentScoutingAssets(files = []) {
+  const uploads = [];
+  for (const file of files) {
+    if (file.size <= PARENT_INLINE_MEDIA_MAX_BYTES) {
+      const inlineUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("parent_inline_media_read_failed"));
+        reader.readAsDataURL(file);
+      });
+      uploads.push({
+        name: file.name,
+        type: file.type,
+        url: inlineUrl,
+        storage: "firestore_inline",
+        size: file.size
+      });
+      continue;
+    }
+    const url = await uploadMediaFileToFirebase(file);
+    uploads.push({
+      name: file.name,
+      type: file.type,
+      url,
+      storage: "firebase_storage",
+      size: file.size
+    });
+  }
+  return uploads;
+}
+
+async function saveParentScoutingNote(event) {
+  event?.preventDefault?.();
+  const profile = getProfile();
+  const authUser = getAuthUser();
+  if (!isParentVerified(profile) || !authUser?.id) {
+    if (parentScoutingStatus) {
+      parentScoutingStatus.textContent = currentLang === "es" ? "El coach debe verificar esta cuenta primero." : "A coach must verify this account first.";
+    }
+    return;
+  }
+  const coachUid = getParentLinkedCoachUid(profile);
+  const scoutingRef = getCoachWorkspaceCollectionRef("parent_scouting", coachUid);
+  if (!scoutingRef) return;
+  const subjectType = parentScoutingSubjectType?.value || "athlete";
+  const targetAthleteName = subjectType === "teammate"
+    ? String(parentScoutingTarget?.value || "").trim()
+    : getParentLinkedAthleteName(profile);
+  const text = String(parentScoutingText?.value || "").trim();
+  const files = Array.from(parentScoutingFiles?.files || []);
+  if (!targetAthleteName || (!text && !files.length && !parentScoutingAudioBlob)) {
+    if (parentScoutingStatus) {
+      parentScoutingStatus.textContent = currentLang === "es" ? "Agrega texto, fotos, video o audio antes de enviar." : "Add text, photos, video, or audio before sending.";
+    }
+    return;
+  }
+  if (parentScoutingSaveBtn) parentScoutingSaveBtn.disabled = true;
+  if (parentScoutingStatus) {
+    parentScoutingStatus.textContent = currentLang === "es" ? "Subiendo scouting note..." : "Uploading scouting note...";
+  }
+  try {
+    const attachments = await uploadParentScoutingAssets(files);
+    let audioAttachment = null;
+    if (parentScoutingAudioBlob) {
+      const audioFile = new File([parentScoutingAudioBlob], `parent-audio-${Date.now()}.webm`, { type: parentScoutingAudioBlob.type || "audio/webm" });
+      audioAttachment = (await uploadParentScoutingAssets([audioFile]))[0] || null;
+    }
+    await withTimeout(
+      scoutingRef.add(stripUndefinedDeep({
+        parentUid: authUser.id,
+        parentName: String(profile.name || "").trim(),
+        parentEmail: normalizeEmail(profile.email || authUser.email || ""),
+        athleteName: getParentLinkedAthleteName(profile),
+        athleteId: getParentLinkedAthleteId(profile),
+        subjectType,
+        targetAthleteName,
+        text,
+        attachments,
+        audioAttachment,
+        createdAt: getFirestoreServerTimestamp(),
+        updatedAt: getFirestoreServerTimestamp()
+      })),
+      FIREBASE_OP_TIMEOUT_MS * 4,
+      "firestore_parent_scouting_write_timeout"
+    );
+    if (parentScoutingText) parentScoutingText.value = "";
+    if (parentScoutingFiles) parentScoutingFiles.value = "";
+    clearParentAudioDraft();
+    if (parentScoutingStatus) {
+      parentScoutingStatus.textContent = currentLang === "es" ? "Scouting note enviada al coach." : "Scouting note sent to the coach.";
+    }
+  } catch (err) {
+    console.warn("Parent scouting save failed", err);
+    if (parentScoutingStatus) {
+      const detail = String(err?.code || err?.message || "");
+      parentScoutingStatus.textContent = /storage|cors|network|failed/i.test(detail)
+        ? (currentLang === "es"
+            ? "La subida grande necesita Firebase Storage. Usa una foto o clip mas pequeno, o entra desde la app publicada."
+            : "Large uploads need Firebase Storage. Use a smaller photo or clip, or upload from the published app.")
+        : (currentLang === "es" ? "No se pudo enviar la scouting note." : "Could not send the scouting note.");
+    }
+  } finally {
+    if (parentScoutingSaveBtn) parentScoutingSaveBtn.disabled = false;
+  }
+}
+
+async function startParentAudioRecording() {
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+    throw new Error("audio_recording_not_supported");
+  }
+  clearParentAudioDraft();
+  stopParentAudioTracks();
+  parentScoutingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  parentScoutingAudioChunks = [];
+  parentScoutingRecorder = new MediaRecorder(parentScoutingStream);
+  parentScoutingRecorder.addEventListener("dataavailable", (event) => {
+    if (event.data?.size) {
+      parentScoutingAudioChunks.push(event.data);
+    }
+  });
+  parentScoutingRecorder.addEventListener("stop", () => {
+    const mimeType = parentScoutingRecorder?.mimeType || "audio/webm";
+    parentScoutingAudioBlob = new Blob(parentScoutingAudioChunks, { type: mimeType });
+    parentScoutingAudioUrl = URL.createObjectURL(parentScoutingAudioBlob);
+    if (parentAudioPreview) {
+      parentAudioPreview.src = parentScoutingAudioUrl;
+      parentAudioPreview.classList.remove("hidden");
+    }
+    if (parentAudioStatus) {
+      parentAudioStatus.textContent = currentLang === "es" ? "Nota de audio lista para enviar." : "Audio note ready to send.";
+    }
+    stopParentAudioTracks();
+    parentScoutingRecorder = null;
+  });
+  parentScoutingRecorder.start();
+  if (parentAudioStatus) {
+    parentAudioStatus.textContent = currentLang === "es" ? "Grabando audio..." : "Recording audio...";
+  }
+}
+
+function stopParentAudioRecording() {
+  if (parentScoutingRecorder && parentScoutingRecorder.state !== "inactive") {
+    parentScoutingRecorder.stop();
+  } else {
+    stopParentAudioTracks();
+  }
+}
+
+function updateParentFab() {
+  if (!parentFab) return;
+  const showFab = currentView === "parent" && isParentVerified();
+  parentFab.classList.toggle("hidden", !showFab);
+}
+
+if (parentScoutingSubjectType) {
+  parentScoutingSubjectType.addEventListener("change", () => {
+    renderParentScouting();
+  });
+}
+
+if (parentScoutingForm) {
+  parentScoutingForm.addEventListener("submit", saveParentScoutingNote);
+}
+
+if (parentAudioStartBtn) {
+  parentAudioStartBtn.addEventListener("click", async () => {
+    try {
+      await startParentAudioRecording();
+    } catch (err) {
+      console.warn("Parent audio recording failed", err);
+      if (parentAudioStatus) {
+        parentAudioStatus.textContent = currentLang === "es" ? "No se pudo iniciar la grabacion de audio." : "Could not start audio recording.";
+      }
+    }
+  });
+}
+
+if (parentAudioStopBtn) {
+  parentAudioStopBtn.addEventListener("click", () => {
+    stopParentAudioRecording();
+  });
+}
+
+if (parentAudioClearBtn) {
+  parentAudioClearBtn.addEventListener("click", () => {
+    clearParentAudioDraft();
+  });
+}
+
+if (parentFab) {
+  parentFab.addEventListener("click", () => {
+    if (!isParentVerified()) {
+      showTab("parent-home");
+      parentStatusCard?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    showTab("parent-scouting");
+    if (parentScoutingFiles) {
+      parentScoutingFiles.click();
+    }
   });
 }
 
@@ -13034,6 +14090,12 @@ function normalizeManagedUserRecord(uid, data = {}) {
     role,
     lang,
     view,
+    status: normalizeParentVerificationStatus(data.status),
+    athleteName: String(data.athleteName || data.linkedAthleteName || "").trim(),
+    linkedAthleteId: String(data.linkedAthleteId || "").trim(),
+    linkedCoachUid: String(data.linkedCoachUid || "").trim(),
+    linkedCoachName: String(data.linkedCoachName || "").trim(),
+    linkedCoachEmail: normalizeEmail(data.linkedCoachEmail || ""),
     updatedAt: String(data.updatedAt || ""),
     createdAt: String(data.createdAt || "")
   };
@@ -14071,6 +15133,7 @@ let messagesBound = false;
 let messagesFeedLoading = false;
 let messagesStatusCopy = "";
 let messagesStatusType = "";
+let messagesAutoOpeningCoachUid = "";
 
 function getMessagesCurrentUser() {
   const authUser = getAuthUser();
@@ -14102,6 +15165,13 @@ function getFirestoreServerTimestamp() {
   return new Date().toISOString();
 }
 
+function getFirestoreArrayUnion(...values) {
+  if (typeof firebase !== "undefined" && firebase.firestore?.FieldValue?.arrayUnion) {
+    return firebase.firestore.FieldValue.arrayUnion(...values);
+  }
+  return values;
+}
+
 function messageTimestampToMillis(value) {
   if (!value) return 0;
   if (typeof value.toMillis === "function") return value.toMillis();
@@ -14130,6 +15200,17 @@ function normalizeMessageCoachRecord(uid, data = {}) {
   return normalizeManagedUserRecord(uid, { ...data, role: "coach", view: "coach" });
 }
 
+function normalizeMessageData(data = {}, id = "") {
+  return {
+    id,
+    text: String(data.text || "").trim(),
+    senderUid: String(data.senderUid || "").trim(),
+    senderName: String(data.senderName || "").trim() || "User",
+    senderRole: normalizeAuthRole(data.senderRole || "athlete"),
+    createdAt: data.createdAt || data.updatedAt || ""
+  };
+}
+
 function normalizeMessageThreadRecord(doc) {
   const data = doc.data() || {};
   const participantIds = Array.isArray(data.participantIds)
@@ -14147,21 +15228,18 @@ function normalizeMessageThreadRecord(doc) {
     lastMessageText: String(data.lastMessageText || "").trim(),
     lastMessageAt: data.lastMessageAt || data.updatedAt || data.createdAt || "",
     lastSenderUid: String(data.lastSenderUid || "").trim(),
+    messageHistory: Array.isArray(data.messageHistory)
+      ? data.messageHistory
+          .map((entry, index) => normalizeMessageData(entry || {}, `history-${index + 1}`))
+          .filter((entry) => entry.text)
+      : [],
     createdAt: data.createdAt || "",
     updatedAt: data.updatedAt || data.lastMessageAt || data.createdAt || ""
   };
 }
 
 function normalizeMessageEntry(doc) {
-  const data = doc.data() || {};
-  return {
-    id: doc.id,
-    text: String(data.text || "").trim(),
-    senderUid: String(data.senderUid || "").trim(),
-    senderName: String(data.senderName || "").trim() || "User",
-    senderRole: normalizeAuthRole(data.senderRole || "athlete"),
-    createdAt: data.createdAt || data.updatedAt || ""
-  };
+  return normalizeMessageData(doc.data() || {}, doc.id);
 }
 
 function getSelectedMessageThread() {
@@ -14210,6 +15288,7 @@ function teardownMessagesSession({ preserveSelection = false } = {}) {
   messagesCoachRows = [];
   messagesFeedRows = [];
   messagesFeedLoading = false;
+  messagesAutoOpeningCoachUid = "";
   if (!preserveSelection) messagesSelectedThreadId = "";
   resetMessagesStatus();
 }
@@ -14245,6 +15324,9 @@ async function loadCoachDirectoryForMessages() {
       .filter((coach) => coach.uid && coach.uid !== current.uid)
       .filter((coach) => OFFICIAL_COACH_EMAILS.has(normalizeEmail(coach.email)))
       .sort((a, b) => a.name.localeCompare(b.name || "", undefined, { sensitivity: "base" }));
+    if (isParentRole(getProfile()?.role) && getParentLinkedCoachUid()) {
+      messagesCoachRows = messagesCoachRows.filter((coach) => coach.uid === getParentLinkedCoachUid());
+    }
   } catch (err) {
     console.warn("Failed to load coach directory", err);
     messagesCoachRows = [];
@@ -14355,8 +15437,16 @@ async function ensureDirectMessageThread(coach) {
 
   const threadId = buildDirectMessageThreadId(current.uid, coach.uid);
   const threadRef = threadsRef.doc(threadId);
-  const existing = await withTimeout(threadRef.get(), FIREBASE_OP_TIMEOUT_MS, "firestore_thread_read_timeout");
-  if (!existing.exists) {
+  let existing = null;
+  try {
+    existing = await withTimeout(threadRef.get(), FIREBASE_OP_TIMEOUT_MS, "firestore_thread_read_timeout");
+  } catch (err) {
+    const code = String(err?.code || err?.message || "");
+    if (!code.includes("permission-denied")) {
+      throw err;
+    }
+  }
+  if (!existing?.exists) {
     await withTimeout(
       threadRef.set({
         participantIds: [current.uid, coach.uid].sort(),
@@ -14372,7 +15462,8 @@ async function ensureDirectMessageThread(coach) {
         createdAt: getFirestoreServerTimestamp(),
         updatedAt: getFirestoreServerTimestamp(),
         lastMessageText: "",
-        lastSenderUid: ""
+        lastSenderUid: "",
+        messageHistory: []
       }, { merge: true }),
       FIREBASE_OP_TIMEOUT_MS,
       "firestore_thread_write_timeout"
@@ -14382,7 +15473,24 @@ async function ensureDirectMessageThread(coach) {
 }
 
 async function openMessageThreadForCoach(coachUid) {
-  const coach = messagesCoachRows.find((item) => item.uid === coachUid);
+  let coach = messagesCoachRows.find((item) => item.uid === coachUid);
+  if (!coach && firebaseFirestoreInstance && coachUid) {
+    try {
+      const snapshot = await withTimeout(
+        firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION).doc(coachUid).get(),
+        FIREBASE_OP_TIMEOUT_MS,
+        "firestore_coach_profile_timeout"
+      );
+      if (snapshot.exists) {
+        coach = normalizeMessageCoachRecord(snapshot.id, snapshot.data() || {});
+        if (coach?.uid && !messagesCoachRows.some((item) => item.uid === coach.uid)) {
+          messagesCoachRows = [...messagesCoachRows, coach].sort((a, b) => a.name.localeCompare(b.name || "", undefined, { sensitivity: "base" }));
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to load coach profile for direct thread", err);
+    }
+  }
   if (!coach) return;
   try {
     const existingThread = messagesThreadRows.find((thread) => thread.coachUid === coach.uid);
@@ -14393,6 +15501,22 @@ async function openMessageThreadForCoach(coachUid) {
     setMessagesStatus(MESSAGES_COPY.loadError, "error");
     renderMessages();
   }
+}
+
+async function openDirectMessageThreadWithRetry(coachUid, attempts = 5) {
+  const safeCoachUid = String(coachUid || "").trim();
+  if (!safeCoachUid) return false;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    await ensureMessagesSession().catch(() => {});
+    await loadCoachDirectoryForMessages().catch(() => {});
+    await openMessageThreadForCoach(safeCoachUid);
+    const selected = getSelectedMessageThread();
+    if (selected?.coachUid === safeCoachUid) {
+      return true;
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 250));
+  }
+  return false;
 }
 
 function renderMessagesCoachList(current) {
@@ -14479,7 +15603,9 @@ function renderMessagesThreadList(current) {
 function renderMessagesFeed(current) {
   if (!messagesFeed) return;
   messagesFeed.innerHTML = "";
-  if (!messagesFeedRows.length) {
+  const selectedThread = getSelectedMessageThread();
+  const rows = messagesFeedRows.length ? messagesFeedRows : (selectedThread?.messageHistory || []);
+  if (!rows.length) {
     const empty = document.createElement("div");
     empty.className = "small muted";
     empty.textContent = pickCopy(MESSAGES_COPY.noMessages);
@@ -14487,7 +15613,7 @@ function renderMessagesFeed(current) {
     return;
   }
 
-  messagesFeedRows.forEach((entry) => {
+  rows.forEach((entry) => {
     const bubble = document.createElement("div");
     bubble.className = "message-bubble";
     if (entry.senderUid === current?.uid) {
@@ -14558,6 +15684,19 @@ function renderMessages() {
 
   const selectedThread = getSelectedMessageThread();
   if (!selectedThread) {
+    const parentAutoCoachUid = isParentRole(current?.role) && messagesCoachRows.length === 1
+      ? messagesCoachRows[0].uid
+      : "";
+    if (parentAutoCoachUid && messagesAutoOpeningCoachUid !== parentAutoCoachUid) {
+      messagesAutoOpeningCoachUid = parentAutoCoachUid;
+      openDirectMessageThreadWithRetry(parentAutoCoachUid)
+        .catch((err) => {
+          console.warn("Failed to auto-open parent coach thread", err);
+        })
+        .finally(() => {
+          messagesAutoOpeningCoachUid = "";
+        });
+    }
     setTextContent(messagesEmptyTitle, MESSAGES_COPY.emptyTitle);
     if (!isCoach && !messagesCoachRows.length) {
       setTextContent(messagesEmptyBody, MESSAGES_COPY.emptyBodyNoCoaches);
@@ -14611,6 +15750,13 @@ async function handleMessageComposerSubmit(event) {
   }
 
   try {
+    const localMessage = {
+      text,
+      senderUid: current.uid,
+      senderName: current.name,
+      senderRole: current.role,
+      createdAt: new Date().toISOString()
+    };
     const threadRef = threadsRef.doc(selectedThread.id);
     await withTimeout(
       threadRef.collection("messages").add({
@@ -14631,7 +15777,8 @@ async function handleMessageComposerSubmit(event) {
         lastMessageText: text,
         lastSenderUid: current.uid,
         coachName: selectedThread.coachName,
-        userName: selectedThread.userName
+        userName: selectedThread.userName,
+        messageHistory: getFirestoreArrayUnion(localMessage)
       }, { merge: true }),
       FIREBASE_OP_TIMEOUT_MS,
       "firestore_thread_touch_timeout"
