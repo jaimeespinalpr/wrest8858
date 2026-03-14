@@ -14974,6 +14974,9 @@ if (parentFab) {
 const athleteFilters = document.getElementById("athleteFilters");
 const athleteList = document.getElementById("athleteList");
 const athleteSearchInput = document.getElementById("athleteSearchInput");
+const coachAthleteRosterIntro = document.getElementById("coachAthleteRosterIntro");
+const coachAthleteQuickActions = document.getElementById("coachAthleteQuickActions");
+const coachAthleteProfileCard = document.getElementById("coachAthleteProfileCard");
 const coachAthleteProfileCardTitle = document.querySelector("#coachAthleteProfileCard .card-header h2");
 const coachAthleteProfileCardChip = document.querySelector("#coachAthleteProfileCard .card-header .chip");
 const coachAthleteProfileAvatar = document.getElementById("coachAthleteProfileAvatar");
@@ -14993,6 +14996,33 @@ const COACH_ATHLETE_PROFILE_TAB_COPY = {
   notes: { en: "Coach Notes", es: "Notas del entrenador" },
   corner: { en: "Corner View", es: "Vista de esquina" }
 };
+
+function scrollCoachAthleteProfileIntoView() {
+  coachAthleteProfileCard?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function openCoachAthleteWorkspace(name = "") {
+  if (name) {
+    selectCoachMatchAthlete(name);
+  }
+  currentCoachAthleteProfileTab = "identity";
+  renderCoachAthleteProfile(getSelectedCoachAthleteName());
+  scrollCoachAthleteProfileIntoView();
+}
+
+async function messageCoachAthlete(name = "") {
+  if (name) {
+    selectCoachMatchAthlete(name);
+  }
+  showTab("messages");
+  const selectedAthlete = getCoachAthleteRecordByIdentity(getSelectedCoachAthleteName());
+  const athleteUid = normalizeUid(selectedAthlete?.athleteUid);
+  if (!athleteUid) {
+    toast(pickCopy(MESSAGES_COPY.noLinkedAthleteUser));
+    return;
+  }
+  await openDirectMessageThreadWithRetry(athleteUid);
+}
 
 function athleteMatchesTagFilter(tags = []) {
   const normalized = normalizeSmartTags(tags);
@@ -15497,15 +15527,79 @@ function renderAthleteFilters() {
   }
 }
 
+function renderCoachAthleteQuickActions(selectedAthleteName = "") {
+  if (!coachAthleteQuickActions) return;
+  const athlete = getAthletesData().find((item) => item.name === selectedAthleteName);
+  if (!athlete) {
+    coachAthleteQuickActions.innerHTML = `
+      <p class="eyebrow">${currentLang === "es" ? "Atleta" : "Athlete"}</p>
+      <h3>${currentLang === "es" ? "Selecciona un atleta" : "Select an athlete"}</h3>
+      <p class="small muted">${currentLang === "es"
+        ? "La lista de arriba es el punto de entrada. Desde ahi puedes abrir el perfil, el summary o los mensajes."
+        : "The roster above is the entry point. From there you can open the profile, the summary, or messages."}</p>
+    `;
+    return;
+  }
+
+  const board = getAthleteTaskBoard(athlete.name);
+  const alerts = getAthleteAlerts(athlete);
+  const badges = buildAthleteIndicatorBadges(athlete, board, alerts);
+  const latestAssignment = getPlanAssignmentsForAthlete(athlete.name).find((item) => item.status !== "completed");
+  const latestAnalysis = getLatestCoachMatchAnalysisForAthlete(athlete.name);
+  const quickMeta = [athlete.weight, athlete.weightClass || "-", athlete.style].filter(Boolean).join(" • ");
+
+  coachAthleteQuickActions.innerHTML = `
+    <p class="eyebrow">${currentLang === "es" ? "Atleta seleccionado" : "Selected athlete"}</p>
+    <h3>${athlete.name}</h3>
+    <p class="small muted">${quickMeta}</p>
+    <div class="coach-athlete-action-badges">
+      ${badges.map((badge) => `<span class="${badge.className}">${badge.label}</span>`).join("")}
+    </div>
+    <div class="coach-athlete-action-stats">
+      <div class="coach-athlete-action-stat">
+        <span>${currentLang === "es" ? "Siguiente tarea" : "Next task"}</span>
+        <strong>${latestAssignment?.title || (currentLang === "es" ? "Sin pendientes" : "No pending work")}</strong>
+      </div>
+      <div class="coach-athlete-action-stat">
+        <span>${currentLang === "es" ? "Journal" : "Journal"}</span>
+        <strong>${board.journalLabel}</strong>
+      </div>
+      <div class="coach-athlete-action-stat">
+        <span>${currentLang === "es" ? "Match analysis" : "Match analysis"}</span>
+        <strong>${latestAnalysis?.mediaTitle || (currentLang === "es" ? "Sin analisis" : "No analysis yet")}</strong>
+      </div>
+    </div>
+    <div class="coach-athlete-action-buttons">
+      <button type="button" class="primary" id="coachAthleteQuickOpenBtn">${currentLang === "es" ? "Trabajar con atleta" : "Work with athlete"}</button>
+      <button type="button" id="coachAthleteQuickSummaryBtn">${currentLang === "es" ? "Ver athlete summary" : "View athlete summary"}</button>
+      <button type="button" id="coachAthleteQuickMessageBtn">${currentLang === "es" ? "Enviar mensaje" : "Send message"}</button>
+    </div>
+  `;
+
+  document.getElementById("coachAthleteQuickOpenBtn")?.addEventListener("click", () => {
+    openCoachAthleteWorkspace(athlete.name);
+  });
+  document.getElementById("coachAthleteQuickSummaryBtn")?.addEventListener("click", () => {
+    openAthleteSummaryView(athlete.name);
+  });
+  document.getElementById("coachAthleteQuickMessageBtn")?.addEventListener("click", () => {
+    messageCoachAthlete(athlete.name);
+  });
+}
+
 function renderAthleteManagement() {
   if (!athleteFilters || !athleteList) return;
+  if (coachAthleteRosterIntro) {
+    coachAthleteRosterIntro.textContent = currentLang === "es"
+      ? "Empieza aqui. Elige un atleta y luego abre su perfil, athlete summary o mensajes."
+      : "Start here. Pick an athlete first, then open the profile, athlete summary, or messages.";
+  }
   renderAthleteFilters();
   if (athleteSearchInput && athleteSearchInput.value !== athleteSearchQuery) {
     athleteSearchInput.value = athleteSearchQuery;
   }
 
   athleteList.innerHTML = "";
-  const athleteSummaryLabel = currentLang === "es" ? "Abrir resumen" : "Open athlete summary";
   const emptyLabel = currentLang === "es"
     ? "No hay atletas con esos filtros."
     : "No athletes match those filters.";
@@ -15523,13 +15617,14 @@ function renderAthleteManagement() {
     empty.className = "mini-card";
     empty.innerHTML = `<h3>${emptyLabel}</h3>`;
     athleteList.appendChild(empty);
+    renderCoachAthleteQuickActions("");
     renderCoachAthleteProfile("");
     return;
   }
 
   filtered.forEach((athlete) => {
     const card = document.createElement("div");
-    card.className = "athlete-card";
+    card.className = "athlete-roster-item";
     card.classList.toggle("active", athlete.name === selectedName);
     const board = getAthleteTaskBoard(athlete.name);
     const alerts = getAthleteAlerts(athlete);
@@ -15542,45 +15637,54 @@ function renderAthleteManagement() {
       : (currentLang === "es" ? "Sin alertas activas" : "No active alerts");
     const meta = [athlete.weight, `${currentLang === "es" ? "Cat." : "Class"} ${athlete.weightClass || "-"}`, athlete.style].join(" • ");
     card.innerHTML = `
-      <div class="athlete-card-header">
-        <div>
+      <div class="athlete-roster-main">
+        <div class="athlete-roster-copy">
           <h4>${athlete.name}</h4>
           <div class="small athlete-card-meta">${meta}</div>
         </div>
-        <div class="athlete-card-status">
+        <div class="athlete-card-status athlete-roster-badges">
           ${badges.map((badge) => `<span class="${badge.className}">${badge.label}</span>`).join("")}
         </div>
       </div>
-      <div class="athlete-card-section">
-        <span class="small athlete-card-label">${currentLang === "es" ? "Estado actual" : "Current status"}</span>
-        <p class="small">${athlete.availability}</p>
+      <div class="athlete-roster-summary">
+        <div class="athlete-roster-summary-item">
+          <span class="small athlete-card-label">${currentLang === "es" ? "Estado" : "Status"}</span>
+          <p class="small">${athlete.availability}</p>
+        </div>
+        <div class="athlete-roster-summary-item">
+          <span class="small athlete-card-label">${currentLang === "es" ? "Pendientes" : "Pending"}</span>
+          <p class="small">${taskSummary}</p>
+        </div>
+        <div class="athlete-roster-summary-item">
+          <span class="small athlete-card-label">${currentLang === "es" ? "Alertas" : "Alerts"}</span>
+          <p class="small">${alertSummary}</p>
+        </div>
       </div>
-      <div class="athlete-card-section">
-        <span class="small athlete-card-label">${currentLang === "es" ? "Tareas pendientes" : "Pending tasks"}</span>
-        <p class="small">${taskSummary}</p>
-      </div>
-      <div class="athlete-card-section">
-        <span class="small athlete-card-label">${currentLang === "es" ? "Journal" : "Journal"}</span>
-        <p class="small">${board.journalLabel}</p>
-      </div>
-      <div class="athlete-card-section">
-        <span class="small athlete-card-label">${currentLang === "es" ? "Alertas" : "Alerts"}</span>
-        <p class="small">${alertSummary}</p>
+      <div class="athlete-roster-actions">
+        <button type="button" class="primary athlete-roster-open">${currentLang === "es" ? "Trabajar con atleta" : "Work with athlete"}</button>
+        <button type="button" class="athlete-roster-summary-btn">${currentLang === "es" ? "Ver summary" : "View summary"}</button>
+        <button type="button" class="athlete-roster-message-btn">${currentLang === "es" ? "Mensaje" : "Message"}</button>
       </div>
     `;
     card.addEventListener("click", () => {
       selectCoachMatchAthlete(athlete.name);
     });
-    const btn = document.createElement("button");
-    btn.textContent = athleteSummaryLabel;
-    btn.addEventListener("click", (event) => {
+    card.querySelector(".athlete-roster-open")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openCoachAthleteWorkspace(athlete.name);
+    });
+    card.querySelector(".athlete-roster-summary-btn")?.addEventListener("click", (event) => {
       event.stopPropagation();
       openAthleteSummaryView(athlete.name);
     });
-    card.appendChild(btn);
+    card.querySelector(".athlete-roster-message-btn")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      messageCoachAthlete(athlete.name);
+    });
     athleteList.appendChild(card);
   });
 
+  renderCoachAthleteQuickActions(selectedName);
   renderCoachAthleteProfile(selectedName);
   const selectedAthlete = athletes.find((athlete) => athlete.name === selectedName);
   if (selectedName) {
@@ -16376,14 +16480,7 @@ function saveOnePagerField(field, value) {
 
 if (messageAthleteBtn) {
   messageAthleteBtn.addEventListener("click", async () => {
-    showTab("messages");
-    const selectedAthlete = getCoachAthleteRecordByIdentity(getSelectedCoachAthleteName());
-    const athleteUid = normalizeUid(selectedAthlete?.athleteUid);
-    if (!athleteUid) {
-      toast(pickCopy(MESSAGES_COPY.noLinkedAthleteUser));
-      return;
-    }
-    await openDirectMessageThreadWithRetry(athleteUid);
+    await messageCoachAthlete(getSelectedCoachAthleteName());
   });
 }
 

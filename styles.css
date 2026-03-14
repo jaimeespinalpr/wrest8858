@@ -604,6 +604,123 @@ button:active{
   grid-template-columns: repeat(2, minmax(0,1fr));
 }
 
+.coach-athlete-roster-shell{
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(300px, 0.9fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.coach-athlete-roster-list{
+  display: grid;
+  gap: 12px;
+}
+
+.athlete-roster-item{
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.22);
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.athlete-roster-item.active{
+  border-color: rgba(91,145,255,0.42);
+  box-shadow: 0 14px 26px rgba(15,23,42,0.20);
+  transform: translateY(-1px);
+}
+
+.athlete-roster-main{
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.athlete-roster-copy h4{
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.athlete-roster-badges{
+  justify-content: flex-end;
+}
+
+.athlete-roster-summary{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.athlete-roster-summary-item{
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(15,23,42,0.34);
+}
+
+.athlete-roster-summary-item p{
+  margin: 0;
+}
+
+.athlete-roster-actions{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.athlete-roster-actions button{
+  flex: 1 1 160px;
+}
+
+.coach-athlete-action-card{
+  display: grid;
+  gap: 14px;
+  position: sticky;
+  top: 108px;
+}
+
+.coach-athlete-action-badges{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.coach-athlete-action-stats{
+  display: grid;
+  gap: 10px;
+}
+
+.coach-athlete-action-stat{
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(15,23,42,0.34);
+}
+
+.coach-athlete-action-stat span{
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.58);
+}
+
+.coach-athlete-action-stat strong{
+  display: block;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.coach-athlete-action-buttons{
+  display: grid;
+  gap: 10px;
+}
+
 .athlete-card{
   padding: 12px;
   border-radius: 14px;
@@ -3284,11 +3401,22 @@ textarea:focus{
   .hero-header{
     flex-direction: column;
   }
+  .coach-athlete-roster-shell,
+  .athlete-roster-summary{
+    grid-template-columns: 1fr;
+  }
   .athlete-card-header{
+    flex-direction: column;
+  }
+  .athlete-roster-main{
     flex-direction: column;
   }
   .athlete-card-status{
     justify-content: flex-start;
+  }
+  .coach-athlete-action-card{
+    position: static;
+    top: auto;
   }
   .admin-user-row{
     grid-template-columns: 1fr 1fr;
@@ -4307,6 +4435,7 @@ button.ghost,
 }
 
 .stat-card,
+.athlete-roster-item,
 .athlete-card,
 .assignment-card,
 .media-card,
@@ -4315,6 +4444,8 @@ button.ghost,
 .message-bubble,
 .selection-block,
 .template-help-grid > *,
+.coach-athlete-action-card,
+.athlete-roster-summary-item,
 .app.parent-view-active .messages-coach-card,
 .app.parent-view-active .message-thread-card,
 .app.parent-view-active .message-bubble{
@@ -4325,6 +4456,7 @@ button.ghost,
   color: var(--text);
 }
 
+.athlete-roster-item.active,
 .athlete-card.active,
 .message-thread-card.active,
 .messages-coach-card.active{

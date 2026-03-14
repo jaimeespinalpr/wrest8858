@@ -1064,12 +1064,18 @@
       <section class="panel hidden" id="panel-athletes">
         <div class="card">
           <div class="card-header">
-            <h2>Athlete Management</h2>
-            <div class="chip">Roster</div>
+            <div>
+              <h2>Athlete Roster</h2>
+              <p class="small muted" id="coachAthleteRosterIntro">Start here. Pick an athlete first, then open the profile, summary, or messages.</p>
+            </div>
+            <div class="chip">Start here</div>
           </div>
           <div class="filter-row" id="athleteFilters"></div>
           <input id="athleteSearchInput" class="search-input" type="text" placeholder="Search athletes by name" aria-label="Search athletes" >
-          <div class="athlete-grid" id="athleteList"></div>
+          <div class="coach-athlete-roster-shell">
+            <div class="coach-athlete-roster-list" id="athleteList"></div>
+            <aside class="mini-card coach-athlete-action-card" id="coachAthleteQuickActions"></aside>
+          </div>
         </div>
 
         <div class="card" id="coachAthleteProfileCard">
