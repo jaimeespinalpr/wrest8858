@@ -102,6 +102,8 @@ let parentScoutingAudioChunks = [];
 let parentScoutingAudioBlob = null;
 let parentScoutingAudioUrl = "";
 const PARENT_INLINE_MEDIA_MAX_BYTES = 240 * 1024;
+const MEDIA_THUMBNAIL_MAX_EDGE = 640;
+const MEDIA_THUMBNAIL_QUALITY = 0.82;
 
 function initFirebaseClient() {
   if (typeof firebase === "undefined" || !window.FIREBASE_CONFIG) return null;
@@ -10293,16 +10295,16 @@ const MEDIA_COPY = {
     ru: "Разделы"
   },
   itemsLabel: {
-    en: "Videos",
-    es: "Videos",
-    uz: "Videolar",
-    ru: "Видео"
+    en: "Media",
+    es: "Media",
+    uz: "Media",
+    ru: "Медиа"
   },
   empty: {
-    en: "No media here yet. Create a section like \"Double leg\" and add videos inside.",
-    es: "Aun no hay contenido. Crea una seccion como \"Double leg\" y agrega videos dentro.",
-    uz: "Bu yerda hali media yo‘q. Masalan, “Double leg” bo‘limini yarating va videolar qo‘shing.",
-    ru: "Здесь пока нет медиа. Создайте раздел, например «Double leg», и добавьте видео."
+    en: "No media here yet. Create a section like \"Double leg\" and add clips, photos, or match review assets.",
+    es: "Aun no hay contenido. Crea una seccion como \"Double leg\" y agrega clips, fotos o recursos de analisis.",
+    uz: "Bu yerda hali media yo‘q. Masalan, “Double leg” bo‘limini yarating va kliplar yoki rasmlar qo‘shing.",
+    ru: "Здесь пока нет медиа. Создайте раздел, например «Double leg», и добавьте клипы, фото или разбор."
   },
   emptySections: {
     en: "No sections yet.",
@@ -10311,10 +10313,10 @@ const MEDIA_COPY = {
     ru: "Пока нет разделов."
   },
   emptyItems: {
-    en: "No videos in this section yet.",
-    es: "Aun no hay videos en esta seccion.",
-    uz: "Bu bo‘limda hali videolar yo‘q.",
-    ru: "В этом разделе пока нет видео."
+    en: "No media in this section yet.",
+    es: "Aun no hay media en esta seccion.",
+    uz: "Bu bo‘limda hali media yo‘q.",
+    ru: "В этом разделе пока нет медиа."
   },
   addSectionTitle: {
     en: "Add Section",
@@ -10335,16 +10337,16 @@ const MEDIA_COPY = {
     ru: "Добавить раздел"
   },
   addItemTitle: {
-    en: "Add Video",
-    es: "Agregar video",
-    uz: "Video qo‘shish",
-    ru: "Добавить видео"
+    en: "Add Media",
+    es: "Agregar media",
+    uz: "Media qo‘shish",
+    ru: "Добавить медиа"
   },
   addItemLabel: {
-    en: "Video title",
-    es: "Titulo del video",
-    uz: "Video sarlavhasi",
-    ru: "Название видео"
+    en: "Media title",
+    es: "Titulo del recurso",
+    uz: "Media sarlavhasi",
+    ru: "Название медиа"
   },
   addItemAssetPathLabel: {
     en: "NAS path or URL",
@@ -10353,10 +10355,10 @@ const MEDIA_COPY = {
     ru: "Путь NAS или URL"
   },
   addItemFileLabel: {
-    en: "Upload video file (optional)",
-    es: "Subir archivo de video (opcional)",
-    uz: "Video fayl yuklash (ixtiyoriy)",
-    ru: "Загрузить видеофайл (необязательно)"
+    en: "Upload photo or video (optional)",
+    es: "Subir foto o video (opcional)",
+    uz: "Rasm yoki video yuklash (ixtiyoriy)",
+    ru: "Загрузить фото или видео (необязательно)"
   },
   addItemThumbLabel: {
     en: "Thumbnail path (optional)",
@@ -10389,10 +10391,10 @@ const MEDIA_COPY = {
     ru: "Заметки"
   },
   addItemBtn: {
-    en: "Add video",
-    es: "Agregar video",
-    uz: "Video qo‘shish",
-    ru: "Добавить видео"
+    en: "Add media",
+    es: "Agregar media",
+    uz: "Media qo‘shish",
+    ru: "Добавить медиа"
   },
   assigned: {
     en: "Assigned",
@@ -10407,10 +10409,10 @@ const MEDIA_COPY = {
     ru: "разделов"
   },
   itemsCount: {
-    en: "videos",
-    es: "videos",
-    uz: "videolar",
-    ru: "видео"
+    en: "media",
+    es: "recursos",
+    uz: "media",
+    ru: "медиа"
   },
   saveFav: {
     en: "Save to Favorites",
@@ -10443,10 +10445,10 @@ const MEDIA_COPY = {
     ru: "Раздел добавлен."
   },
   addItemToast: {
-    en: "Video added.",
-    es: "Video agregado.",
-    uz: "Video qo‘shildi.",
-    ru: "Видео добавлено."
+    en: "Media item added.",
+    es: "Recurso agregado.",
+    uz: "Media qo‘shildi.",
+    ru: "Медиа добавлено."
   },
   needSectionName: {
     en: "Add a section name.",
@@ -10455,10 +10457,10 @@ const MEDIA_COPY = {
     ru: "Добавьте название раздела."
   },
   needItemTitle: {
-    en: "Add a video title.",
-    es: "Agrega un titulo de video.",
-    uz: "Video sarlavhasini kiriting.",
-    ru: "Добавьте название видео."
+    en: "Add a media title.",
+    es: "Agrega un titulo del recurso.",
+    uz: "Media sarlavhasini kiriting.",
+    ru: "Добавьте название медиа."
   },
   needItemAssetPath: {
     en: "Add a NAS path or URL.",
@@ -10466,17 +10468,17 @@ const MEDIA_COPY = {
     uz: "NAS yo'li yoki URL kiriting.",
     ru: "Добавьте путь NAS или URL."
   },
-  uploadingVideo: {
-    en: "Uploading video...",
-    es: "Subiendo video...",
-    uz: "Video yuklanmoqda...",
-    ru: "Загрузка видео..."
+  uploadingMedia: {
+    en: "Uploading media...",
+    es: "Subiendo media...",
+    uz: "Media yuklanmoqda...",
+    ru: "Загрузка медиа..."
   },
   uploadFailed: {
-    en: "Video upload failed. Try again.",
-    es: "No se pudo subir el video. Intenta otra vez.",
-    uz: "Video yuklanmadi. Qayta urinib ko‘ring.",
-    ru: "Не удалось загрузить видео. Попробуйте снова."
+    en: "Media upload failed. Try again.",
+    es: "No se pudo subir el recurso. Intenta otra vez.",
+    uz: "Media yuklanmadi. Qayta urinib ko‘ring.",
+    ru: "Не удалось загрузить медиа. Попробуйте снова."
   }
 };
 
@@ -10488,10 +10490,10 @@ const MEDIA_PLACEHOLDERS = {
     ru: "напр., Double leg"
   },
   item: {
-    en: "e.g., Double leg finish",
-    es: "ej., Final de double leg",
-    uz: "mas., Double leg finish",
-    ru: "напр., Double leg finish"
+    en: "e.g., Double leg finish review",
+    es: "ej., Revision de final de double leg",
+    uz: "mas., Double leg finish review",
+    ru: "напр., Разбор финиша double leg"
   },
   assetPath: {
     en: "e.g., wrestling/drills/double-leg.mp4",
@@ -10751,12 +10753,239 @@ function normalizeMediaTree(tree) {
 function sanitizeMediaFileName(name) {
   const raw = String(name || "").trim().toLowerCase();
   const replaced = raw.replace(/[^a-z0-9._-]+/g, "-").replace(/-+/g, "-");
-  return replaced.replace(/^-+|-+$/g, "") || `video-${Date.now()}.mp4`;
+  return replaced.replace(/^-+|-+$/g, "") || `media-${Date.now()}`;
 }
 
 function inferMediaTitleFromFile(file) {
   if (!file?.name) return "";
   return file.name.replace(/\.[^/.]+$/, "").replace(/[_-]+/g, " ").trim();
+}
+
+function inferMediaTypeFromFile(file) {
+  const fileType = String(file?.type || "").toLowerCase();
+  if (fileType.startsWith("image/")) return "Photo";
+  if (fileType.startsWith("video/")) return "Video";
+  if (fileType.startsWith("audio/")) return "Audio";
+  return "Link";
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("file_read_failed"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function getMediaUploadOwnerId() {
+  const authUser = getAuthUser();
+  if (!authUser?.id) {
+    throw new Error("auth_required");
+  }
+  return String(authUser.id);
+}
+
+function getMediaUploadPath(fileName, kind = "assets") {
+  const root = WPL_MEDIA_UPLOADS_ROOT || "media_uploads";
+  const ownerId = getMediaUploadOwnerId();
+  const safeKind = String(kind || "assets").trim().replace(/[^a-z0-9_-]+/gi, "-") || "assets";
+  const safeName = sanitizeMediaFileName(fileName);
+  return `${root}/${ownerId}/${safeKind}/${Date.now()}-${safeName}`;
+}
+
+function getScaledMediaDimensions(width, height, maxEdge = MEDIA_THUMBNAIL_MAX_EDGE) {
+  const safeWidth = Math.max(1, Number(width) || maxEdge);
+  const safeHeight = Math.max(1, Number(height) || maxEdge);
+  const scale = Math.min(1, maxEdge / Math.max(safeWidth, safeHeight));
+  return {
+    width: Math.max(1, Math.round(safeWidth * scale)),
+    height: Math.max(1, Math.round(safeHeight * scale))
+  };
+}
+
+function canvasToBlob(canvas, type = "image/jpeg", quality = MEDIA_THUMBNAIL_QUALITY) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob);
+      } else {
+        reject(new Error("thumbnail_blob_failed"));
+      }
+    }, type, quality);
+  });
+}
+
+function waitForDomEvent(target, successEvent, errorEvent = "error", timeoutMs = FIREBASE_OP_TIMEOUT_MS) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timeoutId = setTimeout(() => {
+      cleanup();
+      reject(new Error("media_event_timeout"));
+    }, timeoutMs);
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      if (successEvent) target.removeEventListener(successEvent, onSuccess);
+      if (errorEvent) target.removeEventListener(errorEvent, onError);
+    };
+    const onSuccess = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve();
+    };
+    const onError = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(new Error("media_event_failed"));
+    };
+    if (successEvent) target.addEventListener(successEvent, onSuccess, { once: true });
+    if (errorEvent) target.addEventListener(errorEvent, onError, { once: true });
+  });
+}
+
+async function createImageThumbnailBlob(file) {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const nextImage = new Image();
+      nextImage.onload = () => resolve(nextImage);
+      nextImage.onerror = () => reject(new Error("image_thumbnail_load_failed"));
+      nextImage.src = objectUrl;
+    });
+    const { width, height } = getScaledMediaDimensions(image.naturalWidth || image.width, image.naturalHeight || image.height);
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("thumbnail_context_missing");
+    }
+    context.drawImage(image, 0, 0, width, height);
+    return canvasToBlob(canvas);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function createVideoThumbnailBlob(file) {
+  const objectUrl = URL.createObjectURL(file);
+  const video = document.createElement("video");
+  video.preload = "metadata";
+  video.muted = true;
+  video.playsInline = true;
+  video.src = objectUrl;
+  try {
+    await waitForDomEvent(video, "loadeddata");
+    const captureTime = Number.isFinite(video.duration) && video.duration > 0.6
+      ? Math.min(video.duration / 3, 1)
+      : 0;
+    if (captureTime > 0.05) {
+      video.currentTime = captureTime;
+      await waitForDomEvent(video, "seeked");
+    }
+    const { width, height } = getScaledMediaDimensions(video.videoWidth || 640, video.videoHeight || 360);
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("thumbnail_context_missing");
+    }
+    context.drawImage(video, 0, 0, width, height);
+    return canvasToBlob(canvas);
+  } finally {
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function createMediaThumbnailBlob(file) {
+  const fileType = String(file?.type || "").toLowerCase();
+  if (fileType.startsWith("image/")) {
+    return createImageThumbnailBlob(file);
+  }
+  if (fileType.startsWith("video/")) {
+    return createVideoThumbnailBlob(file);
+  }
+  return null;
+}
+
+function getMediaBaseName(fileName) {
+  return String(fileName || "").replace(/\.[^/.]+$/, "") || `media-${Date.now()}`;
+}
+
+async function uploadBlobToFirebase(blob, fileName, { kind = "assets", contentType = "", customMetadata = {} } = {}) {
+  if (!firebaseStorageInstance) {
+    throw new Error("storage_not_configured");
+  }
+  if (!blob) {
+    throw new Error("missing_file");
+  }
+  const uploadPath = getMediaUploadPath(fileName, kind);
+  const ref = firebaseStorageInstance.ref().child(uploadPath);
+  const metadata = stripUndefinedDeep({
+    contentType: contentType || blob.type || "application/octet-stream",
+    customMetadata
+  });
+  const taskSnapshot = await withTimeout(
+    ref.put(blob, metadata),
+    FIREBASE_OP_TIMEOUT_MS * 4,
+    "storage_upload_timeout"
+  );
+  const downloadURL = await withTimeout(
+    taskSnapshot.ref.getDownloadURL(),
+    FIREBASE_OP_TIMEOUT_MS,
+    "storage_download_url_timeout"
+  );
+  return {
+    downloadURL,
+    fullPath: uploadPath,
+    contentType: metadata.contentType || "",
+    size: Number(blob.size || 0)
+  };
+}
+
+async function uploadMediaAssetBundleToFirebase(file, { generateThumbnail = true } = {}) {
+  const assetUpload = await uploadBlobToFirebase(file, file.name, {
+    kind: "assets",
+    contentType: file.type || "application/octet-stream",
+    customMetadata: {
+      uploaderUid: getAuthUser()?.id || "",
+      source: "wpl-web-app"
+    }
+  });
+  let thumbnailPath = "";
+  if (generateThumbnail) {
+    try {
+      const thumbnailBlob = await createMediaThumbnailBlob(file);
+      if (thumbnailBlob) {
+        const thumbnailUpload = await uploadBlobToFirebase(
+          thumbnailBlob,
+          `${getMediaBaseName(file.name)}-thumb.jpg`,
+          {
+            kind: "thumbnails",
+            contentType: "image/jpeg",
+            customMetadata: {
+              uploaderUid: getAuthUser()?.id || "",
+              sourceAssetPath: assetUpload.fullPath
+            }
+          }
+        );
+        thumbnailPath = thumbnailUpload.downloadURL;
+      }
+    } catch (err) {
+      console.warn("Thumbnail upload skipped", err);
+    }
+  }
+  return {
+    assetPath: assetUpload.downloadURL,
+    assetStoragePath: assetUpload.fullPath,
+    thumbnailPath
+  };
 }
 
 function getMediaTreeFromLocalStorage() {
@@ -10861,28 +11090,9 @@ function startMediaRealtimeSync() {
   );
 }
 
-function getMediaUploadPath(fileName) {
-  const root = WPL_MEDIA_UPLOADS_ROOT || "media_uploads";
-  const coachKey = getCoachKey();
-  const safeName = sanitizeMediaFileName(fileName);
-  return `${root}/${coachKey}/${Date.now()}-${safeName}`;
-}
-
 async function uploadMediaFileToFirebase(file) {
-  if (!firebaseStorageInstance) {
-    throw new Error("storage_not_configured");
-  }
-  if (!file) {
-    throw new Error("missing_file");
-  }
-  const uploadPath = getMediaUploadPath(file.name);
-  const ref = firebaseStorageInstance.ref().child(uploadPath);
-  const taskSnapshot = await withTimeout(
-    ref.put(file, { contentType: file.type || "video/mp4" }),
-    FIREBASE_OP_TIMEOUT_MS * 4,
-    "storage_upload_timeout"
-  );
-  return taskSnapshot.ref.getDownloadURL();
+  const upload = await uploadMediaAssetBundleToFirebase(file, { generateThumbnail: false });
+  return upload.assetPath;
 }
 
 function getStoredMediaTree() {
@@ -11321,17 +11531,25 @@ function bindMediaTools() {
       const inferredTitle = inferMediaTitleFromFile(file);
       const title = mediaNewItemTitle?.value.trim() || inferredTitle;
       let assetPath = normalizeMediaAssetPath(mediaNewItemAssetPath?.value || "");
+      let thumbnailPath = normalizeMediaAssetPath(mediaNewItemThumbPath?.value || "");
       if (!title) {
         toast(mediaCopy("needItemTitle"));
         return;
       }
       if (file) {
         try {
-          toast(mediaCopy("uploadingVideo"));
-          assetPath = await uploadMediaFileToFirebase(file);
+          toast(mediaCopy("uploadingMedia"));
+          const uploadedMedia = await uploadMediaAssetBundleToFirebase(file, {
+            generateThumbnail: !thumbnailPath
+          });
+          assetPath = uploadedMedia.assetPath;
+          if (!thumbnailPath && uploadedMedia.thumbnailPath) {
+            thumbnailPath = uploadedMedia.thumbnailPath;
+          }
           if (mediaNewItemAssetPath) mediaNewItemAssetPath.value = assetPath;
+          if (mediaNewItemThumbPath && thumbnailPath) mediaNewItemThumbPath.value = thumbnailPath;
         } catch (err) {
-          console.warn("Video upload failed", err);
+          console.warn("Media upload failed", err);
           toast(mediaCopy("uploadFailed"));
           return;
         }
@@ -11345,9 +11563,9 @@ function bindMediaTools() {
         id: makeMediaId("item"),
         type: "item",
         title,
-        mediaType: mediaNewItemType?.value || "Video",
+        mediaType: mediaNewItemType?.value || inferMediaTypeFromFile(file) || "Video",
         assetPath,
-        thumbnailPath: normalizeMediaAssetPath(mediaNewItemThumbPath?.value || ""),
+        thumbnailPath,
         duration: mediaNewItemDuration?.value.trim() || "",
         assigned: mediaNewItemAssigned?.value.trim() || "",
         note: mediaNewItemNote?.value.trim() || "",
@@ -11372,6 +11590,12 @@ function bindMediaTools() {
       if (!file || !mediaNewItemTitle) return;
       if (!mediaNewItemTitle.value.trim()) {
         mediaNewItemTitle.value = inferMediaTitleFromFile(file);
+      }
+      if (mediaNewItemType) {
+        const inferredType = inferMediaTypeFromFile(file);
+        if (Array.from(mediaNewItemType.options).some((option) => option.value === inferredType)) {
+          mediaNewItemType.value = inferredType;
+        }
       }
     });
   }
@@ -12955,30 +13179,31 @@ function startParentPortalRealtimeSync() {
 async function uploadParentScoutingAssets(files = []) {
   const uploads = [];
   for (const file of files) {
-    if (file.size <= PARENT_INLINE_MEDIA_MAX_BYTES) {
-      const inlineUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result || ""));
-        reader.onerror = () => reject(new Error("parent_inline_media_read_failed"));
-        reader.readAsDataURL(file);
+    try {
+      const uploaded = await uploadMediaAssetBundleToFirebase(file, {
+        generateThumbnail: file.type?.startsWith("image/") || file.type?.startsWith("video/")
       });
       uploads.push({
         name: file.name,
         type: file.type,
-        url: inlineUrl,
-        storage: "firestore_inline",
+        url: uploaded.assetPath,
+        thumbnailUrl: uploaded.thumbnailPath || "",
+        storage: "firebase_storage",
         size: file.size
       });
-      continue;
+    } catch (err) {
+      if (file.size > PARENT_INLINE_MEDIA_MAX_BYTES) {
+        throw err;
+      }
+      const inlineUrl = await readFileAsDataUrl(file);
+      uploads.push({
+        name: file.name,
+        type: file.type,
+        url: inlineUrl,
+        storage: "firestore_inline_fallback",
+        size: file.size
+      });
     }
-    const url = await uploadMediaFileToFirebase(file);
-    uploads.push({
-      name: file.name,
-      type: file.type,
-      url,
-      storage: "firebase_storage",
-      size: file.size
-    });
   }
   return uploads;
 }

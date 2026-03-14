@@ -95,20 +95,16 @@ The onboarding overlay now prioritizes log in / create account so athletes and c
 
 If you later need to revert to MySQL-backed auth, remove or empty `firebase-config.public.js` (and any local `firebase-config.js`) so the Firebase scripts skip initialization, and switch the app back to the PHP storage API as documented above.
 
-## Storage strategy (users in Firebase, media in NAS)
+## Firebase Storage
 
-- **Users (now):** authentication and user profile metadata are persisted in Firebase (`Auth` + Firestore `users` collection).
-- **Media (future):** videos/photos/audio can move to your NAS and the app can store only metadata/URLs in Firebase or local state.
-- Recommended next step for NAS integration: define a base URL (or signed URL service) and add media item fields like `assetUrl`, `thumbnailUrl`, and `duration`.
+- **Users:** authentication and profile metadata live in Firebase (`Auth` + Firestore `users` collection).
+- **Media:** photos, videos, audio, and generated thumbnails now upload directly to Firebase Storage and store tokenized download URLs in Firestore/shared media state.
+- **Rules:** Storage access is defined in `/Users/jaimeespinalpr/Documents/wrestling-coaching-experience/storage.rules` and deployed through `firebase.json`.
+- **CORS:** the applied bucket policy is tracked in `/Users/jaimeespinalpr/Documents/wrestling-coaching-experience/firebase-storage-cors.json`.
 
-### NAS rollout checklist
+### Required setup
 
-1. Expose media through HTTPS from your NAS (reverse proxy or web server).
-2. Decide one public base URL, e.g. `https://nas.example.com/media`.
-3. Set `window.WPL_MEDIA_BASE_URL` in `firebase-config.public.js` (or local `firebase-config.js`) to that base URL.
-4. In **Media > Add Video**, save:
-   - `NAS path or URL`: `wrestling/drills/double-leg.mp4` (or full URL).
-   - `Thumbnail path`: optional image path.
-   - `Duration`: optional display value (`03:45`).
-5. Keep write access private: uploads should go through a backend service, not direct unauthenticated NAS writes from browser clients.
-6. Store only metadata in app/Firebase (paths, labels, assignments); files remain in NAS storage.
+1. Keep the Firebase web config in `/Users/jaimeespinalpr/Documents/wrestling-coaching-experience/firebase-config.public.js`.
+2. Provision a default Firebase Storage bucket for the project. New buckets require the project to be on the Blaze plan.
+3. Deploy Storage rules with `firebase deploy --only storage`.
+4. Reapply CORS to the bucket if origins change. The JSON in `/Users/jaimeespinalpr/Documents/wrestling-coaching-experience/firebase-storage-cors.json` is the source of truth used by the app.
