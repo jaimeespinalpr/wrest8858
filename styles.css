@@ -3977,3 +3977,406 @@ textarea:focus{
     font-size: 28px;
   }
 }
+
+/* Native app refresh */
+:root{
+  color-scheme: dark;
+  --bg: #050b16;
+  --panel: rgba(10, 19, 34, 0.94);
+  --card: rgba(13, 24, 42, 0.96);
+  --stroke: rgba(109, 139, 191, 0.18);
+  --text: #f5f7fb;
+  --muted: #98a9c4;
+  --blue: #4f7cff;
+  --teal: #2dd4bf;
+  --red: #ff5d7d;
+  --shadow: 0 24px 60px rgba(1, 6, 16, 0.48);
+  --radius: 24px;
+}
+
+body{
+  color: var(--text);
+  background:
+    radial-gradient(circle at top left, rgba(79,124,255,0.24), transparent 28%),
+    radial-gradient(circle at 85% 0%, rgba(45,212,191,0.18), transparent 22%),
+    radial-gradient(circle at 50% 100%, rgba(124,58,237,0.16), transparent 28%),
+    linear-gradient(180deg, #07101d 0%, #050b16 100%);
+}
+
+body::before{
+  opacity: 0.4;
+  background-image:
+    linear-gradient(rgba(116,146,194,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(116,146,194,0.04) 1px, transparent 1px);
+  background-size: 26px 26px;
+  mask-image: radial-gradient(circle at center, black 38%, transparent 100%);
+}
+
+.app{
+  max-width: 1180px;
+  padding: 16px 14px 88px;
+}
+
+.app-header,
+.tabs,
+.subtabs,
+.card,
+.onboarding-card,
+.register-card,
+.messages-sidebar-block,
+.messages-empty-state,
+.messages-thread-view,
+.app.parent-view-active .app-header,
+.app.parent-view-active .tabs,
+.app.parent-view-active .card,
+.app.parent-view-active .messages-sidebar-block,
+.app.parent-view-active .messages-empty-state,
+.app.parent-view-active .messages-thread-view{
+  background: linear-gradient(180deg, rgba(16, 27, 47, 0.96), rgba(9, 17, 31, 0.98));
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
+
+.app-header,
+.app.parent-view-active .app-header{
+  position: sticky;
+  top: 14px;
+  z-index: 24;
+  align-items: flex-start;
+  padding: 20px;
+  border-radius: 28px;
+  backdrop-filter: blur(18px);
+}
+
+.app-header::after,
+.onboarding-card::after,
+.register-card::after,
+.card::after{
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(135deg, rgba(255,255,255,0.07), transparent 26%, transparent 74%, rgba(79,124,255,0.08));
+}
+
+.app-header,
+.onboarding-card,
+.register-card,
+.card{
+  position: relative;
+  overflow: hidden;
+}
+
+.app-header h1,
+.app.parent-view-active .app-header h1{
+  font-size: clamp(1.8rem, 4vw, 2.35rem);
+  line-height: 0.95;
+  letter-spacing: 0.03em;
+}
+
+.mini-meta,
+.now-meta,
+.small,
+.muted,
+.message-thread-meta,
+.message-thread-preview,
+.message-bubble-header,
+.messages-coach-card small,
+.message-thread-card small,
+.app.parent-view-active .mini-meta,
+.app.parent-view-active .now-meta,
+.app.parent-view-active .small,
+.app.parent-view-active .muted{
+  color: var(--muted) !important;
+}
+
+.app-badge,
+.brand-mark,
+.app.parent-view-active .app-badge,
+.app.parent-view-active .brand-mark{
+  width: 60px;
+  height: 60px;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #4f7cff, #233f88 58%, #16274b);
+  border: 1px solid rgba(111, 148, 255, 0.3);
+  box-shadow: 0 16px 32px rgba(28, 66, 155, 0.4);
+  color: #ffffff;
+}
+
+.tabs,
+.subtabs,
+.app.parent-view-active .tabs{
+  position: sticky;
+  top: 120px;
+  z-index: 18;
+  gap: 10px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding: 10px;
+  border-radius: 22px;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar,
+.subtabs::-webkit-scrollbar{
+  display: none;
+}
+
+.tab,
+.subtab,
+.app.parent-view-active .tab{
+  min-height: 46px;
+  padding: 10px 16px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.tab.active,
+.app.parent-view-active .tab.active{
+  color: #ffffff;
+  background: linear-gradient(135deg, rgba(79,124,255,0.34), rgba(45,212,191,0.18));
+  border-color: rgba(109, 139, 191, 0.28);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+.subtab.active{
+  color: #eaf2ff;
+  background: rgba(79,124,255,0.18);
+  border-color: rgba(109, 139, 191, 0.3);
+}
+
+.card,
+.app.parent-view-active .card{
+  border-radius: 26px;
+  padding: 20px;
+}
+
+.card h2,
+.card-header h2{
+  font-size: 1.35rem;
+  letter-spacing: 0.01em;
+}
+
+.chip,
+.tag-pill{
+  border-radius: 999px;
+  border: 1px solid rgba(98, 129, 182, 0.28);
+  background: rgba(79,124,255,0.12);
+  color: #dbe8ff;
+}
+
+button,
+input,
+select,
+textarea{
+  min-height: 46px;
+  border-radius: 16px;
+  border: 1px solid rgba(109, 139, 191, 0.18);
+  background: rgba(7, 14, 27, 0.92);
+  color: var(--text);
+  box-shadow: none;
+}
+
+input::placeholder,
+textarea::placeholder{
+  color: rgba(152, 169, 196, 0.78);
+}
+
+button{
+  padding: 11px 16px;
+  font-weight: 600;
+}
+
+button:hover{
+  transform: translateY(-1px);
+  border-color: rgba(129, 156, 207, 0.32);
+  background: rgba(13, 24, 42, 0.98);
+}
+
+.primary,
+button.primary,
+.app.parent-view-active .primary,
+.app.parent-view-active button.primary{
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #4f7cff, #2dd4bf) !important;
+  border-color: rgba(91, 145, 255, 0.5) !important;
+  box-shadow: 0 14px 30px rgba(26, 89, 219, 0.28);
+}
+
+.ghost,
+button.ghost,
+.form-actions .ghost,
+.app.parent-view-active .ghost,
+.app.parent-view-active button.ghost,
+.app.parent-view-active .form-actions .ghost{
+  color: #dbe8ff !important;
+  background: rgba(148,163,184,0.08) !important;
+  border-color: rgba(148,163,184,0.16) !important;
+}
+
+.header-actions,
+.lang-switch,
+.view-switch,
+.header-menu,
+.app.parent-view-active .header-menu,
+.app.parent-view-active .lang-switch{
+  background: rgba(7, 14, 27, 0.7);
+  border-color: rgba(109, 139, 191, 0.18);
+}
+
+.header-menu,
+.app.parent-view-active .header-menu{
+  border-radius: 20px;
+  backdrop-filter: blur(18px);
+}
+
+.header-menu button,
+.app.parent-view-active .header-menu button{
+  background: transparent;
+  color: #dbe8ff;
+}
+
+.header-menu button:hover,
+.app.parent-view-active .header-menu button:hover{
+  background: rgba(79,124,255,0.12);
+}
+
+.stat-card,
+.athlete-card,
+.assignment-card,
+.media-card,
+.messages-coach-card,
+.message-thread-card,
+.message-bubble,
+.selection-block,
+.template-help-grid > *,
+.app.parent-view-active .messages-coach-card,
+.app.parent-view-active .message-thread-card,
+.app.parent-view-active .message-bubble{
+  border-radius: 22px;
+  border: 1px solid rgba(109, 139, 191, 0.16);
+  background: linear-gradient(180deg, rgba(14, 25, 43, 0.96), rgba(8, 15, 28, 0.98));
+  box-shadow: 0 18px 38px rgba(1, 6, 16, 0.34);
+  color: var(--text);
+}
+
+.athlete-card.active,
+.message-thread-card.active,
+.messages-coach-card.active{
+  border-color: rgba(91,145,255,0.42);
+  background: linear-gradient(180deg, rgba(28, 47, 84, 0.98), rgba(10, 18, 32, 0.98));
+}
+
+.message-bubble.own,
+.app.parent-view-active .message-bubble.own{
+  border-color: rgba(45, 212, 191, 0.36);
+  background: linear-gradient(180deg, rgba(21, 57, 67, 0.98), rgba(8, 24, 30, 0.98));
+}
+
+.quick-actions{
+  gap: 12px;
+}
+
+.quick-actions button,
+.quick-actions .primary{
+  min-height: 52px;
+  border-radius: 18px;
+}
+
+.section-grid,
+.grid,
+.tech-grid,
+.selection-block{
+  gap: 14px;
+}
+
+.messages-feed{
+  max-height: 520px;
+}
+
+.messages-thread-header{
+  margin-bottom: 14px;
+}
+
+.auth-panel,
+.auth-form-wrap{
+  background: transparent;
+}
+
+.onboarding{
+  padding: 18px;
+  background: rgba(3, 8, 16, 0.58);
+  backdrop-filter: blur(16px);
+}
+
+.onboarding-card,
+.register-card{
+  border-radius: 30px;
+  padding: 22px;
+}
+
+.register-modal{
+  background: rgba(3, 8, 16, 0.72);
+  backdrop-filter: blur(16px);
+}
+
+@media (max-width: 900px){
+  .app{
+    padding: 12px 12px 84px;
+  }
+
+  .app-header,
+  .app.parent-view-active .app-header{
+    top: 10px;
+    padding: 16px;
+    border-radius: 24px;
+  }
+
+  .tabs,
+  .subtabs,
+  .app.parent-view-active .tabs{
+    top: 104px;
+    border-radius: 20px;
+  }
+
+  .card,
+  .app.parent-view-active .card{
+    padding: 16px;
+    border-radius: 22px;
+  }
+}
+
+@media (max-width: 640px){
+  .app-header h1,
+  .app.parent-view-active .app-header h1{
+    font-size: 1.9rem;
+  }
+
+  .app-badge,
+  .brand-mark,
+  .app.parent-view-active .app-badge,
+  .app.parent-view-active .brand-mark{
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+  }
+
+  .tabs,
+  .subtabs,
+  .app.parent-view-active .tabs{
+    top: 96px;
+  }
+
+  button,
+  input,
+  select,
+  textarea{
+    font-size: 16px;
+  }
+}
