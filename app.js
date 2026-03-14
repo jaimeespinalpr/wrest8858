@@ -13094,50 +13094,29 @@ async function findFirebaseUsersForAssignment(assignment) {
 async function sendCoachAssignmentNotification(assignment) {
   const current = getMessagesCurrentUser();
   const assignmentsRef = getCoachWorkspaceCollectionRef("assignments");
-  const threadsRef = getMessageThreadsCollectionRef();
   if (!assignment?.id || !assignmentsRef) return;
   let notifiedCount = 0;
 
-  if (current?.uid && threadsRef && isCoachMessagingUser(current)) {
+  if (current?.uid && isCoachMessagingUser(current)) {
     const targetUsers = await findFirebaseUsersForAssignment(assignment);
     for (const user of targetUsers) {
       if (!user?.uid) continue;
-      const threadId = buildDirectMessageThreadId(current.uid, user.uid);
-      const threadRef = threadsRef.doc(threadId);
       const message = `${assignment.title} - ${currentLang === "es" ? "vence" : "due"} ${assignment.dueLabel || formatPlanDateLabel(assignment.dueDateKey || getCurrentAppDateKey())}. ${assignment.note || ""}`.trim();
-
-      await withTimeout(
-        threadRef.set({
-          participantIds: [current.uid, user.uid].sort(),
-          participants: {
-            [current.uid]: true,
-            [user.uid]: true
-          },
-          coachUid: current.uid,
-          coachName: current.name,
-          userUid: user.uid,
-          userName: user.name || assignment.assigneeName,
-          userRole: normalizeAuthRole(user.role || "athlete"),
-          updatedAt: getFirestoreServerTimestamp(),
-          lastMessageAt: getFirestoreServerTimestamp(),
-          lastMessageText: message,
-          lastSenderUid: current.uid
-        }, { merge: true }),
-        FIREBASE_OP_TIMEOUT_MS,
-        "firestore_assignment_thread_timeout"
-      );
-      await withTimeout(
-        threadRef.collection("messages").add({
-          threadId,
-          text: message,
-          senderUid: current.uid,
-          senderName: current.name,
-          senderRole: current.role,
-          createdAt: getFirestoreServerTimestamp()
-        }),
-        FIREBASE_OP_TIMEOUT_MS,
-        "firestore_assignment_message_timeout"
-      );
+      const threadId = await ensureDirectMessageThread({
+        uid: user.uid,
+        name: user.name || assignment.assigneeName || "Athlete",
+        email: user.email || "",
+        role: user.role || "athlete",
+        linkedCoachUid: user.linkedCoachUid || current.uid,
+        linkedAthleteId: user.linkedAthleteId || "",
+        linkedAthleteUid: user.linkedAthleteUid || user.uid
+      });
+      await appendMessageToThread({
+        threadId,
+        participants: [current, user],
+        sender: current,
+        text: message
+      });
       notifiedCount += 1;
     }
   }
@@ -16390,8 +16369,15 @@ function saveOnePagerField(field, value) {
 }
 
 if (messageAthleteBtn) {
-  messageAthleteBtn.addEventListener("click", () => {
+  messageAthleteBtn.addEventListener("click", async () => {
     showTab("messages");
+    const selectedAthlete = getCoachAthleteRecordByIdentity(getSelectedCoachAthleteName());
+    const athleteUid = normalizeUid(selectedAthlete?.athleteUid);
+    if (!athleteUid) {
+      toast(pickCopy(MESSAGES_COPY.noLinkedAthleteUser));
+      return;
+    }
+    await openDirectMessageThreadWithRetry(athleteUid);
   });
 }
 
@@ -16895,35 +16881,43 @@ const messageSendBtn = document.getElementById("messageSendBtn");
 const MESSAGES_COPY = {
   title: { en: "Messages", es: "Mensajes" },
   subtitle: {
-    en: "Private 1:1 communication between athletes, parents, and coaches.",
-    es: "Comunicacion privada 1:1 entre atletas, padres y entrenadores."
+    en: "Direct 1:1 messaging between coaches, athletes, and linked parents.",
+    es: "Mensajeria directa 1:1 entre coaches, atletas y padres vinculados."
   },
-  chip: { en: "Private threads", es: "Chats privados" },
-  sidebarTitle: { en: "Conversations", es: "Conversaciones" },
+  chip: { en: "Direct threads", es: "Chats directos" },
+  sidebarTitle: { en: "Contacts", es: "Contactos" },
   sidebarHintCoach: {
-    en: "Open any athlete or parent thread and reply directly from here.",
-    es: "Abre cualquier chat de atleta o padre y responde directamente aqui."
+    en: "Message your athletes, linked parents, and other coaches from one place.",
+    es: "Escribe a tus atletas, padres vinculados y otros coaches desde un solo lugar."
   },
-  sidebarHintUser: {
-    en: "Start a private thread with any coach, then continue the conversation here.",
-    es: "Comienza un chat privado con cualquier coach y sigue la conversacion aqui."
+  sidebarHintAthlete: {
+    en: "Message your coach and teammates directly from here.",
+    es: "Escribe a tu coach y companeros de equipo directamente desde aqui."
+  },
+  sidebarHintParent: {
+    en: "Message the linked coach directly from here.",
+    es: "Escribe al coach vinculado directamente desde aqui."
   },
   emptyTitle: { en: "No conversation selected", es: "No hay una conversacion seleccionada" },
-  emptyBodyUser: {
-    en: "Choose a coach from the left column to open a private thread.",
-    es: "Selecciona un coach en la columna izquierda para abrir un chat privado."
-  },
   emptyBodyCoach: {
-    en: "As soon as an athlete or parent writes to you, the thread will appear here.",
-    es: "Tan pronto un atleta o padre te escriba, el chat aparecera aqui."
+    en: "Choose a contact from the left column to open a direct thread.",
+    es: "Selecciona un contacto en la columna izquierda para abrir un chat directo."
+  },
+  emptyBodyAthlete: {
+    en: "Choose your coach or a teammate from the left column to open a direct thread.",
+    es: "Selecciona a tu coach o a un companero para abrir un chat directo."
+  },
+  emptyBodyParent: {
+    en: "Choose the linked coach from the left column to open a direct thread.",
+    es: "Selecciona al coach vinculado en la columna izquierda para abrir un chat directo."
   },
   emptyBodyAuth: {
-    en: "Sign in to load private coach conversations.",
-    es: "Inicia sesion para cargar las conversaciones privadas con coaches."
+    en: "Sign in to load your direct messages.",
+    es: "Inicia sesion para cargar tus mensajes directos."
   },
-  emptyBodyNoCoaches: {
-    en: "No coach accounts are available yet. Provision the coach roster first.",
-    es: "Todavia no hay cuentas de coach disponibles. Primero crea el roster de coaches."
+  emptyBodyNoContacts: {
+    en: "No eligible contacts are available yet.",
+    es: "Todavia no hay contactos disponibles."
   },
   composerLabel: { en: "Message", es: "Mensaje" },
   composerPlaceholder: { en: "Write your message here", es: "Escribe tu mensaje aqui" },
@@ -16948,19 +16942,23 @@ const MESSAGES_COPY = {
     en: "No threads yet.",
     es: "Todavia no hay chats."
   },
-  coachesHeader: { en: "Coaches", es: "Coaches" },
+  contactsHeader: { en: "Available contacts", es: "Contactos disponibles" },
   threadsHeader: { en: "Active threads", es: "Chats activos" },
   startThread: { en: "Start thread", es: "Abrir chat" },
   openThread: { en: "Open thread", es: "Ver chat" },
-  coachAvailable: { en: "Coach account ready", es: "Cuenta de coach lista" },
-  privateBadge: { en: "Private", es: "Privado" },
+  contactReady: { en: "Available for direct chat", es: "Disponible para chat directo" },
+  privateBadge: { en: "Direct", es: "Directo" },
   you: { en: "You", es: "Tu" },
   needText: { en: "Write a message before sending.", es: "Escribe un mensaje antes de enviar." },
-  signedOut: { en: "Signed out", es: "Sesion cerrada" }
+  signedOut: { en: "Signed out", es: "Sesion cerrada" },
+  noLinkedAthleteUser: {
+    en: "This athlete does not have a linked account yet.",
+    es: "Este atleta todavia no tiene una cuenta vinculada."
+  }
 };
 
 let messagesThreadRows = [];
-let messagesCoachRows = [];
+let messagesContactRows = [];
 let messagesFeedRows = [];
 let messagesThreadsUnsub = null;
 let messagesFeedUnsub = null;
@@ -16970,24 +16968,39 @@ let messagesBound = false;
 let messagesFeedLoading = false;
 let messagesStatusCopy = "";
 let messagesStatusType = "";
-let messagesAutoOpeningCoachUid = "";
+let messagesAutoOpeningContactUid = "";
+
+function normalizeMessageParticipantRole(role, email = "") {
+  const normalizedRole = normalizeAuthRole(role);
+  if (normalizedRole === "coach" || normalizedRole === "parent" || normalizedRole === "athlete") {
+    return normalizedRole;
+  }
+  if (normalizedRole === "admin" || isForcedAdminEmail(email) || OFFICIAL_COACH_EMAILS.has(normalizeEmail(email))) {
+    return "coach";
+  }
+  return "athlete";
+}
 
 function getMessagesCurrentUser() {
   const authUser = getAuthUser();
   if (!authUser?.id) return null;
   const profile = getProfile() || {};
-  const role = normalizeAuthRole(profile.role || authUser.role);
+  const email = normalizeEmail(authUser.email || profile.email || "");
+  const role = normalizeMessageParticipantRole(profile.role || authUser.role, email);
   return {
     uid: String(authUser.id || "").trim(),
-    email: normalizeEmail(authUser.email || profile.email || ""),
+    email,
     role,
-    name: String(profile.name || authUser.email || "").trim() || "User"
+    name: String(profile.name || authUser.email || "").trim() || "User",
+    linkedCoachUid: String(profile.linkedCoachUid || "").trim(),
+    linkedAthleteId: String(profile.linkedAthleteId || "").trim(),
+    linkedAthleteUid: String(profile.linkedAthleteUid || "").trim(),
+    status: normalizeParentVerificationStatus(profile.status)
   };
 }
 
 function isCoachMessagingUser(user) {
-  if (!user) return false;
-  return normalizeAuthRole(user.role) === "coach" || OFFICIAL_COACH_EMAILS.has(normalizeEmail(user.email));
+  return normalizeMessageParticipantRole(user?.role, user?.email) === "coach";
 }
 
 function getMessageThreadsCollectionRef() {
@@ -17033,8 +17046,80 @@ function buildDirectMessageThreadId(uidA, uidB) {
   return [String(uidA || "").trim(), String(uidB || "").trim()].filter(Boolean).sort().join("__");
 }
 
-function normalizeMessageCoachRecord(uid, data = {}) {
-  return normalizeManagedUserRecord(uid, { ...data, role: "coach", view: "coach" });
+function uniqueMessageIds(values = []) {
+  const seen = new Set();
+  const result = [];
+  values.forEach((value) => {
+    const safeValue = String(value || "").trim();
+    if (!safeValue || seen.has(safeValue)) return;
+    seen.add(safeValue);
+    result.push(safeValue);
+  });
+  return result;
+}
+
+function normalizeMessageContactRecord(uid, data = {}) {
+  const base = normalizeManagedUserRecord(uid, data);
+  return {
+    ...base,
+    role: normalizeMessageParticipantRole(base.role, base.email),
+    displayRole: getRoleLabelEnglish(normalizeMessageParticipantRole(base.role, base.email))
+  };
+}
+
+function normalizeMessageParticipantProfile(data = {}) {
+  const email = normalizeEmail(data.email || "");
+  const uid = String(data.uid || data.user_id || "").trim();
+  return {
+    uid,
+    email,
+    name: String(data.name || data.displayName || data.email || "").trim() || "User",
+    role: normalizeMessageParticipantRole(data.role, email),
+    linkedCoachUid: String(data.linkedCoachUid || "").trim(),
+    linkedAthleteId: String(data.linkedAthleteId || "").trim(),
+    linkedAthleteUid: String(data.linkedAthleteUid || "").trim()
+  };
+}
+
+function buildMessageParticipantProfiles(participants = []) {
+  const byUid = new Map();
+  participants.forEach((participant) => {
+    const normalized = normalizeMessageParticipantProfile(participant || {});
+    if (!normalized.uid) return;
+    byUid.set(normalized.uid, normalized);
+  });
+  return Array.from(byUid.values()).sort((left, right) => left.uid.localeCompare(right.uid));
+}
+
+function buildMessageThreadPayload(participants = [], extras = {}) {
+  const participantProfiles = buildMessageParticipantProfiles(participants);
+  const participantIds = participantProfiles.map((participant) => participant.uid);
+  const participantMap = participantIds.reduce((acc, uid) => {
+    acc[uid] = true;
+    return acc;
+  }, {});
+  const coachParticipant = participantProfiles.find((participant) => isCoachMessagingUser(participant)) || participantProfiles[0] || {};
+  const userParticipant = participantProfiles.find((participant) => participant.uid !== coachParticipant.uid) || participantProfiles[1] || participantProfiles[0] || {};
+  return stripUndefinedDeep({
+    participantIds,
+    participants: participantMap,
+    participantProfiles: participantProfiles.map((participant) => ({
+      uid: participant.uid,
+      name: participant.name,
+      email: participant.email,
+      role: participant.role,
+      linkedCoachUid: participant.linkedCoachUid,
+      linkedAthleteId: participant.linkedAthleteId,
+      linkedAthleteUid: participant.linkedAthleteUid
+    })),
+    coachUid: coachParticipant.uid || "",
+    coachName: coachParticipant.name || "",
+    userUid: userParticipant.uid || "",
+    userName: userParticipant.name || "",
+    userRole: userParticipant.role || "athlete",
+    threadKind: "direct",
+    ...extras
+  });
 }
 
 function normalizeMessageData(data = {}, id = "") {
@@ -17043,25 +17128,45 @@ function normalizeMessageData(data = {}, id = "") {
     text: String(data.text || "").trim(),
     senderUid: String(data.senderUid || "").trim(),
     senderName: String(data.senderName || "").trim() || "User",
-    senderRole: normalizeAuthRole(data.senderRole || "athlete"),
+    senderRole: normalizeMessageParticipantRole(data.senderRole, data.senderEmail || ""),
     createdAt: data.createdAt || data.updatedAt || ""
   };
 }
 
 function normalizeMessageThreadRecord(doc) {
   const data = doc.data() || {};
-  const participantIds = Array.isArray(data.participantIds)
-    ? data.participantIds.map((value) => String(value || "").trim()).filter(Boolean)
-    : [];
+  const fallbackProfiles = [
+    data.coachUid ? {
+      uid: data.coachUid,
+      name: data.coachName || "Coach",
+      role: "coach"
+    } : null,
+    data.userUid ? {
+      uid: data.userUid,
+      name: data.userName || "User",
+      role: data.userRole || "athlete"
+    } : null
+  ].filter(Boolean);
+  const participantProfiles = buildMessageParticipantProfiles(
+    Array.isArray(data.participantProfiles) && data.participantProfiles.length
+      ? data.participantProfiles
+      : fallbackProfiles
+  );
+  const participantIds = uniqueMessageIds(
+    Array.isArray(data.participantIds)
+      ? data.participantIds
+      : participantProfiles.map((participant) => participant.uid)
+  ).sort();
   return {
     id: doc.id,
     participantIds,
     participants: data.participants && typeof data.participants === "object" ? data.participants : {},
+    participantProfiles,
     coachUid: String(data.coachUid || "").trim(),
-    coachName: String(data.coachName || "").trim() || "Coach",
+    coachName: String(data.coachName || "").trim() || participantProfiles.find((participant) => participant.role === "coach")?.name || "Coach",
     userUid: String(data.userUid || "").trim(),
-    userName: String(data.userName || "").trim() || "User",
-    userRole: normalizeAuthRole(data.userRole || "athlete"),
+    userName: String(data.userName || "").trim() || participantProfiles.find((participant) => participant.uid !== data.coachUid)?.name || "User",
+    userRole: normalizeMessageParticipantRole(data.userRole || participantProfiles.find((participant) => participant.uid !== data.coachUid)?.role || "athlete"),
     lastMessageText: String(data.lastMessageText || "").trim(),
     lastMessageAt: data.lastMessageAt || data.updatedAt || data.createdAt || "",
     lastSenderUid: String(data.lastSenderUid || "").trim(),
@@ -17079,24 +17184,121 @@ function normalizeMessageEntry(doc) {
   return normalizeMessageData(doc.data() || {}, doc.id);
 }
 
+function createLocalMessageThreadRecord(threadId, participants = [], extras = {}) {
+  const timestamp = extras.updatedAt || extras.createdAt || new Date().toISOString();
+  const payload = buildMessageThreadPayload(participants, {
+    createdAt: extras.createdAt || timestamp,
+    updatedAt: extras.updatedAt || timestamp,
+    lastMessageAt: extras.lastMessageAt || "",
+    lastMessageText: extras.lastMessageText || "",
+    lastSenderUid: extras.lastSenderUid || "",
+    messageHistory: extras.messageHistory || []
+  });
+  return normalizeMessageThreadRecord({
+    id: threadId,
+    data: () => payload
+  });
+}
+
 function getSelectedMessageThread() {
   return messagesThreadRows.find((thread) => thread.id === messagesSelectedThreadId) || null;
 }
 
-function getMessageOtherParticipant(thread, currentUid) {
-  if (!thread) return { uid: "", name: "", role: "athlete" };
+function getMessageOtherParticipantProfile(thread, currentUid) {
+  const participants = Array.isArray(thread?.participantProfiles) ? thread.participantProfiles : [];
+  const otherParticipant = participants.find((participant) => participant.uid !== currentUid) || participants[0] || null;
+  if (otherParticipant) return normalizeMessageParticipantProfile(otherParticipant);
+  if (!thread) return normalizeMessageParticipantProfile({ role: "athlete" });
   if (thread.coachUid === currentUid) {
-    return {
+    return normalizeMessageParticipantProfile({
       uid: thread.userUid,
       name: thread.userName || "User",
-      role: normalizeAuthRole(thread.userRole)
-    };
+      role: thread.userRole || "athlete"
+    });
   }
-  return {
+  return normalizeMessageParticipantProfile({
     uid: thread.coachUid,
     name: thread.coachName || "Coach",
     role: "coach"
+  });
+}
+
+function getMessageOtherParticipant(thread, currentUid) {
+  const otherParticipant = getMessageOtherParticipantProfile(thread, currentUid);
+  return {
+    uid: otherParticipant.uid,
+    name: otherParticipant.name || "User",
+    role: normalizeMessageParticipantRole(otherParticipant.role, otherParticipant.email || ""),
+    email: normalizeEmail(otherParticipant.email || "")
   };
+}
+
+function dedupeMessageThreads(currentUid, items = []) {
+  const byKey = new Map();
+  items.forEach((thread) => {
+    const otherParticipant = getMessageOtherParticipantProfile(thread, currentUid);
+    const key = getMessageContactIdentityKey(otherParticipant);
+    const existing = byKey.get(key);
+    if (!existing || messageTimestampToMillis(thread.updatedAt) > messageTimestampToMillis(existing.updatedAt)) {
+      byKey.set(key, thread);
+    }
+  });
+  return Array.from(byKey.values());
+}
+
+function getMessageRoleSortValue(role) {
+  if (role === "coach") return 0;
+  if (role === "athlete") return 1;
+  if (role === "parent") return 2;
+  return 3;
+}
+
+function sortMessageContacts(items = []) {
+  return [...items].sort((left, right) => {
+    const roleDelta = getMessageRoleSortValue(left.role) - getMessageRoleSortValue(right.role);
+    if (roleDelta !== 0) return roleDelta;
+    return String(left.name || "").localeCompare(String(right.name || ""), undefined, { sensitivity: "base" });
+  });
+}
+
+function getMessageContactIdentityKey(contact = {}) {
+  if (contact.role === "athlete") {
+    return `athlete:${String(contact.linkedAthleteId || "").trim() || normalizeName(contact.name || "") || contact.uid}`;
+  }
+  if (contact.role === "coach") {
+    return `coach:${normalizeEmail(contact.email || "") || contact.uid}`;
+  }
+  return `parent:${contact.uid}`;
+}
+
+function rankMessageContactCandidate(contact = {}) {
+  let score = 0;
+  if (contact.role === "athlete") {
+    if (contact.linkedAthleteId) score += 120;
+    if (contact.linkedAthleteUid && contact.linkedAthleteUid === contact.uid) score += 240;
+    if (contact.linkedCoachUid) score += 40;
+  }
+  if (contact.email) score += 20;
+  score += Math.min(Math.floor(parseIsoTimestamp(contact.updatedAt || contact.createdAt || "") / 10000000), 50);
+  return score;
+}
+
+function dedupeMessageContacts(items = []) {
+  const byKey = new Map();
+  items.forEach((contact) => {
+    const key = getMessageContactIdentityKey(contact);
+    const existing = byKey.get(key);
+    if (!existing || rankMessageContactCandidate(contact) > rankMessageContactCandidate(existing)) {
+      byKey.set(key, contact);
+    }
+  });
+  return Array.from(byKey.values());
+}
+
+function getMessageThreadForContact(uid = "") {
+  const safeUid = String(uid || "").trim();
+  if (!safeUid) return null;
+  return messagesThreadRows.find((thread) => thread.participantIds.includes(safeUid)) || null;
 }
 
 function setMessagesStatus(copy, type = "") {
@@ -17122,51 +17324,74 @@ function teardownMessagesSession({ preserveSelection = false } = {}) {
   }
   messagesSessionUid = "";
   messagesThreadRows = [];
-  messagesCoachRows = [];
+  messagesContactRows = [];
   messagesFeedRows = [];
   messagesFeedLoading = false;
-  messagesAutoOpeningCoachUid = "";
+  messagesAutoOpeningContactUid = "";
   if (!preserveSelection) messagesSelectedThreadId = "";
   resetMessagesStatus();
 }
 
 function sortMessageThreads(items = []) {
-  return items.slice().sort((a, b) => {
-    return messageTimestampToMillis(b.updatedAt) - messageTimestampToMillis(a.updatedAt);
-  });
+  return items.slice().sort((a, b) => messageTimestampToMillis(b.updatedAt) - messageTimestampToMillis(a.updatedAt));
 }
 
-async function loadCoachDirectoryForMessages() {
+function canMessageContact(current, candidate) {
+  if (!current?.uid || !candidate?.uid || candidate.uid === current.uid) return false;
+  if (isParentRole(current.role)) {
+    return isCoachMessagingUser(candidate) && candidate.uid === getParentLinkedCoachUid();
+  }
+  if (isCoachMessagingUser(current)) {
+    if (candidate.role === "athlete" || candidate.role === "coach") return true;
+    return candidate.role === "parent" && normalizeUid(candidate.linkedCoachUid) === normalizeUid(current.uid);
+  }
+  if (isAthleteRole(current.role)) {
+    if (candidate.role === "coach") {
+      return !current.linkedCoachUid || normalizeUid(candidate.uid) === normalizeUid(current.linkedCoachUid);
+    }
+    if (candidate.role === "athlete") {
+      return Boolean(current.linkedCoachUid)
+        && normalizeUid(candidate.linkedCoachUid) === normalizeUid(current.linkedCoachUid);
+    }
+    return false;
+  }
+  return false;
+}
+
+async function loadMessageContactsDirectory() {
   const current = getMessagesCurrentUser();
   if (!current || !firebaseFirestoreInstance) {
-    messagesCoachRows = [];
+    messagesContactRows = [];
     return;
   }
 
+  const usersRef = firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION);
   try {
-    const [coachSnapshot, adminCoachSnapshot] = await withTimeout(
-      Promise.all([
-        firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION).where("role", "==", "coach").get(),
-        firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION).where("email", "==", "gmunch@united-wc.com").get()
-      ]),
-      FIREBASE_OP_TIMEOUT_MS * 2,
-      "firestore_coach_directory_timeout"
-    );
-    const byUid = new Map();
-    [...coachSnapshot.docs, ...adminCoachSnapshot.docs].forEach((doc) => {
-      const normalized = normalizeMessageCoachRecord(doc.id, doc.data() || {});
-      if (normalized.uid) byUid.set(normalized.uid, normalized);
-    });
-    messagesCoachRows = Array.from(byUid.values())
-      .filter((coach) => coach.uid && coach.uid !== current.uid)
-      .filter((coach) => OFFICIAL_COACH_EMAILS.has(normalizeEmail(coach.email)))
-      .sort((a, b) => a.name.localeCompare(b.name || "", undefined, { sensitivity: "base" }));
-    if (isParentRole(getProfile()?.role) && getParentLinkedCoachUid()) {
-      messagesCoachRows = messagesCoachRows.filter((coach) => coach.uid === getParentLinkedCoachUid());
+    const queries = [
+      withTimeout(usersRef.where("role", "==", "coach").get(), FIREBASE_OP_TIMEOUT_MS * 2, "firestore_message_coaches_timeout"),
+      withTimeout(usersRef.where("email", "==", "gmunch@united-wc.com").get(), FIREBASE_OP_TIMEOUT_MS * 2, "firestore_message_admin_timeout")
+    ];
+    if (!isParentRole(current.role)) {
+      queries.push(withTimeout(usersRef.where("role", "==", "athlete").get(), FIREBASE_OP_TIMEOUT_MS * 2, "firestore_message_athletes_timeout"));
     }
+    if (isCoachMessagingUser(current)) {
+      queries.push(withTimeout(usersRef.where("role", "==", "parent").get(), FIREBASE_OP_TIMEOUT_MS * 2, "firestore_message_parents_timeout"));
+    }
+    const snapshots = await Promise.all(queries);
+    const byUid = new Map();
+    snapshots.forEach((snapshot) => {
+      (snapshot?.docs || []).forEach((doc) => {
+        const normalized = normalizeMessageContactRecord(doc.id, doc.data() || {});
+        if (!normalized.uid) return;
+        byUid.set(normalized.uid, normalized);
+      });
+    });
+    messagesContactRows = sortMessageContacts(
+      dedupeMessageContacts(Array.from(byUid.values()).filter((contact) => canMessageContact(current, contact)))
+    );
   } catch (err) {
-    console.warn("Failed to load coach directory", err);
-    messagesCoachRows = [];
+    console.warn("Failed to load message contacts", err);
+    messagesContactRows = [];
     setMessagesStatus(MESSAGES_COPY.loadError, "error");
   }
 }
@@ -17230,12 +17455,13 @@ function subscribeToMessageThreads(current) {
     messagesThreadsUnsub = null;
   }
 
-  const inboxField = isCoachMessagingUser(current) ? "coachUid" : "userUid";
   setMessagesStatus(MESSAGES_COPY.loading, "");
   messagesThreadsUnsub = threadsRef
-    .where(inboxField, "==", uid)
+    .where("participantIds", "array-contains", uid)
     .onSnapshot((snapshot) => {
-      messagesThreadRows = sortMessageThreads(snapshot.docs.map((doc) => normalizeMessageThreadRecord(doc)));
+      messagesThreadRows = sortMessageThreads(
+        dedupeMessageThreads(uid, snapshot.docs.map((doc) => normalizeMessageThreadRecord(doc)))
+      );
       ensureSelectedMessageThread();
       resetMessagesStatus();
       renderMessages();
@@ -17260,19 +17486,44 @@ async function ensureMessagesSession() {
   teardownMessagesSession();
   messagesSessionUid = current.uid;
   renderMessages();
-  await loadCoachDirectoryForMessages();
+  await loadMessageContactsDirectory();
   subscribeToMessageThreads(current);
   renderMessages();
 }
 
-async function ensureDirectMessageThread(coach) {
+async function findOrHydrateMessageContact(contactUid) {
+  const safeUid = String(contactUid || "").trim();
+  if (!safeUid || !firebaseFirestoreInstance) return null;
+  let contact = messagesContactRows.find((item) => item.uid === safeUid) || null;
+  if (contact) return contact;
+  try {
+    const snapshot = await withTimeout(
+      firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION).doc(safeUid).get(),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_message_contact_timeout"
+    );
+    if (!snapshot.exists) return null;
+    contact = normalizeMessageContactRecord(snapshot.id, snapshot.data() || {});
+    const current = getMessagesCurrentUser();
+    if (current && canMessageContact(current, contact)) {
+      messagesContactRows = sortMessageContacts([...messagesContactRows, contact]);
+      return contact;
+    }
+  } catch (err) {
+    console.warn("Failed to load message contact", err);
+  }
+  return null;
+}
+
+async function ensureDirectMessageThread(contact) {
   const current = getMessagesCurrentUser();
   const threadsRef = getMessageThreadsCollectionRef();
-  if (!current || !threadsRef || !coach?.uid) {
+  if (!current || !threadsRef || !contact?.uid) {
     throw new Error("firestore_not_configured");
   }
 
-  const threadId = buildDirectMessageThreadId(current.uid, coach.uid);
+  const participantProfiles = buildMessageParticipantProfiles([current, contact]);
+  const threadId = buildDirectMessageThreadId(current.uid, contact.uid);
   const threadRef = threadsRef.doc(threadId);
   let existing = null;
   try {
@@ -17285,23 +17536,13 @@ async function ensureDirectMessageThread(coach) {
   }
   if (!existing?.exists) {
     await withTimeout(
-      threadRef.set({
-        participantIds: [current.uid, coach.uid].sort(),
-        participants: {
-          [current.uid]: true,
-          [coach.uid]: true
-        },
-        coachUid: coach.uid,
-        coachName: coach.name,
-        userUid: current.uid,
-        userName: current.name,
-        userRole: current.role,
+      threadRef.set(buildMessageThreadPayload(participantProfiles, {
         createdAt: getFirestoreServerTimestamp(),
         updatedAt: getFirestoreServerTimestamp(),
         lastMessageText: "",
         lastSenderUid: "",
         messageHistory: []
-      }, { merge: true }),
+      }), { merge: true }),
       FIREBASE_OP_TIMEOUT_MS,
       "firestore_thread_write_timeout"
     );
@@ -17309,46 +17550,77 @@ async function ensureDirectMessageThread(coach) {
   return threadId;
 }
 
-async function openMessageThreadForCoach(coachUid) {
-  let coach = messagesCoachRows.find((item) => item.uid === coachUid);
-  if (!coach && firebaseFirestoreInstance && coachUid) {
-    try {
-      const snapshot = await withTimeout(
-        firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION).doc(coachUid).get(),
-        FIREBASE_OP_TIMEOUT_MS,
-        "firestore_coach_profile_timeout"
-      );
-      if (snapshot.exists) {
-        coach = normalizeMessageCoachRecord(snapshot.id, snapshot.data() || {});
-        if (coach?.uid && !messagesCoachRows.some((item) => item.uid === coach.uid)) {
-          messagesCoachRows = [...messagesCoachRows, coach].sort((a, b) => a.name.localeCompare(b.name || "", undefined, { sensitivity: "base" }));
-        }
-      }
-    } catch (err) {
-      console.warn("Failed to load coach profile for direct thread", err);
-    }
+async function appendMessageToThread({ threadId, participants = [], sender, text }) {
+  const threadsRef = getMessageThreadsCollectionRef();
+  const safeText = String(text || "").trim();
+  const senderProfile = normalizeMessageParticipantProfile(sender || {});
+  const participantProfiles = buildMessageParticipantProfiles(participants);
+  if (!threadsRef || !threadId || !safeText || !senderProfile.uid || participantProfiles.length < 2) {
+    throw new Error("firestore_not_configured");
   }
-  if (!coach) return;
+  const threadRef = threadsRef.doc(threadId);
+  const localMessage = {
+    text: safeText,
+    senderUid: senderProfile.uid,
+    senderName: senderProfile.name,
+    senderRole: senderProfile.role,
+    createdAt: new Date().toISOString()
+  };
+  await withTimeout(
+    threadRef.collection("messages").add({
+      threadId,
+      text: safeText,
+      senderUid: senderProfile.uid,
+      senderName: senderProfile.name,
+      senderRole: senderProfile.role,
+      createdAt: getFirestoreServerTimestamp()
+    }),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_message_write_timeout"
+  );
+  await withTimeout(
+    threadRef.set(buildMessageThreadPayload(participantProfiles, {
+      updatedAt: getFirestoreServerTimestamp(),
+      lastMessageAt: getFirestoreServerTimestamp(),
+      lastMessageText: safeText,
+      lastSenderUid: senderProfile.uid,
+      messageHistory: getFirestoreArrayUnion(localMessage)
+    }), { merge: true }),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_thread_touch_timeout"
+  );
+}
+
+async function openMessageThreadForContact(contactUid) {
+  const current = getMessagesCurrentUser();
+  const contact = await findOrHydrateMessageContact(contactUid);
+  if (!contact || !current) return;
   try {
-    const existingThread = messagesThreadRows.find((thread) => thread.coachUid === coach.uid);
-    const threadId = existingThread?.id || await ensureDirectMessageThread(coach);
+    const existingThread = getMessageThreadForContact(contact.uid);
+    const threadId = existingThread?.id || await ensureDirectMessageThread(contact);
+    if (!existingThread) {
+      messagesThreadRows = sortMessageThreads([
+        createLocalMessageThreadRecord(threadId, [current, contact]),
+        ...messagesThreadRows
+      ]);
+    }
     selectMessageThread(threadId);
   } catch (err) {
-    console.warn("Failed to open direct coach thread", err);
+    console.warn("Failed to open direct thread", err);
     setMessagesStatus(MESSAGES_COPY.loadError, "error");
     renderMessages();
   }
 }
 
-async function openDirectMessageThreadWithRetry(coachUid, attempts = 5) {
-  const safeCoachUid = String(coachUid || "").trim();
-  if (!safeCoachUid) return false;
+async function openDirectMessageThreadWithRetry(contactUid, attempts = 5) {
+  const safeContactUid = String(contactUid || "").trim();
+  if (!safeContactUid) return false;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     await ensureMessagesSession().catch(() => {});
-    await loadCoachDirectoryForMessages().catch(() => {});
-    await openMessageThreadForCoach(safeCoachUid);
+    await loadMessageContactsDirectory().catch(() => {});
+    await openMessageThreadForContact(safeContactUid);
     const selected = getSelectedMessageThread();
-    if (selected?.coachUid === safeCoachUid) {
+    if (selected?.participantIds?.includes(safeContactUid)) {
       return true;
     }
     await new Promise((resolve) => window.setTimeout(resolve, 250));
@@ -17359,38 +17631,39 @@ async function openDirectMessageThreadWithRetry(coachUid, attempts = 5) {
 function renderMessagesCoachList(current) {
   if (!messagesCoachList) return;
   messagesCoachList.innerHTML = "";
-  const isCoach = isCoachMessagingUser(current);
-  messagesCoachList.hidden = isCoach;
-  if (isCoach) return;
 
   const title = document.createElement("div");
   title.className = "small muted";
-  title.textContent = pickCopy(MESSAGES_COPY.coachesHeader);
+  title.textContent = pickCopy(MESSAGES_COPY.contactsHeader);
   messagesCoachList.appendChild(title);
 
-  if (!messagesCoachRows.length) {
+  if (!messagesContactRows.length) {
     const empty = document.createElement("div");
     empty.className = "small muted";
-    empty.textContent = pickCopy(MESSAGES_COPY.emptyBodyNoCoaches);
+    empty.textContent = pickCopy(MESSAGES_COPY.emptyBodyNoContacts);
     messagesCoachList.appendChild(empty);
     return;
   }
 
-  messagesCoachRows.forEach((coach) => {
+  messagesContactRows.forEach((contact) => {
     const card = document.createElement("button");
     card.type = "button";
     card.className = "messages-coach-card";
-    const linkedThread = messagesThreadRows.find((thread) => thread.coachUid === coach.uid);
+    const linkedThread = getMessageThreadForContact(contact.uid);
     if (linkedThread && linkedThread.id === messagesSelectedThreadId) {
       card.classList.add("active");
     }
+    const roleLabel = getRoleLabelEnglish(contact.role);
+    const secondaryLine = [roleLabel, contact.role === "athlete" && contact.linkedCoachUid ? (currentLang === "es" ? "Mismo staff" : "Same staff") : contact.email]
+      .filter(Boolean)
+      .join(" - ");
     card.innerHTML = `
-      <h4>${escapeHtml(coach.name || coach.email || "Coach")}</h4>
-      <small>${escapeHtml(coach.email || "")}</small>
-      <small>${escapeHtml(linkedThread ? pickCopy(MESSAGES_COPY.openThread) : pickCopy(MESSAGES_COPY.coachAvailable))}</small>
+      <h4>${escapeHtml(contact.name || contact.email || "Contact")}</h4>
+      <small>${escapeHtml(secondaryLine)}</small>
+      <small>${escapeHtml(linkedThread ? pickCopy(MESSAGES_COPY.openThread) : pickCopy(MESSAGES_COPY.contactReady))}</small>
     `;
     card.addEventListener("click", () => {
-      openMessageThreadForCoach(coach.uid);
+      openMessageThreadForContact(contact.uid);
     });
     messagesCoachList.appendChild(card);
   });
@@ -17427,8 +17700,9 @@ function renderMessagesThreadList(current) {
     const meta = formatMessageTimestamp(thread.lastMessageAt || thread.updatedAt);
     card.innerHTML = `
       <h4>${escapeHtml(other.name || "Conversation")}</h4>
-      <small>${escapeHtml(meta || other.role)}</small>
+      <small>${escapeHtml(getRoleLabelEnglish(other.role))}</small>
       <span class="message-thread-preview">${escapeHtml(preview)}</span>
+      <small class="message-thread-meta">${escapeHtml(meta)}</small>
     `;
     card.addEventListener("click", () => {
       selectMessageThread(thread.id);
@@ -17489,13 +17763,17 @@ function renderMessages() {
   if (messageComposerInput) {
     messageComposerInput.placeholder = pickCopy(MESSAGES_COPY.composerPlaceholder);
   }
-  if (messageSendBtn) {
+  if (messageSendBtn && !messageSendBtn.disabled) {
     messageSendBtn.textContent = pickCopy(MESSAGES_COPY.send);
   }
 
   const current = getMessagesCurrentUser();
-  const isCoach = isCoachMessagingUser(current);
-  setTextContent(messagesSidebarHint, isCoach ? MESSAGES_COPY.sidebarHintCoach : MESSAGES_COPY.sidebarHintUser);
+  const sidebarHint = isParentRole(current?.role)
+    ? MESSAGES_COPY.sidebarHintParent
+    : isCoachMessagingUser(current)
+      ? MESSAGES_COPY.sidebarHintCoach
+      : MESSAGES_COPY.sidebarHintAthlete;
+  setTextContent(messagesSidebarHint, sidebarHint);
 
   if (!current || !firebaseFirestoreInstance) {
     setTextContent(messagesEmptyTitle, MESSAGES_COPY.emptyTitle);
@@ -17521,24 +17799,28 @@ function renderMessages() {
 
   const selectedThread = getSelectedMessageThread();
   if (!selectedThread) {
-    const parentAutoCoachUid = isParentRole(current?.role) && messagesCoachRows.length === 1
-      ? messagesCoachRows[0].uid
+    const parentAutoContactUid = isParentRole(current?.role) && messagesContactRows.length === 1
+      ? messagesContactRows[0].uid
       : "";
-    if (parentAutoCoachUid && messagesAutoOpeningCoachUid !== parentAutoCoachUid) {
-      messagesAutoOpeningCoachUid = parentAutoCoachUid;
-      openDirectMessageThreadWithRetry(parentAutoCoachUid)
+    if (parentAutoContactUid && messagesAutoOpeningContactUid !== parentAutoContactUid) {
+      messagesAutoOpeningContactUid = parentAutoContactUid;
+      openDirectMessageThreadWithRetry(parentAutoContactUid)
         .catch((err) => {
           console.warn("Failed to auto-open parent coach thread", err);
         })
         .finally(() => {
-          messagesAutoOpeningCoachUid = "";
+          messagesAutoOpeningContactUid = "";
         });
     }
     setTextContent(messagesEmptyTitle, MESSAGES_COPY.emptyTitle);
-    if (!isCoach && !messagesCoachRows.length) {
-      setTextContent(messagesEmptyBody, MESSAGES_COPY.emptyBodyNoCoaches);
+    if (!messagesContactRows.length) {
+      setTextContent(messagesEmptyBody, MESSAGES_COPY.emptyBodyNoContacts);
+    } else if (isParentRole(current.role)) {
+      setTextContent(messagesEmptyBody, MESSAGES_COPY.emptyBodyParent);
+    } else if (isCoachMessagingUser(current)) {
+      setTextContent(messagesEmptyBody, MESSAGES_COPY.emptyBodyCoach);
     } else {
-      setTextContent(messagesEmptyBody, isCoach ? MESSAGES_COPY.emptyBodyCoach : MESSAGES_COPY.emptyBodyUser);
+      setTextContent(messagesEmptyBody, MESSAGES_COPY.emptyBodyAthlete);
     }
     messagesEmptyState?.classList.remove("hidden");
     messagesThreadView?.classList.add("hidden");
@@ -17551,7 +17833,7 @@ function renderMessages() {
   messagesThreadView?.classList.remove("hidden");
   if (messagesThreadTitle) messagesThreadTitle.textContent = other.name || pickCopy(MESSAGES_COPY.title);
   if (messagesThreadMeta) {
-    const metaBits = [other.role === "coach" ? "Coach" : getRoleLabelEnglish(other.role)];
+    const metaBits = [getRoleLabelEnglish(other.role)];
     if (selectedThread.lastMessageAt) {
       metaBits.push(formatMessageTimestamp(selectedThread.lastMessageAt));
     }
@@ -17569,14 +17851,13 @@ async function handleMessageComposerSubmit(event) {
   event.preventDefault();
   const current = getMessagesCurrentUser();
   const selectedThread = getSelectedMessageThread();
-  const threadsRef = getMessageThreadsCollectionRef();
   const text = String(messageComposerInput?.value || "").trim();
 
   if (!text) {
     toast(pickCopy(MESSAGES_COPY.needText));
     return;
   }
-  if (!current || !selectedThread || !threadsRef) {
+  if (!current || !selectedThread) {
     setMessagesStatus(MESSAGES_COPY.loadError, "error");
     return;
   }
@@ -17587,42 +17868,37 @@ async function handleMessageComposerSubmit(event) {
   }
 
   try {
-    const localMessage = {
+    const optimisticMessage = {
+      id: `local-${Date.now()}`,
       text,
       senderUid: current.uid,
       senderName: current.name,
       senderRole: current.role,
       createdAt: new Date().toISOString()
     };
-    const threadRef = threadsRef.doc(selectedThread.id);
-    await withTimeout(
-      threadRef.collection("messages").add({
-        threadId: selectedThread.id,
-        text,
-        senderUid: current.uid,
-        senderName: current.name,
-        senderRole: current.role,
-        createdAt: getFirestoreServerTimestamp()
-      }),
-      FIREBASE_OP_TIMEOUT_MS,
-      "firestore_message_write_timeout"
-    );
-    await withTimeout(
-      threadRef.set({
-        updatedAt: getFirestoreServerTimestamp(),
-        lastMessageAt: getFirestoreServerTimestamp(),
-        lastMessageText: text,
-        lastSenderUid: current.uid,
-        coachName: selectedThread.coachName,
-        userName: selectedThread.userName,
-        messageHistory: getFirestoreArrayUnion(localMessage)
-      }, { merge: true }),
-      FIREBASE_OP_TIMEOUT_MS,
-      "firestore_thread_touch_timeout"
-    );
+    await appendMessageToThread({
+      threadId: selectedThread.id,
+      participants: selectedThread.participantProfiles,
+      sender: current,
+      text
+    });
+    messagesFeedRows = [...messagesFeedRows, optimisticMessage];
+    messagesThreadRows = sortMessageThreads(messagesThreadRows.map((thread) => (
+      thread.id === selectedThread.id
+        ? {
+            ...thread,
+            updatedAt: optimisticMessage.createdAt,
+            lastMessageAt: optimisticMessage.createdAt,
+            lastMessageText: text,
+            lastSenderUid: current.uid,
+            messageHistory: [...(thread.messageHistory || []), optimisticMessage]
+          }
+        : thread
+    )));
     if (messageComposerInput) messageComposerInput.value = "";
     toast(pickCopy(MESSAGES_COPY.sentToast));
     resetMessagesStatus();
+    renderMessages();
   } catch (err) {
     console.warn("Failed to send message", err);
     setMessagesStatus(MESSAGES_COPY.sendError, "error");
