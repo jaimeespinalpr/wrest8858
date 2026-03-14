@@ -93,15 +93,15 @@
             <option value="ru">Russian</option>
           </select>
         </label>
-        <label>
+        <label class="register-athlete-extra">
           <span>Preferred move(s)</span>
           <input id="pPreferredMoves" type="text" placeholder="e.g., Single leg finish">
         </label>
-        <label>
+        <label class="register-athlete-extra">
           <span>Experience (years)</span>
           <input id="pExperienceYears" type="number" min="0" max="40" placeholder="e.g., 5">
         </label>
-        <label>
+        <label class="register-athlete-extra">
           <span>Stance</span>
           <select id="pStance">
             <option value="">Select stance</option>
@@ -110,11 +110,18 @@
             <option value="switch">Switch</option>
           </select>
         </label>
-        <label>
+        <label class="register-athlete-extra">
           <span>Weight class</span>
           <input id="pWeightClass" type="text" placeholder="e.g., 74 kg">
         </label>
-        <label>
+        <label class="register-parent-field hidden" id="parentAthleteField">
+          <span>Athlete Name (Child)</span>
+          <input id="pParentAthleteName" type="text" placeholder="e.g., Carlos Vega">
+        </label>
+        <p class="small muted register-parent-field hidden" id="parentVerificationText">
+          Parent access stays pending until a coach verifies the athlete connection.
+        </p>
+        <label class="register-athlete-extra">
           <span>Notes</span>
           <textarea id="pNotes" rows="3" placeholder="Tell us about your goals"></textarea>
         </label>
@@ -180,29 +187,121 @@
       </div>
     </header>
     <div id="parentViewNotice" class="parent-coming-soon hidden" role="status" aria-live="polite">
-      <h2 id="parentViewNoticeTitle">Parent view coming soon</h2>
-      <p id="parentViewNoticeSubtitle">We’re building something great for parents. Check back later.</p>
+      <h2 id="parentViewNoticeTitle">Parent access linked to your athlete</h2>
+      <p id="parentViewNoticeSubtitle">Use Parent Home, Scouting, and Messages to stay aligned with the coach during training and competition.</p>
     </div>
 
     <main class="app-content">
       <nav class="tabs" aria-label="Main tabs">
-        <button type="button" class="tab active" data-tab="today" data-role="athlete" data-views="athlete parent">Today</button>
-        <button type="button" class="tab tab-profile-hidden" data-tab="athlete-profile" data-role="athlete" data-views="athlete parent">Profile</button>
-        <button type="button" class="tab" data-tab="training" data-role="athlete" data-views="athlete parent">Training Plan</button>
-        <button type="button" class="tab" data-tab="calendar" data-role="athlete coach" data-views="athlete parent">Calendar</button>
-        <button type="button" class="tab" data-tab="media" data-role="athlete coach" data-views="athlete parent">Media</button>
-        <button type="button" class="tab" data-tab="journal" data-role="athlete" data-views="athlete parent">Journal</button>
+        <button type="button" class="tab active" data-tab="today" data-role="athlete" data-views="athlete">Today</button>
+        <button type="button" class="tab tab-profile-hidden" data-tab="athlete-profile" data-role="athlete" data-views="athlete">Profile</button>
+        <button type="button" class="tab" data-tab="training" data-role="athlete" data-views="athlete">Training Plan</button>
+        <button type="button" class="tab" data-tab="calendar" data-role="athlete coach" data-views="athlete">Calendar</button>
+        <button type="button" class="tab" data-tab="media" data-role="athlete coach" data-views="athlete">Media</button>
+        <button type="button" class="tab" data-tab="journal" data-role="athlete" data-views="athlete">Journal</button>
         <button type="button" class="tab" data-tab="favorites" data-role="athlete">Favorites</button>
-        <button type="button" class="tab" data-tab="announcements" data-role="athlete coach" data-views="athlete parent">Announcements</button>
+        <button type="button" class="tab" data-tab="announcements" data-role="athlete coach" data-views="athlete">Announcements</button>
+
+        <button type="button" class="tab" data-tab="parent-home" data-role="parent" data-views="parent">Parent Home</button>
+        <button type="button" class="tab" data-tab="parent-scouting" data-role="parent" data-views="parent">Scouting</button>
 
         <button type="button" class="tab" data-tab="coach-home" data-role="coach" data-views="coach admin">Home</button>
         <button type="button" class="tab" data-tab="coach-athletes" data-role="coach" data-views="coach admin">Athletes</button>
         <button type="button" class="tab" data-tab="coach-plans" data-role="coach" data-views="coach admin">Plans &amp; Assignments</button>
         <button type="button" class="tab" data-tab="coach-competition" data-role="coach" data-views="coach admin">Competition</button>
         <button type="button" class="tab tab-profile-hidden" data-tab="coach-profile" data-role="coach" data-views="coach admin">Coach Profile</button>
-        <button type="button" class="tab" data-tab="messages" data-role="athlete coach" data-views="athlete parent">Messages</button>
+        <button type="button" class="tab" data-tab="messages" data-role="athlete coach parent" data-views="athlete parent">Messages</button>
         <button type="button" class="tab" data-tab="permissions" data-role="admin" data-views="admin">Permissions</button>
       </nav>
+
+      <section class="panel hidden" id="panel-parent-home">
+        <div class="card parent-shell-card">
+          <div class="card-header">
+            <div>
+              <h2>Parent Home</h2>
+              <p class="small muted">Read-only access to your athlete's training, readiness, and coach communication.</p>
+            </div>
+            <div class="chip" id="parentStatusChip">Pending verification</div>
+          </div>
+          <div class="mini-card parent-status-card" id="parentStatusCard"></div>
+          <div class="section-grid parent-dashboard-grid">
+            <div class="mini-card parent-portal-card">
+              <h3>Today's Training</h3>
+              <div id="parentTrainingCard"></div>
+            </div>
+            <div class="mini-card parent-portal-card">
+              <h3>Readiness Snapshot</h3>
+              <div id="parentReadinessCard"></div>
+            </div>
+          </div>
+          <div class="section-grid parent-dashboard-grid">
+            <div class="mini-card parent-portal-card">
+              <h3>Coach Updates</h3>
+              <div id="parentCoachCard"></div>
+            </div>
+            <div class="mini-card parent-portal-card">
+              <h3>Open Work</h3>
+              <div id="parentAssignmentsCard"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel hidden" id="panel-parent-scouting">
+        <div class="card parent-shell-card">
+          <div class="card-header">
+            <div>
+              <h2>Scouting Notes</h2>
+              <p class="small muted">Upload match footage, photos, audio observations, and opponent notes directly to the coach.</p>
+            </div>
+            <div class="chip">Tournament ready</div>
+          </div>
+          <div class="section-grid parent-scouting-grid">
+            <div class="mini-card parent-portal-card">
+              <h3>New Scouting Note</h3>
+              <form id="parentScoutingForm" class="form compact-form">
+                <div class="form-row">
+                  <label for="parentScoutingSubjectType">Subject</label>
+                  <select id="parentScoutingSubjectType">
+                    <option value="athlete">My athlete</option>
+                    <option value="teammate">Teammate</option>
+                  </select>
+                </div>
+                <div class="form-row hidden" id="parentScoutingTargetWrap">
+                  <label for="parentScoutingTarget">Teammate</label>
+                  <select id="parentScoutingTarget"></select>
+                </div>
+                <div class="form-row">
+                  <label for="parentScoutingFiles">Photos / Videos</label>
+                  <input id="parentScoutingFiles" type="file" accept="image/*,video/*" multiple >
+                </div>
+                <div class="form-row">
+                  <label>Audio Note</label>
+                  <div class="row parent-recorder-actions">
+                    <button type="button" id="parentAudioStartBtn" class="primary">Start recording</button>
+                    <button type="button" id="parentAudioStopBtn" class="ghost">Stop</button>
+                    <button type="button" id="parentAudioClearBtn" class="ghost">Clear</button>
+                  </div>
+                  <p class="small muted" id="parentAudioStatus">No audio note recorded yet.</p>
+                  <audio id="parentAudioPreview" class="hidden" controls></audio>
+                </div>
+                <div class="form-row">
+                  <label for="parentScoutingText">Analysis</label>
+                  <textarea id="parentScoutingText" rows="5" placeholder="Write the opponent tendencies, mat-side notes, or anything the coach should review before the next match."></textarea>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" id="parentScoutingSaveBtn" class="primary">Send scouting note</button>
+                </div>
+                <p class="small" id="parentScoutingStatus"></p>
+              </form>
+            </div>
+            <div class="mini-card parent-portal-card">
+              <h3>Recent Scouting Notes</h3>
+              <div class="completion-list" id="parentScoutingList"></div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <!-- ATHLETE: TODAY -->
       <section class="panel" id="panel-today">
@@ -912,6 +1011,16 @@
           <div class="mini-card">
             <h3 id="homeAlertsTitle">Important Alerts</h3>
             <div class="alert-list" id="alertList"></div>
+          </div>
+          <div class="section-grid">
+            <div class="mini-card">
+              <h3 id="homeParentApprovalsTitle">Parent Access Requests</h3>
+              <div class="completion-list" id="parentApprovalList"></div>
+            </div>
+            <div class="mini-card">
+              <h3 id="homeParentScoutingTitle">Parent Scouting Feed</h3>
+              <div class="completion-list" id="homeParentScoutingList"></div>
+            </div>
           </div>
         </div>
       </section>
@@ -1999,6 +2108,7 @@
       </section>
 
     </main>
+    <button type="button" id="parentFab" class="parent-fab hidden" aria-label="Quick scouting upload">+</button>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>

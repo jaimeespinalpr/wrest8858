@@ -97,11 +97,6 @@ body::before{
   color: rgba(255,255,255,0.84);
 }
 
-.app.parent-view-mode .app-content .tabs,
-.app.parent-view-mode .app-content .panel{
-  display: none !important;
-}
-
 .app-content{
   margin-top: 16px;
   display: flex;
@@ -3680,4 +3675,305 @@ textarea::placeholder{
 .form select:focus,
 textarea:focus{
   border-color: rgba(29,79,147,0.45);
+}
+
+/* Parent portal */
+.parent-shell-card{
+  display: grid;
+  gap: 14px;
+}
+
+.parent-summary-stack{
+  display: grid;
+  gap: 10px;
+}
+
+.parent-dashboard-grid,
+.parent-scouting-grid{
+  grid-template-columns: 1fr;
+}
+
+.parent-readiness-grid{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.parent-readiness-metric{
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(84, 120, 196, 0.24);
+  background: rgba(255,255,255,0.04);
+}
+
+.parent-readiness-metric span{
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.parent-readiness-metric strong{
+  font-size: 22px;
+  line-height: 1;
+}
+
+.parent-recorder-actions{
+  align-items: stretch;
+}
+
+.parent-recorder-actions button{
+  flex: 1;
+}
+
+.parent-fab{
+  position: fixed;
+  right: max(18px, calc((100vw - 1080px) / 2 + 18px));
+  bottom: 22px;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(90, 157, 255, 0.5);
+  background: linear-gradient(180deg, #2563eb, #0f766e);
+  color: #ffffff;
+  font-size: 32px;
+  line-height: 1;
+  box-shadow: 0 18px 36px rgba(15, 30, 58, 0.32);
+  z-index: 60;
+}
+
+.parent-fab:hover{
+  background: linear-gradient(180deg, #1d4ed8, #0f766e);
+  border-color: rgba(125, 211, 252, 0.7);
+}
+
+.app.parent-view-active{
+  position: relative;
+  z-index: 0;
+  padding-bottom: 108px;
+}
+
+.app.parent-view-active::before{
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 18% 14%, rgba(37,99,235,0.24), transparent 34%),
+    radial-gradient(circle at 84% 10%, rgba(16,185,129,0.18), transparent 32%),
+    linear-gradient(180deg, #07111f 0%, #0b1730 44%, #091120 100%);
+}
+
+.app.parent-view-active .app-header,
+.app.parent-view-active .tabs,
+.app.parent-view-active .card,
+.app.parent-view-active .mini-card,
+.app.parent-view-active .messages-sidebar-block,
+.app.parent-view-active .messages-empty-state,
+.app.parent-view-active .messages-thread-view,
+.app.parent-view-active .parent-coming-soon{
+  background: linear-gradient(180deg, rgba(10,20,39,0.94), rgba(10,20,39,0.88));
+  border-color: rgba(72, 104, 173, 0.34);
+  box-shadow: 0 20px 42px rgba(0, 8, 20, 0.42);
+  color: #eef5ff;
+}
+
+.app.parent-view-active .app-badge,
+.app.parent-view-active .brand-mark{
+  background: linear-gradient(180deg, #1d4ed8, #0f766e);
+  border-color: rgba(125, 211, 252, 0.28);
+}
+
+.app.parent-view-active .app-header h1,
+.app.parent-view-active .card h2,
+.app.parent-view-active .card h3,
+.app.parent-view-active .card h4,
+.app.parent-view-active .messages-thread-header h3,
+.app.parent-view-active .messages-coach-card h4,
+.app.parent-view-active .message-thread-card h4{
+  color: #f8fbff;
+}
+
+.app.parent-view-active .small,
+.app.parent-view-active .muted,
+.app.parent-view-active .meta,
+.app.parent-view-active .mini-meta,
+.app.parent-view-active .now-meta,
+.app.parent-view-active .eyebrow,
+.app.parent-view-active .form span,
+.app.parent-view-active .header-menu-section-title,
+.app.parent-view-active .session-block span,
+.app.parent-view-active .messages-coach-card small,
+.app.parent-view-active .message-thread-card small,
+.app.parent-view-active .message-thread-preview,
+.app.parent-view-active .message-thread-meta,
+.app.parent-view-active .message-bubble-header{
+  color: rgba(190, 208, 232, 0.8) !important;
+}
+
+.app.parent-view-active .tab,
+.app.parent-view-active .subtab{
+  color: rgba(190, 208, 232, 0.82);
+  border-color: transparent;
+  background: rgba(255,255,255,0.03);
+}
+
+.app.parent-view-active .tab.active,
+.app.parent-view-active .subtab.active{
+  color: #ffffff;
+  border-color: rgba(96, 165, 250, 0.32);
+  background: linear-gradient(90deg, rgba(37,99,235,0.3), rgba(16,185,129,0.24));
+}
+
+.app.parent-view-active button{
+  color: #e9f3ff;
+  border-color: rgba(72, 104, 173, 0.34);
+  background: rgba(12, 24, 46, 0.84);
+}
+
+.app.parent-view-active button:hover{
+  border-color: rgba(125, 211, 252, 0.34);
+  background: rgba(17, 33, 61, 0.96);
+}
+
+.app.parent-view-active .primary,
+.app.parent-view-active button.primary{
+  color: #ffffff !important;
+  border-color: rgba(96, 165, 250, 0.56) !important;
+  background: linear-gradient(180deg, #2563eb, #0f766e) !important;
+  box-shadow: 0 14px 28px rgba(18, 52, 98, 0.42);
+}
+
+.app.parent-view-active .ghost,
+.app.parent-view-active button.ghost,
+.app.parent-view-active .form-actions .ghost{
+  color: #e9f3ff !important;
+  border-color: rgba(72, 104, 173, 0.34) !important;
+  background: rgba(18, 52, 98, 0.2) !important;
+}
+
+.app.parent-view-active .chip,
+.app.parent-view-active .pill{
+  color: #d7e9ff;
+  border-color: rgba(96, 165, 250, 0.28);
+  background: rgba(37, 99, 235, 0.14);
+}
+
+.app.parent-view-active .parent-status-card{
+  border-color: rgba(96, 165, 250, 0.34);
+  background:
+    radial-gradient(circle at top right, rgba(16,185,129,0.18), transparent 42%),
+    linear-gradient(180deg, rgba(14,27,51,0.98), rgba(9,19,36,0.94));
+}
+
+.app.parent-view-active .parent-portal-card,
+.app.parent-view-active .completion-card,
+.app.parent-view-active .messages-coach-card,
+.app.parent-view-active .message-thread-card,
+.app.parent-view-active .message-bubble,
+.app.parent-view-active .message-bubble.own,
+.app.parent-view-active .auth-panel,
+.app.parent-view-active .welcome-screen{
+  border-color: rgba(72, 104, 173, 0.28);
+  background: rgba(12, 24, 46, 0.82);
+  color: #eef5ff;
+}
+
+.app.parent-view-active .message-bubble.own{
+  border-color: rgba(16, 185, 129, 0.34);
+  background: linear-gradient(180deg, rgba(18,52,98,0.92), rgba(15,118,110,0.78));
+}
+
+.app.parent-view-active .message-bubble-body{
+  color: #eef5ff;
+}
+
+.app.parent-view-active .messages-coach-card.active,
+.app.parent-view-active .message-thread-card.active{
+  border-color: rgba(96, 165, 250, 0.42);
+  background: linear-gradient(180deg, rgba(20,41,78,0.94), rgba(12,24,46,0.94));
+}
+
+.app.parent-view-active .header-menu,
+.app.parent-view-active .view-menu{
+  background: rgba(9, 19, 36, 0.98);
+  border-color: rgba(72, 104, 173, 0.38);
+  box-shadow: 0 16px 34px rgba(0, 8, 20, 0.46);
+}
+
+.app.parent-view-active .header-menu button,
+.app.parent-view-active .view-menu button,
+.app.parent-view-active .lang-switch select{
+  color: #eef5ff;
+}
+
+.app.parent-view-active .header-menu button:hover,
+.app.parent-view-active .view-menu button:hover{
+  background: rgba(37, 99, 235, 0.14);
+}
+
+.app.parent-view-active .lang-switch{
+  border-color: rgba(72, 104, 173, 0.34);
+  background: rgba(12, 24, 46, 0.84);
+}
+
+.app.parent-view-active input[type="text"],
+.app.parent-view-active input[type="email"],
+.app.parent-view-active input[type="password"],
+.app.parent-view-active input[type="number"],
+.app.parent-view-active input[type="date"],
+.app.parent-view-active input[type="time"],
+.app.parent-view-active input[type="url"],
+.app.parent-view-active input[type="file"],
+.app.parent-view-active select,
+.app.parent-view-active textarea{
+  border-color: rgba(72, 104, 173, 0.34);
+  background: rgba(6, 15, 30, 0.92);
+  color: #eef5ff;
+}
+
+.app.parent-view-active input::placeholder,
+.app.parent-view-active textarea::placeholder{
+  color: rgba(159, 182, 214, 0.78);
+}
+
+.app.parent-view-active .status-pill{
+  border-color: rgba(96, 165, 250, 0.28);
+  background: rgba(255,255,255,0.05);
+}
+
+.app.parent-view-active .status-pill-active{
+  border-color: rgba(16,185,129,0.4);
+  background: rgba(16,185,129,0.18);
+  color: #d7ffee;
+}
+
+.app.parent-view-active .status-pill-pending{
+  border-color: rgba(96,165,250,0.4);
+  background: rgba(37,99,235,0.2);
+  color: #dbeafe;
+}
+
+@media (min-width: 760px){
+  .parent-dashboard-grid,
+  .parent-scouting-grid{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px){
+  .parent-readiness-grid{
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .parent-fab{
+    right: 16px;
+    bottom: 18px;
+    width: 58px;
+    height: 58px;
+    font-size: 28px;
+  }
 }

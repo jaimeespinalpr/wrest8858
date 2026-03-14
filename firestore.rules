@@ -16,6 +16,40 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    function currentUser() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function currentUserRole() {
+      return signedIn() && currentUser().data.role != null
+        ? currentUser().data.role
+        : "";
+    }
+
+    function currentUserStatus() {
+      return signedIn() && currentUser().data.status != null
+        ? currentUser().data.status
+        : "";
+    }
+
+    function currentUserLinkedCoachUid() {
+      return signedIn() && currentUser().data.linkedCoachUid != null
+        ? currentUser().data.linkedCoachUid
+        : "";
+    }
+
+    function currentUserLinkedAthleteId() {
+      return signedIn() && currentUser().data.linkedAthleteId != null
+        ? currentUser().data.linkedAthleteId
+        : "";
+    }
+
+    function currentUserAthleteName() {
+      return signedIn() && currentUser().data.athleteName != null
+        ? currentUser().data.athleteName
+        : "";
+    }
+
     function isCoachDirectoryProfile(data) {
       return signedIn()
         && (
@@ -41,9 +75,70 @@ service cloud.firestore {
       );
     }
 
+    function isCoachOrAdminUser() {
+      return isAdminEmail() || currentUserRole() == "coach" || currentUserRole() == "admin";
+    }
+
+    function isPendingParentCreate() {
+      return request.resource.data.role == "parent"
+        && request.resource.data.view == "parent"
+        && request.resource.data.status == "pending_verification"
+        && (request.resource.data.linkedCoachUid == null || request.resource.data.linkedCoachUid == "")
+        && (request.resource.data.linkedCoachName == null || request.resource.data.linkedCoachName == "")
+        && (request.resource.data.linkedCoachEmail == null || request.resource.data.linkedCoachEmail == "");
+    }
+
+    function isSelfParentUpdate(uid) {
+      return isSelf(uid)
+        && resource.data.role == "parent"
+        && request.resource.data.role == "parent"
+        && request.resource.data.view == "parent"
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.linkedCoachUid == resource.data.linkedCoachUid
+        && request.resource.data.linkedCoachName == resource.data.linkedCoachName
+        && request.resource.data.linkedCoachEmail == resource.data.linkedCoachEmail
+        && (
+          resource.data.status != "verified"
+          || (
+            request.resource.data.athleteName == resource.data.athleteName
+            && request.resource.data.linkedAthleteId == resource.data.linkedAthleteId
+          )
+        );
+    }
+
+    function isCoachParentVerificationUpdate(uid) {
+      return signedIn()
+        && !isSelf(uid)
+        && isCoachOrAdminUser()
+        && resource.data.role == "parent"
+        && request.resource.data.role == "parent"
+        && request.resource.data.view == "parent"
+        && request.resource.data.user_id == resource.data.user_id
+        && request.resource.data.email == resource.data.email
+        && (
+          request.resource.data.status == "pending_verification"
+          || request.resource.data.status == "verified"
+        )
+        && (
+          isAdminEmail()
+          || request.resource.data.linkedCoachUid == request.auth.uid
+          || resource.data.linkedCoachUid == request.auth.uid
+        );
+    }
+
+    function isVerifiedLinkedParent(coachUid) {
+      return signedIn()
+        && currentUserRole() == "parent"
+        && currentUserStatus() == "verified"
+        && currentUserLinkedCoachUid() == coachUid;
+    }
+
     // User profiles: self-manage + global admin access for account administration.
     match /users/{uid} {
-      allow read: if isSelf(uid) || isAdminEmail() || isCoachDirectoryProfile(resource.data);
+      allow read: if isSelf(uid)
+        || isAdminEmail()
+        || isCoachDirectoryProfile(resource.data)
+        || (isCoachOrAdminUser() && resource.data.role == "parent");
       allow create: if (
         isAdminEmail()
         && isAdminAllowedRole(request.resource.data.role)
@@ -52,6 +147,10 @@ service cloud.firestore {
         isSelf(uid)
         && isSelfAllowedRole(request.resource.data.role)
         && isAllowedViewForRole(request.resource.data.role, request.resource.data.view)
+        && (
+          request.resource.data.role != "parent"
+          || isPendingParentCreate()
+        )
       );
       allow update: if (
         isAdminEmail()
@@ -62,7 +161,11 @@ service cloud.firestore {
         && isSelfAllowedRole(request.resource.data.role)
         && isAllowedViewForRole(request.resource.data.role, request.resource.data.view)
         && resource.data.role == request.resource.data.role
-      );
+        && (
+          request.resource.data.role != "parent"
+          || isSelfParentUpdate(uid)
+        )
+      ) || isCoachParentVerificationUpdate(uid);
       allow delete: if isAdminEmail();
     }
 
@@ -132,7 +235,8 @@ service cloud.firestore {
       allow read, write: if isAdminEmail() || isSelf(coachUid);
 
       match /plans/{planId} {
-        allow read, write: if isAdminEmail() || isSelf(coachUid);
+        allow read: if isAdminEmail() || isSelf(coachUid) || isVerifiedLinkedParent(coachUid);
+        allow write: if isAdminEmail() || isSelf(coachUid);
       }
 
       match /templates/{templateId} {
@@ -140,7 +244,8 @@ service cloud.firestore {
       }
 
       match /assignments/{assignmentId} {
-        allow read, write: if isAdminEmail() || isSelf(coachUid);
+        allow read: if isAdminEmail() || isSelf(coachUid) || isVerifiedLinkedParent(coachUid);
+        allow write: if isAdminEmail() || isSelf(coachUid);
       }
 
       match /groups/{groupId} {
@@ -149,6 +254,48 @@ service cloud.firestore {
 
       match /calendar_entries/{entryId} {
         allow read, write: if isAdminEmail() || isSelf(coachUid);
+      }
+
+      match /athletes/{athleteId} {
+        allow read: if isAdminEmail() || isSelf(coachUid) || isVerifiedLinkedParent(coachUid);
+        allow write: if isAdminEmail() || isSelf(coachUid);
+      }
+
+      match /journal_entries/{entryId} {
+        allow read: if isAdminEmail()
+          || isSelf(coachUid)
+          || (
+            isVerifiedLinkedParent(coachUid)
+            && resource.data.athleteName == currentUserAthleteName()
+          );
+        allow write: if isAdminEmail() || isSelf(coachUid);
+      }
+
+      match /parent_scouting/{entryId} {
+        allow read: if isAdminEmail()
+          || isSelf(coachUid)
+          || (
+            isVerifiedLinkedParent(coachUid)
+            && resource.data.parentUid == request.auth.uid
+          );
+        allow create: if isAdminEmail()
+          || isSelf(coachUid)
+          || (
+            isVerifiedLinkedParent(coachUid)
+            && request.resource.data.parentUid == request.auth.uid
+            && request.resource.data.athleteId == currentUserLinkedAthleteId()
+            && request.resource.data.athleteName == currentUserAthleteName()
+          );
+        allow update: if isAdminEmail()
+          || isSelf(coachUid)
+          || (
+            isVerifiedLinkedParent(coachUid)
+            && resource.data.parentUid == request.auth.uid
+            && request.resource.data.parentUid == request.auth.uid
+            && request.resource.data.athleteId == currentUserLinkedAthleteId()
+            && request.resource.data.athleteName == currentUserAthleteName()
+          );
+        allow delete: if isAdminEmail() || isSelf(coachUid);
       }
 
       match /{document=**} {
