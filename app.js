@@ -534,6 +534,8 @@ function resolveProfileShortcutTab(role = getProfile()?.role) {
 
 function toggleHeaderMenu(forceState) {
   if (!headerMenu) return;
+  const nextState = typeof forceState === "boolean" ? forceState : !headerMenuOpen;
+  if (nextState) closeViewMenu();
   if (typeof forceState === "boolean") {
     headerMenuOpen = forceState;
   } else {
@@ -589,6 +591,8 @@ function handleHeaderMenuAction(action) {
 
 function toggleViewMenu(forceState) {
   if (!viewMenu) return;
+  const nextState = typeof forceState === "boolean" ? forceState : !viewMenuOpen;
+  if (nextState) closeHeaderMenu();
   if (typeof forceState === "boolean") {
     viewMenuOpen = forceState;
   } else {
