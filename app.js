@@ -16984,8 +16984,8 @@ const messageSendBtn = document.getElementById("messageSendBtn");
 const MESSAGES_COPY = {
   title: { en: "Messages", es: "Mensajes" },
   subtitle: {
-    en: "Direct 1:1 messaging between coaches, athletes, and linked parents.",
-    es: "Mensajeria directa 1:1 entre coaches, atletas y padres vinculados."
+    en: "Direct 1:1 messaging between coaches, athletes, and parents.",
+    es: "Mensajeria directa 1:1 entre coaches, atletas y padres."
   },
   chip: { en: "Direct threads", es: "Chats directos" },
   sidebarTitle: { en: "Contacts", es: "Contactos" },
@@ -16994,8 +16994,8 @@ const MESSAGES_COPY = {
     es: "Escribe a tus atletas, padres vinculados y otros coaches desde un solo lugar."
   },
   sidebarHintAthlete: {
-    en: "Message your coach and teammates directly from here.",
-    es: "Escribe a tu coach y companeros de equipo directamente desde aqui."
+    en: "Message your coaches, teammates, and parents directly from here.",
+    es: "Escribe a tus coaches, companeros y padres directamente desde aqui."
   },
   sidebarHintParent: {
     en: "Message the linked coach directly from here.",
@@ -17007,8 +17007,8 @@ const MESSAGES_COPY = {
     es: "Selecciona un contacto en la columna izquierda para abrir un chat directo."
   },
   emptyBodyAthlete: {
-    en: "Choose your coach or a teammate from the left column to open a direct thread.",
-    es: "Selecciona a tu coach o a un companero para abrir un chat directo."
+    en: "Choose a coach, teammate, or parent from the left column to open a direct thread.",
+    es: "Selecciona a un coach, companero o padre para abrir un chat directo."
   },
   emptyBodyParent: {
     en: "Choose the linked coach from the left column to open a direct thread.",
@@ -17471,6 +17471,9 @@ function canMessageContact(current, candidate) {
         && Boolean(candidate.linkedAthleteId)
         && candidateCoachUid === currentCoachUid;
     }
+    if (candidate.role === "parent") {
+      return Boolean(candidate.linkedAthleteId);
+    }
     return false;
   }
   return false;
@@ -17492,7 +17495,7 @@ async function loadMessageContactsDirectory() {
     if (!isParentRole(current.role)) {
       queries.push(withTimeout(usersRef.where("role", "==", "athlete").get(), FIREBASE_OP_TIMEOUT_MS * 2, "firestore_message_athletes_timeout"));
     }
-    if (isCoachMessagingUser(current)) {
+    if (isCoachMessagingUser(current) || isAthleteRole(current.role)) {
       queries.push(withTimeout(usersRef.where("role", "==", "parent").get(), FIREBASE_OP_TIMEOUT_MS * 2, "firestore_message_parents_timeout"));
     }
     const snapshots = await Promise.all(queries);

@@ -164,7 +164,7 @@ service cloud.firestore {
         || isCoachOrAdminUser()
         || isCoachDirectoryProfile(resource.data)
         || (signedIn() && resource.data.role == "athlete")
-        || (isCoachOrAdminUser() && resource.data.role == "parent");
+        || (signedIn() && resource.data.role == "parent");
       allow create: if (
         isAdminEmail()
         && isAdminAllowedRole(request.resource.data.role)
