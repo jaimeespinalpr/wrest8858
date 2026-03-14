@@ -108,3 +108,21 @@ If you later need to revert to MySQL-backed auth, remove or empty `firebase-conf
 2. Provision a default Firebase Storage bucket for the project. New buckets require the project to be on the Blaze plan.
 3. Deploy Storage rules with `firebase deploy --only storage`.
 4. Reapply CORS to the bucket if origins change. The JSON in `/Users/jaimeespinalpr/Documents/wrestling-coaching-experience/firebase-storage-cors.json` is the source of truth used by the app.
+
+## Registration email alerts
+
+New registrations can trigger an email alert to `jaimeespinalpr@gmail.com` through a Firebase Cloud Function.
+
+1. Create a Resend API key.
+2. Set the function secret:
+   ```bash
+   firebase functions:secrets:set RESEND_API_KEY
+   ```
+3. Deploy the function:
+   ```bash
+   firebase deploy --only functions
+   ```
+
+Notes:
+- The function listens for new documents in the `users` collection.
+- The current implementation uses `WPL Alerts <onboarding@resend.dev>` as the sender. For setup/testing, Resend allows that sender when you are sending to your own inbox. If you want production delivery beyond that, switch to a verified sender/domain in `/Users/jaimeespinalpr/Documents/wrestling-coaching-experience/functions/index.js`.

@@ -2,6 +2,9 @@
   "firestore": {
     "rules": "firestore.rules"
   },
+  "functions": {
+    "source": "functions"
+  },
   "storage": {
     "rules": "storage.rules"
   },
@@ -13,7 +16,8 @@
         "firebase.json",
         "**/.*",
         "**/node_modules/**",
-        ".github/**"
+        ".github/**",
+        "functions/**"
       ]
     },
     {
@@ -23,7 +27,8 @@
         "firebase.json",
         "**/.*",
         "**/node_modules/**",
-        ".github/**"
+        ".github/**",
+        "functions/**"
       ]
     }
   ]
