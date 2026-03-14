@@ -133,10 +133,35 @@ service cloud.firestore {
         && currentUserLinkedCoachUid() == coachUid;
     }
 
+    function isLinkedAthleteForCoach(coachUid) {
+      return signedIn()
+        && currentUserRole() == "athlete"
+        && currentUserLinkedCoachUid() == coachUid
+        && currentUserLinkedAthleteId() != "";
+    }
+
+    function isLinkedAthleteRecord(athleteId) {
+      return signedIn()
+        && currentUserRole() == "athlete"
+        && currentUserLinkedAthleteId() != ""
+        && athleteId == currentUserLinkedAthleteId();
+    }
+
+    function assignmentTargetsCurrentAthlete(data) {
+      return signedIn()
+        && currentUserRole() == "athlete"
+        && (
+          (data.athleteIds is list && currentUserLinkedAthleteId() in data.athleteIds)
+          || (data.athleteUids is list && request.auth.uid in data.athleteUids)
+          || data.assigneeId == currentUserLinkedAthleteId()
+        );
+    }
+
     // User profiles: self-manage + global admin access for account administration.
     match /users/{uid} {
       allow read: if isSelf(uid)
         || isAdminEmail()
+        || isCoachOrAdminUser()
         || isCoachDirectoryProfile(resource.data)
         || (isCoachOrAdminUser() && resource.data.role == "parent");
       allow create: if (
@@ -156,6 +181,12 @@ service cloud.firestore {
         isAdminEmail()
         && isAdminAllowedRole(request.resource.data.role)
         && isAllowedViewForRole(request.resource.data.role, request.resource.data.view)
+      ) || (
+        isCoachOrAdminUser()
+        && resource.data.role == "athlete"
+        && request.resource.data.role == "athlete"
+        && request.resource.data.user_id == resource.data.user_id
+        && request.resource.data.email == resource.data.email
       ) || (
         isSelf(uid)
         && isSelfAllowedRole(request.resource.data.role)
@@ -235,7 +266,10 @@ service cloud.firestore {
       allow read, write: if isAdminEmail() || isSelf(coachUid);
 
       match /plans/{planId} {
-        allow read: if isAdminEmail() || isSelf(coachUid) || isVerifiedLinkedParent(coachUid);
+        allow read: if isAdminEmail()
+          || isSelf(coachUid)
+          || isVerifiedLinkedParent(coachUid)
+          || isLinkedAthleteForCoach(coachUid);
         allow write: if isAdminEmail() || isSelf(coachUid);
       }
 
@@ -244,8 +278,27 @@ service cloud.firestore {
       }
 
       match /assignments/{assignmentId} {
-        allow read: if isAdminEmail() || isSelf(coachUid) || isVerifiedLinkedParent(coachUid);
-        allow write: if isAdminEmail() || isSelf(coachUid);
+        allow read: if isAdminEmail()
+          || isSelf(coachUid)
+          || isVerifiedLinkedParent(coachUid)
+          || isLinkedAthleteForCoach(coachUid);
+        allow create: if isAdminEmail() || isSelf(coachUid);
+        allow update: if isAdminEmail()
+          || isSelf(coachUid)
+          || (
+            isLinkedAthleteForCoach(coachUid)
+            && assignmentTargetsCurrentAthlete(resource.data)
+            && assignmentTargetsCurrentAthlete(request.resource.data)
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              "status",
+              "updatedAt",
+              "startedAt",
+              "completedAt",
+              "athleteLogUid",
+              "athleteLogName"
+            ])
+          );
+        allow delete: if isAdminEmail() || isSelf(coachUid);
       }
 
       match /groups/{groupId} {
@@ -257,7 +310,24 @@ service cloud.firestore {
       }
 
       match /athletes/{athleteId} {
-        allow read: if isAdminEmail() || isSelf(coachUid) || isVerifiedLinkedParent(coachUid);
+        allow read: if isAdminEmail()
+          || isSelf(coachUid)
+          || isVerifiedLinkedParent(coachUid)
+          || isLinkedAthleteRecord(athleteId);
+        allow write: if isAdminEmail() || isSelf(coachUid);
+      }
+
+      match /coach_notes/{noteId} {
+        allow read: if isAdminEmail()
+          || isSelf(coachUid)
+          || (
+            isVerifiedLinkedParent(coachUid)
+            && (
+              resource.data.athleteId == currentUserLinkedAthleteId()
+              || resource.data.athleteName == currentUserAthleteName()
+            )
+          )
+          || isLinkedAthleteForCoach(coachUid);
         allow write: if isAdminEmail() || isSelf(coachUid);
       }
 
@@ -266,8 +336,52 @@ service cloud.firestore {
           || isSelf(coachUid)
           || (
             isVerifiedLinkedParent(coachUid)
-            && resource.data.athleteName == currentUserAthleteName()
+            && (
+              resource.data.athleteId == currentUserLinkedAthleteId()
+              || resource.data.athleteName == currentUserAthleteName()
+            )
+          )
+          || isLinkedAthleteForCoach(coachUid);
+        allow create: if isAdminEmail()
+          || isSelf(coachUid)
+          || (
+            isLinkedAthleteForCoach(coachUid)
+            && request.resource.data.athleteId == currentUserLinkedAthleteId()
+            && request.resource.data.athleteUid == request.auth.uid
           );
+        allow update: if isAdminEmail()
+          || isSelf(coachUid)
+          || (
+            isLinkedAthleteForCoach(coachUid)
+            && resource.data.athleteId == currentUserLinkedAthleteId()
+            && request.resource.data.athleteId == currentUserLinkedAthleteId()
+            && request.resource.data.athleteUid == request.auth.uid
+          );
+        allow delete: if isAdminEmail() || isSelf(coachUid);
+      }
+
+      match /completion_status/{athleteId} {
+        allow read: if isAdminEmail()
+          || isSelf(coachUid)
+          || (
+            isVerifiedLinkedParent(coachUid)
+            && athleteId == currentUserLinkedAthleteId()
+          )
+          || isLinkedAthleteForCoach(coachUid);
+        allow write: if isAdminEmail() || isSelf(coachUid);
+      }
+
+      match /match_analysis/{analysisId} {
+        allow read: if isAdminEmail()
+          || isSelf(coachUid)
+          || (
+            isVerifiedLinkedParent(coachUid)
+            && (
+              resource.data.athleteId == currentUserLinkedAthleteId()
+              || resource.data.athleteName == currentUserAthleteName()
+            )
+          )
+          || isLinkedAthleteForCoach(coachUid);
         allow write: if isAdminEmail() || isSelf(coachUid);
       }
 
