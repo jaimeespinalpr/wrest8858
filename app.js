@@ -7663,11 +7663,13 @@ async function showTab(name) {
   }
 
   if (visiblePanels.includes("messages")) {
-    ensureMessagesSession().catch((err) => {
-      console.warn("Failed to open messages tab", err);
-      setMessagesStatus(MESSAGES_COPY.loadError, "error");
-      renderMessages();
-    });
+    ensureMessagesSession()
+      .then(() => refreshMessageContactsDirectory())
+      .catch((err) => {
+        console.warn("Failed to open messages tab", err);
+        setMessagesStatus(MESSAGES_COPY.loadError, "error");
+        renderMessages();
+      });
   }
 
   if (focusPanel && panels[focusPanel]) {
@@ -17342,20 +17344,35 @@ function sortMessageThreads(items = []) {
 
 function canMessageContact(current, candidate) {
   if (!current?.uid || !candidate?.uid || candidate.uid === current.uid) return false;
+  const candidateCoachUid = normalizeUid(candidate.linkedCoachUid);
+  const currentCoachUid = normalizeUid(current.linkedCoachUid || current.uid);
+  const candidateIsOfficialCoach = isOfficialCoachEmail(candidate.email || "") || isForcedAdminEmail(candidate.email || "");
+  const candidateEmail = normalizeEmail(candidate.email || "");
+  if (candidateEmail.endsWith("@example.com") || candidateEmail.endsWith("@wpl.app")) {
+    return false;
+  }
   if (isParentRole(current.role)) {
     return isCoachMessagingUser(candidate) && candidate.uid === getParentLinkedCoachUid();
   }
   if (isCoachMessagingUser(current)) {
-    if (candidate.role === "athlete" || candidate.role === "coach") return true;
-    return candidate.role === "parent" && normalizeUid(candidate.linkedCoachUid) === normalizeUid(current.uid);
+    if (candidate.role === "coach") {
+      return candidateIsOfficialCoach;
+    }
+    if (candidate.role === "athlete") {
+      return Boolean(candidate.linkedAthleteId) && candidateCoachUid === normalizeUid(current.uid);
+    }
+    return candidate.role === "parent" && candidateCoachUid === normalizeUid(current.uid);
   }
   if (isAthleteRole(current.role)) {
     if (candidate.role === "coach") {
-      return !current.linkedCoachUid || normalizeUid(candidate.uid) === normalizeUid(current.linkedCoachUid);
+      return !current.linkedCoachUid
+        ? candidateIsOfficialCoach
+        : normalizeUid(candidate.uid) === normalizeUid(current.linkedCoachUid);
     }
     if (candidate.role === "athlete") {
-      return Boolean(current.linkedCoachUid)
-        && normalizeUid(candidate.linkedCoachUid) === normalizeUid(current.linkedCoachUid);
+      return Boolean(currentCoachUid)
+        && Boolean(candidate.linkedAthleteId)
+        && candidateCoachUid === currentCoachUid;
     }
     return false;
   }
@@ -17492,6 +17509,13 @@ async function ensureMessagesSession() {
   renderMessages();
   await loadMessageContactsDirectory();
   subscribeToMessageThreads(current);
+  renderMessages();
+}
+
+async function refreshMessageContactsDirectory() {
+  const current = getMessagesCurrentUser();
+  if (!current || !firebaseFirestoreInstance) return;
+  await loadMessageContactsDirectory();
   renderMessages();
 }
 
