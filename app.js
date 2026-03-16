@@ -77,6 +77,7 @@ let coachCompletionCache = [];
 let coachMatchAnalysisCache = [];
 let coachParentApprovalsCache = [];
 let coachDirectoryCache = [];
+let coachAthleteDirectoryCache = [];
 let coachParentScoutingCache = [];
 let coachWorkspaceSeedPromise = null;
 let coachCalendarSyncTimeout = null;
@@ -4048,6 +4049,18 @@ function getSeedCopyValue(value) {
 }
 
 function getCoachAthleteRecords() {
+  const profile = getProfile();
+  if (isCoachRole(profile?.role)) {
+    const authUser = getAuthUser();
+    const coachMeta = {
+      coachUid: String(authUser?.id || "").trim(),
+      coachName: String(profile?.name || authUser?.email || "").trim(),
+      coachEmail: normalizeEmail(profile?.email || authUser?.email || "")
+    };
+    const directoryRecords = coachAthleteDirectoryCache.map((user) => buildCoachAthleteRecordFromUser(user, coachMeta));
+    const mergedLiveRecords = mergeCoachRecordsById(directoryRecords, coachAthletesCache);
+    if (mergedLiveRecords.length) return mergedLiveRecords;
+  }
   if (coachAthletesCache.length) return coachAthletesCache;
   const seedRecords = ATHLETES.map((athlete) => normalizeCoachAthleteRecord(slugifyKey(athlete.name), athlete));
   if (!athletePortalAthleteCache) return seedRecords;
@@ -4510,7 +4523,7 @@ async function syncCoachWorkspaceRelationships() {
     const batch = firebaseFirestoreInstance.batch();
     let writes = 0;
     const timestamp = getFirestoreServerTimestamp();
-    const athletes = getCoachAthleteRecords();
+    const athletes = coachAthletesCache.length ? coachAthletesCache : getSeedCoachAthleteRecords();
     const athletesById = new Map();
 
     athletes.forEach((athlete) => {
@@ -4571,6 +4584,24 @@ async function syncCoachWorkspaceRelationships() {
           writes += 1;
         }
       }
+    });
+
+    athleteUsers.forEach((user) => {
+      const athleteId = normalizeAthleteId(user.linkedAthleteId || slugifyKey(user.name || user.email || ""), user.name || user.email || "");
+      if (!athleteId || athletesById.has(athleteId)) return;
+      if (normalizeUid(user.linkedCoachUid) !== normalizeUid(authUser.id)) return;
+      const seed = buildCoachAthleteSeedFromUser(user, {
+        coachUid: authUser.id,
+        coachName,
+        coachEmail
+      });
+      athletesById.set(athleteId, normalizeCoachAthleteRecord(athleteId, seed));
+      batch.set(athletesRef.doc(athleteId), stripUndefinedDeep({
+        ...seed,
+        createdAt: seed.createdAt || timestamp,
+        updatedAt: timestamp
+      }), { merge: true });
+      writes += 1;
     });
 
     coachGroupsCache.forEach((group) => {
@@ -4821,6 +4852,7 @@ function stopCoachWorkspaceRealtimeSync() {
   coachMatchAnalysisCache = [];
   coachParentApprovalsCache = [];
   coachDirectoryCache = [];
+  coachAthleteDirectoryCache = [];
   coachParentScoutingCache = [];
   currentEditingCoachPlanId = "";
 }
@@ -5135,8 +5167,22 @@ async function startCoachWorkspaceRealtimeSync() {
     }, (err) => console.warn("Parent scouting feed sync failed", err))
   );
 
-  if (canVerifyParentAccounts() && usersRef) {
+  if (usersRef) {
     coachWorkspaceUnsubs.push(
+      usersRef.where("role", "==", "athlete").onSnapshot((snapshot) => {
+        coachAthleteDirectoryCache = snapshot.docs
+          .map((doc) => normalizeManagedUserRecord(doc.id, doc.data() || {}))
+          .filter((record) => Boolean(record.uid) && normalizeAuthRole(record.role) === "athlete")
+          .sort((a, b) => a.name.localeCompare(b.name || "", undefined, { sensitivity: "base" }));
+        scheduleCoachWorkspaceRelationshipSync();
+        syncCoachMatchAthleteSelect();
+        renderAthleteManagement();
+        renderAthleteNotes();
+        renderJournalMonitor();
+        renderCompletionTracking();
+        renderDashboard();
+        renderCompetitionPreview(getAthletesData().find((item) => item.name === getSelectedCoachAthleteName()) || getAthletesData()[0] || null);
+      }, (err) => console.warn("Athlete directory sync failed", err)),
       usersRef.where("role", "==", "parent").onSnapshot((snapshot) => {
         coachParentApprovalsCache = snapshot.docs.map((doc) => normalizeManagedUserRecord(doc.id, doc.data() || {}));
         renderDashboard();
@@ -7173,6 +7219,42 @@ function athleteIdentityMatches(record, input) {
 
 function getCoachAthleteRecordByIdentity(input) {
   return getCoachAthleteRecords().find((record) => athleteIdentityMatches(record, input)) || null;
+}
+
+function buildCoachAthleteSeedFromUser(user, {
+  coachUid = "",
+  coachName = "",
+  coachEmail = ""
+} = {}) {
+  const athleteId = normalizeAthleteId(user?.linkedAthleteId || slugifyKey(user?.name || user?.email || ""), user?.name || user?.email || "");
+  return {
+    name: String(user?.name || user?.email || "Athlete").trim(),
+    athleteUid: normalizeUid(user?.uid),
+    athleteEmail: normalizeEmail(user?.email || ""),
+    coachUid: String(user?.linkedCoachUid || coachUid || "").trim(),
+    coachName: String(user?.linkedCoachName || coachName || "").trim(),
+    coachEmail: normalizeEmail(user?.linkedCoachEmail || coachEmail || ""),
+    currentWeight: String(user?.currentWeight || "").trim(),
+    weight: String(user?.currentWeight || "").trim(),
+    weightClass: String(user?.weightClass || "").trim(),
+    style: String(user?.style || "").trim(),
+    availability: "Active",
+    preferred: String(user?.preferredMoves || "").trim(),
+    notes: String(user?.notes || "").trim(),
+    experienceYears: String(user?.experienceYears || "").trim(),
+    level: String(user?.level || "").trim(),
+    position: String(user?.position || "").trim(),
+    strategy: String(user?.strategy || "").trim(),
+    tags: normalizeSmartTags(user?.tags || []),
+    createdAt: String(user?.createdAt || "").trim(),
+    updatedAt: String(user?.updatedAt || user?.createdAt || "").trim(),
+    id: athleteId
+  };
+}
+
+function buildCoachAthleteRecordFromUser(user, coachMeta = {}) {
+  const seed = buildCoachAthleteSeedFromUser(user, coachMeta);
+  return normalizeCoachAthleteRecord(seed.id, seed);
 }
 
 function sortUsersByCreatedAt(users = []) {
@@ -16215,6 +16297,17 @@ function normalizeManagedUserRecord(uid, data = {}) {
     linkedCoachUid: String(data.linkedCoachUid || "").trim(),
     linkedCoachName: String(data.linkedCoachName || "").trim(),
     linkedCoachEmail: normalizeEmail(data.linkedCoachEmail || ""),
+    preferredMoves: String(data.preferredMoves || data.preferred_moves || "").trim(),
+    experienceYears: String(data.experienceYears || data.experience_years || "").trim(),
+    stance: String(data.stance || "").trim(),
+    weightClass: String(data.weightClass || data.weight_class || "").trim(),
+    currentWeight: String(data.currentWeight || data.weight || "").trim(),
+    style: String(data.style || "").trim(),
+    level: String(data.level || "").trim(),
+    position: String(data.position || "").trim(),
+    strategy: String(data.strategy || "").trim(),
+    notes: String(data.notes || "").trim(),
+    tags: normalizeSmartTags(data.tags || []),
     updatedAt: String(data.updatedAt || ""),
     createdAt: String(data.createdAt || "")
   };
