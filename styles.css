@@ -4528,6 +4528,32 @@ button.ghost,
   background: linear-gradient(180deg, rgba(21, 57, 67, 0.98), rgba(8, 24, 30, 0.98));
 }
 
+.message-bubble,
+.app.parent-view-active .message-bubble{
+  border-color: rgba(91, 145, 255, 0.32);
+  background: linear-gradient(180deg, rgba(24, 41, 72, 0.98), rgba(11, 21, 39, 0.98));
+}
+
+.message-bubble-body,
+.app.parent-view-active .message-bubble-body{
+  color: #f4f7ff;
+}
+
+.message-bubble-header,
+.app.parent-view-active .message-bubble-header{
+  color: rgba(191, 210, 244, 0.88) !important;
+}
+
+.message-bubble.own .message-bubble-body,
+.app.parent-view-active .message-bubble.own .message-bubble-body{
+  color: #e8fff9;
+}
+
+.message-bubble.own .message-bubble-header,
+.app.parent-view-active .message-bubble.own .message-bubble-header{
+  color: rgba(170, 245, 228, 0.92) !important;
+}
+
 .quick-actions{
   gap: 12px;
 }
