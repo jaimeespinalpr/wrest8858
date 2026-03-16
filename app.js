@@ -464,7 +464,8 @@ function enforceStrictAuthUI() {
       btn.disabled = true;
     });
     if (viewSwitchWrap) viewSwitchWrap.classList.remove("hidden");
-    if (viewMenu) viewMenu.classList.remove("hidden");
+    closeViewMenu();
+    closeHeaderMenu();
     headerViewButtons.forEach((btn) => {
       btn.hidden = false;
       btn.disabled = false;
@@ -478,8 +479,9 @@ function enforceStrictAuthUI() {
     btn.hidden = true;
     btn.disabled = true;
   });
+  closeViewMenu();
+  closeHeaderMenu();
   if (viewSwitchWrap) viewSwitchWrap.classList.add("hidden");
-  if (viewMenu) viewMenu.classList.add("hidden");
   headerViewButtons.forEach((btn) => {
     btn.hidden = true;
     btn.disabled = true;
@@ -536,16 +538,13 @@ function toggleHeaderMenu(forceState) {
   if (!headerMenu) return;
   const nextState = typeof forceState === "boolean" ? forceState : !headerMenuOpen;
   if (nextState) closeViewMenu();
-  if (typeof forceState === "boolean") {
-    headerMenuOpen = forceState;
-  } else {
-    headerMenuOpen = !headerMenuOpen;
-  }
+  headerMenuOpen = nextState;
   headerMenu.classList.toggle("hidden", !headerMenuOpen);
+  editProfileBtn?.setAttribute("aria-expanded", headerMenuOpen ? "true" : "false");
 }
 
 function closeHeaderMenu() {
-  if (!headerMenuOpen) return;
+  if (!headerMenuOpen && headerMenu?.classList.contains("hidden")) return;
   toggleHeaderMenu(false);
 }
 
@@ -595,16 +594,13 @@ function toggleViewMenu(forceState) {
   if (!viewMenu) return;
   const nextState = typeof forceState === "boolean" ? forceState : !viewMenuOpen;
   if (nextState) closeHeaderMenu();
-  if (typeof forceState === "boolean") {
-    viewMenuOpen = forceState;
-  } else {
-    viewMenuOpen = !viewMenuOpen;
-  }
+  viewMenuOpen = nextState;
   viewMenu.classList.toggle("hidden", !viewMenuOpen);
+  viewSwitchBtn?.setAttribute("aria-expanded", viewMenuOpen ? "true" : "false");
 }
 
 function closeViewMenu() {
-  if (!viewMenuOpen) return;
+  if (!viewMenuOpen && viewMenu?.classList.contains("hidden")) return;
   toggleViewMenu(false);
 }
 
@@ -628,6 +624,8 @@ function setView(view) {
   const activeRole = getActiveRoleForView();
   const normalized = resolveViewForRole(activeRole, requested);
   currentView = normalized;
+  closeViewMenu();
+  closeHeaderMenu();
   updateViewMenuLabel(normalized);
   const roleName = VIEW_ROLE_MAP[normalized] || activeRole || "athlete";
   setRoleUI(roleName, normalized);
