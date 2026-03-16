@@ -8810,6 +8810,39 @@ const COACH_ROUTE_BY_PANEL = Object.entries(COACH_ROUTE_PANELS).reduce((acc, [ro
   });
   return acc;
 }, {});
+const APP_LAUNCH_CONFIG = (() => {
+  try {
+    const params = new URLSearchParams(window.location.search || "");
+    return {
+      tab: String(params.get("openTab") || "").trim(),
+      contactUid: normalizeUid(params.get("contactUid") || "")
+    };
+  } catch (_err) {
+    return { tab: "", contactUid: "" };
+  }
+})();
+let launchConfigApplied = false;
+
+function buildMessagesWindowUrl(contactUid = "") {
+  const base = `${window.location.origin}${window.location.pathname}`;
+  const params = new URLSearchParams();
+  params.set("openTab", "messages");
+  const safeContactUid = normalizeUid(contactUid);
+  if (safeContactUid) {
+    params.set("contactUid", safeContactUid);
+  }
+  return `${base}?${params.toString()}`;
+}
+
+async function applyLaunchConfig() {
+  if (launchConfigApplied) return;
+  launchConfigApplied = true;
+  if (APP_LAUNCH_CONFIG.tab !== "messages") return;
+  await showTab("messages");
+  if (APP_LAUNCH_CONFIG.contactUid) {
+    await openDirectMessageThreadWithRetry(APP_LAUNCH_CONFIG.contactUid);
+  }
+}
 
 function isCoachRouteContext() {
   return currentView === "coach" || currentView === "admin";
@@ -8965,6 +8998,9 @@ function setRoleUI(role, view = "athlete") {
   toggleParentViewNotice(view);
   enforceStrictAuthUI();
   showTab(defaultTab);
+  applyLaunchConfig().catch((err) => {
+    console.warn("Could not apply launch config", err);
+  });
 }
 
 tabBtns.forEach(btn => btn.addEventListener("click", () => showTab(btn.dataset.tab)));
@@ -20359,13 +20395,15 @@ async function messageCoachAthlete(name = "") {
   if (name) {
     selectCoachMatchAthlete(name);
   }
-  showTab("messages");
   const selectedAthlete = getCoachAthleteRecordByIdentity(getSelectedCoachAthleteName());
   const athleteUid = normalizeUid(selectedAthlete?.athleteUid);
   if (!athleteUid) {
     toast(pickCopy(MESSAGES_COPY.noLinkedAthleteUser));
     return;
   }
+  const popup = window.open(buildMessagesWindowUrl(athleteUid), "_blank", "noopener,noreferrer");
+  if (popup) return;
+  await showTab("messages");
   await openDirectMessageThreadWithRetry(athleteUid);
   requestAnimationFrame(() => {
     flashActionTarget(messagesThreadView || panels.messages);
