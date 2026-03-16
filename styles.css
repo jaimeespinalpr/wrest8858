@@ -4168,9 +4168,9 @@ body::before{
 
 .app-header,
 .app.parent-view-active .app-header{
-  position: sticky;
-  top: 14px;
-  z-index: 24;
+  position: relative;
+  top: auto;
+  z-index: 20;
   align-items: flex-start;
   padding: 20px;
   border-radius: 28px;
@@ -4248,8 +4248,8 @@ body::before{
 .subtabs,
 .app.parent-view-active .tabs{
   position: sticky;
-  top: 120px;
-  z-index: 18;
+  top: 14px;
+  z-index: 28;
   gap: 10px;
   flex-wrap: nowrap;
   overflow-x: auto;
