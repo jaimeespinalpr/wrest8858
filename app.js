@@ -17181,18 +17181,24 @@ const MESSAGES_COPY = {
   },
   chip: { en: "Direct threads", es: "Chats directos" },
   sidebarTitle: { en: "Contacts", es: "Contactos" },
+  sidebarTitleCoach: { en: "Contacts", es: "Contactos" },
+  sidebarTitleAthlete: { en: "Connect fast", es: "Conecta rapido" },
+  sidebarTitleParent: { en: "Coach contact", es: "Contacto del coach" },
   sidebarHintCoach: {
     en: "Message your athletes, linked parents, and other coaches from one place.",
     es: "Escribe a tus atletas, padres vinculados y otros coaches desde un solo lugar."
   },
   sidebarHintAthlete: {
-    en: "Message your coaches, teammates, and parents directly from here.",
-    es: "Escribe a tus coaches, companeros y padres directamente desde aqui."
+    en: "Start with your coaches. Teammates are listed below in a separate section.",
+    es: "Empieza por tus coaches. Tus companeros estan abajo en una seccion separada."
   },
   sidebarHintParent: {
     en: "Message the linked coach directly from here.",
     es: "Escribe al coach vinculado directamente desde aqui."
   },
+  coachesSection: { en: "Coaches", es: "Coaches" },
+  athletesSection: { en: "Athletes", es: "Atletas" },
+  parentsSection: { en: "Parents", es: "Padres" },
   emptyTitle: { en: "No conversation selected", es: "No hay una conversacion seleccionada" },
   emptyBodyCoach: {
     en: "Choose a contact from the left column to open a direct thread.",
@@ -18268,14 +18274,59 @@ async function openDirectMessageThreadWithRetry(contactUid, attempts = 5) {
   return false;
 }
 
+function getGroupedMessageContacts(current) {
+  const rows = [...messagesContactRows];
+  const coaches = rows.filter((contact) => contact.role === "coach");
+  const athletes = rows.filter((contact) => contact.role === "athlete");
+  const parents = rows.filter((contact) => contact.role === "parent");
+
+  if (isParentRole(current?.role)) {
+    return [
+      { key: "coach", title: pickCopy(MESSAGES_COPY.coachesSection), rows: coaches, priority: true }
+    ].filter((group) => group.rows.length);
+  }
+
+  if (isAthleteRole(current?.role)) {
+    return [
+      { key: "coach", title: pickCopy(MESSAGES_COPY.coachesSection), rows: coaches, priority: true },
+      { key: "athlete", title: pickCopy(MESSAGES_COPY.athletesSection), rows: athletes, priority: false },
+      { key: "parent", title: pickCopy(MESSAGES_COPY.parentsSection), rows: parents, priority: false }
+    ].filter((group) => group.rows.length);
+  }
+
+  return [
+    { key: "coach", title: pickCopy(MESSAGES_COPY.coachesSection), rows: coaches, priority: true },
+    { key: "athlete", title: pickCopy(MESSAGES_COPY.athletesSection), rows: athletes, priority: false },
+    { key: "parent", title: pickCopy(MESSAGES_COPY.parentsSection), rows: parents, priority: false }
+  ].filter((group) => group.rows.length);
+}
+
+function buildMessageContactCard(contact, current, { priority = false } = {}) {
+  const card = document.createElement("button");
+  card.type = "button";
+  card.className = `messages-coach-card${priority ? " messages-contact-priority" : ""}`;
+  const linkedThread = getMessageThreadForContact(contact.uid);
+  if (linkedThread && linkedThread.id === messagesSelectedThreadId) {
+    card.classList.add("active");
+  }
+  const roleLabel = getRoleLabelEnglish(contact.role);
+  const secondaryLine = [roleLabel, contact.role === "athlete" && contact.linkedCoachUid ? (currentLang === "es" ? "Mismo staff" : "Same staff") : contact.email]
+    .filter(Boolean)
+    .join(" - ");
+  card.innerHTML = `
+    <h4>${escapeHtml(contact.name || contact.email || "Contact")}</h4>
+    <small>${escapeHtml(secondaryLine)}</small>
+    <small>${escapeHtml(linkedThread ? pickCopy(MESSAGES_COPY.openThread) : pickCopy(MESSAGES_COPY.contactReady))}</small>
+  `;
+  card.addEventListener("click", () => {
+    openMessageThreadForContact(contact);
+  });
+  return card;
+}
+
 function renderMessagesCoachList(current) {
   if (!messagesCoachList) return;
   messagesCoachList.innerHTML = "";
-
-  const title = document.createElement("div");
-  title.className = "small muted";
-  title.textContent = pickCopy(MESSAGES_COPY.contactsHeader);
-  messagesCoachList.appendChild(title);
 
   if (!messagesContactRows.length) {
     const empty = document.createElement("div");
@@ -18285,32 +18336,26 @@ function renderMessagesCoachList(current) {
     return;
   }
 
-  messagesContactRows.forEach((contact) => {
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = "messages-coach-card";
-    const linkedThread = getMessageThreadForContact(contact.uid);
-    if (linkedThread && linkedThread.id === messagesSelectedThreadId) {
-      card.classList.add("active");
-    }
-    const roleLabel = getRoleLabelEnglish(contact.role);
-    const secondaryLine = [roleLabel, contact.role === "athlete" && contact.linkedCoachUid ? (currentLang === "es" ? "Mismo staff" : "Same staff") : contact.email]
-      .filter(Boolean)
-      .join(" - ");
-    card.innerHTML = `
-      <h4>${escapeHtml(contact.name || contact.email || "Contact")}</h4>
-      <small>${escapeHtml(secondaryLine)}</small>
-      <small>${escapeHtml(linkedThread ? pickCopy(MESSAGES_COPY.openThread) : pickCopy(MESSAGES_COPY.contactReady))}</small>
-    `;
-    card.addEventListener("click", () => {
-      openMessageThreadForContact(contact);
+  const groupedContacts = getGroupedMessageContacts(current);
+  groupedContacts.forEach((group) => {
+    const section = document.createElement("section");
+    section.className = `messages-contact-section${group.priority ? " messages-contact-section-priority" : ""}`;
+    section.innerHTML = `<div class="messages-contact-section-title">${escapeHtml(group.title)}</div>`;
+    group.rows.forEach((contact) => {
+      section.appendChild(buildMessageContactCard(contact, current, { priority: group.priority }));
     });
-    messagesCoachList.appendChild(card);
+    messagesCoachList.appendChild(section);
   });
 }
 
 function renderMessagesThreadList(current) {
   if (!messageList) return;
+  const showThreadDirectory = isCoachMessagingUser(current);
+  messageList.classList.toggle("hidden", !showThreadDirectory);
+  if (!showThreadDirectory) {
+    messageList.innerHTML = "";
+    return;
+  }
   messageList.innerHTML = "";
 
   const title = document.createElement("div");
@@ -18403,7 +18448,6 @@ function renderMessages() {
   setTextContent(messagesPanelTitle, MESSAGES_COPY.title);
   setTextContent(messagesPanelSubtitle, MESSAGES_COPY.subtitle);
   setTextContent(messagesPanelChip, MESSAGES_COPY.chip);
-  setTextContent(messagesSidebarTitle, MESSAGES_COPY.sidebarTitle);
   setTextContent(messageComposerLabel, MESSAGES_COPY.composerLabel);
   if (messageComposerInput) {
     messageComposerInput.placeholder = pickCopy(MESSAGES_COPY.composerPlaceholder);
@@ -18411,6 +18455,12 @@ function renderMessages() {
   updateMessagesUnreadIndicators();
 
   const current = getMessagesCurrentUser();
+  const sidebarTitle = isParentRole(current?.role)
+    ? MESSAGES_COPY.sidebarTitleParent
+    : isCoachMessagingUser(current)
+      ? MESSAGES_COPY.sidebarTitleCoach
+      : MESSAGES_COPY.sidebarTitleAthlete;
+  setTextContent(messagesSidebarTitle, sidebarTitle);
   const sidebarHint = isParentRole(current?.role)
     ? MESSAGES_COPY.sidebarHintParent
     : isCoachMessagingUser(current)
@@ -18457,14 +18507,16 @@ function renderMessages() {
         : pickCopy(MESSAGES_COPY.send);
   }
   if (!selectedThread) {
-    const parentAutoContactUid = isParentRole(current?.role) && messagesContactRows.length === 1
-      ? messagesContactRows[0].uid
-      : "";
-    if (parentAutoContactUid && messagesAutoOpeningContactUid !== parentAutoContactUid) {
-      messagesAutoOpeningContactUid = parentAutoContactUid;
-      openDirectMessageThreadWithRetry(parentAutoContactUid)
+    const autoOpenContactUid = isParentRole(current?.role)
+      ? (messagesContactRows.length === 1 ? messagesContactRows[0].uid : "")
+      : isAthleteRole(current?.role)
+        ? (messagesContactRows.find((contact) => contact.role === "coach")?.uid || "")
+        : "";
+    if (autoOpenContactUid && messagesAutoOpeningContactUid !== autoOpenContactUid) {
+      messagesAutoOpeningContactUid = autoOpenContactUid;
+      openDirectMessageThreadWithRetry(autoOpenContactUid)
         .catch((err) => {
-          console.warn("Failed to auto-open parent coach thread", err);
+          console.warn("Failed to auto-open direct thread", err);
         })
         .finally(() => {
           messagesAutoOpeningContactUid = "";
