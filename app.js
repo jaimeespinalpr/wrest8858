@@ -563,6 +563,7 @@ function handleHeaderMenuAction(action) {
     stopCoachWorkspaceRealtimeSync();
     stopParentPortalRealtimeSync();
     stopAthletePortalRealtimeSync();
+    teardownMessagesSession();
     setProfile(null);
     setAuthUser(null);
     showOnboarding(null);
@@ -581,6 +582,7 @@ function handleHeaderMenuAction(action) {
     stopCoachWorkspaceRealtimeSync();
     stopParentPortalRealtimeSync();
     stopAthletePortalRealtimeSync();
+    teardownMessagesSession();
     setProfile(null);
     setAuthUser(null);
     showOnboarding(null);
@@ -1110,6 +1112,7 @@ async function applyProfile(profile) {
     stopCoachWorkspaceRealtimeSync();
     stopParentPortalRealtimeSync();
     stopAthletePortalRealtimeSync();
+    teardownMessagesSession();
     setLanguage(getPreferredLang(), { skipConfirm: true, refresh: false });
     setView("athlete");
     refreshLanguageUI();
@@ -1138,6 +1141,11 @@ async function applyProfile(profile) {
   } else {
     stopAthletePortalRealtimeSync();
   }
+  startMessagesRealtimeSync({
+    forceRefreshContacts: true
+  }).catch((err) => {
+    console.warn("Messages realtime bootstrap failed", err);
+  });
   refreshLanguageUI();
 }
 
@@ -7555,6 +7563,8 @@ function getDayAbbr() {
 
 // ---------- TABS ----------
 const tabBtns = Array.from(document.querySelectorAll(".tab"));
+let currentTopTab = "";
+let currentFocusedPanel = "";
 const panels = {
   today: document.getElementById("panel-today"),
   "parent-home": document.getElementById("panel-parent-home"),
@@ -7630,6 +7640,8 @@ async function showTab(name) {
   const focusPanel = visiblePanels.includes(resolved.focusPanel)
     ? resolved.focusPanel
     : (COACH_ROUTE_DEFAULT_PANEL[safeTab] || "");
+  currentTopTab = safeTab;
+  currentFocusedPanel = focusPanel || safeTab;
 
   tabBtns.forEach((b) => b.classList.toggle("active", b.dataset.tab === safeTab));
   Object.entries(panels).forEach(([k, el]) => {
@@ -7663,8 +7675,7 @@ async function showTab(name) {
   }
 
   if (visiblePanels.includes("messages")) {
-    ensureMessagesSession()
-      .then(() => refreshMessageContactsDirectory())
+    startMessagesRealtimeSync({ forceRefreshContacts: true })
       .catch((err) => {
         console.warn("Failed to open messages tab", err);
         setMessagesStatus(MESSAGES_COPY.loadError, "error");
@@ -14326,7 +14337,9 @@ function startParentPortalRealtimeSync() {
     setProfile(nextProfile, { sync: false });
     if (shouldRefresh) {
       refreshParentPortalDataSync();
-      renderMessages();
+      startMessagesRealtimeSync({ forceRefreshContacts: true }).catch((err) => {
+        console.warn("Parent messages refresh failed", err);
+      });
     }
     renderParentHome();
     renderParentScouting();
@@ -14758,7 +14771,9 @@ async function startAthletePortalRealtimeSync() {
     }
     if (shouldRefresh || shouldBootstrapRefresh) {
       refreshAthletePortalDataSync();
-      renderMessages();
+      startMessagesRealtimeSync({ forceRefreshContacts: true }).catch((err) => {
+        console.warn("Athlete messages refresh failed", err);
+      });
     }
     renderToday(getCurrentAppDayIndex());
     renderJournalEntries();
@@ -17065,6 +17080,8 @@ let messagesContactRows = [];
 let messagesFeedRows = [];
 let messagesThreadsUnsub = null;
 let messagesFeedUnsub = null;
+let messagesContactUnsubs = [];
+let messagesContactSourceRows = new Map();
 let messagesSessionUid = "";
 let messagesSelectedThreadId = "";
 let messagesBound = false;
@@ -17072,6 +17089,143 @@ let messagesFeedLoading = false;
 let messagesStatusCopy = "";
 let messagesStatusType = "";
 let messagesAutoOpeningContactUid = "";
+let messagesSeenByThread = {};
+let messagesNotifiedByThread = {};
+let messagesThreadsPrimed = false;
+let messagesThreadsSubscribedAt = 0;
+
+function getAppToastStack() {
+  let stack = document.getElementById("appToastStack");
+  if (stack) return stack;
+  stack = document.createElement("div");
+  stack.id = "appToastStack";
+  stack.className = "app-toast-stack";
+  document.body.appendChild(stack);
+  return stack;
+}
+
+function pushAppToast({ title = "", body = "", tone = "", duration = 4200, onClick = null } = {}) {
+  const stack = getAppToastStack();
+  if (!stack) return;
+  const toastEl = document.createElement("button");
+  toastEl.type = "button";
+  toastEl.className = `app-toast${tone ? ` app-toast-${tone}` : ""}`;
+  toastEl.innerHTML = `
+    <strong>${escapeHtml(title || pickCopy(MESSAGES_COPY.title))}</strong>
+    <span>${escapeHtml(body || "")}</span>
+  `;
+  let removed = false;
+  const removeToast = () => {
+    if (removed) return;
+    removed = true;
+    toastEl.classList.add("closing");
+    window.setTimeout(() => toastEl.remove(), 180);
+  };
+  toastEl.addEventListener("click", () => {
+    removeToast();
+    if (typeof onClick === "function") onClick();
+  });
+  stack.appendChild(toastEl);
+  window.setTimeout(removeToast, duration);
+}
+
+function messageSeenStorageKey(uid = "") {
+  return `wpl_message_seen_${String(uid || "").trim()}`;
+}
+
+function loadMessageSeenState(uid = "") {
+  return parseStoredJson(messageSeenStorageKey(uid)) || {};
+}
+
+function persistMessageSeenState(uid = "", state = {}) {
+  if (!uid) return;
+  localStorage.setItem(messageSeenStorageKey(uid), JSON.stringify(state));
+}
+
+function getMessageSeenMillis(threadId = "") {
+  return Number(messagesSeenByThread[String(threadId || "").trim()] || 0);
+}
+
+function setMessageSeenMillis(threadId = "", value = 0) {
+  const current = getMessagesCurrentUser();
+  const safeThreadId = String(threadId || "").trim();
+  const nextValue = Number(value || 0);
+  if (!current?.uid || !safeThreadId || !nextValue) return;
+  const previousValue = getMessageSeenMillis(safeThreadId);
+  if (nextValue <= previousValue) return;
+  messagesSeenByThread = {
+    ...messagesSeenByThread,
+    [safeThreadId]: nextValue
+  };
+  persistMessageSeenState(current.uid, messagesSeenByThread);
+}
+
+function getMessageUnreadCount(current = getMessagesCurrentUser()) {
+  if (!current?.uid) return 0;
+  return messagesThreadRows.filter((thread) => {
+    const lastMessageMillis = messageTimestampToMillis(thread.lastMessageAt || thread.updatedAt);
+    return Boolean(lastMessageMillis)
+      && thread.lastSenderUid
+      && thread.lastSenderUid !== current.uid
+      && lastMessageMillis > getMessageSeenMillis(thread.id);
+  }).length;
+}
+
+function updateMessagesUnreadIndicators() {
+  const current = getMessagesCurrentUser();
+  const unreadCount = getMessageUnreadCount(current);
+  document.querySelectorAll('.tab[data-tab="messages"]').forEach((btn) => {
+    btn.classList.toggle("has-unread", unreadCount > 0);
+    btn.dataset.unreadCount = unreadCount > 9 ? "9+" : String(unreadCount || "");
+    btn.setAttribute("aria-label", unreadCount > 0
+      ? `${pickCopy(MESSAGES_COPY.title)} (${unreadCount})`
+      : pickCopy(MESSAGES_COPY.title));
+  });
+  if (messagesPanelChip) {
+    messagesPanelChip.textContent = unreadCount > 0
+      ? (currentLang === "es" ? `${unreadCount} sin leer` : `${unreadCount} unread`)
+      : pickCopy(MESSAGES_COPY.chip);
+  }
+}
+
+function isMessagesPanelFocused() {
+  return currentFocusedPanel === "messages" || currentTopTab === "messages";
+}
+
+function isMessageThreadUnread(thread, current = getMessagesCurrentUser()) {
+  if (!current?.uid || !thread?.id) return false;
+  const lastMessageMillis = messageTimestampToMillis(thread.lastMessageAt || thread.updatedAt);
+  return Boolean(lastMessageMillis)
+    && thread.lastSenderUid
+    && thread.lastSenderUid !== current.uid
+    && lastMessageMillis > getMessageSeenMillis(thread.id);
+}
+
+function markMessageThreadSeen(threadId = "", timestamp = 0) {
+  const safeThreadId = String(threadId || "").trim();
+  if (!safeThreadId) return;
+  const thread = messagesThreadRows.find((item) => item.id === safeThreadId);
+  const seenMillis = Number(timestamp || messageTimestampToMillis(thread?.lastMessageAt || thread?.updatedAt));
+  if (!seenMillis) return;
+  setMessageSeenMillis(safeThreadId, seenMillis);
+  updateMessagesUnreadIndicators();
+}
+
+function markSelectedMessageThreadSeen() {
+  if (!messagesSelectedThreadId || document.hidden || !isMessagesPanelFocused()) return;
+  markMessageThreadSeen(messagesSelectedThreadId);
+}
+
+function maybeShowNativeMessageNotification(title, body) {
+  if (typeof window === "undefined" || typeof window.Notification === "undefined") return;
+  if (Notification.permission !== "granted") return;
+  try {
+    const notification = new Notification(title, { body });
+    window.setTimeout(() => notification.close(), 5000);
+  } catch {
+    // ignore notification API errors
+  }
+}
 
 function normalizeMessageParticipantRole(role, email = "") {
   const normalizedRole = normalizeAuthRole(role);
@@ -17238,6 +17392,12 @@ function normalizeMessageData(data = {}, id = "") {
 
 function normalizeMessageThreadRecord(doc) {
   const data = doc.data() || {};
+  const historyRows = Array.isArray(data.messageHistory)
+    ? data.messageHistory
+        .map((entry, index) => normalizeMessageData(entry || {}, `history-${index + 1}`))
+        .filter((entry) => entry.text)
+    : [];
+  const latestHistoryEntry = historyRows[historyRows.length - 1] || null;
   const fallbackProfiles = [
     data.coachUid ? {
       uid: data.coachUid,
@@ -17270,16 +17430,12 @@ function normalizeMessageThreadRecord(doc) {
     userUid: String(data.userUid || "").trim(),
     userName: String(data.userName || "").trim() || participantProfiles.find((participant) => participant.uid !== data.coachUid)?.name || "User",
     userRole: normalizeMessageParticipantRole(data.userRole || participantProfiles.find((participant) => participant.uid !== data.coachUid)?.role || "athlete"),
-    lastMessageText: String(data.lastMessageText || "").trim(),
-    lastMessageAt: data.lastMessageAt || data.updatedAt || data.createdAt || "",
-    lastSenderUid: String(data.lastSenderUid || "").trim(),
-    messageHistory: Array.isArray(data.messageHistory)
-      ? data.messageHistory
-          .map((entry, index) => normalizeMessageData(entry || {}, `history-${index + 1}`))
-          .filter((entry) => entry.text)
-      : [],
-    createdAt: data.createdAt || "",
-    updatedAt: data.updatedAt || data.lastMessageAt || data.createdAt || ""
+    lastMessageText: String(data.lastMessageText || latestHistoryEntry?.text || "").trim(),
+    lastMessageAt: data.lastMessageAt || data.updatedAt || latestHistoryEntry?.createdAt || data.createdAt || "",
+    lastSenderUid: String(data.lastSenderUid || latestHistoryEntry?.senderUid || "").trim(),
+    messageHistory: historyRows,
+    createdAt: data.createdAt || latestHistoryEntry?.createdAt || "",
+    updatedAt: data.updatedAt || data.lastMessageAt || latestHistoryEntry?.createdAt || data.createdAt || ""
   };
 }
 
@@ -17416,6 +17572,36 @@ function resetMessagesStatus() {
   setMessagesStatus("", "");
 }
 
+function clearMessageContactSubscriptions() {
+  messagesContactUnsubs.forEach((unsubscribe) => {
+    try {
+      unsubscribe();
+    } catch {
+      // ignore unsubscribe errors
+    }
+  });
+  messagesContactUnsubs = [];
+  messagesContactSourceRows = new Map();
+}
+
+function rebuildMessageContactsDirectory(current = getMessagesCurrentUser()) {
+  if (!current) {
+    messagesContactRows = [];
+    renderMessages();
+    return;
+  }
+  const mergedRows = [];
+  messagesContactSourceRows.forEach((rows) => {
+    mergedRows.push(...rows);
+  });
+  messagesContactRows = sortMessageContacts(
+    dedupeMessageContacts(
+      mergedRows.filter((contact) => canMessageContact(current, contact))
+    )
+  );
+  renderMessages();
+}
+
 function teardownMessagesSession({ preserveSelection = false } = {}) {
   if (messagesThreadsUnsub) {
     messagesThreadsUnsub();
@@ -17425,14 +17611,20 @@ function teardownMessagesSession({ preserveSelection = false } = {}) {
     messagesFeedUnsub();
     messagesFeedUnsub = null;
   }
+  clearMessageContactSubscriptions();
   messagesSessionUid = "";
   messagesThreadRows = [];
   messagesContactRows = [];
   messagesFeedRows = [];
   messagesFeedLoading = false;
   messagesAutoOpeningContactUid = "";
+  messagesSeenByThread = {};
+  messagesNotifiedByThread = {};
+  messagesThreadsPrimed = false;
+  messagesThreadsSubscribedAt = 0;
   if (!preserveSelection) messagesSelectedThreadId = "";
   resetMessagesStatus();
+  updateMessagesUnreadIndicators();
 }
 
 function sortMessageThreads(items = []) {
@@ -17483,6 +17675,7 @@ async function loadMessageContactsDirectory() {
   const current = getMessagesCurrentUser();
   if (!current || !firebaseFirestoreInstance) {
     messagesContactRows = [];
+    clearMessageContactSubscriptions();
     return;
   }
 
@@ -17517,6 +17710,35 @@ async function loadMessageContactsDirectory() {
   }
 }
 
+function subscribeToMessageContacts(current) {
+  if (!current || !firebaseFirestoreInstance) return;
+  clearMessageContactSubscriptions();
+  const usersRef = firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION);
+  const sources = [
+    { key: "coaches", query: usersRef.where("role", "==", "coach") },
+    { key: "admin", query: usersRef.where("email", "==", "gmunch@united-wc.com") }
+  ];
+  if (!isParentRole(current.role)) {
+    sources.push({ key: "athletes", query: usersRef.where("role", "==", "athlete") });
+  }
+  if (isCoachMessagingUser(current) || isAthleteRole(current.role)) {
+    sources.push({ key: "parents", query: usersRef.where("role", "==", "parent") });
+  }
+
+  sources.forEach(({ key, query }) => {
+    const unsubscribe = query.onSnapshot((snapshot) => {
+      messagesContactSourceRows.set(
+        key,
+        snapshot.docs.map((doc) => normalizeMessageContactRecord(doc.id, doc.data() || {}))
+      );
+      rebuildMessageContactsDirectory(current);
+    }, (err) => {
+      console.warn(`Failed to subscribe to ${key} contacts`, err);
+    });
+    messagesContactUnsubs.push(unsubscribe);
+  });
+}
+
 function subscribeToMessageFeed(threadId) {
   if (messagesFeedUnsub) {
     messagesFeedUnsub();
@@ -17538,6 +17760,7 @@ function subscribeToMessageFeed(threadId) {
       messagesFeedLoading = false;
       resetMessagesStatus();
       renderMessages();
+      markSelectedMessageThreadSeen();
       if (messagesFeed) {
         requestAnimationFrame(() => {
           messagesFeed.scrollTop = messagesFeed.scrollHeight;
@@ -17552,10 +17775,16 @@ function subscribeToMessageFeed(threadId) {
 }
 
 function selectMessageThread(threadId) {
-  if (!threadId || messagesSelectedThreadId === threadId) return;
+  if (!threadId) return;
+  if (messagesSelectedThreadId === threadId) {
+    markSelectedMessageThreadSeen();
+    renderMessages();
+    return;
+  }
   messagesSelectedThreadId = threadId;
   subscribeToMessageFeed(threadId);
   renderMessages();
+  markSelectedMessageThreadSeen();
 }
 
 function ensureSelectedMessageThread() {
@@ -17577,24 +17806,65 @@ function subscribeToMessageThreads(current) {
   }
 
   setMessagesStatus(MESSAGES_COPY.loading, "");
+  messagesThreadsSubscribedAt = Date.now();
   messagesThreadsUnsub = threadsRef
     .where("participantIds", "array-contains", uid)
     .onSnapshot((snapshot) => {
-      messagesThreadRows = sortMessageThreads(
+      const previousRowsById = new Map(messagesThreadRows.map((thread) => [thread.id, thread]));
+      const nextRows = sortMessageThreads(
         dedupeMessageThreads(uid, snapshot.docs.map((doc) => normalizeMessageThreadRecord(doc)))
       );
+      messagesThreadRows = nextRows;
       ensureSelectedMessageThread();
+      const allowRecentFirstSnapshotNotifications = !messagesThreadsPrimed;
+      nextRows.forEach((thread) => {
+        const lastMessageMillis = messageTimestampToMillis(thread.lastMessageAt || thread.updatedAt);
+        if (!lastMessageMillis || !thread.lastSenderUid || thread.lastSenderUid === uid) return;
+        const previousThread = previousRowsById.get(thread.id);
+        const previousLastMillis = messageTimestampToMillis(previousThread?.lastMessageAt || previousThread?.updatedAt);
+        const isRecentFirstSnapshot = allowRecentFirstSnapshotNotifications
+          && !previousThread
+          && lastMessageMillis >= (messagesThreadsSubscribedAt - 1500);
+        if (!isRecentFirstSnapshot && lastMessageMillis <= previousLastMillis) return;
+        if (!document.hidden && isMessagesPanelFocused() && thread.id === messagesSelectedThreadId) {
+          markMessageThreadSeen(thread.id, lastMessageMillis);
+          return;
+        }
+        if (messagesNotifiedByThread[thread.id] === lastMessageMillis) return;
+        messagesNotifiedByThread = {
+          ...messagesNotifiedByThread,
+          [thread.id]: lastMessageMillis
+        };
+        const other = getMessageOtherParticipant(thread, uid);
+        const preview = thread.lastMessageText || pickCopy(MESSAGES_COPY.noMessages);
+        pushAppToast({
+          title: other.name || pickCopy(MESSAGES_COPY.title),
+          body: preview,
+          tone: "info",
+          onClick: () => {
+            Promise.resolve(showTab("messages")).finally(() => {
+              selectMessageThread(thread.id);
+              markMessageThreadSeen(thread.id, lastMessageMillis);
+            });
+          }
+        });
+        maybeShowNativeMessageNotification(other.name || pickCopy(MESSAGES_COPY.title), preview);
+      });
+      messagesThreadsPrimed = true;
       resetMessagesStatus();
       renderMessages();
+      markSelectedMessageThreadSeen();
+      updateMessagesUnreadIndicators();
     }, (err) => {
       console.warn("Failed to subscribe to threads", err);
       messagesThreadRows = [];
       setMessagesStatus(MESSAGES_COPY.loadError, "error");
+      updateMessagesUnreadIndicators();
       renderMessages();
     });
 }
 
-async function ensureMessagesSession() {
+async function startMessagesRealtimeSync({ forceRefreshContacts = false } = {}) {
   const current = getMessagesCurrentUser();
   if (!current || !firebaseFirestoreInstance) {
     teardownMessagesSession();
@@ -17602,20 +17872,43 @@ async function ensureMessagesSession() {
     return;
   }
 
-  if (messagesSessionUid === current.uid) return;
+  if (messagesSessionUid !== current.uid) {
+    teardownMessagesSession();
+    messagesSessionUid = current.uid;
+    messagesSeenByThread = loadMessageSeenState(current.uid);
+    messagesNotifiedByThread = {};
+    messagesThreadsPrimed = false;
+    renderMessages();
+    await loadMessageContactsDirectory();
+    subscribeToMessageThreads(current);
+    subscribeToMessageContacts(current);
+  } else {
+    if (forceRefreshContacts || (!messagesContactRows.length && !messagesContactUnsubs.length)) {
+      await loadMessageContactsDirectory();
+    }
+    if (!messagesThreadsUnsub) {
+      subscribeToMessageThreads(current);
+    }
+    if (!messagesContactUnsubs.length || forceRefreshContacts) {
+      subscribeToMessageContacts(current);
+    }
+  }
+  updateMessagesUnreadIndicators();
+  renderMessages();
+  markSelectedMessageThreadSeen();
+}
 
-  teardownMessagesSession();
-  messagesSessionUid = current.uid;
-  renderMessages();
-  await loadMessageContactsDirectory();
-  subscribeToMessageThreads(current);
-  renderMessages();
+async function ensureMessagesSession() {
+  await startMessagesRealtimeSync();
 }
 
 async function refreshMessageContactsDirectory() {
   const current = getMessagesCurrentUser();
   if (!current || !firebaseFirestoreInstance) return;
   await loadMessageContactsDirectory();
+  if (!messagesContactUnsubs.length) {
+    subscribeToMessageContacts(current);
+  }
   renderMessages();
 }
 
@@ -17663,10 +17956,13 @@ async function ensureDirectMessageThread(contact) {
     }
   }
   if (!existing?.exists) {
+    const createdAt = new Date().toISOString();
     await withTimeout(
       threadRef.set(buildMessageThreadPayload(participantProfiles, {
-        createdAt: getFirestoreServerTimestamp(),
-        updatedAt: getFirestoreServerTimestamp(),
+        createdAt,
+        updatedAt: createdAt,
+        serverCreatedAt: getFirestoreServerTimestamp(),
+        serverUpdatedAt: getFirestoreServerTimestamp(),
         lastMessageText: "",
         lastSenderUid: "",
         messageHistory: []
@@ -17708,8 +18004,10 @@ async function appendMessageToThread({ threadId, participants = [], sender, text
   );
   await withTimeout(
     threadRef.set(buildMessageThreadPayload(participantProfiles, {
-      updatedAt: getFirestoreServerTimestamp(),
-      lastMessageAt: getFirestoreServerTimestamp(),
+      updatedAt: localMessage.createdAt,
+      lastMessageAt: localMessage.createdAt,
+      serverUpdatedAt: getFirestoreServerTimestamp(),
+      serverLastMessageAt: getFirestoreServerTimestamp(),
       lastMessageText: safeText,
       lastSenderUid: senderProfile.uid,
       messageHistory: getFirestoreArrayUnion(localMessage)
@@ -17818,11 +18116,15 @@ function renderMessagesThreadList(current) {
 
   messagesThreadRows.forEach((thread) => {
     const other = getMessageOtherParticipant(thread, current.uid);
+    const unread = isMessageThreadUnread(thread, current);
     const card = document.createElement("button");
     card.type = "button";
     card.className = "message-thread-card";
     if (thread.id === messagesSelectedThreadId) {
       card.classList.add("active");
+    }
+    if (unread) {
+      card.classList.add("message-thread-unread");
     }
     const preview = thread.lastMessageText || pickCopy(MESSAGES_COPY.noMessages);
     const meta = formatMessageTimestamp(thread.lastMessageAt || thread.updatedAt);
@@ -17831,6 +18133,7 @@ function renderMessagesThreadList(current) {
       <small>${escapeHtml(getRoleLabelEnglish(other.role))}</small>
       <span class="message-thread-preview">${escapeHtml(preview)}</span>
       <small class="message-thread-meta">${escapeHtml(meta)}</small>
+      ${unread ? '<span class="message-thread-unread-badge"></span>' : ""}
     `;
     card.addEventListener("click", () => {
       selectMessageThread(thread.id);
@@ -17894,6 +18197,7 @@ function renderMessages() {
   if (messageSendBtn && !messageSendBtn.disabled) {
     messageSendBtn.textContent = pickCopy(MESSAGES_COPY.send);
   }
+  updateMessagesUnreadIndicators();
 
   const current = getMessagesCurrentUser();
   const sidebarHint = isParentRole(current?.role)
@@ -17973,6 +18277,7 @@ function renderMessages() {
     messagesStatus.dataset.state = messagesStatusType || "";
   }
   renderMessagesFeed(current);
+  markSelectedMessageThreadSeen();
 }
 
 async function handleMessageComposerSubmit(event) {
@@ -18026,6 +18331,7 @@ async function handleMessageComposerSubmit(event) {
     if (messageComposerInput) messageComposerInput.value = "";
     toast(pickCopy(MESSAGES_COPY.sentToast));
     resetMessagesStatus();
+    markMessageThreadSeen(selectedThread.id, messageTimestampToMillis(optimisticMessage.createdAt) || Date.now());
     renderMessages();
   } catch (err) {
     console.warn("Failed to send message", err);
@@ -18041,6 +18347,14 @@ async function handleMessageComposerSubmit(event) {
 
 if (messageComposer && !messagesBound) {
   messageComposer.addEventListener("submit", handleMessageComposerSubmit);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      markSelectedMessageThreadSeen();
+    }
+  });
+  window.addEventListener("focus", () => {
+    markSelectedMessageThreadSeen();
+  });
   messagesBound = true;
 }
 
