@@ -7594,15 +7594,17 @@ const panels = {
 };
 const COACH_ROUTE_PANELS = {
   "coach-home": ["dashboard", "coach-profile"],
-  "coach-athletes": ["athletes", "coach-match", "skills", "journal-monitor", "athlete-notes", "messages"],
+  "coach-athletes": ["athletes", "coach-match", "skills", "journal-monitor", "athlete-notes"],
   "coach-plans": ["plans", "templates", "media", "assignments", "calendar-manager", "calendar", "completion-tracking"],
-  "coach-competition": ["competition-preview"]
+  "coach-competition": ["competition-preview"],
+  "coach-messages": ["messages"]
 };
 const COACH_ROUTE_DEFAULT_PANEL = {
   "coach-home": "dashboard",
   "coach-athletes": "athletes",
   "coach-plans": "plans",
-  "coach-competition": "competition-preview"
+  "coach-competition": "competition-preview",
+  "coach-messages": "messages"
 };
 const COACH_ROUTE_BY_PANEL = Object.entries(COACH_ROUTE_PANELS).reduce((acc, [route, keys]) => {
   keys.forEach((key) => {
@@ -17361,7 +17363,7 @@ function getMessageUnreadCount(current = getMessagesCurrentUser()) {
 function updateMessagesUnreadIndicators() {
   const current = getMessagesCurrentUser();
   const unreadCount = getMessageUnreadCount(current);
-  document.querySelectorAll('.tab[data-tab="messages"]').forEach((btn) => {
+  document.querySelectorAll('.tab[data-message-tab="true"]').forEach((btn) => {
     btn.classList.toggle("has-unread", unreadCount > 0);
     btn.dataset.unreadCount = unreadCount > 9 ? "9+" : String(unreadCount || "");
     btn.setAttribute("aria-label", unreadCount > 0

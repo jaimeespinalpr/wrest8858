@@ -4515,6 +4515,21 @@ button.ghost,
   line-height: 1;
 }
 
+.message-tab.has-unread{
+  color: #ff8f8f;
+  border-color: rgba(255, 107, 107, 0.5);
+  box-shadow: 0 0 0 1px rgba(255, 107, 107, 0.18), 0 12px 28px rgba(255, 107, 107, 0.14);
+}
+
+.message-tab.has-unread:not(.active){
+  background: linear-gradient(180deg, rgba(255, 107, 107, 0.16), rgba(255, 107, 107, 0.1));
+}
+
+.message-tab.has-unread.active{
+  color: #ffe3e3;
+  background: linear-gradient(135deg, rgba(147, 36, 36, 0.92), rgba(255, 107, 107, 0.9));
+}
+
 .stat-card,
 .athlete-roster-item,
 .athlete-card,
