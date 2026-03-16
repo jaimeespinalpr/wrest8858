@@ -4425,6 +4425,24 @@ button.ghost,
   backdrop-filter: blur(18px);
 }
 
+#editProfileBtn:hover,
+#viewSwitchBtn:hover,
+.header-menu button:hover,
+.view-menu button:hover,
+.app.parent-view-active .header-menu button:hover,
+.app.parent-view-active .view-menu button:hover{
+  transform: none !important;
+}
+
+#editProfileBtn,
+#viewSwitchBtn,
+.header-menu button,
+.view-menu button,
+.app.parent-view-active .header-menu button,
+.app.parent-view-active .view-menu button{
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease !important;
+}
+
 .tabs{
   scroll-snap-type: x proximity;
 }
