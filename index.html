@@ -134,6 +134,27 @@
 
   <!-- MAIN APP -->
   <div class="app hidden" id="appRoot">
+      <nav class="tabs" aria-label="Main tabs">
+        <button type="button" class="tab active" data-tab="today" data-role="athlete" data-views="athlete">Today</button>
+        <button type="button" class="tab tab-profile-hidden" data-tab="athlete-profile" data-role="athlete" data-views="athlete">Profile</button>
+        <button type="button" class="tab" data-tab="training" data-role="athlete" data-views="athlete">Training Plan</button>
+        <button type="button" class="tab" data-tab="calendar" data-role="athlete coach" data-views="athlete">Calendar</button>
+        <button type="button" class="tab" data-tab="media" data-role="athlete coach" data-views="athlete">Media</button>
+        <button type="button" class="tab" data-tab="journal" data-role="athlete" data-views="athlete">Journal</button>
+        <button type="button" class="tab" data-tab="favorites" data-role="athlete">Favorites</button>
+        <button type="button" class="tab" data-tab="announcements" data-role="athlete coach" data-views="athlete">Announcements</button>
+
+        <button type="button" class="tab" data-tab="parent-home" data-role="parent" data-views="parent">Parent Home</button>
+        <button type="button" class="tab" data-tab="parent-scouting" data-role="parent" data-views="parent">Scouting</button>
+
+        <button type="button" class="tab" data-tab="coach-home" data-role="coach" data-views="coach admin">Home</button>
+        <button type="button" class="tab" data-tab="coach-athletes" data-role="coach" data-views="coach admin">Athletes</button>
+        <button type="button" class="tab" data-tab="coach-plans" data-role="coach" data-views="coach admin">Plans &amp; Assignments</button>
+        <button type="button" class="tab" data-tab="coach-competition" data-role="coach" data-views="coach admin">Competition</button>
+        <button type="button" class="tab tab-profile-hidden" data-tab="coach-profile" data-role="coach" data-views="coach admin">Coach Profile</button>
+        <button type="button" class="tab" data-tab="messages" data-role="athlete coach parent" data-views="athlete parent">Messages</button>
+        <button type="button" class="tab" data-tab="permissions" data-role="admin" data-views="admin">Permissions</button>
+      </nav>
     <header class="app-header">
       <div class="header-left">
         <div class="app-badge">WPL</div>
@@ -192,27 +213,6 @@
     </div>
 
     <main class="app-content">
-      <nav class="tabs" aria-label="Main tabs">
-        <button type="button" class="tab active" data-tab="today" data-role="athlete" data-views="athlete">Today</button>
-        <button type="button" class="tab tab-profile-hidden" data-tab="athlete-profile" data-role="athlete" data-views="athlete">Profile</button>
-        <button type="button" class="tab" data-tab="training" data-role="athlete" data-views="athlete">Training Plan</button>
-        <button type="button" class="tab" data-tab="calendar" data-role="athlete coach" data-views="athlete">Calendar</button>
-        <button type="button" class="tab" data-tab="media" data-role="athlete coach" data-views="athlete">Media</button>
-        <button type="button" class="tab" data-tab="journal" data-role="athlete" data-views="athlete">Journal</button>
-        <button type="button" class="tab" data-tab="favorites" data-role="athlete">Favorites</button>
-        <button type="button" class="tab" data-tab="announcements" data-role="athlete coach" data-views="athlete">Announcements</button>
-
-        <button type="button" class="tab" data-tab="parent-home" data-role="parent" data-views="parent">Parent Home</button>
-        <button type="button" class="tab" data-tab="parent-scouting" data-role="parent" data-views="parent">Scouting</button>
-
-        <button type="button" class="tab" data-tab="coach-home" data-role="coach" data-views="coach admin">Home</button>
-        <button type="button" class="tab" data-tab="coach-athletes" data-role="coach" data-views="coach admin">Athletes</button>
-        <button type="button" class="tab" data-tab="coach-plans" data-role="coach" data-views="coach admin">Plans &amp; Assignments</button>
-        <button type="button" class="tab" data-tab="coach-competition" data-role="coach" data-views="coach admin">Competition</button>
-        <button type="button" class="tab tab-profile-hidden" data-tab="coach-profile" data-role="coach" data-views="coach admin">Coach Profile</button>
-        <button type="button" class="tab" data-tab="messages" data-role="athlete coach parent" data-views="athlete parent">Messages</button>
-        <button type="button" class="tab" data-tab="permissions" data-role="admin" data-views="admin">Permissions</button>
-      </nav>
 
       <section class="panel hidden" id="panel-parent-home">
         <div class="card parent-shell-card">
