@@ -17284,8 +17284,8 @@ const MESSAGES_COPY = {
     es: "Escribe a tus atletas, padres vinculados y otros coaches desde un solo lugar."
   },
   sidebarHintAthlete: {
-    en: "Start with your coaches. Teammates are listed below in a separate section.",
-    es: "Empieza por tus coaches. Tus companeros estan abajo en una seccion separada."
+    en: "Start with your coaches. Athletes are listed below in a separate section.",
+    es: "Empieza por tus coaches. Los atletas estan abajo en una seccion separada."
   },
   sidebarHintParent: {
     en: "Message the linked coach directly from here.",
@@ -17300,8 +17300,8 @@ const MESSAGES_COPY = {
     es: "Selecciona un contacto en la columna izquierda para abrir un chat directo."
   },
   emptyBodyAthlete: {
-    en: "Choose a coach, teammate, or parent from the left column to open a direct thread.",
-    es: "Selecciona a un coach, companero o padre para abrir un chat directo."
+    en: "Choose a coach or athlete from the left column to open a direct thread.",
+    es: "Selecciona a un coach o atleta en la columna izquierda para abrir un chat directo."
   },
   emptyBodyParent: {
     en: "Choose the linked coach from the left column to open a direct thread.",
@@ -17949,12 +17949,7 @@ function canMessageContact(current, candidate) {
         : normalizeUid(candidate.uid) === normalizeUid(current.linkedCoachUid);
     }
     if (candidate.role === "athlete") {
-      return Boolean(currentCoachUid)
-        && Boolean(candidate.linkedAthleteId)
-        && candidateCoachUid === currentCoachUid;
-    }
-    if (candidate.role === "parent") {
-      return Boolean(candidate.linkedAthleteId);
+      return Boolean(candidate.uid) && Boolean(candidate.linkedAthleteId || candidate.name);
     }
     return false;
   }
@@ -17978,7 +17973,7 @@ async function loadMessageContactsDirectory() {
     if (!isParentRole(current.role)) {
       queries.push(withTimeout(usersRef.where("role", "==", "athlete").get(), FIREBASE_OP_TIMEOUT_MS * 2, "firestore_message_athletes_timeout"));
     }
-    if (isCoachMessagingUser(current) || isAthleteRole(current.role)) {
+    if (isCoachMessagingUser(current)) {
       queries.push(withTimeout(usersRef.where("role", "==", "parent").get(), FIREBASE_OP_TIMEOUT_MS * 2, "firestore_message_parents_timeout"));
     }
     const snapshots = await Promise.all(queries);
@@ -18011,7 +18006,7 @@ function subscribeToMessageContacts(current) {
   if (!isParentRole(current.role)) {
     sources.push({ key: "athletes", query: usersRef.where("role", "==", "athlete") });
   }
-  if (isCoachMessagingUser(current) || isAthleteRole(current.role)) {
+  if (isCoachMessagingUser(current)) {
     sources.push({ key: "parents", query: usersRef.where("role", "==", "parent") });
   }
 
@@ -18384,8 +18379,7 @@ function getGroupedMessageContacts(current) {
   if (isAthleteRole(current?.role)) {
     return [
       { key: "coach", title: pickCopy(MESSAGES_COPY.coachesSection), rows: coaches, priority: true },
-      { key: "athlete", title: pickCopy(MESSAGES_COPY.athletesSection), rows: athletes, priority: false },
-      { key: "parent", title: pickCopy(MESSAGES_COPY.parentsSection), rows: parents, priority: false }
+      { key: "athlete", title: pickCopy(MESSAGES_COPY.athletesSection), rows: athletes, priority: false }
     ].filter((group) => group.rows.length);
   }
 
