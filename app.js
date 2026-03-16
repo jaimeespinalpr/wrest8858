@@ -17280,8 +17280,8 @@ const MESSAGES_COPY = {
   sidebarTitleAthlete: { en: "Connect fast", es: "Conecta rapido" },
   sidebarTitleParent: { en: "Coach contact", es: "Contacto del coach" },
   sidebarHintCoach: {
-    en: "Message your athletes, linked parents, and other coaches from one place.",
-    es: "Escribe a tus atletas, padres vinculados y otros coaches desde un solo lugar."
+    en: "Athletes are listed first. Coaches are grouped below so you can write faster.",
+    es: "Los atletas aparecen primero. Los coaches estan agrupados abajo para escribir mas rapido."
   },
   sidebarHintAthlete: {
     en: "Start with your coaches. Athletes are listed below in a separate section.",
@@ -18383,6 +18383,14 @@ function getGroupedMessageContacts(current) {
     ].filter((group) => group.rows.length);
   }
 
+  if (isCoachMessagingUser(current)) {
+    return [
+      { key: "athlete", title: pickCopy(MESSAGES_COPY.athletesSection), rows: athletes, priority: true },
+      { key: "coach", title: pickCopy(MESSAGES_COPY.coachesSection), rows: coaches, priority: false },
+      { key: "parent", title: pickCopy(MESSAGES_COPY.parentsSection), rows: parents, priority: false }
+    ].filter((group) => group.rows.length);
+  }
+
   return [
     { key: "coach", title: pickCopy(MESSAGES_COPY.coachesSection), rows: coaches, priority: true },
     { key: "athlete", title: pickCopy(MESSAGES_COPY.athletesSection), rows: athletes, priority: false },
@@ -18439,7 +18447,7 @@ function renderMessagesCoachList(current) {
 
 function renderMessagesThreadList(current) {
   if (!messageList) return;
-  const showThreadDirectory = isCoachMessagingUser(current);
+  const showThreadDirectory = false;
   messageList.classList.toggle("hidden", !showThreadDirectory);
   if (!showThreadDirectory) {
     messageList.innerHTML = "";
