@@ -951,6 +951,7 @@ function refreshLanguageUI() {
     renderCoachMatchView(coachMatchSelect.value);
   }
   initializePlanSelectors();
+  syncPlanSaveButtons();
   updateParentFab();
 }
 
@@ -7688,6 +7689,36 @@ async function showTab(name) {
   }
 }
 
+function flashActionTarget(element) {
+  if (!element) return;
+  element.classList.remove("panel-action-flash");
+  void element.offsetWidth;
+  element.classList.add("panel-action-flash");
+  window.setTimeout(() => {
+    element.classList.remove("panel-action-flash");
+  }, 1400);
+}
+
+function focusRoutePanel(panelKey, { selector = "", selectText = false } = {}) {
+  Promise.resolve(showTab(panelKey)).finally(() => {
+    requestAnimationFrame(() => {
+      const panel = panels[panelKey] || null;
+      const target = selector
+        ? (panel?.querySelector(selector) || document.querySelector(selector))
+        : null;
+      const scrollTarget = target || panel;
+      scrollTarget?.scrollIntoView({ behavior: "smooth", block: "start" });
+      flashActionTarget(target || panel);
+      if (target && typeof target.focus === "function") {
+        target.focus({ preventScroll: true });
+        if (selectText && typeof target.select === "function") {
+          target.select();
+        }
+      }
+    });
+  });
+}
+
 function setRoleUI(role, view = "athlete") {
   const roleName = normalizeAuthRole(role);
   tabBtns.forEach((btn) => {
@@ -7961,6 +7992,22 @@ function setPlanSaveStatusMessage(message, { error = false } = {}) {
 
 function clearPlanSaveStatus() {
   setPlanSaveStatusMessage("");
+}
+
+function syncPlanSaveButtons() {
+  const savingLabel = pickCopy({ en: "Saving...", es: "Guardando..." });
+  if (savePlanBtn) {
+    savePlanBtn.disabled = coachPlanSyncState.saving;
+    savePlanBtn.textContent = coachPlanSyncState.saving
+      ? savingLabel
+      : pickCopy({ en: "Save Plan", es: "Guardar plan" });
+  }
+  if (savePlanAssignBtn) {
+    savePlanAssignBtn.disabled = coachPlanSyncState.saving;
+    savePlanAssignBtn.textContent = coachPlanSyncState.saving
+      ? savingLabel
+      : pickCopy({ en: "Save Plan + Assign", es: "Guardar plan + asignar" });
+  }
 }
 
 function updatePlanQuickSummary() {
@@ -8430,6 +8477,7 @@ async function saveCoachPlan({ createAssignments = false, navigateAfterSave = fa
   }
 
   coachPlanSyncState.saving = true;
+  syncPlanSaveButtons();
   setPlanSaveStatusMessage(pickCopy({
     en: "Saving plan...",
     es: "Guardando plan..."
@@ -8488,6 +8536,7 @@ async function saveCoachPlan({ createAssignments = false, navigateAfterSave = fa
     }), { error: true });
   } finally {
     coachPlanSyncState.saving = false;
+    syncPlanSaveButtons();
   }
 }
 
@@ -8877,6 +8926,8 @@ if (savePlanAssignBtn) {
     await saveCoachPlan({ createAssignments: true });
   });
 }
+
+syncPlanSaveButtons();
 
 function addChosenItem(listEl, value) {
   if (!value) return;
@@ -9991,7 +10042,13 @@ if (openCoachMatchBtn) {
 }
 
 if (backToProfileBtn) {
-  backToProfileBtn.addEventListener("click", () => showTab("athlete-profile"));
+  backToProfileBtn.addEventListener("click", () => {
+    if (isCoachRouteContext()) {
+      focusRoutePanel("coach-match");
+      return;
+    }
+    showTab("athlete-profile");
+  });
 }
 
 const coachQuickInputs = [
@@ -11181,7 +11238,11 @@ if (calendarManagerForm) {
     const title = calendarManagerTitleInput.value.trim();
     const time = calendarManagerTimeInput.value.trim();
     const note = calendarManagerNoteInput.value.trim();
-    if (!title) return;
+    if (!title) {
+      toast(calendarCopy("titlePlaceholder"));
+      calendarManagerTitleInput?.focus();
+      return;
+    }
     const entry = getCalendarEntry(dateKey);
     entry.items = [...entry.items, formatCalendarEvent(title, time, note)];
     if (!entry.audience.all && entry.audience.athletes.length === 0) {
@@ -12339,6 +12400,41 @@ async function createAssignmentFromSelectedMedia() {
   }
 }
 
+function getMediaActionErrorMessage(err, mode = "assignment") {
+  const code = String(err?.code || err?.message || "");
+  if (/selection/i.test(code)) {
+    return mode === "analysis"
+      ? pickCopy({
+          en: "Select a media item first.",
+          es: "Selecciona un media primero."
+        })
+      : pickCopy({
+          en: "Select a media item before creating the assignment.",
+          es: "Selecciona un media antes de crear la asignacion."
+        });
+  }
+  if (/target_required/i.test(code)) {
+    return mode === "analysis"
+      ? pickCopy({
+          en: "Choose an athlete or group and add analysis details.",
+          es: "Elige un atleta o grupo y agrega detalles del analisis."
+        })
+      : pickCopy({
+          en: "Choose who should receive this assignment and confirm the title.",
+          es: "Elige a quien va esta asignacion y confirma el titulo."
+        });
+  }
+  return mode === "analysis"
+    ? pickCopy({
+        en: "Could not save the match analysis.",
+        es: "No se pudo guardar el analisis."
+      })
+    : pickCopy({
+        en: "Could not create the assignment from media.",
+        es: "No se pudo crear la asignacion desde media."
+      });
+}
+
 async function saveSelectedMediaAnalysis() {
   const mediaNode = syncSelectedMediaNode(getMediaNodes());
   const analysisRef = getCoachWorkspaceCollectionRef("match_analysis");
@@ -12674,6 +12770,7 @@ function bindMediaTools() {
   if (mediaAssignBtn) {
     mediaAssignBtn.addEventListener("click", async () => {
       if (mediaAssignmentStatus) mediaAssignmentStatus.textContent = "";
+      mediaAssignBtn.disabled = true;
       try {
         await createAssignmentFromSelectedMedia();
         if (mediaAssignmentStatus) {
@@ -12685,11 +12782,13 @@ function bindMediaTools() {
         renderCoachAssignments();
       } catch (err) {
         console.warn("Media assignment create failed", err);
+        const message = getMediaActionErrorMessage(err, "assignment");
         if (mediaAssignmentStatus) {
-          mediaAssignmentStatus.textContent = currentLang === "es"
-            ? "No se pudo crear la asignacion."
-            : "Could not create the assignment.";
+          mediaAssignmentStatus.textContent = message;
         }
+        toast(message);
+      } finally {
+        mediaAssignBtn.disabled = false;
       }
     });
   }
@@ -12697,6 +12796,7 @@ function bindMediaTools() {
   if (mediaAnalysisAddBtn) {
     mediaAnalysisAddBtn.addEventListener("click", async () => {
       if (mediaAnalysisStatus) mediaAnalysisStatus.textContent = "";
+      mediaAnalysisAddBtn.disabled = true;
       try {
         await saveSelectedMediaAnalysis();
         if (mediaAnalysisTimestamp) mediaAnalysisTimestamp.value = "";
@@ -12709,11 +12809,13 @@ function bindMediaTools() {
         renderMediaCoachActions();
       } catch (err) {
         console.warn("Media analysis save failed", err);
+        const message = getMediaActionErrorMessage(err, "analysis");
         if (mediaAnalysisStatus) {
-          mediaAnalysisStatus.textContent = currentLang === "es"
-            ? "No se pudo guardar el analisis."
-            : "Could not save the analysis.";
+          mediaAnalysisStatus.textContent = message;
         }
+        toast(message);
+      } finally {
+        mediaAnalysisAddBtn.disabled = false;
       }
     });
   }
@@ -13771,12 +13873,24 @@ function renderDashboard() {
   });
 
   quickActions.innerHTML = "";
-  const quickActionTargets = ["coach-athletes", "plans", "assignments", "coach-competition"];
+  const quickActionHandlers = [
+    () => focusRoutePanel("athletes", { selector: "#athleteSearchInput", selectText: true }),
+    () => focusRoutePanel("plans", { selector: "#planTitleInput", selectText: true }),
+    () => focusRoutePanel("plans", { selector: "#savePlanAssignBtn" }),
+    () => focusRoutePanel("competition-preview")
+  ];
   getQuickActionsData().forEach((action, index) => {
     const btn = document.createElement("button");
     btn.className = "action-btn";
     btn.textContent = action;
-    btn.addEventListener("click", () => showTab(quickActionTargets[index] || "coach-home"));
+    btn.addEventListener("click", () => {
+      const handler = quickActionHandlers[index];
+      if (handler) {
+        handler();
+        return;
+      }
+      showTab("coach-home");
+    });
     quickActions.appendChild(btn);
   });
 
@@ -15012,6 +15126,7 @@ const COACH_ATHLETE_PROFILE_TAB_COPY = {
 
 function scrollCoachAthleteProfileIntoView() {
   coachAthleteProfileCard?.scrollIntoView({ behavior: "smooth", block: "start" });
+  flashActionTarget(coachAthleteProfileCard);
 }
 
 function openCoachAthleteWorkspace(name = "") {
@@ -15035,6 +15150,12 @@ async function messageCoachAthlete(name = "") {
     return;
   }
   await openDirectMessageThreadWithRetry(athleteUid);
+  requestAnimationFrame(() => {
+    flashActionTarget(messagesThreadView || panels.messages);
+    if (messageComposerInput && !messageComposerInput.disabled) {
+      messageComposerInput.focus({ preventScroll: true });
+    }
+  });
 }
 
 function athleteMatchesTagFilter(tags = []) {
@@ -15862,7 +15983,18 @@ async function saveCoachAthleteNotes(event) {
   const athleteName = getSelectedCoachAthleteName();
   const athleteRecord = getCoachAthleteRecordByIdentity(athleteName);
   const notesRef = getCoachWorkspaceCollectionRef("coach_notes");
-  if (!athleteName || !notesRef) return;
+  if (!athleteName) {
+    const message = currentLang === "es" ? "Selecciona un atleta antes de guardar notas." : "Select an athlete before saving notes.";
+    if (coachAthleteNotesStatus) coachAthleteNotesStatus.textContent = message;
+    toast(message);
+    return;
+  }
+  if (!notesRef) {
+    const message = currentLang === "es" ? "Las notas del coach no estan disponibles para esta cuenta." : "Coach notes are not available for this account.";
+    if (coachAthleteNotesStatus) coachAthleteNotesStatus.textContent = message;
+    toast(message);
+    return;
+  }
   const nextFocus = [coachAthleteFocus1?.value, coachAthleteFocus2?.value, coachAthleteFocus3?.value]
     .map((item) => String(item || "").trim())
     .filter(Boolean);
@@ -15887,9 +16019,25 @@ async function saveCoachAthleteNotes(event) {
       "firestore_note_write_timeout"
     );
     if (coachAthleteRecentNote) coachAthleteRecentNote.value = "";
+    const recordId = normalizeAthleteId(athleteRecord?.id, athleteName);
+    coachNotesCache = coachWorkspaceSortByUpdated([
+      normalizeCoachNoteRecord(recordId, {
+        athleteId: recordId,
+        athleteUid: normalizeUid(athleteRecord?.athleteUid),
+        athleteName,
+        nextFocus,
+        recentNotes,
+        updatedAt: new Date().toISOString()
+      }),
+      ...coachNotesCache.filter((record) => record.id !== recordId)
+    ]);
     if (coachAthleteNotesStatus) {
       coachAthleteNotesStatus.textContent = currentLang === "es" ? "Notas guardadas." : "Notes saved.";
     }
+    renderAthleteNotes();
+    renderAthleteManagement();
+    renderCoachAthleteProfile(athleteName);
+    renderCoachMatchView(athleteName);
   } catch (err) {
     console.warn("Coach notes save failed", err);
     if (coachAthleteNotesStatus) {
@@ -15903,7 +16051,18 @@ async function saveCoachJournalEntry(event) {
   const athleteName = getSelectedCoachAthleteName();
   const athleteRecord = getCoachAthleteRecordByIdentity(athleteName);
   const journalRef = getCoachWorkspaceCollectionRef("journal_entries");
-  if (!athleteName || !journalRef) return;
+  if (!athleteName) {
+    const message = currentLang === "es" ? "Selecciona un atleta antes de guardar el journal." : "Select an athlete before saving the journal.";
+    if (coachJournalStatus) coachJournalStatus.textContent = message;
+    toast(message);
+    return;
+  }
+  if (!journalRef) {
+    const message = currentLang === "es" ? "El journal del coach no esta disponible para esta cuenta." : "Coach journal is not available for this account.";
+    if (coachJournalStatus) coachJournalStatus.textContent = message;
+    toast(message);
+    return;
+  }
   const entryDate = getCurrentAppDateKey();
   const payload = {
     athleteId: normalizeAthleteId(athleteRecord?.id, athleteName),
@@ -15927,9 +16086,26 @@ async function saveCoachJournalEntry(event) {
       FIREBASE_OP_TIMEOUT_MS,
       "firestore_journal_write_timeout"
     );
+    const recordId = `${normalizeAthleteId(athleteRecord?.id, athleteName)}-${entryDate}`;
+    coachJournalEntriesCache = coachWorkspaceSortByUpdated([
+      normalizeCoachJournalRecord(recordId, {
+        ...payload,
+        updatedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString()
+      }),
+      ...coachJournalEntriesCache.filter((record) => record.id !== recordId)
+    ]);
     if (coachJournalStatus) {
       coachJournalStatus.textContent = currentLang === "es" ? "Journal guardado." : "Journal entry saved.";
     }
+    renderJournalMonitor();
+    renderAthleteManagement();
+    renderCoachMatchView(athleteName);
+    renderCompetitionPreview(
+      getCoachAthleteRecordByIdentity(athleteName)
+      || getAthletesData().find((item) => item.name === athleteName)
+      || getProfile()
+    );
   } catch (err) {
     console.warn("Coach journal save failed", err);
     if (coachJournalStatus) {
@@ -15947,6 +16123,7 @@ if (coachAthleteNotesClearBtn) {
     [coachAthleteFocus1, coachAthleteFocus2, coachAthleteFocus3, coachAthleteRecentNote].forEach((field) => {
       if (field) field.value = "";
     });
+    if (coachAthleteNotesStatus) coachAthleteNotesStatus.textContent = "";
   });
 }
 
@@ -15959,6 +16136,7 @@ if (coachJournalClearBtn) {
     [coachJournalSleep, coachJournalEnergy, coachJournalSoreness, coachJournalMood, coachJournalWeight, coachJournalNote].forEach((field) => {
       if (field) field.value = "";
     });
+    if (coachJournalStatus) coachJournalStatus.textContent = "";
   });
 }
 
@@ -16499,19 +16677,19 @@ if (messageAthleteBtn) {
 
 if (openTrainingBtn) {
   openTrainingBtn.addEventListener("click", () => {
-    showTab("plans");
+    focusRoutePanel("plans", { selector: "#planTitleInput", selectText: true });
   });
 }
 
 if (openTournamentBtn) {
   openTournamentBtn.addEventListener("click", () => {
-    showTab("calendar-manager");
+    focusRoutePanel("competition-preview");
   });
 }
 
 if (addQuickNoteBtn) {
   addQuickNoteBtn.addEventListener("click", () => {
-    showTab("athlete-notes");
+    focusRoutePanel("athlete-notes", { selector: "#coachAthleteRecentNote" });
   });
 }
 
@@ -16962,6 +17140,7 @@ function openAthleteSummaryView(name = "") {
   }
   Promise.resolve(showTab("coach-match")).finally(() => {
     athleteSummaryCard?.scrollIntoView({ behavior: "smooth", block: "start" });
+    flashActionTarget(athleteSummaryCard);
   });
 }
 
