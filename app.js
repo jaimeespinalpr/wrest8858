@@ -17091,6 +17091,10 @@ let messagesSeenByThread = {};
 let messagesNotifiedByThread = {};
 let messagesThreadsPrimed = false;
 let messagesThreadsSubscribedAt = 0;
+let messagesThreadOpeningId = "";
+let messagesSendInFlight = false;
+let messagesLastSendByThread = {};
+let messagesOpenRequestId = 0;
 
 function getAppToastStack() {
   let stack = document.getElementById("appToastStack");
@@ -17553,9 +17557,13 @@ function dedupeMessageContacts(items = []) {
 }
 
 function getMessageThreadForContact(uid = "") {
+  const current = getMessagesCurrentUser();
   const safeUid = String(uid || "").trim();
   if (!safeUid) return null;
-  return messagesThreadRows.find((thread) => thread.participantIds.includes(safeUid)) || null;
+  const canonicalThreadId = current?.uid ? buildDirectMessageThreadId(current.uid, safeUid) : "";
+  return messagesThreadRows.find((thread) => thread.id === canonicalThreadId)
+    || messagesThreadRows.find((thread) => thread.participantIds.includes(safeUid))
+    || null;
 }
 
 function setMessagesStatus(copy, type = "") {
@@ -17620,6 +17628,10 @@ function teardownMessagesSession({ preserveSelection = false } = {}) {
   messagesNotifiedByThread = {};
   messagesThreadsPrimed = false;
   messagesThreadsSubscribedAt = 0;
+  messagesThreadOpeningId = "";
+  messagesSendInFlight = false;
+  messagesLastSendByThread = {};
+  messagesOpenRequestId = 0;
   if (!preserveSelection) messagesSelectedThreadId = "";
   resetMessagesStatus();
   updateMessagesUnreadIndicators();
@@ -17786,7 +17798,10 @@ function selectMessageThread(threadId) {
 }
 
 function ensureSelectedMessageThread() {
-  if (messagesSelectedThreadId && messagesThreadRows.some((thread) => thread.id === messagesSelectedThreadId)) {
+  if (messagesSelectedThreadId && (
+    messagesThreadRows.some((thread) => thread.id === messagesSelectedThreadId)
+    || messagesThreadOpeningId === messagesSelectedThreadId
+  )) {
     return;
   }
   const firstThread = messagesThreadRows[0];
@@ -17809,9 +17824,14 @@ function subscribeToMessageThreads(current) {
     .where("participantIds", "array-contains", uid)
     .onSnapshot((snapshot) => {
       const previousRowsById = new Map(messagesThreadRows.map((thread) => [thread.id, thread]));
-      const nextRows = sortMessageThreads(
+      const syncedRows = sortMessageThreads(
         dedupeMessageThreads(uid, snapshot.docs.map((doc) => normalizeMessageThreadRecord(doc)))
       );
+      const pendingLocalRows = messagesThreadRows.filter((thread) => (
+        (thread.id === messagesSelectedThreadId || thread.id === messagesThreadOpeningId)
+        && !syncedRows.some((item) => item.id === thread.id)
+      ));
+      const nextRows = sortMessageThreads([...syncedRows, ...pendingLocalRows]);
       messagesThreadRows = nextRows;
       ensureSelectedMessageThread();
       const allowRecentFirstSnapshotNotifications = !messagesThreadsPrimed;
@@ -17995,7 +18015,8 @@ async function appendMessageToThread({ threadId, participants = [], sender, text
       senderUid: senderProfile.uid,
       senderName: senderProfile.name,
       senderRole: senderProfile.role,
-      createdAt: getFirestoreServerTimestamp()
+      createdAt: localMessage.createdAt,
+      serverCreatedAt: getFirestoreServerTimestamp()
     }),
     FIREBASE_OP_TIMEOUT_MS,
     "firestore_message_write_timeout"
@@ -18015,13 +18036,18 @@ async function appendMessageToThread({ threadId, participants = [], sender, text
   );
 }
 
-async function openMessageThreadForContact(contactUid) {
+async function openMessageThreadForContact(contactRef) {
   const current = getMessagesCurrentUser();
-  const contact = await findOrHydrateMessageContact(contactUid);
+  const requestId = Date.now() + Math.random();
+  messagesOpenRequestId = requestId;
+  const contact = typeof contactRef === "object" && contactRef?.uid
+    ? contactRef
+    : await findOrHydrateMessageContact(contactRef);
+  if (messagesOpenRequestId !== requestId) return;
   if (!contact || !current) return;
+  const threadId = buildDirectMessageThreadId(current.uid, contact.uid);
   try {
-    const existingThread = getMessageThreadForContact(contact.uid);
-    const threadId = existingThread?.id || await ensureDirectMessageThread(contact);
+    const existingThread = messagesThreadRows.find((thread) => thread.id === threadId) || null;
     if (!existingThread) {
       messagesThreadRows = sortMessageThreads([
         createLocalMessageThreadRecord(threadId, [current, contact]),
@@ -18029,7 +18055,18 @@ async function openMessageThreadForContact(contactUid) {
       ]);
     }
     selectMessageThread(threadId);
+    messagesThreadOpeningId = threadId;
+    renderMessages();
+    await ensureDirectMessageThread(contact);
+    if (messagesOpenRequestId !== requestId) return;
+    subscribeToMessageFeed(threadId);
+    messagesThreadOpeningId = "";
+    resetMessagesStatus();
+    renderMessages();
   } catch (err) {
+    if (messagesOpenRequestId === requestId) {
+      messagesThreadOpeningId = "";
+    }
     console.warn("Failed to open direct thread", err);
     setMessagesStatus(MESSAGES_COPY.loadError, "error");
     renderMessages();
@@ -18087,7 +18124,7 @@ function renderMessagesCoachList(current) {
       <small>${escapeHtml(linkedThread ? pickCopy(MESSAGES_COPY.openThread) : pickCopy(MESSAGES_COPY.contactReady))}</small>
     `;
     card.addEventListener("click", () => {
-      openMessageThreadForContact(contact.uid);
+      openMessageThreadForContact(contact);
     });
     messagesCoachList.appendChild(card);
   });
@@ -18192,9 +18229,6 @@ function renderMessages() {
   if (messageComposerInput) {
     messageComposerInput.placeholder = pickCopy(MESSAGES_COPY.composerPlaceholder);
   }
-  if (messageSendBtn && !messageSendBtn.disabled) {
-    messageSendBtn.textContent = pickCopy(MESSAGES_COPY.send);
-  }
   updateMessagesUnreadIndicators();
 
   const current = getMessagesCurrentUser();
@@ -18228,6 +18262,21 @@ function renderMessages() {
   renderMessagesThreadList(current);
 
   const selectedThread = getSelectedMessageThread();
+  const composerDisabled = !selectedThread
+    || messagesFeedLoading
+    || messagesSendInFlight
+    || (messagesThreadOpeningId && messagesThreadOpeningId === messagesSelectedThreadId);
+  if (messageComposerInput) {
+    messageComposerInput.disabled = composerDisabled;
+  }
+  if (messageSendBtn) {
+    messageSendBtn.disabled = composerDisabled;
+    messageSendBtn.textContent = messagesSendInFlight
+      ? pickCopy(MESSAGES_COPY.sending)
+      : (messagesThreadOpeningId && messagesThreadOpeningId === messagesSelectedThreadId)
+        ? (currentLang === "es" ? "Abriendo chat..." : "Opening chat...")
+        : pickCopy(MESSAGES_COPY.send);
+  }
   if (!selectedThread) {
     const parentAutoContactUid = isParentRole(current?.role) && messagesContactRows.length === 1
       ? messagesContactRows[0].uid
@@ -18280,66 +18329,59 @@ function renderMessages() {
 
 async function handleMessageComposerSubmit(event) {
   event.preventDefault();
+  if (messagesSendInFlight) return;
   const current = getMessagesCurrentUser();
   const selectedThread = getSelectedMessageThread();
   const text = String(messageComposerInput?.value || "").trim();
+  const threadId = String(selectedThread?.id || "").trim();
 
   if (!text) {
     toast(pickCopy(MESSAGES_COPY.needText));
     return;
   }
-  if (!current || !selectedThread) {
+  if (!current || !selectedThread || !threadId) {
     setMessagesStatus(MESSAGES_COPY.loadError, "error");
     return;
   }
-
-  if (messageSendBtn) {
-    messageSendBtn.disabled = true;
-    messageSendBtn.textContent = pickCopy(MESSAGES_COPY.sending);
+  if (messagesThreadOpeningId && messagesThreadOpeningId === threadId) {
+    setMessagesStatus(
+      currentLang === "es" ? "Espera a que el chat termine de abrir." : "Wait for the thread to finish opening.",
+      "error"
+    );
+    renderMessages();
+    return;
   }
+  const sendFingerprint = `${threadId}:${text.toLowerCase()}`;
+  const lastSentAt = Number(messagesLastSendByThread[sendFingerprint] || 0);
+  if (lastSentAt && Date.now() - lastSentAt < 2500) {
+    return;
+  }
+  messagesSendInFlight = true;
+  messagesLastSendByThread = {
+    ...messagesLastSendByThread,
+    [sendFingerprint]: Date.now()
+  };
+  renderMessages();
 
   try {
-    const optimisticMessage = {
-      id: `local-${Date.now()}`,
-      text,
-      senderUid: current.uid,
-      senderName: current.name,
-      senderRole: current.role,
-      createdAt: new Date().toISOString()
-    };
     await appendMessageToThread({
-      threadId: selectedThread.id,
+      threadId,
       participants: selectedThread.participantProfiles,
       sender: current,
       text
     });
-    messagesFeedRows = [...messagesFeedRows, optimisticMessage];
-    messagesThreadRows = sortMessageThreads(messagesThreadRows.map((thread) => (
-      thread.id === selectedThread.id
-        ? {
-            ...thread,
-            updatedAt: optimisticMessage.createdAt,
-            lastMessageAt: optimisticMessage.createdAt,
-            lastMessageText: text,
-            lastSenderUid: current.uid,
-            messageHistory: [...(thread.messageHistory || []), optimisticMessage]
-          }
-        : thread
-    )));
     if (messageComposerInput) messageComposerInput.value = "";
     toast(pickCopy(MESSAGES_COPY.sentToast));
     resetMessagesStatus();
-    markMessageThreadSeen(selectedThread.id, messageTimestampToMillis(optimisticMessage.createdAt) || Date.now());
+    markMessageThreadSeen(threadId, Date.now());
     renderMessages();
   } catch (err) {
     console.warn("Failed to send message", err);
     setMessagesStatus(MESSAGES_COPY.sendError, "error");
     renderMessages();
   } finally {
-    if (messageSendBtn) {
-      messageSendBtn.disabled = false;
-      messageSendBtn.textContent = pickCopy(MESSAGES_COPY.send);
-    }
+    messagesSendInFlight = false;
+    renderMessages();
   }
 }
 
