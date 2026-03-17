@@ -1178,6 +1178,23 @@ button:active{
   gap: 10px;
 }
 
+.message-thread-list{
+  margin-top: 2px;
+}
+
+.messages-recent-title{
+  padding: 0 2px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8ea4cb;
+}
+
+.messages-recent-empty{
+  padding: 2px 2px 0;
+}
+
 .messages-contact-section{
   display: grid;
   gap: 10px;
@@ -1257,6 +1274,28 @@ button:active{
   font-size: 15px;
 }
 
+.message-thread-card-top{
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.message-thread-label{
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(45, 212, 191, 0.26);
+  background: rgba(45, 212, 191, 0.14);
+  color: #147d72;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .messages-contact-chip{
   width: auto;
   min-width: 0;
@@ -1326,6 +1365,24 @@ button:active{
   margin-bottom: 6px;
   font-size: 12px;
   color: #64748b;
+}
+
+.message-bubble-sender{
+  display: grid;
+  gap: 2px;
+}
+
+.message-bubble-sender strong{
+  font-size: 0.82rem;
+  letter-spacing: 0.01em;
+}
+
+.message-bubble-sender small{
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7f97c3;
 }
 
 .message-bubble-body{
@@ -4615,6 +4672,10 @@ button.ghost,
   box-shadow: 0 18px 38px rgba(1, 6, 16, 0.34), 0 0 0 1px rgba(45, 212, 191, 0.18);
 }
 
+.message-thread-card.message-thread-unread .message-thread-preview{
+  color: #ecfeff;
+}
+
 .messages-contact-priority,
 .app.parent-view-active .messages-contact-priority{
   border-color: rgba(96, 165, 250, 0.45);
@@ -4668,6 +4729,18 @@ button.ghost,
   color: #90a7cf;
 }
 
+.messages-recent-title,
+.app.parent-view-active .messages-recent-title{
+  color: #90a7cf;
+}
+
+.message-thread-label,
+.app.parent-view-active .message-thread-label{
+  border-color: rgba(45, 212, 191, 0.22);
+  background: rgba(45, 212, 191, 0.12);
+  color: #99f6e4;
+}
+
 .message-bubble,
 .app.parent-view-active .message-bubble{
   border-color: rgba(90, 117, 171, 0.42);
@@ -4676,9 +4749,20 @@ button.ghost,
   border-top-left-radius: 10px;
 }
 
+.message-bubble.incoming,
+.app.parent-view-active .message-bubble.incoming{
+  border-color: rgba(45, 212, 191, 0.28);
+  box-shadow: 0 18px 38px rgba(1, 6, 16, 0.34), 0 0 0 1px rgba(45, 212, 191, 0.08);
+}
+
 .message-bubble-header,
 .app.parent-view-active .message-bubble-header{
   color: #9fb4d9;
+}
+
+.message-bubble-sender small,
+.app.parent-view-active .message-bubble-sender small{
+  color: #7dd3c7;
 }
 
 .message-bubble-body,

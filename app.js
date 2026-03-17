@@ -17338,6 +17338,18 @@ const MESSAGES_COPY = {
     en: "No threads yet.",
     es: "Todavia no hay chats."
   },
+  recentHeader: {
+    en: "Recent messages",
+    es: "Mensajes recientes"
+  },
+  recentEmpty: {
+    en: "New and recent threads will appear here.",
+    es: "Los chats nuevos y recientes apareceran aqui."
+  },
+  newBadge: {
+    en: "New",
+    es: "Nuevo"
+  },
   contactsHeader: { en: "Available contacts", es: "Contactos disponibles" },
   threadsHeader: { en: "Active threads", es: "Chats activos" },
   startThread: { en: "Start thread", es: "Abrir chat" },
@@ -17925,6 +17937,15 @@ function sortMessageThreads(items = []) {
   return items.slice().sort((a, b) => messageTimestampToMillis(b.updatedAt) - messageTimestampToMillis(a.updatedAt));
 }
 
+function sortMessageThreadsForInbox(items = [], current = getMessagesCurrentUser()) {
+  return items.slice().sort((left, right) => {
+    const leftUnread = isMessageThreadUnread(left, current) ? 1 : 0;
+    const rightUnread = isMessageThreadUnread(right, current) ? 1 : 0;
+    if (leftUnread !== rightUnread) return rightUnread - leftUnread;
+    return messageTimestampToMillis(right.lastMessageAt || right.updatedAt) - messageTimestampToMillis(left.lastMessageAt || left.updatedAt);
+  });
+}
+
 function canMessageContact(current, candidate) {
   if (!current?.uid || !candidate?.uid || candidate.uid === current.uid) return false;
   const candidateIsOfficialCoach = isOfficialCoachEmail(candidate.email || "") || isForcedAdminEmail(candidate.email || "");
@@ -18482,7 +18503,7 @@ function renderMessagesCoachList(current) {
 
 function renderMessagesThreadList(current) {
   if (!messageList) return;
-  const showThreadDirectory = false;
+  const showThreadDirectory = true;
   messageList.classList.toggle("hidden", !showThreadDirectory);
   if (!showThreadDirectory) {
     messageList.innerHTML = "";
@@ -18491,21 +18512,21 @@ function renderMessagesThreadList(current) {
   messageList.innerHTML = "";
 
   const title = document.createElement("div");
-  title.className = "small muted";
-  title.textContent = pickCopy(MESSAGES_COPY.threadsHeader);
+  title.className = "messages-recent-title";
+  title.textContent = pickCopy(MESSAGES_COPY.recentHeader);
   messageList.appendChild(title);
 
   if (!current) return;
 
   if (!messagesThreadRows.length) {
     const empty = document.createElement("div");
-    empty.className = "small muted";
-    empty.textContent = pickCopy(MESSAGES_COPY.noThreads);
+    empty.className = "small muted messages-recent-empty";
+    empty.textContent = pickCopy(MESSAGES_COPY.recentEmpty);
     messageList.appendChild(empty);
     return;
   }
 
-  messagesThreadRows.forEach((thread) => {
+  sortMessageThreadsForInbox(messagesThreadRows, current).slice(0, 8).forEach((thread) => {
     const other = getMessageOtherParticipant(thread, current.uid);
     const unread = isMessageThreadUnread(thread, current);
     const card = document.createElement("button");
@@ -18520,8 +18541,13 @@ function renderMessagesThreadList(current) {
     const preview = thread.lastMessageText || pickCopy(MESSAGES_COPY.noMessages);
     const meta = formatMessageTimestamp(thread.lastMessageAt || thread.updatedAt);
     card.innerHTML = `
-      <h4>${escapeHtml(other.name || "Conversation")}</h4>
-      <small>${escapeHtml(getRoleLabelEnglish(other.role))}</small>
+      <div class="message-thread-card-top">
+        <div>
+          <h4>${escapeHtml(other.name || "Conversation")}</h4>
+          <small>${escapeHtml(getRoleLabelEnglish(other.role))}</small>
+        </div>
+        ${unread ? `<span class="message-thread-label">${escapeHtml(pickCopy(MESSAGES_COPY.newBadge))}</span>` : ""}
+      </div>
       <span class="message-thread-preview">${escapeHtml(preview)}</span>
       <small class="message-thread-meta">${escapeHtml(meta)}</small>
       ${unread ? '<span class="message-thread-unread-badge"></span>' : ""}
@@ -18547,21 +18573,32 @@ function renderMessagesFeed(current) {
   }
 
   rows.forEach((entry) => {
+    const isOwn = entry.senderUid === current?.uid;
     const bubble = document.createElement("div");
     bubble.className = "message-bubble";
-    if (entry.senderUid === current?.uid) {
+    if (isOwn) {
       bubble.classList.add("own");
+    } else {
+      bubble.classList.add("incoming");
     }
 
     const header = document.createElement("div");
     header.className = "message-bubble-header";
+    const senderBlock = document.createElement("div");
+    senderBlock.className = "message-bubble-sender";
     const sender = document.createElement("strong");
-    sender.textContent = entry.senderUid === current?.uid
+    sender.textContent = isOwn
       ? pickCopy(MESSAGES_COPY.you)
       : entry.senderName;
+    senderBlock.appendChild(sender);
+    if (!isOwn && entry.senderRole) {
+      const role = document.createElement("small");
+      role.textContent = getRoleLabelEnglish(entry.senderRole);
+      senderBlock.appendChild(role);
+    }
     const time = document.createElement("span");
     time.textContent = formatMessageTimestamp(entry.createdAt);
-    header.appendChild(sender);
+    header.appendChild(senderBlock);
     header.appendChild(time);
 
     const body = document.createElement("div");
