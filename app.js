@@ -17506,6 +17506,7 @@ let messagesThreadsSubscribedAt = 0;
 let messagesThreadOpeningId = "";
 let messagesSendInFlight = false;
 let messagesLastSendByThread = {};
+let messagesPendingEntriesByThread = {};
 let messagesOpenRequestId = 0;
 
 function getAppToastStack() {
@@ -17600,6 +17601,91 @@ function updateMessagesUnreadIndicators() {
       ? (currentLang === "es" ? `${unreadCount} sin leer` : `${unreadCount} unread`)
       : pickCopy(MESSAGES_COPY.chip);
   }
+}
+
+function getPendingThreadEntries(threadId = "") {
+  return Array.isArray(messagesPendingEntriesByThread[String(threadId || "").trim()])
+    ? messagesPendingEntriesByThread[String(threadId || "").trim()]
+    : [];
+}
+
+function setPendingThreadEntries(threadId = "", entries = []) {
+  const safeThreadId = String(threadId || "").trim();
+  if (!safeThreadId) return;
+  const nextEntries = Array.isArray(entries) ? entries.filter(Boolean) : [];
+  if (!nextEntries.length) {
+    if (messagesPendingEntriesByThread[safeThreadId]) {
+      const nextState = { ...messagesPendingEntriesByThread };
+      delete nextState[safeThreadId];
+      messagesPendingEntriesByThread = nextState;
+    }
+    return;
+  }
+  messagesPendingEntriesByThread = {
+    ...messagesPendingEntriesByThread,
+    [safeThreadId]: nextEntries
+  };
+}
+
+function addPendingThreadEntry(threadId = "", entry = null) {
+  if (!entry) return;
+  const safeThreadId = String(threadId || "").trim();
+  if (!safeThreadId) return;
+  const existing = getPendingThreadEntries(safeThreadId);
+  setPendingThreadEntries(safeThreadId, [...existing, entry]);
+}
+
+function removePendingThreadEntry(threadId = "", clientMessageId = "") {
+  const safeThreadId = String(threadId || "").trim();
+  const safeClientMessageId = String(clientMessageId || "").trim();
+  if (!safeThreadId || !safeClientMessageId) return;
+  setPendingThreadEntries(
+    safeThreadId,
+    getPendingThreadEntries(safeThreadId).filter((entry) => String(entry.clientMessageId || "").trim() !== safeClientMessageId)
+  );
+}
+
+function mergePendingMessagesIntoFeed(threadId = "", remoteRows = []) {
+  const safeThreadId = String(threadId || "").trim();
+  if (!safeThreadId) return remoteRows.slice();
+  const remoteClientIds = new Set(
+    remoteRows.map((entry) => String(entry.clientMessageId || "").trim()).filter(Boolean)
+  );
+  const pendingRows = getPendingThreadEntries(safeThreadId).filter((entry) => {
+    const clientMessageId = String(entry.clientMessageId || "").trim();
+    return clientMessageId && !remoteClientIds.has(clientMessageId);
+  });
+  if (!pendingRows.length) return remoteRows.slice();
+  return [...remoteRows, ...pendingRows].sort(
+    (left, right) => messageTimestampToMillis(left.createdAt) - messageTimestampToMillis(right.createdAt)
+  );
+}
+
+function updateLocalThreadPreview(threadId = "", {
+  text = "",
+  senderUid = "",
+  createdAt = "",
+  messageEntry = null
+} = {}) {
+  const safeThreadId = String(threadId || "").trim();
+  if (!safeThreadId) return;
+  const safeCreatedAt = createdAt || new Date().toISOString();
+  const nextRows = messagesThreadRows.map((thread) => {
+    if (thread.id !== safeThreadId) return thread;
+    const nextHistory = messageEntry
+      ? [...(Array.isArray(thread.messageHistory) ? thread.messageHistory : []), messageEntry]
+      : (Array.isArray(thread.messageHistory) ? thread.messageHistory : []);
+    return {
+      ...thread,
+      lastMessageText: String(text || "").trim(),
+      lastSenderUid: String(senderUid || "").trim(),
+      lastMessageAt: safeCreatedAt,
+      updatedAt: safeCreatedAt,
+      messageHistory: nextHistory
+    };
+  });
+  messagesThreadRows = sortMessageThreads(nextRows);
+  updateMessagesUnreadIndicators();
 }
 
 function isMessagesPanelFocused() {
@@ -17796,11 +17882,13 @@ function buildMessageThreadPayload(participants = [], extras = {}) {
 function normalizeMessageData(data = {}, id = "") {
   return {
     id,
+    clientMessageId: String(data.clientMessageId || "").trim(),
     text: String(data.text || "").trim(),
     senderUid: String(data.senderUid || "").trim(),
     senderName: String(data.senderName || "").trim() || "User",
     senderRole: normalizeMessageParticipantRole(data.senderRole, data.senderEmail || ""),
-    createdAt: data.createdAt || data.updatedAt || ""
+    createdAt: data.createdAt || data.updatedAt || "",
+    optimistic: Boolean(data.optimistic)
   };
 }
 
@@ -18047,6 +18135,7 @@ function teardownMessagesSession({ preserveSelection = false } = {}) {
   messagesThreadOpeningId = "";
   messagesSendInFlight = false;
   messagesLastSendByThread = {};
+  messagesPendingEntriesByThread = {};
   messagesOpenRequestId = 0;
   if (!preserveSelection) messagesSelectedThreadId = "";
   resetMessagesStatus();
@@ -18180,7 +18269,13 @@ function subscribeToMessageFeed(threadId) {
     .collection("messages")
     .orderBy("createdAt", "asc")
     .onSnapshot((snapshot) => {
-      messagesFeedRows = snapshot.docs.map((doc) => normalizeMessageEntry(doc));
+      const remoteRows = snapshot.docs.map((doc) => normalizeMessageEntry(doc));
+      remoteRows.forEach((entry) => {
+        if (entry.clientMessageId) {
+          removePendingThreadEntry(threadId, entry.clientMessageId);
+        }
+      });
+      messagesFeedRows = mergePendingMessagesIntoFeed(threadId, remoteRows);
       messagesFeedLoading = false;
       resetMessagesStatus();
       renderMessages();
@@ -18406,7 +18501,7 @@ async function ensureDirectMessageThread(contact) {
   return threadId;
 }
 
-async function appendMessageToThread({ threadId, participants = [], sender, text }) {
+async function appendMessageToThread({ threadId, participants = [], sender, text, clientMessageId = "", createdAt = "" }) {
   const threadsRef = getMessageThreadsCollectionRef();
   const safeText = String(text || "").trim();
   const senderProfile = normalizeMessageParticipantProfile(sender || {});
@@ -18415,39 +18510,57 @@ async function appendMessageToThread({ threadId, participants = [], sender, text
     throw new Error("firestore_not_configured");
   }
   const threadRef = threadsRef.doc(threadId);
+  const messageRef = threadRef.collection("messages").doc();
   const localMessage = {
+    id: messageRef.id,
+    clientMessageId: String(clientMessageId || "").trim() || `client-${senderProfile.uid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     text: safeText,
     senderUid: senderProfile.uid,
     senderName: senderProfile.name,
     senderRole: senderProfile.role,
-    createdAt: new Date().toISOString()
+    createdAt: String(createdAt || "").trim() || new Date().toISOString()
   };
-  await withTimeout(
-    threadRef.collection("messages").add({
-      threadId,
-      text: safeText,
-      senderUid: senderProfile.uid,
-      senderName: senderProfile.name,
-      senderRole: senderProfile.role,
-      createdAt: localMessage.createdAt,
-      serverCreatedAt: getFirestoreServerTimestamp()
-    }),
-    FIREBASE_OP_TIMEOUT_MS,
-    "firestore_message_write_timeout"
-  );
-  await withTimeout(
-    threadRef.set(buildMessageThreadPayload(participantProfiles, {
-      updatedAt: localMessage.createdAt,
-      lastMessageAt: localMessage.createdAt,
-      serverUpdatedAt: getFirestoreServerTimestamp(),
-      serverLastMessageAt: getFirestoreServerTimestamp(),
-      lastMessageText: safeText,
-      lastSenderUid: senderProfile.uid,
-      messageHistory: getFirestoreArrayUnion(localMessage)
-    }), { merge: true }),
-    FIREBASE_OP_TIMEOUT_MS,
-    "firestore_thread_touch_timeout"
-  );
+  const messagePayload = {
+    threadId,
+    clientMessageId: localMessage.clientMessageId,
+    text: safeText,
+    senderUid: senderProfile.uid,
+    senderName: senderProfile.name,
+    senderRole: senderProfile.role,
+    createdAt: localMessage.createdAt,
+    serverCreatedAt: getFirestoreServerTimestamp()
+  };
+  const threadPayload = buildMessageThreadPayload(participantProfiles, {
+    updatedAt: localMessage.createdAt,
+    lastMessageAt: localMessage.createdAt,
+    serverUpdatedAt: getFirestoreServerTimestamp(),
+    serverLastMessageAt: getFirestoreServerTimestamp(),
+    lastMessageText: safeText,
+    lastSenderUid: senderProfile.uid,
+    messageHistory: getFirestoreArrayUnion(localMessage)
+  });
+  const batch = firebaseFirestoreInstance?.batch?.();
+  if (batch) {
+    batch.set(messageRef, messagePayload);
+    batch.set(threadRef, threadPayload, { merge: true });
+    await withTimeout(
+      batch.commit(),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_message_batch_commit_timeout"
+    );
+  } else {
+    await withTimeout(
+      messageRef.set(messagePayload),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_message_write_timeout"
+    );
+    await withTimeout(
+      threadRef.set(threadPayload, { merge: true }),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_thread_touch_timeout"
+    );
+  }
+  return localMessage;
 }
 
 async function openMessageThreadForContact(contactRef) {
@@ -18881,22 +18994,72 @@ async function handleMessageComposerSubmit(event) {
     ...messagesLastSendByThread,
     [sendFingerprint]: Date.now()
   };
+  const optimisticMessageId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const optimisticCreatedAt = new Date().toISOString();
+  const optimisticClientMessageId = `pending-${threadId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const optimisticMessage = normalizeMessageData({
+    id: optimisticMessageId,
+    clientMessageId: optimisticClientMessageId,
+    text,
+    senderUid: current.uid,
+    senderName: current.name || current.email || "User",
+    senderRole: current.role,
+    createdAt: optimisticCreatedAt,
+    optimistic: true
+  }, optimisticMessageId);
+  const previousThreadState = selectedThread ? {
+    lastMessageText: selectedThread.lastMessageText,
+    lastSenderUid: selectedThread.lastSenderUid,
+    lastMessageAt: selectedThread.lastMessageAt,
+    updatedAt: selectedThread.updatedAt,
+    messageHistory: Array.isArray(selectedThread.messageHistory) ? [...selectedThread.messageHistory] : []
+  } : null;
+  addPendingThreadEntry(threadId, optimisticMessage);
+  messagesFeedRows = mergePendingMessagesIntoFeed(threadId, messagesFeedRows);
+  updateLocalThreadPreview(threadId, {
+    text,
+    senderUid: current.uid,
+    createdAt: optimisticMessage.createdAt,
+    messageEntry: optimisticMessage
+  });
+  if (messageComposerInput) messageComposerInput.value = "";
   renderMessages();
 
   try {
-    await appendMessageToThread({
+    const committedMessage = await appendMessageToThread({
       threadId,
       participants: selectedThread.participantProfiles,
       sender: current,
-      text
+      text,
+      clientMessageId: optimisticMessage.clientMessageId,
+      createdAt: optimisticMessage.createdAt
     });
-    if (messageComposerInput) messageComposerInput.value = "";
     toast(pickCopy(MESSAGES_COPY.sentToast));
     resetMessagesStatus();
-    markMessageThreadSeen(threadId, Date.now());
+    markMessageThreadSeen(threadId, messageTimestampToMillis(committedMessage?.createdAt || optimisticMessage.createdAt));
     renderMessages();
   } catch (err) {
     console.warn("Failed to send message", err);
+    removePendingThreadEntry(threadId, optimisticMessage.clientMessageId);
+    messagesFeedRows = mergePendingMessagesIntoFeed(threadId, messagesFeedRows);
+    if (previousThreadState) {
+      messagesThreadRows = sortMessageThreads(messagesThreadRows.map((thread) => (
+        thread.id !== threadId
+          ? thread
+          : {
+              ...thread,
+              lastMessageText: previousThreadState.lastMessageText,
+              lastSenderUid: previousThreadState.lastSenderUid,
+              lastMessageAt: previousThreadState.lastMessageAt,
+              updatedAt: previousThreadState.updatedAt,
+              messageHistory: previousThreadState.messageHistory
+            }
+      )));
+    }
+    if (messageComposerInput) {
+      messageComposerInput.value = text;
+      messageComposerInput.focus();
+    }
     setMessagesStatus(MESSAGES_COPY.sendError, "error");
     renderMessages();
   } finally {
