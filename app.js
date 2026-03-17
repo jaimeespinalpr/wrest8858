@@ -1112,6 +1112,7 @@ async function applyProfile(profile) {
     stopCoachWorkspaceRealtimeSync();
     stopParentPortalRealtimeSync();
     stopAthletePortalRealtimeSync();
+    stopAdminUsersRealtimeSync();
     teardownMessagesSession();
     setLanguage(getPreferredLang(), { skipConfirm: true, refresh: false });
     setView("athlete");
@@ -1140,6 +1141,11 @@ async function applyProfile(profile) {
     await startAthletePortalRealtimeSync();
   } else {
     stopAthletePortalRealtimeSync();
+  }
+  if (isAdminRole(role)) {
+    startAdminUsersRealtimeSync();
+  } else {
+    stopAdminUsersRealtimeSync();
   }
   startMessagesRealtimeSync({
     forceRefreshContacts: true
@@ -3871,6 +3877,7 @@ function getDefaultCoachGroupSeeds() {
   const remote = ATHLETES.filter((athlete) => String(athlete.availability || "").toLowerCase() === "travel");
 
   return [
+    buildGroup("all-registered-athletes", "All Registered Athletes", ATHLETES),
     buildGroup("varsity", "Varsity", advanced),
     buildGroup("jv", "JV", intermediate),
     buildGroup("beginners", "Beginners", []),
@@ -4069,6 +4076,54 @@ function getCoachAthleteRecords() {
     athletePortalAthleteCache
   );
   return [linked].concat(seedRecords.filter((athlete) => !athleteIdentityMatches(athlete, linked)));
+}
+
+function parseAthleteExperienceYears(value) {
+  const numeric = Number(String(value ?? "").trim());
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function getAutomaticGroupMembersForAthletes(groupId = "", athletes = []) {
+  const normalizedGroupId = String(groupId || "").trim();
+  const preparedAthletes = athletes
+    .map((athlete) => normalizeCoachAthleteRecord(normalizeAthleteId(athlete?.id, athlete?.name), athlete))
+    .filter((athlete) => athlete?.id && athlete?.name);
+
+  return preparedAthletes.filter((athlete) => {
+    const experienceYears = parseAthleteExperienceYears(athlete.experienceYears);
+    const textBlob = [
+      athlete.notes,
+      athlete.strategy,
+      athlete.preferred,
+      athlete.availability,
+      athlete.level,
+      ...(athlete.tags || [])
+    ].join(" ").toLowerCase();
+    switch (normalizedGroupId) {
+      case "all-registered-athletes":
+        return true;
+      case "varsity":
+        return String(athlete.level || "").toLowerCase() === "advanced"
+          || (experienceYears != null && experienceYears >= 5);
+      case "jv":
+        return String(athlete.level || "").toLowerCase() === "intermediate"
+          || (experienceYears != null && experienceYears >= 2 && experienceYears < 5);
+      case "beginners":
+        return String(athlete.level || "").toLowerCase() === "beginner"
+          || (experienceYears != null && experienceYears >= 0 && experienceYears < 2);
+      case "competition-team":
+        return String(athlete.level || "").toLowerCase() === "advanced"
+          || /competition|tournament|travel squad|varsity/.test(textBlob);
+      case "rehab-return-to-play":
+        return /rehab|return to play|injury|limited|recover/.test(textBlob);
+      case "remote-athletes":
+        return /remote|travel|virtual/.test(textBlob);
+      case "private-clients":
+        return /private|client|1:1|one-on-one/.test(textBlob);
+      default:
+        return false;
+    }
+  });
 }
 
 function getCoachNoteRecords() {
@@ -4604,17 +4659,52 @@ async function syncCoachWorkspaceRelationships() {
       writes += 1;
     });
 
+    const allAthleteRecordsForGrouping = mergeCoachRecordsById(
+      athleteUsers.map((user) => buildCoachAthleteRecordFromUser(user, {
+        coachUid: authUser.id,
+        coachName,
+        coachEmail
+      })),
+      Array.from(athletesById.values())
+    );
+    const systemSeedMap = new Map(getDefaultCoachGroupSeeds().map((group) => [group.id, group]));
+    systemSeedMap.forEach((seedGroup, groupId) => {
+      if (coachGroupsCache.some((group) => group.id === groupId)) return;
+      const automaticMembers = getAutomaticGroupMembersForAthletes(groupId, allAthleteRecordsForGrouping);
+      batch.set(groupsRef.doc(groupId), {
+        name: seedGroup.name,
+        memberNames: uniqueNames(automaticMembers.map((athlete) => athlete.name)),
+        memberIds: uniqueNames(automaticMembers.map((athlete) => normalizeAthleteId(athlete.id, athlete.name))),
+        memberUids: uniqueNames(automaticMembers.map((athlete) => normalizeUid(athlete.athleteUid)).filter(Boolean)),
+        system: true,
+        createdAt: timestamp,
+        updatedAt: timestamp
+      }, { merge: true });
+      writes += 1;
+    });
+
     coachGroupsCache.forEach((group) => {
-      const resolvedMembers = resolveAssignmentAudienceMembers(group.memberNames || []);
+      const automaticMembers = group.system
+        ? getAutomaticGroupMembersForAthletes(group.id, allAthleteRecordsForGrouping)
+        : [];
+      const resolvedMembers = group.system
+        ? {
+            memberNames: uniqueNames(automaticMembers.map((athlete) => athlete.name)),
+            memberIds: uniqueNames(automaticMembers.map((athlete) => normalizeAthleteId(athlete.id, athlete.name))),
+            memberUids: uniqueNames(automaticMembers.map((athlete) => normalizeUid(athlete.athleteUid)).filter(Boolean))
+          }
+        : resolveAssignmentAudienceMembers(group.memberNames || []);
       if (
         !stringListsEqual(group.memberNames || [], resolvedMembers.memberNames)
         || !stringListsEqual(group.memberIds || [], resolvedMembers.memberIds)
         || !stringListsEqual(group.memberUids || [], resolvedMembers.memberUids)
       ) {
         batch.set(groupsRef.doc(group.id), {
+          name: group.name,
           memberNames: resolvedMembers.memberNames,
           memberIds: resolvedMembers.memberIds,
           memberUids: resolvedMembers.memberUids,
+          system: group.system === true,
           updatedAt: timestamp
         }, { merge: true });
         writes += 1;
@@ -16231,6 +16321,7 @@ const ADMIN_EDITABLE_ROLES = ["coach", "athlete", "parent"];
 let adminUsersCache = [];
 let adminUsersLoading = false;
 let adminUsersLoadedOnce = false;
+let adminUsersUnsub = null;
 
 const ADMIN_USERS_COPY = {
   title: { en: "Registered users", es: "Usuarios registrados" },
@@ -16357,6 +16448,33 @@ async function fetchRegisteredFirebaseUsers() {
     .filter((user) => Boolean(user.uid));
   users.sort((a, b) => parseIsoTimestamp(b.updatedAt || b.createdAt) - parseIsoTimestamp(a.updatedAt || a.createdAt));
   return users;
+}
+
+function stopAdminUsersRealtimeSync() {
+  if (adminUsersUnsub) {
+    try {
+      adminUsersUnsub();
+    } catch {
+      // ignore unsubscribe errors
+    }
+    adminUsersUnsub = null;
+  }
+}
+
+function startAdminUsersRealtimeSync() {
+  if (!canManageAllAccounts() || !firebaseFirestoreInstance || adminUsersUnsub) return;
+  adminUsersUnsub = firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION).onSnapshot((snapshot) => {
+    adminUsersCache = snapshot.docs
+      .map((doc) => normalizeManagedUserRecord(doc.id, doc.data() || {}))
+      .filter((user) => Boolean(user.uid))
+      .sort((a, b) => parseIsoTimestamp(b.updatedAt || b.createdAt) - parseIsoTimestamp(a.updatedAt || a.createdAt));
+    adminUsersLoadedOnce = true;
+    renderAdminUsersList();
+    setAdminUsersStatus(`${adminUsersCache.length} ${pickCopy(ADMIN_USERS_COPY.title).toLowerCase()}`, { type: "ok" });
+  }, (err) => {
+    console.warn("Admin users realtime sync failed", err);
+    setAdminUsersStatus(pickCopy(ADMIN_USERS_COPY.loadError), { type: "error" });
+  });
 }
 
 function getLangLabel(lang) {
@@ -16512,12 +16630,14 @@ function renderAdminUsersList() {
 
 async function refreshAdminUsers({ force = false } = {}) {
   if (!canManageAllAccounts()) {
+    stopAdminUsersRealtimeSync();
     adminUsersCache = [];
     adminUsersLoadedOnce = false;
     if (adminUsersList) adminUsersList.innerHTML = "";
     setAdminUsersStatus(pickCopy(ADMIN_USERS_COPY.hint));
     return;
   }
+  startAdminUsersRealtimeSync();
   if (adminUsersLoading) return;
   if (adminUsersLoadedOnce && !force) {
     renderAdminUsersList();
