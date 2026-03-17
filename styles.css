@@ -1189,6 +1189,20 @@ button:active{
   gap: 8px;
 }
 
+.messages-contact-subgroup{
+  display: grid;
+  gap: 8px;
+}
+
+.messages-contact-subgroup-title{
+  padding: 0 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6f86ad;
+}
+
 .messages-contact-section-title{
   padding: 0 2px;
   font-size: 0.78rem;
@@ -4632,6 +4646,11 @@ button.ghost,
 .messages-contact-chip .messages-contact-meta,
 .app.parent-view-active .messages-contact-chip .messages-contact-meta{
   color: #9db4da;
+}
+
+.messages-contact-subgroup-title,
+.app.parent-view-active .messages-contact-subgroup-title{
+  color: #7f97c3;
 }
 
 .message-thread-unread-badge{
