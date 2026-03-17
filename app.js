@@ -18419,6 +18419,28 @@ function buildMessageContactCard(contact, current, { priority = false } = {}) {
   return card;
 }
 
+function buildMessageContactSubgroups(group) {
+  if (!group?.rows?.length) return [];
+  if (group.key !== "athlete") {
+    return [{
+      label: "",
+      rows: group.rows
+    }];
+  }
+  const buckets = new Map();
+  group.rows.forEach((contact) => {
+    const source = String(contact.name || contact.email || "").trim();
+    const first = source.charAt(0).toUpperCase();
+    const label = /^[A-Z]$/.test(first) ? first : "#";
+    const rows = buckets.get(label) || [];
+    rows.push(contact);
+    buckets.set(label, rows);
+  });
+  return Array.from(buckets.entries())
+    .sort((left, right) => left[0].localeCompare(right[0], undefined, { sensitivity: "base" }))
+    .map(([label, rows]) => ({ label, rows }));
+}
+
 function renderMessagesCoachList(current) {
   if (!messagesCoachList) return;
   messagesCoachList.innerHTML = "";
@@ -18436,12 +18458,24 @@ function renderMessagesCoachList(current) {
     const section = document.createElement("section");
     section.className = `messages-contact-section${group.priority ? " messages-contact-section-priority" : ""}`;
     section.innerHTML = `<div class="messages-contact-section-title">${escapeHtml(group.title)}</div>`;
-    const grid = document.createElement("div");
-    grid.className = "messages-contact-grid";
-    group.rows.forEach((contact) => {
-      grid.appendChild(buildMessageContactCard(contact, current, { priority: group.priority }));
+    const subgroups = buildMessageContactSubgroups(group);
+    subgroups.forEach((subgroup) => {
+      const subgroupWrap = document.createElement("div");
+      subgroupWrap.className = "messages-contact-subgroup";
+      if (subgroup.label) {
+        const subgroupTitle = document.createElement("div");
+        subgroupTitle.className = "messages-contact-subgroup-title";
+        subgroupTitle.textContent = subgroup.label;
+        subgroupWrap.appendChild(subgroupTitle);
+      }
+      const grid = document.createElement("div");
+      grid.className = "messages-contact-grid";
+      subgroup.rows.forEach((contact) => {
+        grid.appendChild(buildMessageContactCard(contact, current, { priority: group.priority }));
+      });
+      subgroupWrap.appendChild(grid);
+      section.appendChild(subgroupWrap);
     });
-    section.appendChild(grid);
     messagesCoachList.appendChild(section);
   });
 }
