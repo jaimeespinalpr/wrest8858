@@ -954,6 +954,7 @@ function refreshLanguageUI() {
   initializePlanSelectors();
   syncPlanSaveButtons();
   updateParentFab();
+  queueUserNameDecoration(document.body);
 }
 
 function setLanguage(lang, { source = "system", skipConfirm = false, refresh = true } = {}) {
@@ -3731,7 +3732,7 @@ function defaultPlanTitle(type = planRangeType) {
 }
 
 function slugifyKey(value) {
-  return String(value || "")
+  return stripUserDisplayNumber(value || "")
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
@@ -7235,8 +7236,160 @@ function addDays(date, days) {
   return d;
 }
 
+function stripUserDisplayNumber(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+#\d{4}\b/g, "")
+    .trim();
+}
+
 function normalizeName(value) {
-  return String(value || "").trim().toLowerCase();
+  return stripUserDisplayNumber(value || "").trim().toLowerCase();
+}
+
+function hashUserDisplaySeed(value = "") {
+  const seed = String(value || "").trim().toLowerCase();
+  let hash = 0;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = ((hash << 5) - hash) + seed.charCodeAt(index);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+function getUserDisplayNumber(entity = {}) {
+  const seed = [
+    entity.uid,
+    entity.user_id,
+    entity.athleteUid,
+    entity.linkedAthleteUid,
+    entity.email,
+    entity.athleteEmail,
+    entity.id,
+    entity.linkedAthleteId,
+    stripUserDisplayNumber(entity.name || ""),
+    stripUserDisplayNumber(entity.athleteName || ""),
+    stripUserDisplayNumber(entity.linkedCoachName || "")
+  ].find((candidate) => String(candidate || "").trim());
+  return String(hashUserDisplaySeed(seed || "wpl-user") % 10000).padStart(4, "0");
+}
+
+function getDisplayNameWithNumber(name, entity = {}) {
+  const rawName = stripUserDisplayNumber(name || entity.name || entity.email || entity.athleteName || "");
+  if (!rawName) return "";
+  return `${rawName} #${getUserDisplayNumber({ ...entity, name: rawName })}`;
+}
+
+function escapeRegExp(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function addUserDisplayEntry(map, name, entity = {}) {
+  const rawName = stripUserDisplayNumber(name);
+  if (!rawName) return;
+  const key = normalizeName(rawName);
+  if (!key) return;
+  const next = {
+    rawName,
+    displayName: getDisplayNameWithNumber(rawName, entity)
+  };
+  const existing = map.get(key);
+  if (!existing || next.rawName.length > existing.rawName.length) {
+    map.set(key, next);
+  }
+}
+
+function getKnownUserDisplayEntries() {
+  const entries = new Map();
+  const profile = getProfile();
+  if (profile) {
+    addUserDisplayEntry(entries, profile.name, profile);
+    addUserDisplayEntry(entries, profile.athleteName, {
+      uid: profile.linkedAthleteUid,
+      id: profile.linkedAthleteId,
+      name: profile.athleteName
+    });
+    addUserDisplayEntry(entries, profile.linkedCoachName, {
+      uid: profile.linkedCoachUid,
+      email: profile.linkedCoachEmail,
+      name: profile.linkedCoachName
+    });
+  }
+  [...ATHLETES, ...getCoachAthleteRecords(), ...getAthletesData(), ...parentPortalTeamCache].forEach((athlete) => {
+    addUserDisplayEntry(entries, athlete?.name, athlete || {});
+    addUserDisplayEntry(entries, athlete?.coachName, {
+      uid: athlete?.coachUid,
+      email: athlete?.coachEmail,
+      name: athlete?.coachName
+    });
+  });
+  [...adminUsersCache, ...coachDirectoryCache, ...coachParentApprovalsCache, ...messagesContactRows].forEach((user) => {
+    addUserDisplayEntry(entries, user?.name, user || {});
+    addUserDisplayEntry(entries, user?.athleteName, {
+      uid: user?.linkedAthleteUid,
+      id: user?.linkedAthleteId,
+      name: user?.athleteName
+    });
+    addUserDisplayEntry(entries, user?.linkedCoachName, {
+      uid: user?.linkedCoachUid,
+      email: user?.linkedCoachEmail,
+      name: user?.linkedCoachName
+    });
+  });
+  messagesThreadRows.forEach((thread) => {
+    (thread?.participantProfiles || []).forEach((participant) => {
+      addUserDisplayEntry(entries, participant?.name, participant || {});
+    });
+  });
+  return Array.from(entries.values()).sort((left, right) => right.rawName.length - left.rawName.length);
+}
+
+function decorateVisibleUserNames(root = document.body) {
+  if (!root || typeof document === "undefined") return;
+  const entries = getKnownUserDisplayEntries();
+  if (!entries.length) return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node?.parentElement;
+      if (!parent) return NodeFilter.FILTER_REJECT;
+      if (!String(node.nodeValue || "").trim()) return NodeFilter.FILTER_REJECT;
+      if (["SCRIPT", "STYLE", "TEXTAREA"].includes(parent.tagName)) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  let currentNode = walker.nextNode();
+  while (currentNode) {
+    let nextValue = currentNode.nodeValue;
+    entries.forEach((entry) => {
+      const pattern = new RegExp(`${escapeRegExp(entry.rawName)}(?!\\s+#\\d{4})`, "g");
+      nextValue = nextValue.replace(pattern, entry.displayName);
+    });
+    if (nextValue !== currentNode.nodeValue) {
+      currentNode.nodeValue = nextValue;
+    }
+    currentNode = walker.nextNode();
+  }
+}
+
+function queueUserNameDecoration(root = document.body) {
+  if (userNameDecorationQueued || typeof window === "undefined") return;
+  userNameDecorationQueued = true;
+  requestAnimationFrame(() => {
+    userNameDecorationQueued = false;
+    decorateVisibleUserNames(root);
+  });
+}
+
+function ensureUserNameDecorationObserver() {
+  if (userNameDecorationObserver || typeof MutationObserver === "undefined" || !document?.body) return;
+  userNameDecorationObserver = new MutationObserver(() => {
+    queueUserNameDecoration(document.body);
+  });
+  userNameDecorationObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+    characterData: true
+  });
 }
 
 function uniqueNames(list) {
@@ -17508,6 +17661,8 @@ let messagesSendInFlight = false;
 let messagesLastSendByThread = {};
 let messagesPendingEntriesByThread = {};
 let messagesOpenRequestId = 0;
+let userNameDecorationQueued = false;
+let userNameDecorationObserver = null;
 
 function getAppToastStack() {
   let stack = document.getElementById("appToastStack");
@@ -19237,10 +19392,12 @@ if (saveJournalBtn) {
 }
 
 async function startApp() {
+  ensureUserNameDecorationObserver();
   clearLegacyRegisteredUsersCache();
   ensureSeedJournalEntries();
   renderJournalEntries();
   await bootProfile();
+  queueUserNameDecoration(document.body);
   startClock();
   const currentDayIndex = getCurrentAppDayIndex();
   const currentDayKey = getCurrentAppDateKey();
