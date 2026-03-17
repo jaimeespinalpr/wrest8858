@@ -17802,7 +17802,10 @@ function sortMessageContacts(items = []) {
   });
 }
 
-function getMessageContactIdentityKey(contact = {}) {
+function getMessageContactIdentityKey(contact = {}, current = getMessagesCurrentUser()) {
+  if (isCoachMessagingUser(current)) {
+    return `user:${contact.uid}`;
+  }
   if (contact.role === "athlete") {
     return `athlete:${String(contact.linkedAthleteId || "").trim() || normalizeName(contact.name || "") || contact.uid}`;
   }
@@ -17824,10 +17827,10 @@ function rankMessageContactCandidate(contact = {}) {
   return score;
 }
 
-function dedupeMessageContacts(items = []) {
+function dedupeMessageContacts(items = [], current = getMessagesCurrentUser()) {
   const byKey = new Map();
   items.forEach((contact) => {
-    const key = getMessageContactIdentityKey(contact);
+    const key = getMessageContactIdentityKey(contact, current);
     const existing = byKey.get(key);
     if (!existing || rankMessageContactCandidate(contact) > rankMessageContactCandidate(existing)) {
       byKey.set(key, contact);
@@ -17882,7 +17885,8 @@ function rebuildMessageContactsDirectory(current = getMessagesCurrentUser()) {
   });
   messagesContactRows = sortMessageContacts(
     dedupeMessageContacts(
-      mergedRows.filter((contact) => canMessageContact(current, contact))
+      mergedRows.filter((contact) => canMessageContact(current, contact)),
+      current
     )
   );
   renderMessages();
@@ -17923,24 +17927,18 @@ function sortMessageThreads(items = []) {
 
 function canMessageContact(current, candidate) {
   if (!current?.uid || !candidate?.uid || candidate.uid === current.uid) return false;
-  const candidateCoachUid = normalizeUid(candidate.linkedCoachUid);
-  const currentCoachUid = normalizeUid(current.linkedCoachUid || current.uid);
   const candidateIsOfficialCoach = isOfficialCoachEmail(candidate.email || "") || isForcedAdminEmail(candidate.email || "");
-  const candidateEmail = normalizeEmail(candidate.email || "");
-  if (candidateEmail.endsWith("@example.com") || candidateEmail.endsWith("@wpl.app")) {
-    return false;
-  }
   if (isParentRole(current.role)) {
     return isCoachMessagingUser(candidate) && candidate.uid === getParentLinkedCoachUid();
   }
   if (isCoachMessagingUser(current)) {
     if (candidate.role === "coach") {
-      return candidateIsOfficialCoach;
+      return Boolean(candidate.uid);
     }
     if (candidate.role === "athlete") {
-      return Boolean(candidate.linkedAthleteId) && candidateCoachUid === normalizeUid(current.uid);
+      return Boolean(candidate.uid) && Boolean(candidate.linkedAthleteId || candidate.name);
     }
-    return candidate.role === "parent" && candidateCoachUid === normalizeUid(current.uid);
+    return candidate.role === "parent" && Boolean(candidate.uid) && Boolean(candidate.athleteName || candidate.linkedAthleteId || candidate.name);
   }
   if (isAthleteRole(current.role)) {
     if (candidate.role === "coach") {
@@ -17986,7 +17984,7 @@ async function loadMessageContactsDirectory() {
       });
     });
     messagesContactRows = sortMessageContacts(
-      dedupeMessageContacts(Array.from(byUid.values()).filter((contact) => canMessageContact(current, contact)))
+      dedupeMessageContacts(Array.from(byUid.values()).filter((contact) => canMessageContact(current, contact)), current)
     );
   } catch (err) {
     console.warn("Failed to load message contacts", err);
