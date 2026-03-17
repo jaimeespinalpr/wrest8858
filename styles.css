@@ -1183,6 +1183,12 @@ button:active{
   gap: 10px;
 }
 
+.messages-contact-grid{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .messages-contact-section-title{
   padding: 0 2px;
   font-size: 0.78rem;
@@ -1209,11 +1215,11 @@ button:active{
   background: linear-gradient(180deg, rgba(25, 45, 86, 0.98), rgba(10, 20, 38, 0.98));
 }
 
-.messages-contact-priority h4{
+.messages-contact-priority .messages-contact-name{
   color: #f7fbff;
 }
 
-.messages-contact-priority small{
+.messages-contact-priority .messages-contact-meta{
   color: #c8d7f3;
 }
 
@@ -1235,6 +1241,32 @@ button:active{
 .message-thread-card h4{
   margin: 0 0 4px;
   font-size: 15px;
+}
+
+.messages-contact-chip{
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 14px;
+}
+
+.messages-contact-name{
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.messages-contact-meta{
+  display: block;
+  font-size: 0.72rem;
+  line-height: 1.1;
+  color: #64748b;
 }
 
 .messages-main{
@@ -4576,14 +4608,30 @@ button.ghost,
   box-shadow: 0 18px 38px rgba(1, 6, 16, 0.34), 0 0 0 1px rgba(96, 165, 250, 0.14);
 }
 
-.messages-contact-priority h4,
-.app.parent-view-active .messages-contact-priority h4{
+.messages-contact-priority .messages-contact-name,
+.app.parent-view-active .messages-contact-priority .messages-contact-name{
   color: #f7fbff;
 }
 
-.messages-contact-priority small,
-.app.parent-view-active .messages-contact-priority small{
+.messages-contact-priority .messages-contact-meta,
+.app.parent-view-active .messages-contact-priority .messages-contact-meta{
   color: #c9daf7;
+}
+
+.messages-contact-chip{
+  padding: 10px 12px;
+  border-radius: 16px;
+  box-shadow: 0 12px 24px rgba(1, 6, 16, 0.22);
+}
+
+.messages-contact-chip .messages-contact-name,
+.app.parent-view-active .messages-contact-chip .messages-contact-name{
+  color: #f7fbff;
+}
+
+.messages-contact-chip .messages-contact-meta,
+.app.parent-view-active .messages-contact-chip .messages-contact-meta{
+  color: #9db4da;
 }
 
 .message-thread-unread-badge{
