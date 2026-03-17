@@ -18399,20 +18399,20 @@ function getGroupedMessageContacts(current) {
 function buildMessageContactCard(contact, current, { priority = false } = {}) {
   const card = document.createElement("button");
   card.type = "button";
-  card.className = `messages-coach-card${priority ? " messages-contact-priority" : ""}`;
+  card.className = `messages-coach-card messages-contact-chip${priority ? " messages-contact-priority" : ""}`;
   const linkedThread = getMessageThreadForContact(contact.uid);
   if (linkedThread && linkedThread.id === messagesSelectedThreadId) {
     card.classList.add("active");
   }
   const roleLabel = getRoleLabelEnglish(contact.role);
-  const secondaryLine = [roleLabel, contact.role === "athlete" && contact.linkedCoachUid ? (currentLang === "es" ? "Mismo staff" : "Same staff") : contact.email]
-    .filter(Boolean)
-    .join(" - ");
+  const secondaryLine = contact.role === "athlete" && contact.linkedCoachUid
+    ? `${roleLabel} - ${currentLang === "es" ? "Mismo staff" : "Same staff"}`
+    : roleLabel;
   card.innerHTML = `
-    <h4>${escapeHtml(contact.name || contact.email || "Contact")}</h4>
-    <small>${escapeHtml(secondaryLine)}</small>
-    <small>${escapeHtml(linkedThread ? pickCopy(MESSAGES_COPY.openThread) : pickCopy(MESSAGES_COPY.contactReady))}</small>
+    <span class="messages-contact-name">${escapeHtml(contact.name || contact.email || "Contact")}</span>
+    <span class="messages-contact-meta">${escapeHtml(secondaryLine)}</span>
   `;
+  card.title = String(contact.email || contact.name || "Contact");
   card.addEventListener("click", () => {
     openMessageThreadForContact(contact);
   });
@@ -18436,9 +18436,12 @@ function renderMessagesCoachList(current) {
     const section = document.createElement("section");
     section.className = `messages-contact-section${group.priority ? " messages-contact-section-priority" : ""}`;
     section.innerHTML = `<div class="messages-contact-section-title">${escapeHtml(group.title)}</div>`;
+    const grid = document.createElement("div");
+    grid.className = "messages-contact-grid";
     group.rows.forEach((contact) => {
-      section.appendChild(buildMessageContactCard(contact, current, { priority: group.priority }));
+      grid.appendChild(buildMessageContactCard(contact, current, { priority: group.priority }));
     });
+    section.appendChild(grid);
     messagesCoachList.appendChild(section);
   });
 }
