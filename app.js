@@ -17772,6 +17772,8 @@ let messagesPendingEntriesByThread = {};
 let messagesOpenRequestId = 0;
 let messagesComposerFiles = [];
 const MESSAGE_MAX_ATTACHMENTS = 4;
+let messagesContactGroupOpenState = {};
+let messagesContactGroupStateUid = "";
 let userNameDecorationQueued = false;
 let userNameDecorationObserver = null;
 
@@ -17925,6 +17927,34 @@ function mergePendingMessagesIntoFeed(threadId = "", remoteRows = []) {
   return [...remoteRows, ...pendingRows].sort(
     (left, right) => messageTimestampToMillis(left.createdAt) - messageTimestampToMillis(right.createdAt)
   );
+}
+
+function resetMessagesContactGroupState(current = getMessagesCurrentUser()) {
+  const uid = String(current?.uid || "").trim();
+  messagesContactGroupStateUid = uid;
+  messagesContactGroupOpenState = {};
+}
+
+function ensureMessagesContactGroupState(current = getMessagesCurrentUser()) {
+  const uid = String(current?.uid || "").trim();
+  if (uid !== messagesContactGroupStateUid) {
+    resetMessagesContactGroupState(current);
+  }
+}
+
+function isMessagesContactGroupOpen(groupKey = "") {
+  const safeKey = String(groupKey || "").trim();
+  if (!safeKey) return false;
+  return Boolean(messagesContactGroupOpenState[safeKey]);
+}
+
+function setMessagesContactGroupOpen(groupKey = "", isOpen = false) {
+  const safeKey = String(groupKey || "").trim();
+  if (!safeKey) return;
+  messagesContactGroupOpenState = {
+    ...messagesContactGroupOpenState,
+    [safeKey]: Boolean(isOpen)
+  };
 }
 
 function getMessageComposerTagList() {
@@ -18593,6 +18623,8 @@ function teardownMessagesSession({ preserveSelection = false } = {}) {
   messagesLastSendByThread = {};
   messagesPendingEntriesByThread = {};
   messagesOpenRequestId = 0;
+  messagesContactGroupOpenState = {};
+  messagesContactGroupStateUid = "";
   clearMessageComposerMediaInputs();
   if (!preserveSelection) messagesSelectedThreadId = "";
   resetMessagesStatus();
@@ -19126,6 +19158,7 @@ function buildMessageContactCard(contact, current, { priority = false } = {}) {
   `;
   card.title = String(contact.email || contact.name || "Contact");
   card.addEventListener("click", () => {
+    setMessagesContactGroupOpen(contact.role, true);
     openMessageThreadForContact(contact);
   });
   return card;
@@ -19166,10 +19199,32 @@ function renderMessagesCoachList(current) {
   }
 
   const groupedContacts = getGroupedMessageContacts(current);
+  ensureMessagesContactGroupState(current);
   groupedContacts.forEach((group) => {
+    const isOpen = isMessagesContactGroupOpen(group.key);
     const section = document.createElement("section");
     section.className = `messages-contact-section${group.priority ? " messages-contact-section-priority" : ""}`;
-    section.innerHTML = `<div class="messages-contact-section-title">${escapeHtml(group.title)}</div>`;
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "messages-contact-toggle";
+    toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    toggle.innerHTML = `
+      <span class="messages-contact-toggle-main">
+        <span class="messages-contact-section-title">${escapeHtml(group.title)}</span>
+        <span class="messages-contact-count">${group.rows.length}</span>
+      </span>
+      <span class="messages-contact-toggle-caret">${isOpen ? "▾" : "▸"}</span>
+    `;
+    toggle.addEventListener("click", () => {
+      setMessagesContactGroupOpen(group.key, !isOpen);
+      renderMessages();
+    });
+    section.appendChild(toggle);
+
+    const body = document.createElement("div");
+    body.className = "messages-contact-body";
+    if (!isOpen) body.classList.add("hidden");
+
     const subgroups = buildMessageContactSubgroups(group);
     subgroups.forEach((subgroup) => {
       const subgroupWrap = document.createElement("div");
@@ -19186,8 +19241,9 @@ function renderMessagesCoachList(current) {
         grid.appendChild(buildMessageContactCard(contact, current, { priority: group.priority }));
       });
       subgroupWrap.appendChild(grid);
-      section.appendChild(subgroupWrap);
+      body.appendChild(subgroupWrap);
     });
+    section.appendChild(body);
     messagesCoachList.appendChild(section);
   });
 }
