@@ -109,6 +109,19 @@ If you later need to revert to MySQL-backed auth, remove or empty `firebase-conf
 3. Deploy Storage rules with `firebase deploy --only storage`.
 4. Reapply CORS to the bucket if origins change. The JSON in `/Users/jaimeespinalpr/Documents/wrestling-coaching-experience/firebase-storage-cors.json` is the source of truth used by the app.
 
+## Messaging workspace (Chats / Calls / Contacts / Share)
+
+The messaging area now uses a 4-tab workspace while keeping the same app color system:
+
+- **Chats:** direct real-time threads with media attachments.
+- **Calls:** quick voice/video call-request actions that log request history and send a request into the chat thread.
+- **Contacts:** grouped directories (Coaches, Athletes, Parents) collapsed by default and expandable on tap/click.
+- **Share:** social-share tools for media URLs (native share when supported, plus Facebook/Instagram/TikTok/YouTube entry points).
+
+Notes:
+- Social apps differ in web share APIs. Facebook supports direct URL share links; Instagram/TikTok/YouTube flows open their upload/app entry and the app can copy the media URL for paste.
+- Message media upload is optimized for mobile performance (lite video preview on smaller/low-memory devices).
+
 ## Registration email alerts
 
 New registrations can trigger an email alert to `jaimeespinalpr@gmail.com` through a Firebase Cloud Function.
