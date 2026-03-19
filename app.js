@@ -46,6 +46,7 @@ let firebaseFirestoreInstance = null;
 let firebaseStorageInstance = null;
 let profileSyncTimeout = null;
 const FIREBASE_OP_TIMEOUT_MS = 12000;
+const STORAGE_UPLOAD_TIMEOUT_MS = 10 * 60 * 1000;
 const MEDIA_BASE_URL = String(window.WPL_MEDIA_BASE_URL || "").trim().replace(/\/+$/, "");
 const TEST_USER_DEFAULTS = {
   "coach.test@wpl.app": { role: "coach", name: "Coach Demo" },
@@ -12208,6 +12209,8 @@ function readFileAsDataUrl(file) {
 }
 
 function getMediaUploadOwnerId() {
+  const firebaseUid = String(firebaseAuthInstance?.currentUser?.uid || "").trim();
+  if (firebaseUid) return firebaseUid;
   const authUser = getAuthUser();
   if (!authUser?.id) {
     throw new Error("auth_required");
@@ -12362,7 +12365,7 @@ async function uploadBlobToFirebase(blob, fileName, { kind = "assets", contentTy
   });
   const taskSnapshot = await withTimeout(
     ref.put(blob, metadata),
-    FIREBASE_OP_TIMEOUT_MS * 4,
+    STORAGE_UPLOAD_TIMEOUT_MS,
     "storage_upload_timeout"
   );
   const downloadURL = await withTimeout(
@@ -17727,6 +17730,18 @@ const MESSAGES_COPY = {
   mediaAlreadySaved: { en: "This file is already in Media.", es: "Este archivo ya esta en Media." },
   favoriteSaved: { en: "Saved to Favorites.", es: "Guardado en Favoritos." },
   favoriteAlreadySaved: { en: "This file is already in Favorites.", es: "Este archivo ya esta en Favoritos." },
+  mediaUploadAuthError: {
+    en: "Media upload failed: sign in again and retry.",
+    es: "Fallo la subida de media: inicia sesion de nuevo e intenta otra vez."
+  },
+  mediaUploadTimeoutError: {
+    en: "Media upload timed out. Try a smaller video or better connection.",
+    es: "La subida de media tardo demasiado. Prueba un video mas pequeno o mejor conexion."
+  },
+  mediaUploadGenericError: {
+    en: "Could not upload media right now.",
+    es: "No se pudo subir la media ahora mismo."
+  },
   tagPrompt: { en: "Tags (comma separated)", es: "Tags (separados por coma)" },
   attachmentSummarySingle: { en: "Sent 1 media file.", es: "Envio 1 archivo de media." },
   attachmentSummaryMulti: { en: "Sent media files.", es: "Envio archivos de media." }
@@ -18469,16 +18484,11 @@ function sortMessageContacts(items = []) {
 }
 
 function getMessageContactIdentityKey(contact = {}, current = getMessagesCurrentUser()) {
-  if (isCoachMessagingUser(current)) {
-    return `user:${contact.uid}`;
-  }
-  if (contact.role === "athlete") {
-    return `athlete:${String(contact.linkedAthleteId || "").trim() || normalizeName(contact.name || "") || contact.uid}`;
-  }
-  if (contact.role === "coach") {
-    return `coach:${normalizeEmail(contact.email || "") || contact.uid}`;
-  }
-  return `parent:${contact.uid}`;
+  const uid = String(contact?.uid || "").trim();
+  if (uid) return `user:${uid}`;
+  const email = normalizeEmail(contact?.email || "");
+  if (email) return `email:${email}`;
+  return `name:${normalizeName(contact?.name || "")}`;
 }
 
 function rankMessageContactCandidate(contact = {}) {
@@ -18604,29 +18614,17 @@ function sortMessageThreadsForInbox(items = [], current = getMessagesCurrentUser
 
 function canMessageContact(current, candidate) {
   if (!current?.uid || !candidate?.uid || candidate.uid === current.uid) return false;
-  const candidateIsOfficialCoach = isOfficialCoachEmail(candidate.email || "") || isForcedAdminEmail(candidate.email || "");
   if (isParentRole(current.role)) {
     return isCoachMessagingUser(candidate) && candidate.uid === getParentLinkedCoachUid();
   }
   if (isCoachMessagingUser(current)) {
-    if (candidate.role === "coach") {
-      return Boolean(candidate.uid);
-    }
-    if (candidate.role === "athlete") {
-      return Boolean(candidate.uid) && Boolean(candidate.linkedAthleteId || candidate.name);
-    }
-    return candidate.role === "parent" && Boolean(candidate.uid) && Boolean(candidate.athleteName || candidate.linkedAthleteId || candidate.name);
+    return ["coach", "athlete", "parent"].includes(candidate.role) && Boolean(candidate.uid);
   }
   if (isAthleteRole(current.role)) {
     if (candidate.role === "coach") {
-      return !current.linkedCoachUid
-        ? candidateIsOfficialCoach
-        : normalizeUid(candidate.uid) === normalizeUid(current.linkedCoachUid);
+      return Boolean(candidate.uid);
     }
-    if (candidate.role === "athlete") {
-      return Boolean(candidate.uid) && Boolean(candidate.linkedAthleteId || candidate.name);
-    }
-    return false;
+    return ["athlete", "parent"].includes(candidate.role) && Boolean(candidate.uid);
   }
   return false;
 }
@@ -18647,8 +18645,6 @@ async function loadMessageContactsDirectory() {
     ];
     if (!isParentRole(current.role)) {
       queries.push(withTimeout(usersRef.where("role", "==", "athlete").get(), FIREBASE_OP_TIMEOUT_MS * 2, "firestore_message_athletes_timeout"));
-    }
-    if (isCoachMessagingUser(current)) {
       queries.push(withTimeout(usersRef.where("role", "==", "parent").get(), FIREBASE_OP_TIMEOUT_MS * 2, "firestore_message_parents_timeout"));
     }
     const snapshots = await Promise.all(queries);
@@ -18680,8 +18676,6 @@ function subscribeToMessageContacts(current) {
   ];
   if (!isParentRole(current.role)) {
     sources.push({ key: "athletes", query: usersRef.where("role", "==", "athlete") });
-  }
-  if (isCoachMessagingUser(current)) {
     sources.push({ key: "parents", query: usersRef.where("role", "==", "parent") });
   }
 
@@ -19622,7 +19616,13 @@ async function handleMessageComposerSubmit(event) {
     } catch (err) {
       console.warn("Failed to upload message media", err);
       messagesSendInFlight = false;
-      setMessagesStatus(MESSAGES_COPY.sendError, "error");
+      const errCode = String(err?.code || err?.message || "").toLowerCase();
+      const copy = errCode.includes("auth")
+        ? MESSAGES_COPY.mediaUploadAuthError
+        : errCode.includes("timeout")
+          ? MESSAGES_COPY.mediaUploadTimeoutError
+          : MESSAGES_COPY.mediaUploadGenericError;
+      setMessagesStatus(copy, "error");
       renderMessages();
       return;
     }
