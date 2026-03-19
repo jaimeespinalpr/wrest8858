@@ -1404,9 +1404,10 @@ button:active{
 .message-composer-tools{
   margin-top: 10px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto auto;
   gap: 10px;
-  align-items: end;
+  align-items: center;
+  justify-content: flex-start;
 }
 
 .message-composer-file-btn{
