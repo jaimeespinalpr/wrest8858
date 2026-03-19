@@ -17928,7 +17928,7 @@ function mergePendingMessagesIntoFeed(threadId = "", remoteRows = []) {
 }
 
 function getMessageComposerTagList() {
-  return normalizeLooseTagList(messageComposerTagsInput?.value || "");
+  return [];
 }
 
 function formatMessageFileSize(bytes = 0) {
@@ -19282,7 +19282,7 @@ function handleMessageAttachmentSaveToMedia(attachment) {
   toast(pickCopy(result.added ? MESSAGES_COPY.mediaSaved : MESSAGES_COPY.mediaAlreadySaved));
 }
 
-function buildMessageAttachmentCard(attachment = {}) {
+function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = true } = {}) {
   const card = document.createElement("div");
   card.className = "message-media-card";
   const assetUrl = resolveMessageAttachmentUrl(attachment);
@@ -19332,39 +19332,41 @@ function buildMessageAttachmentCard(attachment = {}) {
     card.appendChild(tagsWrap);
   }
 
-  const actions = document.createElement("div");
-  actions.className = "message-media-actions";
+  if (allowReceiverActions) {
+    const actions = document.createElement("div");
+    actions.className = "message-media-actions";
 
-  if (assetUrl) {
-    const openBtn = document.createElement("button");
-    openBtn.type = "button";
-    openBtn.className = "ghost";
-    openBtn.textContent = pickCopy(MESSAGES_COPY.mediaOpen);
-    openBtn.addEventListener("click", () => {
-      window.open(assetUrl, "_blank", "noopener,noreferrer");
+    if (assetUrl) {
+      const openBtn = document.createElement("button");
+      openBtn.type = "button";
+      openBtn.className = "ghost";
+      openBtn.textContent = pickCopy(MESSAGES_COPY.mediaOpen);
+      openBtn.addEventListener("click", () => {
+        window.open(assetUrl, "_blank", "noopener,noreferrer");
+      });
+      actions.appendChild(openBtn);
+    }
+
+    const favBtn = document.createElement("button");
+    favBtn.type = "button";
+    favBtn.className = "ghost";
+    favBtn.textContent = pickCopy(MESSAGES_COPY.mediaFavorite);
+    favBtn.addEventListener("click", () => {
+      handleMessageAttachmentFavorite(attachment);
     });
-    actions.appendChild(openBtn);
+    actions.appendChild(favBtn);
+
+    const mediaBtn = document.createElement("button");
+    mediaBtn.type = "button";
+    mediaBtn.className = "ghost";
+    mediaBtn.textContent = pickCopy(MESSAGES_COPY.mediaSaveToMedia);
+    mediaBtn.addEventListener("click", () => {
+      handleMessageAttachmentSaveToMedia(attachment);
+    });
+    actions.appendChild(mediaBtn);
+
+    card.appendChild(actions);
   }
-
-  const favBtn = document.createElement("button");
-  favBtn.type = "button";
-  favBtn.className = "ghost";
-  favBtn.textContent = pickCopy(MESSAGES_COPY.mediaFavorite);
-  favBtn.addEventListener("click", () => {
-    handleMessageAttachmentFavorite(attachment);
-  });
-  actions.appendChild(favBtn);
-
-  const mediaBtn = document.createElement("button");
-  mediaBtn.type = "button";
-  mediaBtn.className = "ghost";
-  mediaBtn.textContent = pickCopy(MESSAGES_COPY.mediaSaveToMedia);
-  mediaBtn.addEventListener("click", () => {
-    handleMessageAttachmentSaveToMedia(attachment);
-  });
-  actions.appendChild(mediaBtn);
-
-  card.appendChild(actions);
   return card;
 }
 
@@ -19421,7 +19423,9 @@ function renderMessagesFeed(current) {
       const mediaWrap = document.createElement("div");
       mediaWrap.className = "message-bubble-media";
       attachments.forEach((attachment) => {
-        mediaWrap.appendChild(buildMessageAttachmentCard(attachment));
+        mediaWrap.appendChild(buildMessageAttachmentCard(attachment, {
+          allowReceiverActions: !isOwn
+        }));
       });
       bubble.appendChild(mediaWrap);
     }
@@ -19437,13 +19441,9 @@ function renderMessages() {
   setTextContent(messagesPanelChip, MESSAGES_COPY.chip);
   setTextContent(messageComposerLabel, MESSAGES_COPY.composerLabel);
   setTextContent(messageComposerFilesLabel, MESSAGES_COPY.composerFilesLabel);
-  setTextContent(messageComposerTagsLabel, MESSAGES_COPY.composerTagsLabel);
   setTextContent(messageComposerFilesClearBtn, MESSAGES_COPY.clearMedia);
   if (messageComposerInput) {
     messageComposerInput.placeholder = pickCopy(MESSAGES_COPY.composerPlaceholder);
-  }
-  if (messageComposerTagsInput) {
-    messageComposerTagsInput.placeholder = pickCopy(MESSAGES_COPY.composerTagsPlaceholder);
   }
   renderMessageComposerFiles();
   updateMessagesUnreadIndicators();
