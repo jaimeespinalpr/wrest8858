@@ -16,6 +16,11 @@
   --radius: 18px;
 }
 
+html{
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 *{ box-sizing: border-box; }
 
 .hidden{ display:none; }
@@ -1553,6 +1558,10 @@ button:active{
   object-fit: contain;
 }
 
+.message-media-preview.video-thumb{
+  object-fit: cover;
+}
+
 .message-media-head{
   display: flex;
   justify-content: space-between;
@@ -1581,6 +1590,12 @@ button:active{
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.message-media-video-hint{
+  font-size: 0.72rem;
+  color: #9fc0f4;
+  line-height: 1.35;
 }
 
 .message-media-tag{
