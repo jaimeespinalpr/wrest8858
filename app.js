@@ -17719,6 +17719,10 @@ const MESSAGES_COPY = {
     en: "Only photo and video files are allowed in messages.",
     es: "Solo se permiten fotos y videos en mensajes."
   },
+  fileSizeError: {
+    en: "Each file must be 180 MB or less.",
+    es: "Cada archivo debe ser de 180 MB o menos."
+  },
   fileLimitError: {
     en: "You can send up to 4 files per message.",
     es: "Puedes enviar hasta 4 archivos por mensaje."
@@ -17741,6 +17745,10 @@ const MESSAGES_COPY = {
   mediaUploadGenericError: {
     en: "Could not upload media right now.",
     es: "No se pudo subir la media ahora mismo."
+  },
+  videoTapToOpen: {
+    en: "Tap Open to play video smoothly.",
+    es: "Pulsa Abrir para reproducir el video sin problemas."
   },
   tagPrompt: { en: "Tags (comma separated)", es: "Tags (separados por coma)" },
   attachmentSummarySingle: { en: "Sent 1 media file.", es: "Envio 1 archivo de media." },
@@ -17772,6 +17780,8 @@ let messagesPendingEntriesByThread = {};
 let messagesOpenRequestId = 0;
 let messagesComposerFiles = [];
 const MESSAGE_MAX_ATTACHMENTS = 4;
+const MESSAGE_MAX_FILE_SIZE_BYTES = 180 * 1024 * 1024;
+const MESSAGE_VIDEO_THUMBNAIL_MAX_BYTES = 40 * 1024 * 1024;
 let messagesContactGroupOpenState = {};
 let messagesContactGroupStateUid = "";
 let userNameDecorationQueued = false;
@@ -18000,6 +18010,10 @@ function validateMessageComposerFiles(files = []) {
   if (files.length > MESSAGE_MAX_ATTACHMENTS) {
     return { valid: false, reason: "count" };
   }
+  const oversized = files.find((file) => Number(file?.size || 0) > MESSAGE_MAX_FILE_SIZE_BYTES);
+  if (oversized) {
+    return { valid: false, reason: "size" };
+  }
   const invalid = files.find((file) => {
     const mime = String(file?.type || "").toLowerCase();
     return !(mime.startsWith("image/") || mime.startsWith("video/"));
@@ -18008,6 +18022,33 @@ function validateMessageComposerFiles(files = []) {
     return { valid: false, reason: "type" };
   }
   return { valid: true, files };
+}
+
+function getMessageFileValidationCopy(reason = "") {
+  if (reason === "count") return MESSAGES_COPY.fileLimitError;
+  if (reason === "size") return MESSAGES_COPY.fileSizeError;
+  return MESSAGES_COPY.fileTypeError;
+}
+
+function shouldUseLiteVideoMessagePreview() {
+  if (typeof window === "undefined") return false;
+  const isSmallScreen = Boolean(window.matchMedia?.("(max-width: 900px)")?.matches);
+  const saveData = Boolean(typeof navigator !== "undefined" && navigator.connection?.saveData);
+  const deviceMemory = Number(typeof navigator !== "undefined" ? (navigator.deviceMemory || 0) : 0);
+  const lowMemory = deviceMemory > 0 && deviceMemory <= 4;
+  return isSmallScreen || saveData || lowMemory;
+}
+
+function shouldGenerateMessageThumbnail(file) {
+  const type = String(file?.type || "").toLowerCase();
+  const size = Number(file?.size || 0);
+  if (type.startsWith("image/")) return true;
+  if (type.startsWith("video/")) {
+    if (size > MESSAGE_VIDEO_THUMBNAIL_MAX_BYTES) return false;
+    if (shouldUseLiteVideoMessagePreview()) return false;
+    return true;
+  }
+  return false;
 }
 
 function buildMessageAttachmentSummaryText(attachments = []) {
@@ -18019,7 +18060,9 @@ function buildMessageAttachmentSummaryText(attachments = []) {
 async function uploadMessageComposerAttachments(files = [], tags = []) {
   const uploads = [];
   for (const file of files) {
-    const uploaded = await uploadMediaAssetBundleToFirebase(file, { generateThumbnail: true });
+    const uploaded = await uploadMediaAssetBundleToFirebase(file, {
+      generateThumbnail: shouldGenerateMessageThumbnail(file)
+    });
     uploads.push(normalizeMessageAttachment({
       id: makeMediaId("msg_media"),
       name: file.name,
@@ -19366,13 +19409,30 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
     img.alt = getMessageAttachmentDisplayName(attachment);
     img.loading = "lazy";
     card.appendChild(img);
-  } else if (isVideo && assetUrl) {
-    const video = document.createElement("video");
-    video.className = "message-media-preview video";
-    video.src = assetUrl;
-    video.controls = true;
-    video.preload = "metadata";
-    card.appendChild(video);
+  } else if (isVideo) {
+    const litePreview = shouldUseLiteVideoMessagePreview();
+    if (litePreview) {
+      if (previewUrl) {
+        const img = document.createElement("img");
+        img.className = "message-media-preview video-thumb";
+        img.src = previewUrl;
+        img.alt = getMessageAttachmentDisplayName(attachment);
+        img.loading = "lazy";
+        card.appendChild(img);
+      }
+      const hint = document.createElement("div");
+      hint.className = "message-media-video-hint";
+      hint.textContent = pickCopy(MESSAGES_COPY.videoTapToOpen);
+      card.appendChild(hint);
+    } else if (assetUrl) {
+      const video = document.createElement("video");
+      video.className = "message-media-preview video";
+      video.src = assetUrl;
+      video.controls = true;
+      video.preload = "none";
+      video.playsInline = true;
+      card.appendChild(video);
+    }
   }
 
   const tags = normalizeLooseTagList(attachment.tags || []);
@@ -19632,7 +19692,7 @@ async function handleMessageComposerSubmit(event) {
     return;
   }
   if (!fileValidation.valid) {
-    toast(pickCopy(fileValidation.reason === "count" ? MESSAGES_COPY.fileLimitError : MESSAGES_COPY.fileTypeError));
+    toast(pickCopy(getMessageFileValidationCopy(fileValidation.reason)));
     return;
   }
   if (!current || !selectedThread || !threadId) {
@@ -19778,7 +19838,7 @@ if (messageComposer && !messagesBound) {
       const picked = Array.from(messageComposerFilesInput.files || []);
       const validation = validateMessageComposerFiles(picked);
       if (!validation.valid) {
-        toast(pickCopy(validation.reason === "count" ? MESSAGES_COPY.fileLimitError : MESSAGES_COPY.fileTypeError));
+        toast(pickCopy(getMessageFileValidationCopy(validation.reason)));
         clearMessageComposerMediaInputs({ preserveTags: true });
         return;
       }
