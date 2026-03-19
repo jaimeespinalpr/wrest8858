@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Teko:wght@500;600;700&display=swap"
     rel="stylesheet"
   >
-  <link rel="stylesheet" href="styles.css?v=20260319k" >
+  <link rel="stylesheet" href="styles.css?v=20260319l" >
 </head>
 
 <body>
@@ -2048,48 +2048,112 @@
             </div>
             <div class="chip" id="messagesPanelChip">Direct threads</div>
           </div>
-          <div class="messages-shell">
-            <aside class="messages-sidebar">
-              <div class="messages-sidebar-block">
-                <h3 id="messagesSidebarTitle">Contacts</h3>
-                <p id="messagesSidebarHint" class="small muted">Pick a contact to open or continue a direct thread.</p>
-              </div>
-              <div id="messagesCoachList" class="messages-coach-list"></div>
-              <div id="messageList" class="message-thread-list"></div>
-            </aside>
-            <div class="messages-main">
-              <div id="messagesEmptyState" class="messages-empty-state">
-                <h3 id="messagesEmptyTitle">No conversation selected</h3>
-                <p id="messagesEmptyBody" class="small muted">Choose a contact from the left column to open a direct thread.</p>
-              </div>
-              <div id="messagesThreadView" class="messages-thread-view hidden">
-                <div class="messages-thread-header">
-                  <div>
-                    <h3 id="messagesThreadTitle">Conversation</h3>
-                    <p id="messagesThreadMeta" class="small muted"></p>
-                  </div>
-                  <div id="messagesThreadBadge" class="tag-pill">Direct</div>
+          <div id="messagesWorkspaceNav" class="messages-workspace-nav" role="tablist" aria-label="Messaging workspace">
+            <button type="button" id="messagesModeChatsBtn" class="messages-workspace-tab active" data-mode="chats">Chats</button>
+            <button type="button" id="messagesModeCallsBtn" class="messages-workspace-tab" data-mode="calls">Calls</button>
+            <button type="button" id="messagesModeContactsBtn" class="messages-workspace-tab" data-mode="contacts">Contacts</button>
+            <button type="button" id="messagesModeShareBtn" class="messages-workspace-tab" data-mode="share">Share</button>
+          </div>
+          <section id="messagesChatsPanel" class="messages-workspace-panel">
+            <div class="messages-shell">
+              <aside class="messages-sidebar">
+                <div class="messages-sidebar-block">
+                  <h3 id="messagesSidebarTitle">Contacts</h3>
+                  <p id="messagesSidebarHint" class="small muted">Pick a contact to open or continue a direct thread.</p>
                 </div>
-                <div id="messagesStatus" class="small muted"></div>
-                <div id="messagesFeed" class="messages-feed"></div>
-                <form id="messageComposer" class="message-composer">
-                  <label>
-                    <span id="messageComposerLabel">Message</span>
-                    <textarea id="messageComposerInput" rows="4" maxlength="1000" placeholder="Write your message here"></textarea>
-                  </label>
-                  <div class="message-composer-tools">
-                    <label class="message-composer-file-btn" for="messageComposerFiles" id="messageComposerFilesLabel">Attach photo/video</label>
-                    <input id="messageComposerFiles" type="file" accept="image/*,video/*" multiple>
-                    <button type="button" id="messageComposerFilesClearBtn" class="ghost">Clear media</button>
+                <div id="messagesCoachList" class="messages-coach-list"></div>
+                <div id="messageList" class="message-thread-list"></div>
+              </aside>
+              <div class="messages-main">
+                <div id="messagesEmptyState" class="messages-empty-state">
+                  <h3 id="messagesEmptyTitle">No conversation selected</h3>
+                  <p id="messagesEmptyBody" class="small muted">Choose a contact from the left column to open a direct thread.</p>
+                </div>
+                <div id="messagesThreadView" class="messages-thread-view hidden">
+                  <div class="messages-thread-header">
+                    <div>
+                      <h3 id="messagesThreadTitle">Conversation</h3>
+                      <p id="messagesThreadMeta" class="small muted"></p>
+                    </div>
+                    <div id="messagesThreadBadge" class="tag-pill">Direct</div>
                   </div>
-                  <div id="messageComposerFilesList" class="message-composer-files"></div>
-                  <div class="row">
-                    <button type="submit" id="messageSendBtn" class="primary">Send message</button>
-                  </div>
-                </form>
+                  <div id="messagesStatus" class="small muted"></div>
+                  <div id="messagesFeed" class="messages-feed"></div>
+                  <form id="messageComposer" class="message-composer">
+                    <label>
+                      <span id="messageComposerLabel">Message</span>
+                      <textarea id="messageComposerInput" rows="4" maxlength="1000" placeholder="Write your message here"></textarea>
+                    </label>
+                    <div class="message-composer-tools">
+                      <label class="message-composer-file-btn" for="messageComposerFiles" id="messageComposerFilesLabel">Attach photo/video</label>
+                      <input id="messageComposerFiles" type="file" accept="image/*,video/*" multiple>
+                      <button type="button" id="messageComposerFilesClearBtn" class="ghost">Clear media</button>
+                    </div>
+                    <div id="messageComposerFilesList" class="message-composer-files"></div>
+                    <div class="row">
+                      <button type="submit" id="messageSendBtn" class="primary">Send message</button>
+                    </div>
+                  </form>
+                </div>
               </div>
             </div>
-          </div>
+          </section>
+          <section id="messagesCallsPanel" class="messages-workspace-panel hidden">
+            <div class="messages-utility-grid">
+              <div class="messages-sidebar-block">
+                <h3 id="messagesCallsTitle">Calls</h3>
+                <p id="messagesCallsHint" class="small muted">Send quick voice/video call requests from here.</p>
+                <label class="messages-call-contact-field" for="messagesCallContactSelect">
+                  <span id="messagesCallContactLabel">Contact</span>
+                  <select id="messagesCallContactSelect"></select>
+                </label>
+                <div class="row">
+                  <button type="button" id="messagesCallVoiceBtn" class="ghost">Voice call</button>
+                  <button type="button" id="messagesCallVideoBtn" class="primary">Video call</button>
+                </div>
+                <p id="messagesCallsStatus" class="small muted"></p>
+              </div>
+              <div class="messages-thread-view">
+                <div class="messages-thread-header">
+                  <h3 id="messagesCallsLogTitle">Recent call requests</h3>
+                </div>
+                <div id="messagesCallsLog" class="messages-calls-log"></div>
+              </div>
+            </div>
+          </section>
+          <section id="messagesContactsPanel" class="messages-workspace-panel hidden">
+            <div class="messages-sidebar-block">
+              <h3 id="messagesContactsTitle">Contacts</h3>
+              <p id="messagesContactsHint" class="small muted">Tap a group to open contacts quickly.</p>
+            </div>
+            <div id="messagesContactsDirectory" class="messages-coach-list"></div>
+          </section>
+          <section id="messagesSharePanel" class="messages-workspace-panel hidden">
+            <div class="messages-utility-grid">
+              <div class="messages-sidebar-block">
+                <h3 id="messagesShareTitle">Share media</h3>
+                <p id="messagesShareHint" class="small muted">Share your media link to social apps.</p>
+                <label for="messagesShareUrl">
+                  <span id="messagesShareUrlLabel">Media URL</span>
+                  <input id="messagesShareUrl" type="url" placeholder="https://...">
+                </label>
+                <p id="messagesShareStatus" class="small muted"></p>
+              </div>
+              <div class="messages-thread-view">
+                <div class="messages-thread-header">
+                  <h3 id="messagesShareActionsTitle">Share to</h3>
+                </div>
+                <div class="messages-share-actions">
+                  <button type="button" id="messagesShareNativeBtn" class="primary">Share</button>
+                  <button type="button" id="messagesShareFacebookBtn" class="ghost">Facebook</button>
+                  <button type="button" id="messagesShareInstagramBtn" class="ghost">Instagram</button>
+                  <button type="button" id="messagesShareTiktokBtn" class="ghost">TikTok</button>
+                  <button type="button" id="messagesShareYoutubeBtn" class="ghost">YouTube Shorts</button>
+                </div>
+                <p id="messagesShareHelp" class="small muted"></p>
+              </div>
+            </div>
+          </section>
         </div>
       </section>
 
@@ -2140,6 +2204,6 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260319e"></script>
+  <script src="app.js?v=20260319f"></script>
 </body>
 </html>

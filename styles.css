@@ -1156,6 +1156,86 @@ button:active{
   align-items: start;
 }
 
+.messages-workspace-nav{
+  margin: 10px 0 14px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.messages-workspace-tab{
+  min-height: 42px;
+  border-radius: 12px;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.messages-workspace-tab.active{
+  color: #ffffff;
+  border-color: rgba(96, 165, 250, 0.5);
+  background: linear-gradient(135deg, rgba(79,124,255,0.86), rgba(45,212,191,0.76));
+}
+
+.messages-workspace-panel{
+  display: block;
+}
+
+.messages-utility-grid{
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.messages-call-contact-field{
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.messages-calls-log{
+  display: grid;
+  gap: 10px;
+}
+
+.messages-call-item{
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(120,146,196,0.32);
+  background: rgba(12, 20, 36, 0.7);
+}
+
+.messages-call-item-top{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.messages-call-item-name{
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.messages-call-item-type{
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9fc0f4;
+}
+
+.messages-call-item-time{
+  font-size: 0.75rem;
+  color: #8fa8d6;
+}
+
+.messages-share-actions{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
 .messages-sidebar{
   display: grid;
   gap: 12px;
@@ -5718,6 +5798,11 @@ svg{
     gap: 12px;
   }
 
+  .messages-utility-grid{
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
   .messages-feed{
     max-height: min(46vh, 430px);
     padding-right: 0;
@@ -5755,6 +5840,10 @@ svg{
 
   .header-actions{
     grid-template-columns: 1fr 1fr auto;
+  }
+
+  .messages-workspace-nav{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .lang-switch{
@@ -5806,6 +5895,10 @@ svg{
 
 @media (max-width: 420px){
   .header-actions{
+    grid-template-columns: 1fr;
+  }
+
+  .messages-workspace-nav{
     grid-template-columns: 1fr;
   }
 

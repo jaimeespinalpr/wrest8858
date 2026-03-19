@@ -17589,6 +17589,15 @@ const messagesCoachList = document.getElementById("messagesCoachList");
 const messagesPanelTitle = document.getElementById("messagesPanelTitle");
 const messagesPanelSubtitle = document.getElementById("messagesPanelSubtitle");
 const messagesPanelChip = document.getElementById("messagesPanelChip");
+const messagesWorkspaceNav = document.getElementById("messagesWorkspaceNav");
+const messagesModeChatsBtn = document.getElementById("messagesModeChatsBtn");
+const messagesModeCallsBtn = document.getElementById("messagesModeCallsBtn");
+const messagesModeContactsBtn = document.getElementById("messagesModeContactsBtn");
+const messagesModeShareBtn = document.getElementById("messagesModeShareBtn");
+const messagesChatsPanel = document.getElementById("messagesChatsPanel");
+const messagesCallsPanel = document.getElementById("messagesCallsPanel");
+const messagesContactsPanel = document.getElementById("messagesContactsPanel");
+const messagesSharePanel = document.getElementById("messagesSharePanel");
 const messagesSidebarTitle = document.getElementById("messagesSidebarTitle");
 const messagesSidebarHint = document.getElementById("messagesSidebarHint");
 const messagesEmptyState = document.getElementById("messagesEmptyState");
@@ -17610,6 +17619,30 @@ const messageComposerFilesList = document.getElementById("messageComposerFilesLi
 const messageComposerFilesClearBtn = document.getElementById("messageComposerFilesClearBtn");
 const messageComposerTagsLabel = document.getElementById("messageComposerTagsLabel");
 const messageComposerTagsInput = document.getElementById("messageComposerTags");
+const messagesCallsTitle = document.getElementById("messagesCallsTitle");
+const messagesCallsHint = document.getElementById("messagesCallsHint");
+const messagesCallContactLabel = document.getElementById("messagesCallContactLabel");
+const messagesCallContactSelect = document.getElementById("messagesCallContactSelect");
+const messagesCallVoiceBtn = document.getElementById("messagesCallVoiceBtn");
+const messagesCallVideoBtn = document.getElementById("messagesCallVideoBtn");
+const messagesCallsStatus = document.getElementById("messagesCallsStatus");
+const messagesCallsLogTitle = document.getElementById("messagesCallsLogTitle");
+const messagesCallsLog = document.getElementById("messagesCallsLog");
+const messagesContactsTitle = document.getElementById("messagesContactsTitle");
+const messagesContactsHint = document.getElementById("messagesContactsHint");
+const messagesContactsDirectory = document.getElementById("messagesContactsDirectory");
+const messagesShareTitle = document.getElementById("messagesShareTitle");
+const messagesShareHint = document.getElementById("messagesShareHint");
+const messagesShareUrlLabel = document.getElementById("messagesShareUrlLabel");
+const messagesShareUrlInput = document.getElementById("messagesShareUrl");
+const messagesShareStatus = document.getElementById("messagesShareStatus");
+const messagesShareActionsTitle = document.getElementById("messagesShareActionsTitle");
+const messagesShareNativeBtn = document.getElementById("messagesShareNativeBtn");
+const messagesShareFacebookBtn = document.getElementById("messagesShareFacebookBtn");
+const messagesShareInstagramBtn = document.getElementById("messagesShareInstagramBtn");
+const messagesShareTiktokBtn = document.getElementById("messagesShareTiktokBtn");
+const messagesShareYoutubeBtn = document.getElementById("messagesShareYoutubeBtn");
+const messagesShareHelp = document.getElementById("messagesShareHelp");
 
 const MESSAGES_COPY = {
   title: { en: "Messages", es: "Mensajes" },
@@ -17618,6 +17651,10 @@ const MESSAGES_COPY = {
     es: "Mensajeria directa 1:1 entre coaches, atletas y padres."
   },
   chip: { en: "Direct threads", es: "Chats directos" },
+  workspaceChats: { en: "Chats", es: "Chats" },
+  workspaceCalls: { en: "Calls", es: "Llamadas" },
+  workspaceContacts: { en: "Contacts", es: "Contactos" },
+  workspaceShare: { en: "Share", es: "Compartir" },
   sidebarTitle: { en: "Contacts", es: "Contactos" },
   sidebarTitleCoach: { en: "Contacts", es: "Contactos" },
   sidebarTitleAthlete: { en: "Connect fast", es: "Conecta rapido" },
@@ -17694,6 +17731,66 @@ const MESSAGES_COPY = {
     en: "New and recent threads will appear here.",
     es: "Los chats nuevos y recientes apareceran aqui."
   },
+  callsTitle: { en: "Calls", es: "Llamadas" },
+  callsHint: {
+    en: "Send quick voice/video call requests from here.",
+    es: "Envia solicitudes rapidas de llamada de voz/video desde aqui."
+  },
+  callsContactLabel: { en: "Contact", es: "Contacto" },
+  callsVoiceBtn: { en: "Voice call", es: "Llamada de voz" },
+  callsVideoBtn: { en: "Video call", es: "Videollamada" },
+  callsLogTitle: { en: "Recent call requests", es: "Solicitudes recientes de llamada" },
+  callsNoContacts: {
+    en: "No contacts available for calls yet.",
+    es: "Todavia no hay contactos disponibles para llamadas."
+  },
+  callsNoLogs: {
+    en: "No call requests yet.",
+    es: "Todavia no hay solicitudes de llamada."
+  },
+  callsRequestVoiceText: {
+    en: "Voice call request.",
+    es: "Solicitud de llamada de voz."
+  },
+  callsRequestVideoText: {
+    en: "Video call request.",
+    es: "Solicitud de videollamada."
+  },
+  callsRequestSent: { en: "Call request sent.", es: "Solicitud de llamada enviada." },
+  callsSendError: { en: "Could not send call request.", es: "No se pudo enviar la solicitud de llamada." },
+  contactsTitleTab: { en: "Contacts", es: "Contactos" },
+  contactsHintTab: {
+    en: "Tap a group to open contacts quickly.",
+    es: "Toca un grupo para abrir contactos rapido."
+  },
+  shareTitle: { en: "Share media", es: "Compartir media" },
+  shareHint: {
+    en: "Paste a media URL from chat and share it to social apps.",
+    es: "Pega un URL de media del chat y compartelo en redes sociales."
+  },
+  shareUrlLabel: { en: "Media URL", es: "URL de media" },
+  shareUrlPlaceholder: { en: "https://...", es: "https://..." },
+  shareActionsTitle: { en: "Share to", es: "Compartir en" },
+  shareNativeBtn: { en: "Share", es: "Compartir" },
+  shareFacebookBtn: { en: "Facebook", es: "Facebook" },
+  shareInstagramBtn: { en: "Instagram", es: "Instagram" },
+  shareTiktokBtn: { en: "TikTok", es: "TikTok" },
+  shareYoutubeBtn: { en: "YouTube Shorts", es: "YouTube Shorts" },
+  shareHelp: {
+    en: "Tip: paste a message media URL, then choose the app.",
+    es: "Tip: pega el URL de un media del mensaje y luego elige la app."
+  },
+  shareNeedUrl: {
+    en: "Add a media URL first.",
+    es: "Primero agrega un URL de media."
+  },
+  shareNativeUnsupported: {
+    en: "Native share is not available on this device. Use the social buttons.",
+    es: "Compartir nativo no esta disponible en este dispositivo. Usa los botones sociales."
+  },
+  shareCopied: { en: "Media URL copied.", es: "URL de media copiado." },
+  shareOpenApp: { en: "Opening app...", es: "Abriendo app..." },
+  shareError: { en: "Could not open share target.", es: "No se pudo abrir el destino de compartir." },
   newBadge: {
     en: "New",
     es: "Nuevo"
@@ -17782,10 +17879,14 @@ let messagesComposerFiles = [];
 const MESSAGE_MAX_ATTACHMENTS = 4;
 const MESSAGE_MAX_FILE_SIZE_BYTES = 180 * 1024 * 1024;
 const MESSAGE_VIDEO_THUMBNAIL_MAX_BYTES = 40 * 1024 * 1024;
+const MESSAGES_WORKSPACE_MODE_KEY = "wpl_messages_workspace_mode";
+const MESSAGES_CALL_LOGS_KEY = "wpl_messages_call_logs";
+let messagesWorkspaceMode = "chats";
 let messagesContactGroupOpenState = {};
 let messagesContactGroupStateUid = "";
 let userNameDecorationQueued = false;
 let userNameDecorationObserver = null;
+messagesWorkspaceMode = loadMessagesWorkspaceMode();
 
 function getAppToastStack() {
   let stack = document.getElementById("appToastStack");
@@ -17965,6 +18066,78 @@ function setMessagesContactGroupOpen(groupKey = "", isOpen = false) {
     ...messagesContactGroupOpenState,
     [safeKey]: Boolean(isOpen)
   };
+}
+
+function normalizeMessagesWorkspaceMode(mode = "") {
+  const safe = String(mode || "").trim().toLowerCase();
+  if (["chats", "calls", "contacts", "share"].includes(safe)) return safe;
+  return "chats";
+}
+
+function loadMessagesWorkspaceMode() {
+  return normalizeMessagesWorkspaceMode(localStorage.getItem(MESSAGES_WORKSPACE_MODE_KEY) || "chats");
+}
+
+function setMessagesWorkspaceMode(mode = "chats", { persist = true, rerender = true } = {}) {
+  const nextMode = normalizeMessagesWorkspaceMode(mode);
+  messagesWorkspaceMode = nextMode;
+  if (persist) {
+    localStorage.setItem(MESSAGES_WORKSPACE_MODE_KEY, nextMode);
+  }
+  if (rerender) {
+    renderMessages();
+  }
+}
+
+function getMessageCallLogs() {
+  const parsed = parseStoredJson(MESSAGES_CALL_LOGS_KEY);
+  return Array.isArray(parsed) ? parsed : [];
+}
+
+function setMessageCallLogs(logs = []) {
+  const safeLogs = Array.isArray(logs) ? logs.filter(Boolean).slice(0, 60) : [];
+  localStorage.setItem(MESSAGES_CALL_LOGS_KEY, JSON.stringify(safeLogs));
+}
+
+function appendMessageCallLog(entry = {}) {
+  const nextEntry = {
+    id: String(entry.id || makeMediaId("call")).trim(),
+    contactUid: String(entry.contactUid || "").trim(),
+    contactName: String(entry.contactName || "Contact").trim() || "Contact",
+    type: String(entry.type || "voice").trim().toLowerCase() === "video" ? "video" : "voice",
+    createdAt: String(entry.createdAt || new Date().toISOString()).trim(),
+    byUid: String(entry.byUid || "").trim()
+  };
+  setMessageCallLogs([nextEntry, ...getMessageCallLogs()]);
+}
+
+function getMessagesShareUrl() {
+  return String(messagesShareUrlInput?.value || "").trim();
+}
+
+function setMessagesShareStatus(copy = "") {
+  if (!messagesShareStatus) return;
+  messagesShareStatus.textContent = pickCopy(copy);
+}
+
+async function copyTextToClipboard(text = "") {
+  const safeText = String(text || "").trim();
+  if (!safeText) return false;
+  try {
+    await navigator.clipboard.writeText(safeText);
+    return true;
+  } catch {
+    const input = document.createElement("textarea");
+    input.value = safeText;
+    input.setAttribute("readonly", "");
+    input.style.position = "fixed";
+    input.style.left = "-9999px";
+    document.body.appendChild(input);
+    input.select();
+    const ok = document.execCommand("copy");
+    input.remove();
+    return Boolean(ok);
+  }
 }
 
 function getMessageComposerTagList() {
@@ -19183,7 +19356,7 @@ function getGroupedMessageContacts(current) {
   ].filter((group) => group.rows.length);
 }
 
-function buildMessageContactCard(contact, current, { priority = false } = {}) {
+function buildMessageContactCard(contact, current, { priority = false, onSelect = null } = {}) {
   const card = document.createElement("button");
   card.type = "button";
   card.className = `messages-coach-card messages-contact-chip${priority ? " messages-contact-priority" : ""}`;
@@ -19201,6 +19374,10 @@ function buildMessageContactCard(contact, current, { priority = false } = {}) {
   `;
   card.title = String(contact.email || contact.name || "Contact");
   card.addEventListener("click", () => {
+    if (typeof onSelect === "function") {
+      onSelect(contact);
+      return;
+    }
     setMessagesContactGroupOpen(contact.role, true);
     openMessageThreadForContact(contact);
   });
@@ -19229,15 +19406,15 @@ function buildMessageContactSubgroups(group) {
     .map(([label, rows]) => ({ label, rows }));
 }
 
-function renderMessagesCoachList(current) {
-  if (!messagesCoachList) return;
-  messagesCoachList.innerHTML = "";
+function renderMessageContactDirectory(targetEl, current, { onContactSelect = null } = {}) {
+  if (!targetEl) return;
+  targetEl.innerHTML = "";
 
   if (!messagesContactRows.length) {
     const empty = document.createElement("div");
     empty.className = "small muted";
     empty.textContent = pickCopy(MESSAGES_COPY.emptyBodyNoContacts);
-    messagesCoachList.appendChild(empty);
+    targetEl.appendChild(empty);
     return;
   }
 
@@ -19281,13 +19458,270 @@ function renderMessagesCoachList(current) {
       const grid = document.createElement("div");
       grid.className = "messages-contact-grid";
       subgroup.rows.forEach((contact) => {
-        grid.appendChild(buildMessageContactCard(contact, current, { priority: group.priority }));
+        const card = buildMessageContactCard(contact, current, {
+          priority: group.priority,
+          onSelect: onContactSelect
+        });
+        grid.appendChild(card);
       });
       subgroupWrap.appendChild(grid);
       body.appendChild(subgroupWrap);
     });
     section.appendChild(body);
-    messagesCoachList.appendChild(section);
+    targetEl.appendChild(section);
+  });
+}
+
+function renderMessagesCoachList(current) {
+  renderMessageContactDirectory(messagesCoachList, current);
+}
+
+function renderMessagesContactsPanel(current) {
+  setTextContent(messagesContactsTitle, MESSAGES_COPY.contactsTitleTab);
+  setTextContent(messagesContactsHint, MESSAGES_COPY.contactsHintTab);
+  renderMessageContactDirectory(messagesContactsDirectory, current, {
+    onContactSelect: (contact) => {
+      setMessagesContactGroupOpen(contact.role, true);
+      setMessagesWorkspaceMode("chats", { persist: true, rerender: false });
+      openMessageThreadForContact(contact);
+    }
+  });
+}
+
+function getMessageCallableContacts(current = getMessagesCurrentUser()) {
+  return sortMessageContacts(
+    messagesContactRows.filter((contact) => canMessageContact(current, contact))
+  );
+}
+
+function setMessagesCallsStatus(copy = "", type = "") {
+  if (!messagesCallsStatus) return;
+  messagesCallsStatus.textContent = pickCopy(copy);
+  messagesCallsStatus.dataset.state = type;
+}
+
+async function sendMessageCallRequest(type = "voice") {
+  const current = getMessagesCurrentUser();
+  const targetUid = String(messagesCallContactSelect?.value || "").trim();
+  const contact = messagesContactRows.find((item) => item.uid === targetUid) || null;
+  if (!current || !contact) {
+    setMessagesCallsStatus(MESSAGES_COPY.callsNoContacts, "error");
+    return;
+  }
+  const safeType = type === "video" ? "video" : "voice";
+  const requestText = pickCopy(
+    safeType === "video" ? MESSAGES_COPY.callsRequestVideoText : MESSAGES_COPY.callsRequestVoiceText
+  );
+  setMessagesCallsStatus(MESSAGES_COPY.sending, "");
+  try {
+    const threadId = await ensureDirectMessageThread(contact);
+    await appendMessageToThread({
+      threadId,
+      participants: [current, contact],
+      sender: current,
+      text: requestText
+    });
+    appendMessageCallLog({
+      contactUid: contact.uid,
+      contactName: contact.name,
+      type: safeType,
+      byUid: current.uid,
+      createdAt: new Date().toISOString()
+    });
+    setMessagesCallsStatus(MESSAGES_COPY.callsRequestSent, "ok");
+    await ensureMessagesSession();
+    renderMessages();
+  } catch (err) {
+    console.warn("Failed to send call request", err);
+    setMessagesCallsStatus(MESSAGES_COPY.callsSendError, "error");
+  }
+}
+
+function renderMessagesCallsPanel(current) {
+  setTextContent(messagesCallsTitle, MESSAGES_COPY.callsTitle);
+  setTextContent(messagesCallsHint, MESSAGES_COPY.callsHint);
+  setTextContent(messagesCallContactLabel, MESSAGES_COPY.callsContactLabel);
+  setTextContent(messagesCallVoiceBtn, MESSAGES_COPY.callsVoiceBtn);
+  setTextContent(messagesCallVideoBtn, MESSAGES_COPY.callsVideoBtn);
+  setTextContent(messagesCallsLogTitle, MESSAGES_COPY.callsLogTitle);
+  if (!messagesCallContactSelect || !messagesCallsLog) return;
+
+  const contacts = getMessageCallableContacts(current);
+  messagesCallContactSelect.innerHTML = "";
+  contacts.forEach((contact) => {
+    const option = document.createElement("option");
+    option.value = contact.uid;
+    option.textContent = `${contact.name} - ${getRoleLabelEnglish(contact.role)}`;
+    messagesCallContactSelect.appendChild(option);
+  });
+  const controlsDisabled = !current?.uid || !contacts.length;
+  if (messagesCallVoiceBtn) messagesCallVoiceBtn.disabled = controlsDisabled;
+  if (messagesCallVideoBtn) messagesCallVideoBtn.disabled = controlsDisabled;
+  if (messagesCallContactSelect) messagesCallContactSelect.disabled = controlsDisabled;
+  if (controlsDisabled) {
+    setMessagesCallsStatus(MESSAGES_COPY.callsNoContacts, "error");
+  } else if (!messagesCallsStatus?.textContent) {
+    setMessagesCallsStatus("", "");
+  }
+
+  messagesCallsLog.innerHTML = "";
+  const logs = getMessageCallLogs();
+  if (!logs.length) {
+    const empty = document.createElement("div");
+    empty.className = "small muted";
+    empty.textContent = pickCopy(MESSAGES_COPY.callsNoLogs);
+    messagesCallsLog.appendChild(empty);
+    return;
+  }
+  logs.slice(0, 12).forEach((log) => {
+    const item = document.createElement("div");
+    item.className = "messages-call-item";
+    const typeCopy = pickCopy(log.type === "video" ? MESSAGES_COPY.callsVideoBtn : MESSAGES_COPY.callsVoiceBtn);
+    item.innerHTML = `
+      <div class="messages-call-item-top">
+        <span class="messages-call-item-name">${escapeHtml(log.contactName || "Contact")}</span>
+        <span class="messages-call-item-type">${escapeHtml(typeCopy)}</span>
+      </div>
+      <span class="messages-call-item-time">${escapeHtml(formatMessageTimestamp(log.createdAt))}</span>
+    `;
+    messagesCallsLog.appendChild(item);
+  });
+}
+
+function findLatestMessageMediaUrl() {
+  const selectedRows = messagesFeedRows.length
+    ? messagesFeedRows
+    : (getSelectedMessageThread()?.messageHistory || []);
+  for (let i = selectedRows.length - 1; i >= 0; i -= 1) {
+    const row = selectedRows[i];
+    const attachments = Array.isArray(row?.attachments) ? row.attachments : [];
+    if (!attachments.length) continue;
+    const url = resolveMessageAttachmentUrl(attachments[0]);
+    if (url) return url;
+  }
+  return "";
+}
+
+function getResolvedMessagesShareUrl() {
+  const typed = getMessagesShareUrl();
+  if (typed) {
+    if (isAbsoluteUrl(typed)) return typed;
+    const normalized = `https://${typed.replace(/^\/+/, "")}`;
+    if (messagesShareUrlInput) messagesShareUrlInput.value = normalized;
+    return normalized;
+  }
+  const fromMessages = findLatestMessageMediaUrl();
+  if (fromMessages && messagesShareUrlInput) {
+    messagesShareUrlInput.value = fromMessages;
+  }
+  return fromMessages;
+}
+
+function getSocialShareTarget(platform = "", mediaUrl = "") {
+  const encodedUrl = encodeURIComponent(mediaUrl);
+  if (platform === "facebook") {
+    return `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
+  }
+  if (platform === "instagram") {
+    return "https://www.instagram.com/";
+  }
+  if (platform === "tiktok") {
+    return "https://www.tiktok.com/upload";
+  }
+  if (platform === "youtube") {
+    return "https://www.youtube.com/upload";
+  }
+  return "";
+}
+
+async function handleMessagesSocialShare(platform = "") {
+  const mediaUrl = getResolvedMessagesShareUrl();
+  if (!mediaUrl) {
+    setMessagesShareStatus(MESSAGES_COPY.shareNeedUrl);
+    return;
+  }
+  if (platform !== "facebook") {
+    await copyTextToClipboard(mediaUrl).catch(() => false);
+    setMessagesShareStatus(MESSAGES_COPY.shareCopied);
+  } else {
+    setMessagesShareStatus(MESSAGES_COPY.shareOpenApp);
+  }
+  const target = getSocialShareTarget(platform, mediaUrl);
+  if (!target) {
+    setMessagesShareStatus(MESSAGES_COPY.shareError);
+    return;
+  }
+  window.open(target, "_blank", "noopener,noreferrer");
+}
+
+async function handleMessagesNativeShare() {
+  const mediaUrl = getResolvedMessagesShareUrl();
+  if (!mediaUrl) {
+    setMessagesShareStatus(MESSAGES_COPY.shareNeedUrl);
+    return;
+  }
+  try {
+    if (navigator.share) {
+      await navigator.share({
+        title: pickCopy(MESSAGES_COPY.title),
+        text: pickCopy(MESSAGES_COPY.shareHint),
+        url: mediaUrl
+      });
+      setMessagesShareStatus(MESSAGES_COPY.shareOpenApp);
+      return;
+    }
+    await copyTextToClipboard(mediaUrl);
+    setMessagesShareStatus(MESSAGES_COPY.shareNativeUnsupported);
+  } catch (err) {
+    console.warn("Native share failed", err);
+    setMessagesShareStatus(MESSAGES_COPY.shareError);
+  }
+}
+
+function renderMessagesSharePanel() {
+  setTextContent(messagesShareTitle, MESSAGES_COPY.shareTitle);
+  setTextContent(messagesShareHint, MESSAGES_COPY.shareHint);
+  setTextContent(messagesShareUrlLabel, MESSAGES_COPY.shareUrlLabel);
+  setTextContent(messagesShareActionsTitle, MESSAGES_COPY.shareActionsTitle);
+  setTextContent(messagesShareNativeBtn, MESSAGES_COPY.shareNativeBtn);
+  setTextContent(messagesShareFacebookBtn, MESSAGES_COPY.shareFacebookBtn);
+  setTextContent(messagesShareInstagramBtn, MESSAGES_COPY.shareInstagramBtn);
+  setTextContent(messagesShareTiktokBtn, MESSAGES_COPY.shareTiktokBtn);
+  setTextContent(messagesShareYoutubeBtn, MESSAGES_COPY.shareYoutubeBtn);
+  setTextContent(messagesShareHelp, MESSAGES_COPY.shareHelp);
+  if (messagesShareUrlInput) {
+    messagesShareUrlInput.placeholder = pickCopy(MESSAGES_COPY.shareUrlPlaceholder);
+  }
+}
+
+function renderMessagesWorkspacePanels(current) {
+  const mode = normalizeMessagesWorkspaceMode(messagesWorkspaceMode);
+  const inChats = mode === "chats";
+  const inCalls = mode === "calls";
+  const inContacts = mode === "contacts";
+  const inShare = mode === "share";
+  messagesChatsPanel?.classList.toggle("hidden", !inChats);
+  messagesCallsPanel?.classList.toggle("hidden", !inCalls);
+  messagesContactsPanel?.classList.toggle("hidden", !inContacts);
+  messagesSharePanel?.classList.toggle("hidden", !inShare);
+  if (inCalls) renderMessagesCallsPanel(current);
+  if (inContacts) renderMessagesContactsPanel(current);
+  if (inShare) renderMessagesSharePanel();
+}
+
+function renderMessagesWorkspaceNav() {
+  const mode = normalizeMessagesWorkspaceMode(messagesWorkspaceMode);
+  const tabDefs = [
+    { el: messagesModeChatsBtn, mode: "chats", copy: MESSAGES_COPY.workspaceChats },
+    { el: messagesModeCallsBtn, mode: "calls", copy: MESSAGES_COPY.workspaceCalls },
+    { el: messagesModeContactsBtn, mode: "contacts", copy: MESSAGES_COPY.workspaceContacts },
+    { el: messagesModeShareBtn, mode: "share", copy: MESSAGES_COPY.workspaceShare }
+  ];
+  tabDefs.forEach(({ el, mode: rowMode, copy }) => {
+    if (!el) return;
+    el.textContent = pickCopy(copy);
+    el.classList.toggle("active", rowMode === mode);
+    el.setAttribute("aria-selected", rowMode === mode ? "true" : "false");
   });
 }
 
@@ -19555,6 +19989,7 @@ function renderMessages() {
   setTextContent(messagesPanelTitle, MESSAGES_COPY.title);
   setTextContent(messagesPanelSubtitle, MESSAGES_COPY.subtitle);
   setTextContent(messagesPanelChip, MESSAGES_COPY.chip);
+  renderMessagesWorkspaceNav();
   setTextContent(messageComposerLabel, MESSAGES_COPY.composerLabel);
   setTextContent(messageComposerFilesLabel, MESSAGES_COPY.composerFilesLabel);
   setTextContent(messageComposerFilesClearBtn, MESSAGES_COPY.clearMedia);
@@ -19586,6 +20021,7 @@ function renderMessages() {
     if (messagesCoachList) messagesCoachList.innerHTML = "";
     if (messageList) messageList.innerHTML = "";
     if (messagesStatus) messagesStatus.textContent = pickCopy(MESSAGES_COPY.signedOut);
+    renderMessagesWorkspacePanels(current);
     return;
   }
 
@@ -19599,8 +20035,10 @@ function renderMessages() {
 
   renderMessagesCoachList(current);
   renderMessagesThreadList(current);
+  renderMessagesWorkspacePanels(current);
 
   const selectedThread = getSelectedMessageThread();
+  const isChatsMode = normalizeMessagesWorkspaceMode(messagesWorkspaceMode) === "chats";
   const composerDisabled = !selectedThread
     || messagesFeedLoading
     || messagesSendInFlight
@@ -19626,11 +20064,15 @@ function renderMessages() {
         : pickCopy(MESSAGES_COPY.send);
   }
   if (!selectedThread) {
-    const autoOpenContactUid = isParentRole(current?.role)
-      ? (messagesContactRows.length === 1 ? messagesContactRows[0].uid : "")
-      : isAthleteRole(current?.role)
-        ? (messagesContactRows.find((contact) => contact.role === "coach")?.uid || "")
-        : "";
+    const autoOpenContactUid = isChatsMode
+      ? (
+        isParentRole(current?.role)
+          ? (messagesContactRows.length === 1 ? messagesContactRows[0].uid : "")
+          : isAthleteRole(current?.role)
+            ? (messagesContactRows.find((contact) => contact.role === "coach")?.uid || "")
+            : ""
+      )
+      : "";
     if (autoOpenContactUid && messagesAutoOpeningContactUid !== autoOpenContactUid) {
       messagesAutoOpeningContactUid = autoOpenContactUid;
       openDirectMessageThreadWithRetry(autoOpenContactUid)
@@ -19654,6 +20096,7 @@ function renderMessages() {
     messagesEmptyState?.classList.remove("hidden");
     messagesThreadView?.classList.add("hidden");
     if (messagesFeed) messagesFeed.innerHTML = "";
+    renderMessagesWorkspacePanels(current);
     return;
   }
 
@@ -19675,6 +20118,7 @@ function renderMessages() {
   }
   renderMessagesFeed(current);
   markSelectedMessageThreadSeen();
+  renderMessagesWorkspacePanels(current);
 }
 
 async function handleMessageComposerSubmit(event) {
@@ -19832,6 +20276,12 @@ async function handleMessageComposerSubmit(event) {
 }
 
 if (messageComposer && !messagesBound) {
+  [messagesModeChatsBtn, messagesModeCallsBtn, messagesModeContactsBtn, messagesModeShareBtn].forEach((btn) => {
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+      setMessagesWorkspaceMode(btn.dataset.mode || "chats", { persist: true, rerender: true });
+    });
+  });
   messageComposer.addEventListener("submit", handleMessageComposerSubmit);
   if (messageComposerFilesInput) {
     messageComposerFilesInput.addEventListener("change", () => {
@@ -19849,6 +20299,72 @@ if (messageComposer && !messagesBound) {
     messageComposerFilesClearBtn.addEventListener("click", () => {
       clearMessageComposerMediaInputs({ preserveTags: true });
       renderMessages();
+    });
+  }
+  if (messagesCallVoiceBtn) {
+    messagesCallVoiceBtn.addEventListener("click", () => {
+      sendMessageCallRequest("voice").catch((err) => {
+        console.warn("Voice call request failed", err);
+        setMessagesCallsStatus(MESSAGES_COPY.callsSendError, "error");
+      });
+    });
+  }
+  if (messagesCallVideoBtn) {
+    messagesCallVideoBtn.addEventListener("click", () => {
+      sendMessageCallRequest("video").catch((err) => {
+        console.warn("Video call request failed", err);
+        setMessagesCallsStatus(MESSAGES_COPY.callsSendError, "error");
+      });
+    });
+  }
+  if (messagesCallContactSelect) {
+    messagesCallContactSelect.addEventListener("change", () => {
+      setMessagesCallsStatus("", "");
+    });
+  }
+  if (messagesShareNativeBtn) {
+    messagesShareNativeBtn.addEventListener("click", () => {
+      handleMessagesNativeShare().catch((err) => {
+        console.warn("Native share failed", err);
+        setMessagesShareStatus(MESSAGES_COPY.shareError);
+      });
+    });
+  }
+  if (messagesShareFacebookBtn) {
+    messagesShareFacebookBtn.addEventListener("click", () => {
+      handleMessagesSocialShare("facebook").catch((err) => {
+        console.warn("Facebook share failed", err);
+        setMessagesShareStatus(MESSAGES_COPY.shareError);
+      });
+    });
+  }
+  if (messagesShareInstagramBtn) {
+    messagesShareInstagramBtn.addEventListener("click", () => {
+      handleMessagesSocialShare("instagram").catch((err) => {
+        console.warn("Instagram share failed", err);
+        setMessagesShareStatus(MESSAGES_COPY.shareError);
+      });
+    });
+  }
+  if (messagesShareTiktokBtn) {
+    messagesShareTiktokBtn.addEventListener("click", () => {
+      handleMessagesSocialShare("tiktok").catch((err) => {
+        console.warn("TikTok share failed", err);
+        setMessagesShareStatus(MESSAGES_COPY.shareError);
+      });
+    });
+  }
+  if (messagesShareYoutubeBtn) {
+    messagesShareYoutubeBtn.addEventListener("click", () => {
+      handleMessagesSocialShare("youtube").catch((err) => {
+        console.warn("YouTube share failed", err);
+        setMessagesShareStatus(MESSAGES_COPY.shareError);
+      });
+    });
+  }
+  if (messagesShareUrlInput) {
+    messagesShareUrlInput.addEventListener("input", () => {
+      setMessagesShareStatus("");
     });
   }
   document.addEventListener("visibilitychange", () => {
