@@ -1200,6 +1200,54 @@ button:active{
   gap: 10px;
 }
 
+.messages-contact-toggle{
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(200,216,240,0.9);
+  background: rgba(255,255,255,0.9);
+  color: #0f1726;
+  text-align: left;
+}
+
+.messages-contact-toggle-main{
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.messages-contact-count{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(120,146,196,0.36);
+  background: rgba(120,146,196,0.14);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #334e7f;
+}
+
+.messages-contact-toggle-caret{
+  font-size: 0.92rem;
+  line-height: 1;
+  color: #6f86ad;
+}
+
+.messages-contact-body{
+  display: grid;
+  gap: 8px;
+}
+
 .messages-contact-grid{
   display: flex;
   flex-wrap: wrap;
@@ -4839,6 +4887,31 @@ button.ghost,
 
 .message-thread-card.message-thread-unread .message-thread-preview{
   color: #ecfeff;
+}
+
+.messages-contact-toggle,
+.app.parent-view-active .messages-contact-toggle{
+  border-color: rgba(90, 117, 171, 0.42);
+  background: linear-gradient(180deg, rgba(18, 30, 51, 0.96), rgba(10, 18, 32, 0.98));
+  color: #eaf2ff;
+}
+
+.messages-contact-toggle:hover,
+.app.parent-view-active .messages-contact-toggle:hover{
+  border-color: rgba(96, 165, 250, 0.45);
+  background: linear-gradient(180deg, rgba(26, 44, 76, 0.98), rgba(11, 21, 39, 0.98));
+}
+
+.messages-contact-count,
+.app.parent-view-active .messages-contact-count{
+  border-color: rgba(96, 165, 250, 0.38);
+  background: rgba(96, 165, 250, 0.2);
+  color: #dbe8ff;
+}
+
+.messages-contact-toggle-caret,
+.app.parent-view-active .messages-contact-toggle-caret{
+  color: #9db4da;
 }
 
 .messages-contact-priority,
