@@ -2077,6 +2077,16 @@
                     <span id="messageComposerLabel">Message</span>
                     <textarea id="messageComposerInput" rows="4" maxlength="1000" placeholder="Write your message here"></textarea>
                   </label>
+                  <div class="message-composer-tools">
+                    <label class="message-composer-file-btn" for="messageComposerFiles" id="messageComposerFilesLabel">Attach photo/video</label>
+                    <input id="messageComposerFiles" type="file" accept="image/*,video/*" multiple>
+                    <label class="message-composer-tags-field" for="messageComposerTags">
+                      <span id="messageComposerTagsLabel">Tags</span>
+                      <input id="messageComposerTags" type="text" maxlength="140" placeholder="takedown, finals, opponent tendencies">
+                    </label>
+                    <button type="button" id="messageComposerFilesClearBtn" class="ghost">Clear media</button>
+                  </div>
+                  <div id="messageComposerFilesList" class="message-composer-files"></div>
                   <div class="row">
                     <button type="submit" id="messageSendBtn" class="primary">Send message</button>
                   </div>
@@ -2134,6 +2144,6 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260317g"></script>
+  <script src="app.js?v=20260319a"></script>
 </body>
 </html>

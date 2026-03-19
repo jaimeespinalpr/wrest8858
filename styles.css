@@ -1401,6 +1401,166 @@ button:active{
   resize: vertical;
 }
 
+.message-composer-tools{
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.message-composer-file-btn{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(90,117,171,0.35);
+  background: rgba(234,242,255,0.9);
+  color: #133461;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.message-composer input[type="file"]{
+  display: none;
+}
+
+.message-composer-tags-field{
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.message-composer-tags-field span{
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6f86ad;
+}
+
+.message-composer-tags-field input{
+  min-height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(90,117,171,0.34);
+  padding: 0 12px;
+  background: rgba(255,255,255,0.96);
+  color: #0f1726;
+}
+
+.message-composer-files{
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.message-composer-file-pill{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(90,117,171,0.34);
+  background: rgba(240,246,255,0.92);
+  color: #1f355b;
+  font-size: 0.76rem;
+  max-width: 100%;
+}
+
+.message-composer-file-pill small{
+  color: #617a9f;
+  white-space: nowrap;
+}
+
+.message-bubble-media{
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.message-media-card{
+  border-radius: 12px;
+  border: 1px solid rgba(136,167,220,0.35);
+  background: rgba(12,21,38,0.14);
+  padding: 8px;
+  display: grid;
+  gap: 8px;
+}
+
+.message-media-preview{
+  width: 100%;
+  max-height: 260px;
+  border-radius: 10px;
+  border: 1px solid rgba(136,167,220,0.3);
+  background: rgba(12,21,38,0.35);
+  object-fit: cover;
+}
+
+.message-media-preview.video{
+  object-fit: contain;
+}
+
+.message-media-head{
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  color: #d7e6ff;
+}
+
+.message-media-name{
+  font-size: 0.78rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-media-type{
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9fc0f4;
+  font-weight: 700;
+}
+
+.message-media-tags{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.message-media-tag{
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(56,189,248,0.32);
+  background: rgba(56,189,248,0.12);
+  color: #b7eaff;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.message-media-actions{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.message-media-actions button{
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+}
+
 .tag-pill{
   display: inline-flex;
   align-items: center;
@@ -3578,6 +3738,10 @@ textarea:focus{
   .messages-feed{
     max-height: 340px;
   }
+  .message-composer-tools{
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
   .plan-target-toolbar{
     flex-direction: column;
     align-items: stretch;
@@ -4788,6 +4952,32 @@ button.ghost,
 .message-bubble.own .message-bubble-body,
 .app.parent-view-active .message-bubble.own .message-bubble-body{
   color: #ffffff;
+}
+
+.message-composer-file-btn{
+  border-color: rgba(122,154,210,0.44);
+  background: rgba(22,34,56,0.92);
+  color: #d8e7ff;
+}
+
+.message-composer-tags-field span{
+  color: #8fa8d6;
+}
+
+.message-composer-tags-field input{
+  background: rgba(17,27,45,0.94);
+  border-color: rgba(122,154,210,0.34);
+  color: #eaf3ff;
+}
+
+.message-composer-file-pill{
+  border-color: rgba(122,154,210,0.34);
+  background: rgba(16,25,41,0.94);
+  color: #e0edff;
+}
+
+.message-composer-file-pill small{
+  color: #a4bcde;
 }
 
 .quick-actions{

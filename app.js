@@ -10409,13 +10409,62 @@ renderCoachQuickPreview(getProfile());
 const FAV_KEY = "wpl_favorites";
 const favoritesList = document.getElementById("favoritesList");
 
+function normalizeFavoriteEntry(entry) {
+  if (typeof entry === "string") {
+    return {
+      label: String(entry || "").trim(),
+      assetPath: "",
+      mediaType: "",
+      tags: []
+    };
+  }
+  return {
+    label: String(entry?.label || entry?.title || "").trim(),
+    assetPath: String(entry?.assetPath || entry?.url || "").trim(),
+    mediaType: String(entry?.mediaType || "").trim(),
+    tags: normalizeLooseTagList(entry?.tags || [])
+  };
+}
+
+function favoriteEntryKey(entry) {
+  const safe = normalizeFavoriteEntry(entry);
+  const safeAsset = String(safe.assetPath || "").trim().toLowerCase();
+  if (safeAsset) return `asset::${safeAsset}`;
+  return `label::${String(safe.label || "").trim().toLowerCase()}`;
+}
+
 function getFavorites() {
-  try { return JSON.parse(localStorage.getItem(FAV_KEY) || "[]"); }
-  catch { return []; }
+  try {
+    const parsed = JSON.parse(localStorage.getItem(FAV_KEY) || "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((entry) => normalizeFavoriteEntry(entry))
+      .filter((entry) => entry.label || entry.assetPath);
+  } catch {
+    return [];
+  }
 }
 
 function setFavorites(list) {
-  localStorage.setItem(FAV_KEY, JSON.stringify(list));
+  const normalized = Array.isArray(list)
+    ? list.map((entry) => normalizeFavoriteEntry(entry)).filter((entry) => entry.label || entry.assetPath)
+    : [];
+  localStorage.setItem(FAV_KEY, JSON.stringify(normalized));
+}
+
+function addFavoriteEntry(entry) {
+  const nextEntry = normalizeFavoriteEntry(entry);
+  if (!nextEntry.label && !nextEntry.assetPath) return { added: false };
+  const existing = getFavorites();
+  const existingKeys = new Set(existing.map((item) => favoriteEntryKey(item)));
+  const key = favoriteEntryKey(nextEntry);
+  if (existingKeys.has(key)) {
+    return { added: false };
+  }
+  const next = [nextEntry, ...existing];
+  setFavorites(next);
+  renderFavorites();
+  return { added: true };
 }
 
 function renderFavorites() {
@@ -10431,7 +10480,9 @@ function renderFavorites() {
 
   favs.forEach((f, idx) => {
     const li = document.createElement("li");
-    li.textContent = f;
+    const tags = Array.isArray(f.tags) && f.tags.length ? ` [${f.tags.join(", ")}]` : "";
+    const type = f.mediaType ? ` (${f.mediaType})` : "";
+    li.textContent = `${f.label}${type}${tags}`;
 
     const del = document.createElement("button");
     del.textContent = pickCopy({ en: "Remove", es: "Eliminar" });
@@ -10444,6 +10495,15 @@ function renderFavorites() {
     });
 
     li.appendChild(del);
+    if (f.assetPath) {
+      const open = document.createElement("button");
+      open.textContent = pickCopy({ en: "Open", es: "Abrir" });
+      open.style.marginLeft = "8px";
+      open.addEventListener("click", () => {
+        window.open(f.assetPath, "_blank", "noopener,noreferrer");
+      });
+      li.appendChild(open);
+    }
     favoritesList.appendChild(li);
   });
 }
@@ -12107,6 +12167,7 @@ function normalizeMediaNode(node) {
     duration: String(node.duration || ""),
     assigned: String(node.assigned || ""),
     note: String(node.note || ""),
+    tags: normalizeLooseTagList(node.tags || []),
     parentId
   };
 }
@@ -12943,13 +13004,13 @@ function renderMediaItems(nodes) {
     btn.type = "button";
     btn.textContent = saveFavLabel;
     btn.addEventListener("click", () => {
-      const favs = getFavorites();
       const label = mediaFavoriteLabel({ ...item, parentName });
-      if (!favs.includes(label)) {
-        favs.unshift(label);
-        setFavorites(favs);
-        renderFavorites();
-      }
+      addFavoriteEntry({
+        label,
+        assetPath: resolveMediaLocation(item.assetPath || ""),
+        mediaType: item.mediaType || "",
+        tags: Array.isArray(item.tags) ? item.tags : []
+      });
     });
     actions.appendChild(btn);
 
@@ -17540,6 +17601,12 @@ const messageComposer = document.getElementById("messageComposer");
 const messageComposerLabel = document.getElementById("messageComposerLabel");
 const messageComposerInput = document.getElementById("messageComposerInput");
 const messageSendBtn = document.getElementById("messageSendBtn");
+const messageComposerFilesInput = document.getElementById("messageComposerFiles");
+const messageComposerFilesLabel = document.getElementById("messageComposerFilesLabel");
+const messageComposerFilesList = document.getElementById("messageComposerFilesList");
+const messageComposerFilesClearBtn = document.getElementById("messageComposerFilesClearBtn");
+const messageComposerTagsLabel = document.getElementById("messageComposerTagsLabel");
+const messageComposerTagsInput = document.getElementById("messageComposerTags");
 
 const MESSAGES_COPY = {
   title: { en: "Messages", es: "Mensajes" },
@@ -17590,8 +17657,13 @@ const MESSAGES_COPY = {
   },
   composerLabel: { en: "Message", es: "Mensaje" },
   composerPlaceholder: { en: "Write your message here", es: "Escribe tu mensaje aqui" },
+  composerFilesLabel: { en: "Attach photo/video", es: "Adjuntar foto/video" },
+  composerTagsLabel: { en: "Tags", es: "Tags" },
+  composerTagsPlaceholder: { en: "takedown, finals, opponent tendencies", es: "takedown, finales, tendencias del rival" },
+  clearMedia: { en: "Clear media", es: "Limpiar media" },
   send: { en: "Send message", es: "Enviar mensaje" },
   sending: { en: "Sending...", es: "Enviando..." },
+  sendingMedia: { en: "Uploading media...", es: "Subiendo media..." },
   loading: { en: "Loading conversations...", es: "Cargando conversaciones..." },
   loadingFeed: { en: "Loading thread...", es: "Cargando chat..." },
   loadError: {
@@ -17635,7 +17707,29 @@ const MESSAGES_COPY = {
   noLinkedAthleteUser: {
     en: "This athlete does not have a linked account yet.",
     es: "Este atleta todavia no tiene una cuenta vinculada."
-  }
+  },
+  needContent: {
+    en: "Write a message or attach at least one photo/video.",
+    es: "Escribe un mensaje o adjunta al menos una foto/video."
+  },
+  fileTypeError: {
+    en: "Only photo and video files are allowed in messages.",
+    es: "Solo se permiten fotos y videos en mensajes."
+  },
+  fileLimitError: {
+    en: "You can send up to 4 files per message.",
+    es: "Puedes enviar hasta 4 archivos por mensaje."
+  },
+  mediaOpen: { en: "Open", es: "Abrir" },
+  mediaFavorite: { en: "Favorite", es: "Favorito" },
+  mediaSaveToMedia: { en: "Save to Media", es: "Guardar en Media" },
+  mediaSaved: { en: "Saved to Media.", es: "Guardado en Media." },
+  mediaAlreadySaved: { en: "This file is already in Media.", es: "Este archivo ya esta en Media." },
+  favoriteSaved: { en: "Saved to Favorites.", es: "Guardado en Favoritos." },
+  favoriteAlreadySaved: { en: "This file is already in Favorites.", es: "Este archivo ya esta en Favoritos." },
+  tagPrompt: { en: "Tags (comma separated)", es: "Tags (separados por coma)" },
+  attachmentSummarySingle: { en: "Sent 1 media file.", es: "Envio 1 archivo de media." },
+  attachmentSummaryMulti: { en: "Sent media files.", es: "Envio archivos de media." }
 };
 
 let messagesThreadRows = [];
@@ -17661,6 +17755,8 @@ let messagesSendInFlight = false;
 let messagesLastSendByThread = {};
 let messagesPendingEntriesByThread = {};
 let messagesOpenRequestId = 0;
+let messagesComposerFiles = [];
+const MESSAGE_MAX_ATTACHMENTS = 4;
 let userNameDecorationQueued = false;
 let userNameDecorationObserver = null;
 
@@ -17814,6 +17910,169 @@ function mergePendingMessagesIntoFeed(threadId = "", remoteRows = []) {
   return [...remoteRows, ...pendingRows].sort(
     (left, right) => messageTimestampToMillis(left.createdAt) - messageTimestampToMillis(right.createdAt)
   );
+}
+
+function getMessageComposerTagList() {
+  return normalizeLooseTagList(messageComposerTagsInput?.value || "");
+}
+
+function formatMessageFileSize(bytes = 0) {
+  const size = Number(bytes || 0);
+  if (!size) return "0 KB";
+  if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(size / 1024))} KB`;
+}
+
+function renderMessageComposerFiles() {
+  if (!messageComposerFilesList) return;
+  messageComposerFilesList.innerHTML = "";
+  if (!messagesComposerFiles.length) return;
+  messagesComposerFiles.forEach((file) => {
+    const pill = document.createElement("div");
+    pill.className = "message-composer-file-pill";
+    pill.innerHTML = `
+      <span>${escapeHtml(file.name || "media")}</span>
+      <small>${escapeHtml(formatMessageFileSize(file.size || 0))}</small>
+    `;
+    messageComposerFilesList.appendChild(pill);
+  });
+}
+
+function clearMessageComposerMediaInputs({ preserveTags = false } = {}) {
+  messagesComposerFiles = [];
+  if (messageComposerFilesInput) messageComposerFilesInput.value = "";
+  if (!preserveTags && messageComposerTagsInput) messageComposerTagsInput.value = "";
+  renderMessageComposerFiles();
+}
+
+function setMessageComposerFiles(files = []) {
+  messagesComposerFiles = Array.isArray(files) ? files.filter(Boolean) : [];
+  renderMessageComposerFiles();
+}
+
+function validateMessageComposerFiles(files = []) {
+  if (!files.length) return { valid: true, files: [] };
+  if (files.length > MESSAGE_MAX_ATTACHMENTS) {
+    return { valid: false, reason: "count" };
+  }
+  const invalid = files.find((file) => {
+    const mime = String(file?.type || "").toLowerCase();
+    return !(mime.startsWith("image/") || mime.startsWith("video/"));
+  });
+  if (invalid) {
+    return { valid: false, reason: "type" };
+  }
+  return { valid: true, files };
+}
+
+function buildMessageAttachmentSummaryText(attachments = []) {
+  return attachments.length > 1
+    ? pickCopy(MESSAGES_COPY.attachmentSummaryMulti)
+    : pickCopy(MESSAGES_COPY.attachmentSummarySingle);
+}
+
+async function uploadMessageComposerAttachments(files = [], tags = []) {
+  const uploads = [];
+  for (const file of files) {
+    const uploaded = await uploadMediaAssetBundleToFirebase(file, { generateThumbnail: true });
+    uploads.push(normalizeMessageAttachment({
+      id: makeMediaId("msg_media"),
+      name: file.name,
+      mediaType: inferMediaTypeFromFile(file),
+      assetPath: uploaded.assetPath,
+      assetStoragePath: uploaded.assetStoragePath || "",
+      thumbnailPath: uploaded.thumbnailPath || "",
+      thumbnailStoragePath: uploaded.thumbnailStoragePath || "",
+      contentType: file.type || "",
+      size: Number(file.size || 0),
+      tags
+    }));
+  }
+  return uploads;
+}
+
+function promptMessageAttachmentTags(currentTags = []) {
+  const seed = normalizeLooseTagList(currentTags).join(", ");
+  const response = window.prompt(pickCopy(MESSAGES_COPY.tagPrompt), seed);
+  if (response === null) return null;
+  return normalizeLooseTagList(response);
+}
+
+function buildMessageMediaNodeFromAttachment(attachment, tags = []) {
+  const attachmentTags = normalizeLooseTagList([...(attachment?.tags || []), ...tags]);
+  const noteBase = currentLang === "es" ? "Guardado desde Mensajes" : "Saved from Messages";
+  return {
+    id: makeMediaId("item"),
+    type: "item",
+    title: String(attachment?.name || "").trim() || buildMessageAttachmentSummaryText([attachment]),
+    mediaType: String(attachment?.mediaType || "Video").trim(),
+    assetPath: String(attachment?.assetPath || "").trim(),
+    assetStoragePath: String(attachment?.assetStoragePath || "").trim(),
+    thumbnailPath: String(attachment?.thumbnailPath || "").trim(),
+    thumbnailStoragePath: String(attachment?.thumbnailStoragePath || "").trim(),
+    duration: "",
+    assigned: currentLang === "es" ? "Mensajes" : "Messages",
+    note: attachmentTags.length ? `${noteBase} - ${attachmentTags.join(", ")}` : noteBase,
+    tags: attachmentTags
+  };
+}
+
+function getMessageUploadsSectionName() {
+  return currentLang === "es" ? "Uploads de mensajes" : "Message Uploads";
+}
+
+function findOrCreateMessageUploadsSection(nodes = []) {
+  const targetName = getMessageUploadsSectionName();
+  const aliases = new Set([
+    normalizeName(targetName),
+    normalizeName("Message Uploads"),
+    normalizeName("Uploads de mensajes")
+  ]);
+  let section = nodes.find((node) => (
+    node?.type === "section"
+      && node.parentId === null
+      && aliases.has(normalizeName(node.name))
+  )) || null;
+  if (section) return section.id;
+  const sectionId = makeMediaId("sec");
+  nodes.push({
+    id: sectionId,
+    type: "section",
+    name: targetName,
+    parentId: null
+  });
+  return sectionId;
+}
+
+function saveMessageAttachmentToMedia(attachment, tags = []) {
+  const safeAssetPath = String(attachment?.assetPath || "").trim();
+  const safeStoragePath = String(attachment?.assetStoragePath || "").trim();
+  if (!safeAssetPath && !safeStoragePath) return { added: false };
+  const nodes = getMediaNodes();
+  const existing = nodes.find((node) => {
+    if (node?.type !== "item") return false;
+    const nodeStoragePath = String(node.assetStoragePath || "").trim();
+    const nodeAssetPath = String(node.assetPath || "").trim();
+    if (safeStoragePath && nodeStoragePath) {
+      return nodeStoragePath === safeStoragePath;
+    }
+    return Boolean(safeAssetPath) && nodeAssetPath === safeAssetPath;
+  });
+  if (existing) {
+    const mergedTags = normalizeLooseTagList([...(existing.tags || []), ...(attachment.tags || []), ...tags]);
+    const noteBase = currentLang === "es" ? "Guardado desde Mensajes" : "Saved from Messages";
+    existing.tags = mergedTags;
+    existing.note = mergedTags.length ? `${noteBase} - ${mergedTags.join(", ")}` : noteBase;
+    existing.updatedAt = new Date().toISOString();
+    setMediaNodes(nodes);
+    return { added: false, existing: true };
+  }
+  const sectionId = findOrCreateMessageUploadsSection(nodes);
+  const mediaNode = buildMessageMediaNodeFromAttachment(attachment, tags);
+  mediaNode.parentId = sectionId;
+  nodes.push(mediaNode);
+  setMediaNodes(nodes);
+  return { added: true };
 }
 
 function updateLocalThreadPreview(threadId = "", {
@@ -18034,6 +18293,34 @@ function buildMessageThreadPayload(participants = [], extras = {}) {
   });
 }
 
+function normalizeLooseTagList(raw = "") {
+  if (Array.isArray(raw)) {
+    return uniqueNames(raw.map((tag) => String(tag || "").trim().toLowerCase()).filter(Boolean));
+  }
+  return uniqueNames(
+    String(raw || "")
+      .split(",")
+      .map((tag) => String(tag || "").trim().toLowerCase())
+      .filter(Boolean)
+  );
+}
+
+function normalizeMessageAttachment(entry = {}) {
+  const mediaType = String(entry.mediaType || "").trim() || inferMediaTypeFromFile({ type: entry.contentType || "" }) || "Media";
+  return {
+    id: String(entry.id || makeMediaId("msg_media")).trim(),
+    name: String(entry.name || "").trim() || mediaType,
+    mediaType,
+    assetPath: String(entry.assetPath || "").trim(),
+    assetStoragePath: String(entry.assetStoragePath || "").trim(),
+    thumbnailPath: String(entry.thumbnailPath || "").trim(),
+    thumbnailStoragePath: String(entry.thumbnailStoragePath || "").trim(),
+    contentType: String(entry.contentType || "").trim(),
+    size: Number(entry.size || 0),
+    tags: normalizeLooseTagList(entry.tags || [])
+  };
+}
+
 function normalizeMessageData(data = {}, id = "") {
   return {
     id,
@@ -18043,6 +18330,10 @@ function normalizeMessageData(data = {}, id = "") {
     senderName: String(data.senderName || "").trim() || "User",
     senderRole: normalizeMessageParticipantRole(data.senderRole, data.senderEmail || ""),
     createdAt: data.createdAt || data.updatedAt || "",
+    attachments: Array.isArray(data.attachments)
+      ? data.attachments.map((entry) => normalizeMessageAttachment(entry)).filter((entry) => entry.assetPath)
+      : [],
+    messageTags: normalizeLooseTagList(data.messageTags || []),
     optimistic: Boolean(data.optimistic)
   };
 }
@@ -18292,6 +18583,7 @@ function teardownMessagesSession({ preserveSelection = false } = {}) {
   messagesLastSendByThread = {};
   messagesPendingEntriesByThread = {};
   messagesOpenRequestId = 0;
+  clearMessageComposerMediaInputs();
   if (!preserveSelection) messagesSelectedThreadId = "";
   resetMessagesStatus();
   updateMessagesUnreadIndicators();
@@ -18656,11 +18948,24 @@ async function ensureDirectMessageThread(contact) {
   return threadId;
 }
 
-async function appendMessageToThread({ threadId, participants = [], sender, text, clientMessageId = "", createdAt = "" }) {
+async function appendMessageToThread({
+  threadId,
+  participants = [],
+  sender,
+  text,
+  attachments = [],
+  messageTags = [],
+  clientMessageId = "",
+  createdAt = ""
+}) {
   const threadsRef = getMessageThreadsCollectionRef();
   const safeText = String(text || "").trim();
   const senderProfile = normalizeMessageParticipantProfile(sender || {});
   const participantProfiles = buildMessageParticipantProfiles(participants);
+  const normalizedAttachments = Array.isArray(attachments)
+    ? attachments.map((entry) => normalizeMessageAttachment(entry)).filter((entry) => entry.assetPath)
+    : [];
+  const normalizedTags = normalizeLooseTagList(messageTags);
   if (!threadsRef || !threadId || !safeText || !senderProfile.uid || participantProfiles.length < 2) {
     throw new Error("firestore_not_configured");
   }
@@ -18673,7 +18978,9 @@ async function appendMessageToThread({ threadId, participants = [], sender, text
     senderUid: senderProfile.uid,
     senderName: senderProfile.name,
     senderRole: senderProfile.role,
-    createdAt: String(createdAt || "").trim() || new Date().toISOString()
+    createdAt: String(createdAt || "").trim() || new Date().toISOString(),
+    attachments: normalizedAttachments,
+    messageTags: normalizedTags
   };
   const messagePayload = {
     threadId,
@@ -18683,7 +18990,9 @@ async function appendMessageToThread({ threadId, participants = [], sender, text
     senderName: senderProfile.name,
     senderRole: senderProfile.role,
     createdAt: localMessage.createdAt,
-    serverCreatedAt: getFirestoreServerTimestamp()
+    serverCreatedAt: getFirestoreServerTimestamp(),
+    attachments: normalizedAttachments,
+    messageTags: normalizedTags
   };
   const threadPayload = buildMessageThreadPayload(participantProfiles, {
     updatedAt: localMessage.createdAt,
@@ -18947,6 +19256,124 @@ function renderMessagesThreadList(current) {
   });
 }
 
+function resolveMessageAttachmentUrl(attachment) {
+  return resolveMediaLocation(String(attachment?.assetPath || "").trim());
+}
+
+function getMessageAttachmentDisplayName(attachment) {
+  return String(attachment?.name || "").trim() || String(attachment?.mediaType || "").trim() || "Media";
+}
+
+function buildMessageAttachmentFavoriteEntry(attachment, tags = []) {
+  const mergedTags = normalizeLooseTagList([...(attachment?.tags || []), ...tags]);
+  return {
+    label: getMessageAttachmentDisplayName(attachment),
+    assetPath: resolveMessageAttachmentUrl(attachment),
+    mediaType: String(attachment?.mediaType || "Media").trim(),
+    tags: mergedTags
+  };
+}
+
+function handleMessageAttachmentFavorite(attachment) {
+  const tags = promptMessageAttachmentTags(attachment?.tags || []);
+  if (tags === null) return;
+  const result = addFavoriteEntry(buildMessageAttachmentFavoriteEntry(attachment, tags));
+  toast(pickCopy(result.added ? MESSAGES_COPY.favoriteSaved : MESSAGES_COPY.favoriteAlreadySaved));
+}
+
+function handleMessageAttachmentSaveToMedia(attachment) {
+  const tags = promptMessageAttachmentTags(attachment?.tags || []);
+  if (tags === null) return;
+  const result = saveMessageAttachmentToMedia(attachment, tags);
+  toast(pickCopy(result.added ? MESSAGES_COPY.mediaSaved : MESSAGES_COPY.mediaAlreadySaved));
+}
+
+function buildMessageAttachmentCard(attachment = {}) {
+  const card = document.createElement("div");
+  card.className = "message-media-card";
+  const assetUrl = resolveMessageAttachmentUrl(attachment);
+  const typeLower = String(attachment.mediaType || "").toLowerCase();
+  const isVideo = typeLower.includes("video");
+  const isPhoto = typeLower.includes("photo") || typeLower.includes("image");
+  const previewUrl = resolveMediaLocation(attachment.thumbnailPath || attachment.assetPath || "");
+
+  const head = document.createElement("div");
+  head.className = "message-media-head";
+  const name = document.createElement("span");
+  name.className = "message-media-name";
+  name.textContent = getMessageAttachmentDisplayName(attachment);
+  const type = document.createElement("span");
+  type.className = "message-media-type";
+  type.textContent = attachment.mediaType || "Media";
+  head.appendChild(name);
+  head.appendChild(type);
+  card.appendChild(head);
+
+  if (isPhoto && previewUrl) {
+    const img = document.createElement("img");
+    img.className = "message-media-preview";
+    img.src = previewUrl;
+    img.alt = getMessageAttachmentDisplayName(attachment);
+    img.loading = "lazy";
+    card.appendChild(img);
+  } else if (isVideo && assetUrl) {
+    const video = document.createElement("video");
+    video.className = "message-media-preview video";
+    video.src = assetUrl;
+    video.controls = true;
+    video.preload = "metadata";
+    card.appendChild(video);
+  }
+
+  const tags = normalizeLooseTagList(attachment.tags || []);
+  if (tags.length) {
+    const tagsWrap = document.createElement("div");
+    tagsWrap.className = "message-media-tags";
+    tags.forEach((tagText) => {
+      const tag = document.createElement("span");
+      tag.className = "message-media-tag";
+      tag.textContent = tagText;
+      tagsWrap.appendChild(tag);
+    });
+    card.appendChild(tagsWrap);
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "message-media-actions";
+
+  if (assetUrl) {
+    const openBtn = document.createElement("button");
+    openBtn.type = "button";
+    openBtn.className = "ghost";
+    openBtn.textContent = pickCopy(MESSAGES_COPY.mediaOpen);
+    openBtn.addEventListener("click", () => {
+      window.open(assetUrl, "_blank", "noopener,noreferrer");
+    });
+    actions.appendChild(openBtn);
+  }
+
+  const favBtn = document.createElement("button");
+  favBtn.type = "button";
+  favBtn.className = "ghost";
+  favBtn.textContent = pickCopy(MESSAGES_COPY.mediaFavorite);
+  favBtn.addEventListener("click", () => {
+    handleMessageAttachmentFavorite(attachment);
+  });
+  actions.appendChild(favBtn);
+
+  const mediaBtn = document.createElement("button");
+  mediaBtn.type = "button";
+  mediaBtn.className = "ghost";
+  mediaBtn.textContent = pickCopy(MESSAGES_COPY.mediaSaveToMedia);
+  mediaBtn.addEventListener("click", () => {
+    handleMessageAttachmentSaveToMedia(attachment);
+  });
+  actions.appendChild(mediaBtn);
+
+  card.appendChild(actions);
+  return card;
+}
+
 function renderMessagesFeed(current) {
   if (!messagesFeed) return;
   messagesFeed.innerHTML = "";
@@ -18995,6 +19422,15 @@ function renderMessagesFeed(current) {
 
     bubble.appendChild(header);
     bubble.appendChild(body);
+    const attachments = Array.isArray(entry.attachments) ? entry.attachments : [];
+    if (attachments.length) {
+      const mediaWrap = document.createElement("div");
+      mediaWrap.className = "message-bubble-media";
+      attachments.forEach((attachment) => {
+        mediaWrap.appendChild(buildMessageAttachmentCard(attachment));
+      });
+      bubble.appendChild(mediaWrap);
+    }
     messagesFeed.appendChild(bubble);
   });
 }
@@ -19006,9 +19442,16 @@ function renderMessages() {
   setTextContent(messagesPanelSubtitle, MESSAGES_COPY.subtitle);
   setTextContent(messagesPanelChip, MESSAGES_COPY.chip);
   setTextContent(messageComposerLabel, MESSAGES_COPY.composerLabel);
+  setTextContent(messageComposerFilesLabel, MESSAGES_COPY.composerFilesLabel);
+  setTextContent(messageComposerTagsLabel, MESSAGES_COPY.composerTagsLabel);
+  setTextContent(messageComposerFilesClearBtn, MESSAGES_COPY.clearMedia);
   if (messageComposerInput) {
     messageComposerInput.placeholder = pickCopy(MESSAGES_COPY.composerPlaceholder);
   }
+  if (messageComposerTagsInput) {
+    messageComposerTagsInput.placeholder = pickCopy(MESSAGES_COPY.composerTagsPlaceholder);
+  }
+  renderMessageComposerFiles();
   updateMessagesUnreadIndicators();
 
   const current = getMessagesCurrentUser();
@@ -19054,6 +19497,15 @@ function renderMessages() {
     || (messagesThreadOpeningId && messagesThreadOpeningId === messagesSelectedThreadId);
   if (messageComposerInput) {
     messageComposerInput.disabled = composerDisabled;
+  }
+  if (messageComposerFilesInput) {
+    messageComposerFilesInput.disabled = composerDisabled;
+  }
+  if (messageComposerFilesClearBtn) {
+    messageComposerFilesClearBtn.disabled = composerDisabled || !messagesComposerFiles.length;
+  }
+  if (messageComposerTagsInput) {
+    messageComposerTagsInput.disabled = composerDisabled;
   }
   if (messageSendBtn) {
     messageSendBtn.disabled = composerDisabled;
@@ -19120,11 +19572,17 @@ async function handleMessageComposerSubmit(event) {
   if (messagesSendInFlight) return;
   const current = getMessagesCurrentUser();
   const selectedThread = getSelectedMessageThread();
-  const text = String(messageComposerInput?.value || "").trim();
+  const typedText = String(messageComposerInput?.value || "").trim();
+  const selectedFiles = [...messagesComposerFiles];
+  const fileValidation = validateMessageComposerFiles(selectedFiles);
   const threadId = String(selectedThread?.id || "").trim();
 
-  if (!text) {
-    toast(pickCopy(MESSAGES_COPY.needText));
+  if (!typedText && !selectedFiles.length) {
+    toast(pickCopy(MESSAGES_COPY.needContent));
+    return;
+  }
+  if (!fileValidation.valid) {
+    toast(pickCopy(fileValidation.reason === "count" ? MESSAGES_COPY.fileLimitError : MESSAGES_COPY.fileTypeError));
     return;
   }
   if (!current || !selectedThread || !threadId) {
@@ -19139,7 +19597,8 @@ async function handleMessageComposerSubmit(event) {
     renderMessages();
     return;
   }
-  const sendFingerprint = `${threadId}:${text.toLowerCase()}`;
+  const fileFingerprint = selectedFiles.map((file) => `${file.name}:${file.size}`).join("|");
+  const sendFingerprint = `${threadId}:${typedText.toLowerCase()}:${fileFingerprint}`;
   const lastSentAt = Number(messagesLastSendByThread[sendFingerprint] || 0);
   if (lastSentAt && Date.now() - lastSentAt < 2500) {
     return;
@@ -19152,14 +19611,40 @@ async function handleMessageComposerSubmit(event) {
   const optimisticMessageId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const optimisticCreatedAt = new Date().toISOString();
   const optimisticClientMessageId = `pending-${threadId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  let uploadedAttachments = [];
+  const messageTags = getMessageComposerTagList();
+  let finalText = typedText;
+  if (selectedFiles.length) {
+    try {
+      setMessagesStatus(MESSAGES_COPY.sendingMedia, "");
+      renderMessages();
+      uploadedAttachments = await uploadMessageComposerAttachments(selectedFiles, messageTags);
+    } catch (err) {
+      console.warn("Failed to upload message media", err);
+      messagesSendInFlight = false;
+      setMessagesStatus(MESSAGES_COPY.sendError, "error");
+      renderMessages();
+      return;
+    }
+    if (!finalText) {
+      finalText = buildMessageAttachmentSummaryText(uploadedAttachments);
+    }
+  }
+  if (!finalText) {
+    messagesSendInFlight = false;
+    toast(pickCopy(MESSAGES_COPY.needContent));
+    return;
+  }
   const optimisticMessage = normalizeMessageData({
     id: optimisticMessageId,
     clientMessageId: optimisticClientMessageId,
-    text,
+    text: finalText,
     senderUid: current.uid,
     senderName: current.name || current.email || "User",
     senderRole: current.role,
     createdAt: optimisticCreatedAt,
+    attachments: uploadedAttachments,
+    messageTags,
     optimistic: true
   }, optimisticMessageId);
   const previousThreadState = selectedThread ? {
@@ -19172,12 +19657,13 @@ async function handleMessageComposerSubmit(event) {
   addPendingThreadEntry(threadId, optimisticMessage);
   messagesFeedRows = mergePendingMessagesIntoFeed(threadId, messagesFeedRows);
   updateLocalThreadPreview(threadId, {
-    text,
+    text: finalText,
     senderUid: current.uid,
     createdAt: optimisticMessage.createdAt,
     messageEntry: optimisticMessage
   });
   if (messageComposerInput) messageComposerInput.value = "";
+  clearMessageComposerMediaInputs();
   renderMessages();
 
   try {
@@ -19185,7 +19671,9 @@ async function handleMessageComposerSubmit(event) {
       threadId,
       participants: selectedThread.participantProfiles,
       sender: current,
-      text,
+      text: finalText,
+      attachments: uploadedAttachments,
+      messageTags,
       clientMessageId: optimisticMessage.clientMessageId,
       createdAt: optimisticMessage.createdAt
     });
@@ -19212,8 +19700,12 @@ async function handleMessageComposerSubmit(event) {
       )));
     }
     if (messageComposerInput) {
-      messageComposerInput.value = text;
+      messageComposerInput.value = typedText;
       messageComposerInput.focus();
+    }
+    setMessageComposerFiles(selectedFiles);
+    if (messageComposerTagsInput) {
+      messageComposerTagsInput.value = messageTags.join(", ");
     }
     setMessagesStatus(MESSAGES_COPY.sendError, "error");
     renderMessages();
@@ -19225,6 +19717,24 @@ async function handleMessageComposerSubmit(event) {
 
 if (messageComposer && !messagesBound) {
   messageComposer.addEventListener("submit", handleMessageComposerSubmit);
+  if (messageComposerFilesInput) {
+    messageComposerFilesInput.addEventListener("change", () => {
+      const picked = Array.from(messageComposerFilesInput.files || []);
+      const validation = validateMessageComposerFiles(picked);
+      if (!validation.valid) {
+        toast(pickCopy(validation.reason === "count" ? MESSAGES_COPY.fileLimitError : MESSAGES_COPY.fileTypeError));
+        clearMessageComposerMediaInputs({ preserveTags: true });
+        return;
+      }
+      setMessageComposerFiles(picked);
+    });
+  }
+  if (messageComposerFilesClearBtn) {
+    messageComposerFilesClearBtn.addEventListener("click", () => {
+      clearMessageComposerMediaInputs({ preserveTags: true });
+      renderMessages();
+    });
+  }
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
       markSelectedMessageThreadSeen();
