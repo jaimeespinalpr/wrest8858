@@ -6135,6 +6135,7 @@ svg{
   gap: 0;
   grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
   min-height: 68vh;
+  height: min(74vh, 760px);
 }
 
 .messages-whatsapp-card .messages-wa-sidebar{
@@ -6184,7 +6185,8 @@ svg{
 .messages-whatsapp-card .message-thread-list{
   margin: 0;
   padding: 4px 10px 12px;
-  max-height: calc(68vh - 106px);
+  max-height: none;
+  height: calc(100% - 96px);
   gap: 6px;
 }
 
@@ -6201,6 +6203,7 @@ svg{
 
 .messages-whatsapp-card .messages-main{
   padding: 0;
+  min-height: 0;
   background:
     radial-gradient(500px 280px at 10% 0%, rgba(56,189,248,0.06), transparent 70%),
     radial-gradient(500px 340px at 100% 100%, rgba(45,212,191,0.08), transparent 72%),
@@ -6236,14 +6239,19 @@ svg{
   padding: 12px 14px;
   border-bottom: 1px solid rgba(90,117,171,0.3);
   background: linear-gradient(180deg, rgba(22,34,56,0.96), rgba(14,24,42,0.98));
-  position: sticky;
-  top: 0;
-  z-index: 3;
+  position: relative;
+  z-index: 2;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .messages-whatsapp-card .messages-thread-actions{
   flex-wrap: nowrap;
   gap: 6px;
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding-bottom: 2px;
 }
 
 .messages-whatsapp-card .messages-thread-actions .tag-pill{
@@ -6258,6 +6266,7 @@ svg{
   margin-top: 0;
   max-height: none;
   min-height: 0;
+  height: 100%;
   padding: 12px 14px;
 }
 
@@ -6307,16 +6316,22 @@ svg{
   padding: 12px;
 }
 
+.messages-whatsapp-card #messagesContactsDirectory{
+  max-height: 68vh;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
 @media (max-width: 900px){
   .messages-whatsapp-card .messages-workspace-nav.messages-wa-tabs{
-    position: sticky;
-    top: 0;
-    z-index: 35;
+    position: static;
+    z-index: auto;
   }
 
   .messages-whatsapp-card .messages-shell{
     grid-template-columns: 1fr;
     min-height: 72vh;
+    height: auto;
   }
 
   .messages-whatsapp-card .messages-shell.messages-shell-compact .messages-main{
@@ -6334,6 +6349,21 @@ svg{
   .messages-whatsapp-card .messages-empty-state,
   .messages-whatsapp-card .messages-thread-view{
     min-height: 72vh;
+  }
+
+  .messages-whatsapp-card .message-thread-list{
+    height: auto;
+    max-height: none;
+  }
+
+  .messages-whatsapp-card #messagesContactsPanel,
+  .messages-whatsapp-card #messagesCallsPanel{
+    padding: 10px;
+  }
+
+  .messages-whatsapp-card #messagesContactsDirectory{
+    max-height: none;
+    overflow: visible;
   }
 }
 
