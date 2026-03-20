@@ -18122,9 +18122,7 @@ function doesMessageThreadMatchSearch(thread, current, query = "") {
 
 function normalizeMessagesWorkspaceMode(mode = "") {
   const safe = String(mode || "").trim().toLowerCase();
-  const supported = ["chats", "calls", "contacts"];
-  if (messagesModeShareBtn && messagesSharePanel) supported.push("share");
-  if (supported.includes(safe)) return safe;
+  if (safe === "chats") return "chats";
   return "chats";
 }
 
@@ -19572,6 +19570,38 @@ function getMessageCallableContacts(current = getMessagesCurrentUser()) {
   );
 }
 
+function getMessageThreadedContactUidSet(current = getMessagesCurrentUser()) {
+  const safeCurrentUid = String(current?.uid || "").trim();
+  const threaded = new Set();
+  if (!safeCurrentUid) return threaded;
+  messagesThreadRows.forEach((thread) => {
+    const other = getMessageOtherParticipant(thread, safeCurrentUid);
+    if (other?.uid) threaded.add(other.uid);
+  });
+  return threaded;
+}
+
+async function openNewMessageThreadFromButton() {
+  const current = getMessagesCurrentUser();
+  if (!current?.uid) {
+    setMessagesStatus(MESSAGES_COPY.signedOut, "error");
+    renderMessages();
+    return;
+  }
+  const callable = getMessageCallableContacts(current);
+  if (!callable.length) {
+    toast(pickCopy(MESSAGES_COPY.emptyBodyNoContacts));
+    return;
+  }
+  const threaded = getMessageThreadedContactUidSet(current);
+  const target = callable.find((contact) => !threaded.has(contact.uid)) || callable[0];
+  if (!target) {
+    toast(pickCopy(MESSAGES_COPY.emptyBodyNoContacts));
+    return;
+  }
+  await openMessageThreadForContact(target);
+}
+
 function setMessagesCallsStatus(copy = "", type = "") {
   if (!messagesCallsStatus) return;
   messagesCallsStatus.textContent = pickCopy(copy);
@@ -20541,7 +20571,11 @@ async function handleMessageComposerSubmit(event) {
 if (messageComposer && !messagesBound) {
   if (messagesOpenContactsBtn) {
     messagesOpenContactsBtn.addEventListener("click", () => {
-      setMessagesWorkspaceMode("contacts", { persist: true, rerender: true });
+      openNewMessageThreadFromButton().catch((err) => {
+        console.warn("Could not open a new message thread", err);
+        setMessagesStatus(MESSAGES_COPY.loadError, "error");
+        renderMessages();
+      });
     });
   }
   [messagesModeChatsBtn, messagesModeCallsBtn, messagesModeContactsBtn, messagesModeShareBtn].forEach((btn) => {
