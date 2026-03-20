@@ -1262,6 +1262,26 @@ button:active{
   width: 100%;
 }
 
+.messages-search-wrap{
+  margin-top: 10px;
+}
+
+.messages-search-wrap input{
+  width: 100%;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(120,146,196,0.32);
+  background: rgba(246,250,255,0.95);
+  color: #0f1726;
+}
+
+.messages-search-wrap input:focus{
+  border-color: rgba(79,124,255,0.42);
+  box-shadow: 0 0 0 2px rgba(79,124,255,0.15);
+  outline: none;
+}
+
 .messages-coach-list,
 .message-thread-list{
   display: grid;
@@ -1270,6 +1290,9 @@ button:active{
 
 .message-thread-list{
   margin-top: 2px;
+  max-height: 62vh;
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
 .messages-recent-title{
@@ -5144,6 +5167,18 @@ button.ghost,
 .messages-contact-chip .messages-contact-meta,
 .app.parent-view-active .messages-contact-chip .messages-contact-meta{
   color: #9db4da;
+}
+
+.messages-search-wrap input,
+.app.parent-view-active .messages-search-wrap input{
+  border-color: rgba(96, 124, 179, 0.45);
+  background: rgba(12, 21, 38, 0.9);
+  color: #e8f2ff;
+}
+
+.messages-search-wrap input::placeholder,
+.app.parent-view-active .messages-search-wrap input::placeholder{
+  color: #8ea5ca;
 }
 
 .messages-contact-subgroup-title,
