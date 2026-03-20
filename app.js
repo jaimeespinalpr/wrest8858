@@ -17689,7 +17689,7 @@ const MESSAGES_COPY = {
     en: "Open chats already started. Use Contacts to start a new one.",
     es: "Abre chats ya iniciados. Usa Contactos para comenzar uno nuevo."
   },
-  openContactsBtn: { en: "Contacts", es: "Contactos" },
+  openContactsBtn: { en: "New chat", es: "Nuevo chat" },
   searchPlaceholder: { en: "Search chats", es: "Buscar chats" },
   coachesSection: { en: "Coaches", es: "Coaches" },
   athletesSection: { en: "Athletes", es: "Atletas" },
