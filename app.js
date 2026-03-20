@@ -8002,6 +8002,9 @@ async function showTab(name) {
   }
 
   if (visiblePanels.includes("messages")) {
+    if (isCompactMessagesViewport()) {
+      messagesCompactThreadVisible = false;
+    }
     startMessagesRealtimeSync({ forceRefreshContacts: true })
       .catch((err) => {
         console.warn("Failed to open messages tab", err);
@@ -17903,6 +17906,7 @@ let messagesWorkspaceMode = "chats";
 let messagesSearchQuery = "";
 let messagesContactGroupOpenState = {};
 let messagesContactGroupStateUid = "";
+let messagesCompactThreadVisible = false;
 let userNameDecorationQueued = false;
 let userNameDecorationObserver = null;
 messagesWorkspaceMode = loadMessagesWorkspaceMode();
@@ -18879,6 +18883,7 @@ function teardownMessagesSession({ preserveSelection = false } = {}) {
   messagesOpenRequestId = 0;
   messagesContactGroupOpenState = {};
   messagesContactGroupStateUid = "";
+  messagesCompactThreadVisible = false;
   clearMessageComposerMediaInputs();
   if (!preserveSelection) messagesSelectedThreadId = "";
   resetMessagesStatus();
@@ -19020,8 +19025,11 @@ function subscribeToMessageFeed(threadId) {
     });
 }
 
-function selectMessageThread(threadId) {
+function selectMessageThread(threadId, { openInCompact = false } = {}) {
   if (!threadId) return;
+  if (openInCompact) {
+    messagesCompactThreadVisible = true;
+  }
   if (messagesSelectedThreadId === threadId) {
     markSelectedMessageThreadSeen();
     renderMessages();
@@ -19097,7 +19105,7 @@ function subscribeToMessageThreads(current) {
           tone: "info",
           onClick: () => {
             Promise.resolve(showTab("messages")).finally(() => {
-              selectMessageThread(thread.id);
+              selectMessageThread(thread.id, { openInCompact: true });
               markMessageThreadSeen(thread.id, lastMessageMillis);
             });
           }
@@ -19325,7 +19333,7 @@ async function openMessageThreadForContact(contactRef) {
         ...messagesThreadRows
       ]);
     }
-    selectMessageThread(threadId);
+    selectMessageThread(threadId, { openInCompact: true });
     messagesThreadOpeningId = threadId;
     renderMessages();
     await ensureDirectMessageThread(contact);
@@ -19573,7 +19581,7 @@ async function sendMessageCallRequestToContact(contact, type = "voice") {
       sender: current,
       text: requestText
     });
-    selectMessageThread(threadId);
+    selectMessageThread(threadId, { openInCompact: true });
     setMessagesThreadOpenState(threadId);
     setMessagesWorkspaceMode("chats", { persist: true, rerender: false });
     appendMessageCallLog({
@@ -19811,7 +19819,7 @@ function setMessagesThreadOpenState(selectedThread) {
   if (!messagesShell) return;
   const compact = isCompactMessagesViewport();
   messagesShell.classList.toggle("messages-shell-compact", compact);
-  const shouldOpen = compact && Boolean(selectedThread);
+  const shouldOpen = compact && Boolean(selectedThread) && messagesCompactThreadVisible;
   messagesShell.classList.toggle("messages-shell-thread-open", shouldOpen);
   if (!compact) {
     messagesShell.classList.remove("messages-shell-thread-open");
@@ -19823,7 +19831,7 @@ function renderMessagesThreadHeaderActions(current, selectedThread) {
   setTextContent(messagesThreadVoiceBtn, MESSAGES_COPY.threadVoiceBtn);
   setTextContent(messagesThreadVideoBtn, MESSAGES_COPY.threadVideoBtn);
   const compact = isCompactMessagesViewport();
-  const showBack = compact && Boolean(selectedThread);
+  const showBack = compact && Boolean(selectedThread) && messagesCompactThreadVisible;
   if (messagesBackToChatsBtn) {
     messagesBackToChatsBtn.classList.toggle("hidden", !showBack);
     messagesBackToChatsBtn.disabled = !showBack;
@@ -19909,9 +19917,7 @@ function renderMessagesThreadList(current) {
       ${unread ? '<span class="message-thread-unread-badge"></span>' : ""}
     `;
     card.addEventListener("click", () => {
-      selectMessageThread(thread.id);
-      setMessagesThreadOpenState(thread);
-      renderMessages();
+      selectMessageThread(thread.id, { openInCompact: true });
     });
     messageList.appendChild(card);
   });
@@ -20416,12 +20422,17 @@ if (messageComposer && !messagesBound) {
   [messagesModeChatsBtn, messagesModeCallsBtn, messagesModeContactsBtn, messagesModeShareBtn].forEach((btn) => {
     if (!btn) return;
     btn.addEventListener("click", () => {
-      setMessagesWorkspaceMode(btn.dataset.mode || "chats", { persist: true, rerender: true });
+      const nextMode = btn.dataset.mode || "chats";
+      if (nextMode !== "chats" || isCompactMessagesViewport()) {
+        messagesCompactThreadVisible = false;
+      }
+      setMessagesWorkspaceMode(nextMode, { persist: true, rerender: true });
     });
   });
   if (messagesBackToChatsBtn) {
     messagesBackToChatsBtn.addEventListener("click", () => {
       messagesSelectedThreadId = "";
+      messagesCompactThreadVisible = false;
       setMessagesThreadOpenState(null);
       renderMessages();
     });
