@@ -17602,6 +17602,7 @@ const messagesSharePanel = document.getElementById("messagesSharePanel");
 const messagesSidebarTitle = document.getElementById("messagesSidebarTitle");
 const messagesSidebarHint = document.getElementById("messagesSidebarHint");
 const messagesOpenContactsBtn = document.getElementById("messagesOpenContactsBtn");
+const messagesSearchInput = document.getElementById("messagesSearchInput");
 const messagesEmptyState = document.getElementById("messagesEmptyState");
 const messagesEmptyTitle = document.getElementById("messagesEmptyTitle");
 const messagesEmptyBody = document.getElementById("messagesEmptyBody");
@@ -17680,6 +17681,7 @@ const MESSAGES_COPY = {
     es: "Abre un chat abajo o toca Contactos para iniciar una nueva conversacion."
   },
   openContactsBtn: { en: "Open contacts", es: "Abrir contactos" },
+  searchPlaceholder: { en: "Search chats", es: "Buscar chats" },
   coachesSection: { en: "Coaches", es: "Coaches" },
   athletesSection: { en: "Athletes", es: "Atletas" },
   parentsSection: { en: "Parents", es: "Padres" },
@@ -17739,6 +17741,10 @@ const MESSAGES_COPY = {
   recentEmpty: {
     en: "New and recent threads will appear here.",
     es: "Los chats nuevos y recientes apareceran aqui."
+  },
+  searchEmpty: {
+    en: "No chats match your search.",
+    es: "Ningun chat coincide con la busqueda."
   },
   callsTitle: { en: "Calls", es: "Llamadas" },
   callsHint: {
@@ -17891,6 +17897,7 @@ const MESSAGE_VIDEO_THUMBNAIL_MAX_BYTES = 40 * 1024 * 1024;
 const MESSAGES_WORKSPACE_MODE_KEY = "wpl_messages_workspace_mode";
 const MESSAGES_CALL_LOGS_KEY = "wpl_messages_call_logs";
 let messagesWorkspaceMode = "chats";
+let messagesSearchQuery = "";
 let messagesContactGroupOpenState = {};
 let messagesContactGroupStateUid = "";
 let userNameDecorationQueued = false;
@@ -18075,6 +18082,23 @@ function setMessagesContactGroupOpen(groupKey = "", isOpen = false) {
     ...messagesContactGroupOpenState,
     [safeKey]: Boolean(isOpen)
   };
+}
+
+function normalizeMessagesSearchQuery(value = "") {
+  return normalizeName(String(value || "").trim());
+}
+
+function doesMessageThreadMatchSearch(thread, current, query = "") {
+  const safeQuery = normalizeMessagesSearchQuery(query);
+  if (!safeQuery) return true;
+  const other = getMessageOtherParticipant(thread, current?.uid || "");
+  const haystack = normalizeMessagesSearchQuery([
+    other?.name,
+    other?.email,
+    getRoleLabelEnglish(other?.role),
+    thread?.lastMessageText
+  ].filter(Boolean).join(" "));
+  return haystack.includes(safeQuery);
 }
 
 function normalizeMessagesWorkspaceMode(mode = "") {
@@ -19812,7 +19836,8 @@ function renderMessagesThreadList(current) {
 
   if (!current) return;
 
-  if (!messagesThreadRows.length) {
+  const sortedThreads = sortMessageThreadsForInbox(messagesThreadRows, current);
+  if (!sortedThreads.length) {
     const empty = document.createElement("div");
     empty.className = "small muted messages-recent-empty";
     empty.textContent = pickCopy(MESSAGES_COPY.recentEmpty);
@@ -19820,7 +19845,16 @@ function renderMessagesThreadList(current) {
     return;
   }
 
-  sortMessageThreadsForInbox(messagesThreadRows, current).slice(0, 8).forEach((thread) => {
+  const filteredThreads = sortedThreads.filter((thread) => doesMessageThreadMatchSearch(thread, current, messagesSearchQuery));
+  if (!filteredThreads.length) {
+    const empty = document.createElement("div");
+    empty.className = "small muted messages-recent-empty";
+    empty.textContent = pickCopy(MESSAGES_COPY.searchEmpty);
+    messageList.appendChild(empty);
+    return;
+  }
+
+  filteredThreads.forEach((thread) => {
     const other = getMessageOtherParticipant(thread, current.uid);
     const unread = isMessageThreadUnread(thread, current);
     const card = document.createElement("button");
@@ -20092,6 +20126,12 @@ function renderMessages() {
       : MESSAGES_COPY.sidebarHintAthlete;
   setTextContent(messagesSidebarHint, sidebarHint);
   setTextContent(messagesOpenContactsBtn, MESSAGES_COPY.openContactsBtn);
+  if (messagesSearchInput) {
+    messagesSearchInput.placeholder = pickCopy(MESSAGES_COPY.searchPlaceholder);
+    if (messagesSearchInput.value !== messagesSearchQuery) {
+      messagesSearchInput.value = messagesSearchQuery;
+    }
+  }
 
   if (!current || !firebaseFirestoreInstance) {
     setTextContent(messagesEmptyTitle, MESSAGES_COPY.emptyTitle);
@@ -20101,10 +20141,17 @@ function renderMessages() {
     if (messagesCoachList) messagesCoachList.innerHTML = "";
     if (messageList) messageList.innerHTML = "";
     if (messagesStatus) messagesStatus.textContent = pickCopy(MESSAGES_COPY.signedOut);
+    if (messagesSearchInput) {
+      messagesSearchInput.disabled = true;
+    }
     renderMessagesThreadHeaderActions(current, null);
     setMessagesThreadOpenState(null);
     renderMessagesWorkspacePanels(current);
     return;
+  }
+
+  if (messagesSearchInput) {
+    messagesSearchInput.disabled = false;
   }
 
   if (messagesSessionUid !== current.uid) {
@@ -20463,6 +20510,13 @@ if (messageComposer && !messagesBound) {
   if (messagesShareUrlInput) {
     messagesShareUrlInput.addEventListener("input", () => {
       setMessagesShareStatus("");
+    });
+  }
+  if (messagesSearchInput) {
+    messagesSearchInput.addEventListener("input", () => {
+      messagesSearchQuery = String(messagesSearchInput.value || "").trimStart();
+      const current = getMessagesCurrentUser();
+      renderMessagesThreadList(current);
     });
   }
   document.addEventListener("visibilitychange", () => {
