@@ -17904,6 +17904,7 @@ let messagesNotifiedByThread = {};
 let messagesThreadsPrimed = false;
 let messagesThreadsSubscribedAt = 0;
 let messagesThreadOpeningId = "";
+let messagesThreadOpeningRequestId = 0;
 let messagesSendInFlight = false;
 let messagesLastSendByThread = {};
 let messagesPendingEntriesByThread = {};
@@ -18891,6 +18892,7 @@ function teardownMessagesSession({ preserveSelection = false } = {}) {
   messagesThreadsPrimed = false;
   messagesThreadsSubscribedAt = 0;
   messagesThreadOpeningId = "";
+  messagesThreadOpeningRequestId = 0;
   messagesSendInFlight = false;
   messagesLastSendByThread = {};
   messagesPendingEntriesByThread = {};
@@ -19065,6 +19067,15 @@ function ensureSelectedMessageThread() {
   const firstThread = messagesThreadRows[0];
   messagesSelectedThreadId = firstThread?.id || "";
   subscribeToMessageFeed(messagesSelectedThreadId);
+}
+
+function isMessageThreadOpening(threadId = "") {
+  const safeThreadId = String(threadId || "").trim();
+  return Boolean(
+    safeThreadId
+    && messagesThreadOpeningId === safeThreadId
+    && Number(messagesThreadOpeningRequestId || 0)
+  );
 }
 
 function subscribeToMessageThreads(current) {
@@ -19349,20 +19360,31 @@ async function openMessageThreadForContact(contactRef) {
     }
     selectMessageThread(threadId, { openInCompact: true });
     messagesThreadOpeningId = threadId;
+    messagesThreadOpeningRequestId = requestId;
     renderMessages();
     await ensureDirectMessageThread(contact);
     if (messagesOpenRequestId !== requestId) return;
     subscribeToMessageFeed(threadId);
-    messagesThreadOpeningId = "";
-    resetMessagesStatus();
-    renderMessages();
-  } catch (err) {
-    if (messagesOpenRequestId === requestId) {
+    if (messagesThreadOpeningRequestId === requestId) {
       messagesThreadOpeningId = "";
+      messagesThreadOpeningRequestId = 0;
+      resetMessagesStatus();
+      renderMessages();
+    }
+  } catch (err) {
+    if (messagesThreadOpeningRequestId === requestId) {
+      messagesThreadOpeningId = "";
+      messagesThreadOpeningRequestId = 0;
     }
     console.warn("Failed to open direct thread", err);
     setMessagesStatus(MESSAGES_COPY.loadError, "error");
     renderMessages();
+  } finally {
+    if (messagesThreadOpeningRequestId === requestId) {
+      messagesThreadOpeningId = "";
+      messagesThreadOpeningRequestId = 0;
+      renderMessages();
+    }
   }
 }
 
@@ -20003,6 +20025,82 @@ function getSelectedThreadContact(current, selectedThread) {
   return messagesContactRows.find((entry) => entry.uid === other.uid) || other;
 }
 
+function ensureLocalMessageThreadParticipants(threadId = "", participants = []) {
+  const safeThreadId = String(threadId || "").trim();
+  const participantProfiles = buildMessageParticipantProfiles(participants);
+  if (!safeThreadId || participantProfiles.length < 2) return;
+  const participantIds = uniqueMessageIds(participantProfiles.map((participant) => participant.uid)).sort();
+  messagesThreadRows = sortMessageThreads(messagesThreadRows.map((thread) => (
+    thread.id !== safeThreadId
+      ? thread
+      : {
+          ...thread,
+          participantIds,
+          participantProfiles
+        }
+  )));
+}
+
+function getMessageThreadParticipantsForSend(selectedThread, current) {
+  const thread = selectedThread || {};
+  const sender = normalizeMessageParticipantProfile(current || {});
+  const byUid = new Map();
+  const addParticipant = (candidate) => {
+    const normalized = normalizeMessageParticipantProfile(candidate || {});
+    if (!normalized.uid) return;
+    byUid.set(normalized.uid, normalized);
+  };
+  addParticipant(sender);
+  (Array.isArray(thread.participantProfiles) ? thread.participantProfiles : []).forEach(addParticipant);
+
+  uniqueMessageIds([
+    ...(Array.isArray(thread.participantIds) ? thread.participantIds : []),
+    thread.coachUid,
+    thread.userUid
+  ]).forEach((uid) => {
+    if (!uid) return;
+    if (uid === sender.uid) {
+      addParticipant(sender);
+      return;
+    }
+    const linkedContact = messagesContactRows.find((row) => row.uid === uid);
+    if (linkedContact) {
+      addParticipant(linkedContact);
+      return;
+    }
+    const fallback = getMessageOtherParticipantProfile(thread, sender.uid);
+    if (fallback?.uid === uid) {
+      addParticipant(fallback);
+    }
+  });
+
+  if (byUid.size < 2) {
+    addParticipant(getSelectedThreadContact(sender, thread));
+    addParticipant(getMessageOtherParticipantProfile(thread, sender.uid));
+  }
+  return Array.from(byUid.values());
+}
+
+function getMessageSendErrorCopy(err = null) {
+  const code = String(err?.code || err?.message || "").toLowerCase();
+  if (code.includes("permission-denied")) {
+    return {
+      en: "Could not send message: access denied for this chat. Reopen it and try again.",
+      es: "No se pudo enviar: acceso denegado para este chat. Reabre el chat e intenta otra vez."
+    };
+  }
+  if (code.includes("unauthenticated") || code.includes("auth")) {
+    return {
+      en: "Could not send message: sign in again and retry.",
+      es: "No se pudo enviar: inicia sesion de nuevo e intenta otra vez."
+    };
+  }
+  if (code.includes("firestore_not_configured")) {
+    return MESSAGES_COPY.loadError;
+  }
+  return MESSAGES_COPY.sendError;
+}
+
 function renderMessagesThreadList(current) {
   if (!messageList) return;
   const showThreadDirectory = true;
@@ -20350,10 +20448,11 @@ function renderMessages() {
   const selectedThread = getSelectedMessageThread();
   setMessagesThreadOpenState(selectedThread);
   renderMessagesThreadHeaderActions(current, selectedThread);
+  const threadIsOpening = isMessageThreadOpening(messagesSelectedThreadId);
   const composerDisabled = !selectedThread
     || messagesFeedLoading
     || messagesSendInFlight
-    || (messagesThreadOpeningId && messagesThreadOpeningId === messagesSelectedThreadId);
+    || threadIsOpening;
   if (messageComposerInput) {
     messageComposerInput.disabled = composerDisabled;
   }
@@ -20370,7 +20469,7 @@ function renderMessages() {
     messageSendBtn.disabled = composerDisabled;
     messageSendBtn.textContent = messagesSendInFlight
       ? pickCopy(MESSAGES_COPY.sending)
-      : (messagesThreadOpeningId && messagesThreadOpeningId === messagesSelectedThreadId)
+      : threadIsOpening
         ? (currentLang === "es" ? "Abriendo chat..." : "Opening chat...")
         : pickCopy(MESSAGES_COPY.send);
   }
@@ -20436,7 +20535,7 @@ async function handleMessageComposerSubmit(event) {
     setMessagesStatus(MESSAGES_COPY.loadError, "error");
     return;
   }
-  if (messagesThreadOpeningId && messagesThreadOpeningId === threadId) {
+  if (isMessageThreadOpening(threadId)) {
     setMessagesStatus(
       currentLang === "es" ? "Espera a que el chat termine de abrir." : "Wait for the thread to finish opening.",
       "error"
@@ -20444,6 +20543,19 @@ async function handleMessageComposerSubmit(event) {
     renderMessages();
     return;
   }
+  const sendParticipants = getMessageThreadParticipantsForSend(selectedThread, current);
+  if (sendParticipants.length < 2) {
+    setMessagesStatus(
+      {
+        en: "Could not resolve participants for this chat. Open a new chat and try again.",
+        es: "No se pudieron resolver los participantes de este chat. Abre un chat nuevo e intenta otra vez."
+      },
+      "error"
+    );
+    renderMessages();
+    return;
+  }
+  ensureLocalMessageThreadParticipants(threadId, sendParticipants);
   const fileFingerprint = selectedFiles.map((file) => `${file.name}:${file.size}`).join("|");
   const sendFingerprint = `${threadId}:${typedText.toLowerCase()}:${fileFingerprint}`;
   const lastSentAt = Number(messagesLastSendByThread[sendFingerprint] || 0);
@@ -20522,7 +20634,7 @@ async function handleMessageComposerSubmit(event) {
   try {
     const committedMessage = await appendMessageToThread({
       threadId,
-      participants: selectedThread.participantProfiles,
+      participants: sendParticipants,
       sender: current,
       text: finalText,
       attachments: uploadedAttachments,
@@ -20560,7 +20672,7 @@ async function handleMessageComposerSubmit(event) {
     if (messageComposerTagsInput) {
       messageComposerTagsInput.value = messageTags.join(", ");
     }
-    setMessagesStatus(MESSAGES_COPY.sendError, "error");
+    setMessagesStatus(getMessageSendErrorCopy(err), "error");
     renderMessages();
   } finally {
     messagesSendInFlight = false;
