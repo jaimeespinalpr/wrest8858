@@ -17600,6 +17600,7 @@ const messagesContactsPanel = document.getElementById("messagesContactsPanel");
 const messagesSharePanel = document.getElementById("messagesSharePanel");
 const messagesSidebarTitle = document.getElementById("messagesSidebarTitle");
 const messagesSidebarHint = document.getElementById("messagesSidebarHint");
+const messagesOpenContactsBtn = document.getElementById("messagesOpenContactsBtn");
 const messagesEmptyState = document.getElementById("messagesEmptyState");
 const messagesEmptyTitle = document.getElementById("messagesEmptyTitle");
 const messagesEmptyBody = document.getElementById("messagesEmptyBody");
@@ -17655,22 +17656,23 @@ const MESSAGES_COPY = {
   workspaceCalls: { en: "Calls", es: "Llamadas" },
   workspaceContacts: { en: "Contacts", es: "Contactos" },
   workspaceShare: { en: "Share", es: "Compartir" },
-  sidebarTitle: { en: "Contacts", es: "Contactos" },
-  sidebarTitleCoach: { en: "Contacts", es: "Contactos" },
-  sidebarTitleAthlete: { en: "Connect fast", es: "Conecta rapido" },
-  sidebarTitleParent: { en: "Coach contact", es: "Contacto del coach" },
+  sidebarTitle: { en: "Chats", es: "Chats" },
+  sidebarTitleCoach: { en: "Chats", es: "Chats" },
+  sidebarTitleAthlete: { en: "Chats", es: "Chats" },
+  sidebarTitleParent: { en: "Chats", es: "Chats" },
   sidebarHintCoach: {
-    en: "Athletes are listed first. Coaches are grouped below so you can write faster.",
-    es: "Los atletas aparecen primero. Los coaches estan agrupados abajo para escribir mas rapido."
+    en: "Open a chat below or tap Contacts to start a new conversation.",
+    es: "Abre un chat abajo o toca Contactos para iniciar una nueva conversacion."
   },
   sidebarHintAthlete: {
-    en: "Start with your coaches. Athletes are listed below in a separate section.",
-    es: "Empieza por tus coaches. Los atletas estan abajo en una seccion separada."
+    en: "Open a chat below or tap Contacts to start a new conversation.",
+    es: "Abre un chat abajo o toca Contactos para iniciar una nueva conversacion."
   },
   sidebarHintParent: {
-    en: "Message the linked coach directly from here.",
-    es: "Escribe al coach vinculado directamente desde aqui."
+    en: "Open a chat below or tap Contacts to start a new conversation.",
+    es: "Abre un chat abajo o toca Contactos para iniciar una nueva conversacion."
   },
+  openContactsBtn: { en: "Open contacts", es: "Abrir contactos" },
   coachesSection: { en: "Coaches", es: "Coaches" },
   athletesSection: { en: "Athletes", es: "Atletas" },
   parentsSection: { en: "Parents", es: "Padres" },
@@ -17724,8 +17726,8 @@ const MESSAGES_COPY = {
     es: "Todavia no hay chats."
   },
   recentHeader: {
-    en: "Recent messages",
-    es: "Mensajes recientes"
+    en: "Chats",
+    es: "Chats"
   },
   recentEmpty: {
     en: "New and recent threads will appear here.",
@@ -19521,6 +19523,8 @@ async function sendMessageCallRequest(type = "voice") {
       sender: current,
       text: requestText
     });
+    selectMessageThread(threadId);
+    setMessagesWorkspaceMode("chats", { persist: true, rerender: false });
     appendMessageCallLog({
       contactUid: contact.uid,
       contactName: contact.name,
@@ -19598,6 +19602,16 @@ function findLatestMessageMediaUrl() {
     if (!attachments.length) continue;
     const url = resolveMessageAttachmentUrl(attachments[0]);
     if (url) return url;
+  }
+  for (const thread of messagesThreadRows) {
+    const history = Array.isArray(thread?.messageHistory) ? thread.messageHistory : [];
+    for (let i = history.length - 1; i >= 0; i -= 1) {
+      const row = history[i];
+      const attachments = Array.isArray(row?.attachments) ? row.attachments : [];
+      if (!attachments.length) continue;
+      const url = resolveMessageAttachmentUrl(attachments[0]);
+      if (url) return url;
+    }
   }
   return "";
 }
@@ -20012,6 +20026,7 @@ function renderMessages() {
       ? MESSAGES_COPY.sidebarHintCoach
       : MESSAGES_COPY.sidebarHintAthlete;
   setTextContent(messagesSidebarHint, sidebarHint);
+  setTextContent(messagesOpenContactsBtn, MESSAGES_COPY.openContactsBtn);
 
   if (!current || !firebaseFirestoreInstance) {
     setTextContent(messagesEmptyTitle, MESSAGES_COPY.emptyTitle);
@@ -20033,12 +20048,10 @@ function renderMessages() {
     });
   }
 
-  renderMessagesCoachList(current);
   renderMessagesThreadList(current);
   renderMessagesWorkspacePanels(current);
 
   const selectedThread = getSelectedMessageThread();
-  const isChatsMode = normalizeMessagesWorkspaceMode(messagesWorkspaceMode) === "chats";
   const composerDisabled = !selectedThread
     || messagesFeedLoading
     || messagesSendInFlight
@@ -20064,25 +20077,6 @@ function renderMessages() {
         : pickCopy(MESSAGES_COPY.send);
   }
   if (!selectedThread) {
-    const autoOpenContactUid = isChatsMode
-      ? (
-        isParentRole(current?.role)
-          ? (messagesContactRows.length === 1 ? messagesContactRows[0].uid : "")
-          : isAthleteRole(current?.role)
-            ? (messagesContactRows.find((contact) => contact.role === "coach")?.uid || "")
-            : ""
-      )
-      : "";
-    if (autoOpenContactUid && messagesAutoOpeningContactUid !== autoOpenContactUid) {
-      messagesAutoOpeningContactUid = autoOpenContactUid;
-      openDirectMessageThreadWithRetry(autoOpenContactUid)
-        .catch((err) => {
-          console.warn("Failed to auto-open direct thread", err);
-        })
-        .finally(() => {
-          messagesAutoOpeningContactUid = "";
-        });
-    }
     setTextContent(messagesEmptyTitle, MESSAGES_COPY.emptyTitle);
     if (!messagesContactRows.length) {
       setTextContent(messagesEmptyBody, MESSAGES_COPY.emptyBodyNoContacts);
@@ -20276,6 +20270,11 @@ async function handleMessageComposerSubmit(event) {
 }
 
 if (messageComposer && !messagesBound) {
+  if (messagesOpenContactsBtn) {
+    messagesOpenContactsBtn.addEventListener("click", () => {
+      setMessagesWorkspaceMode("contacts", { persist: true, rerender: true });
+    });
+  }
   [messagesModeChatsBtn, messagesModeCallsBtn, messagesModeContactsBtn, messagesModeShareBtn].forEach((btn) => {
     if (!btn) return;
     btn.addEventListener("click", () => {
