@@ -11445,6 +11445,12 @@ const CALENDAR_MANAGER_COPY = {
     uz: "Hozircha tadbirlar yo‘q.",
     ru: "Еще нет событий."
   },
+  titleRequired: {
+    en: "Add an item title before saving.",
+    es: "Agrega un titulo antes de guardar.",
+    uz: "Saqlashdan oldin tadbir nomini kiriting.",
+    ru: "Добавьте название события перед сохранением."
+  },
   actionsTitle: {
     en: "Scheduling Actions",
     es: "Acciones de programacion",
@@ -11627,7 +11633,7 @@ if (calendarManagerForm) {
     const time = calendarManagerTimeInput.value.trim();
     const note = calendarManagerNoteInput.value.trim();
     if (!title) {
-      toast(calendarCopy("titlePlaceholder"));
+      toast(calendarCopy("titleRequired"));
       calendarManagerTitleInput?.focus();
       return;
     }
