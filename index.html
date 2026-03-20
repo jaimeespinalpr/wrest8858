@@ -2048,18 +2048,13 @@
             </div>
             <div class="chip" id="messagesPanelChip">Direct threads</div>
           </div>
-          <div id="messagesWorkspaceNav" class="messages-workspace-nav messages-wa-tabs" role="tablist" aria-label="Messaging workspace">
-            <button type="button" id="messagesModeChatsBtn" class="messages-workspace-tab active" data-mode="chats">Chats</button>
-            <button type="button" id="messagesModeCallsBtn" class="messages-workspace-tab" data-mode="calls">Calls</button>
-            <button type="button" id="messagesModeContactsBtn" class="messages-workspace-tab" data-mode="contacts">Contacts</button>
-          </div>
           <section id="messagesChatsPanel" class="messages-workspace-panel">
             <div id="messagesShell" class="messages-shell">
               <aside class="messages-sidebar messages-wa-sidebar">
                 <div class="messages-sidebar-block messages-wa-sidebar-top">
                   <div class="messages-wa-sidebar-title-row">
-                    <h3 id="messagesSidebarTitle">Contacts</h3>
-                    <button type="button" id="messagesOpenContactsBtn" class="ghost messages-wa-icon-btn">Contacts</button>
+                    <h3 id="messagesSidebarTitle">Chats</h3>
+                    <button type="button" id="messagesOpenContactsBtn" class="ghost messages-wa-icon-btn">New chat</button>
                   </div>
                   <p id="messagesSidebarHint" class="small muted">Pick a contact to open or continue a direct thread.</p>
                   <div class="messages-search-wrap">
@@ -2121,36 +2116,6 @@
               </div>
             </div>
           </section>
-          <section id="messagesCallsPanel" class="messages-workspace-panel hidden">
-            <div class="messages-utility-grid">
-              <div class="messages-sidebar-block">
-                <h3 id="messagesCallsTitle">Calls</h3>
-                <p id="messagesCallsHint" class="small muted">Send quick voice/video call requests from here.</p>
-                <label class="messages-call-contact-field" for="messagesCallContactSelect">
-                  <span id="messagesCallContactLabel">Contact</span>
-                  <select id="messagesCallContactSelect"></select>
-                </label>
-                <div class="row">
-                  <button type="button" id="messagesCallVoiceBtn" class="ghost">Voice call</button>
-                  <button type="button" id="messagesCallVideoBtn" class="primary">Video call</button>
-                </div>
-                <p id="messagesCallsStatus" class="small muted"></p>
-              </div>
-              <div class="messages-thread-view">
-                <div class="messages-thread-header">
-                  <h3 id="messagesCallsLogTitle">Recent call requests</h3>
-                </div>
-                <div id="messagesCallsLog" class="messages-calls-log"></div>
-              </div>
-            </div>
-          </section>
-          <section id="messagesContactsPanel" class="messages-workspace-panel hidden">
-            <div class="messages-sidebar-block">
-              <h3 id="messagesContactsTitle">Contacts</h3>
-              <p id="messagesContactsHint" class="small muted">Tap a group to open contacts quickly.</p>
-            </div>
-            <div id="messagesContactsDirectory" class="messages-coach-list"></div>
-          </section>
         </div>
       </section>
 
@@ -2201,6 +2166,6 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260320c"></script>
+  <script src="app.js?v=20260320d"></script>
 </body>
 </html>
