@@ -1257,6 +1257,11 @@ button:active{
   margin: 0;
 }
 
+.messages-new-chat-btn{
+  margin-top: 10px;
+  width: 100%;
+}
+
 .messages-coach-list,
 .message-thread-list{
   display: grid;
