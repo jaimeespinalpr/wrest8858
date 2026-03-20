@@ -16614,6 +16614,8 @@ function normalizeManagedUserRecord(uid, data = {}) {
     linkedCoachUid: String(data.linkedCoachUid || "").trim(),
     linkedCoachName: String(data.linkedCoachName || "").trim(),
     linkedCoachEmail: normalizeEmail(data.linkedCoachEmail || ""),
+    phone: String(data.phone || data.phoneNumber || data.mobile || data.cell || "").trim(),
+    whatsapp: String(data.whatsapp || data.whatsappNumber || "").trim(),
     preferredMoves: String(data.preferredMoves || data.preferred_moves || "").trim(),
     experienceYears: String(data.experienceYears || data.experience_years || "").trim(),
     stance: String(data.stance || "").trim(),
@@ -17754,8 +17756,8 @@ const MESSAGES_COPY = {
   },
   callsTitle: { en: "Calls", es: "Llamadas" },
   callsHint: {
-    en: "Send quick voice/video call requests from here.",
-    es: "Envia solicitudes rapidas de llamada de voz/video desde aqui."
+    en: "Send a call request and launch device call service (phone on mobile, call room on desktop).",
+    es: "Envia solicitud y abre servicio de llamada del dispositivo (telefono en mobile, sala de llamada en computadora)."
   },
   callsContactLabel: { en: "Contact", es: "Contacto" },
   callsVoiceBtn: { en: "Voice call", es: "Llamada de voz" },
@@ -17778,6 +17780,16 @@ const MESSAGES_COPY = {
     es: "Solicitud de videollamada."
   },
   callsRequestSent: { en: "Call request sent.", es: "Solicitud de llamada enviada." },
+  callsLaunchDialer: { en: "Opening phone dialer...", es: "Abriendo telefono..." },
+  callsLaunchComputer: { en: "Opening computer call room...", es: "Abriendo sala de llamada en computadora..." },
+  callsLaunchFallback: {
+    en: "No phone app target found. Opening browser call room.",
+    es: "No se encontro destino de llamada del telefono. Abriendo sala en navegador."
+  },
+  callsLaunchError: {
+    en: "Could not launch device call. Use call room fallback.",
+    es: "No se pudo abrir la llamada del dispositivo. Usa la sala de llamada."
+  },
   callsSendError: { en: "Could not send call request.", es: "No se pudo enviar la solicitud de llamada." },
   contactsTitleTab: { en: "Contacts", es: "Contactos" },
   contactsHintTab: {
@@ -18549,6 +18561,8 @@ function normalizeMessageParticipantProfile(data = {}) {
     email,
     name: String(data.name || data.displayName || data.email || "").trim() || "User",
     role: normalizeMessageParticipantRole(data.role, email),
+    phone: String(data.phone || data.phoneNumber || data.mobile || data.cell || "").trim(),
+    whatsapp: String(data.whatsapp || data.whatsappNumber || "").trim(),
     linkedCoachUid: String(data.linkedCoachUid || "").trim(),
     linkedAthleteId: String(data.linkedAthleteId || "").trim(),
     linkedAthleteUid: String(data.linkedAthleteUid || "").trim()
@@ -18582,6 +18596,8 @@ function buildMessageThreadPayload(participants = [], extras = {}) {
       name: participant.name,
       email: participant.email,
       role: participant.role,
+      phone: participant.phone || "",
+      whatsapp: participant.whatsapp || "",
       linkedCoachUid: participant.linkedCoachUid,
       linkedAthleteId: participant.linkedAthleteId,
       linkedAthleteUid: participant.linkedAthleteUid
@@ -19562,6 +19578,108 @@ function setMessagesCallsStatus(copy = "", type = "") {
   messagesCallsStatus.dataset.state = type;
 }
 
+function normalizeContactPhoneTarget(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const cleaned = raw.replace(/[^\d+]/g, "");
+  if (!cleaned) return "";
+  if (cleaned.startsWith("+")) return cleaned;
+  if (cleaned.length === 10) return `+1${cleaned}`;
+  return cleaned;
+}
+
+function getMessageCallTarget(contact = {}) {
+  const phone = normalizeContactPhoneTarget(
+    contact.phone
+    || contact.phoneNumber
+    || contact.mobile
+    || contact.cell
+    || contact.whatsapp
+    || contact.whatsappNumber
+  );
+  const email = normalizeEmail(contact.email || "");
+  return { phone, email };
+}
+
+function getCallRoomUrl(contact = {}, type = "voice") {
+  const current = getMessagesCurrentUser();
+  const scope = [
+    "wpl",
+    type === "video" ? "video" : "voice",
+    current?.uid || "user",
+    contact?.uid || contact?.email || "contact"
+  ].map((chunk) => slugifyKey(String(chunk || "").trim())).filter(Boolean).join("-");
+  const room = String(scope || `wpl-call-${Date.now()}`).slice(0, 80);
+  const videoMuted = type === "video" ? "false" : "true";
+  return `https://meet.jit.si/${room}#config.startWithVideoMuted=${videoMuted}`;
+}
+
+function isMobileCallRuntime() {
+  if (typeof navigator === "undefined") return false;
+  const ua = String(navigator.userAgent || "").toLowerCase();
+  return /android|iphone|ipad|ipod|mobile/i.test(ua);
+}
+
+function isAppleRuntime() {
+  if (typeof navigator === "undefined") return false;
+  const ua = String(navigator.userAgent || "").toLowerCase();
+  return /iphone|ipad|ipod|macintosh|mac os x/i.test(ua);
+}
+
+function openSystemCallUrl(url = "") {
+  const safeUrl = String(url || "").trim();
+  if (!safeUrl) return false;
+  try {
+    window.location.href = safeUrl;
+    return true;
+  } catch (err) {
+    console.warn("Could not open system call url", err);
+    return false;
+  }
+}
+
+function launchDeviceCall(contact = {}, type = "voice") {
+  const safeType = type === "video" ? "video" : "voice";
+  const { phone, email } = getMessageCallTarget(contact);
+  const fallbackUrl = getCallRoomUrl(contact, safeType);
+
+  if (isMobileCallRuntime()) {
+    if (safeType === "voice" && phone) {
+      const launched = openSystemCallUrl(`tel:${phone}`);
+      return {
+        launched,
+        message: launched ? MESSAGES_COPY.callsLaunchDialer : MESSAGES_COPY.callsLaunchError,
+        fallbackUrl
+      };
+    }
+    if (safeType === "video" && isAppleRuntime() && (phone || email)) {
+      const target = encodeURIComponent(phone || email);
+      const launched = openSystemCallUrl(`facetime://${target}`);
+      return {
+        launched,
+        message: launched ? MESSAGES_COPY.callsLaunchDialer : MESSAGES_COPY.callsLaunchError,
+        fallbackUrl
+      };
+    }
+  }
+
+  if (!isMobileCallRuntime()) {
+    window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+    return {
+      launched: true,
+      message: MESSAGES_COPY.callsLaunchComputer,
+      fallbackUrl
+    };
+  }
+
+  window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+  return {
+    launched: true,
+    message: MESSAGES_COPY.callsLaunchFallback,
+    fallbackUrl
+  };
+}
+
 async function sendMessageCallRequestToContact(contact, type = "voice") {
   const current = getMessagesCurrentUser();
   if (!current || !contact) {
@@ -19591,9 +19709,16 @@ async function sendMessageCallRequestToContact(contact, type = "voice") {
       byUid: current.uid,
       createdAt: new Date().toISOString()
     });
-    setMessagesCallsStatus(MESSAGES_COPY.callsRequestSent, "ok");
+    const launchResult = launchDeviceCall(contact, safeType);
+    if (launchResult?.fallbackUrl && !launchResult?.launched) {
+      window.open(launchResult.fallbackUrl, "_blank", "noopener,noreferrer");
+      setMessagesCallsStatus(MESSAGES_COPY.callsLaunchFallback, "ok");
+    } else {
+      setMessagesCallsStatus(launchResult?.message || MESSAGES_COPY.callsRequestSent, launchResult?.launched ? "ok" : "error");
+    }
     await ensureMessagesSession();
     renderMessages();
+    toast(pickCopy(MESSAGES_COPY.callsRequestSent));
   } catch (err) {
     console.warn("Failed to send call request", err);
     setMessagesCallsStatus(MESSAGES_COPY.callsSendError, "error");
