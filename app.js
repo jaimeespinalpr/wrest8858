@@ -17686,7 +17686,7 @@ const MESSAGES_COPY = {
     en: "Open a chat below or tap Contacts to start a new conversation.",
     es: "Abre un chat abajo o toca Contactos para iniciar una nueva conversacion."
   },
-  openContactsBtn: { en: "Open contacts", es: "Abrir contactos" },
+  openContactsBtn: { en: "Contacts", es: "Contactos" },
   searchPlaceholder: { en: "Search chats", es: "Buscar chats" },
   coachesSection: { en: "Coaches", es: "Coaches" },
   athletesSection: { en: "Athletes", es: "Atletas" },
@@ -18109,7 +18109,9 @@ function doesMessageThreadMatchSearch(thread, current, query = "") {
 
 function normalizeMessagesWorkspaceMode(mode = "") {
   const safe = String(mode || "").trim().toLowerCase();
-  if (["chats", "calls", "contacts", "share"].includes(safe)) return safe;
+  const supported = ["chats", "calls", "contacts"];
+  if (messagesModeShareBtn && messagesSharePanel) supported.push("share");
+  if (supported.includes(safe)) return safe;
   return "chats";
 }
 

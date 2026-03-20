@@ -6085,3 +6085,285 @@ svg{
     width: 100%;
   }
 }
+
+/* WhatsApp-like messaging layout */
+.messages-whatsapp-card{
+  padding: 0;
+  overflow: hidden;
+}
+
+.messages-whatsapp-card .messages-wa-header{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(90,117,171,0.36);
+  background: linear-gradient(180deg, rgba(24,38,64,0.96), rgba(12,20,36,0.98));
+}
+
+.messages-whatsapp-card #messagesPanelSubtitle{
+  display: none;
+}
+
+.messages-whatsapp-card .messages-workspace-nav.messages-wa-tabs{
+  margin: 0;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(90,117,171,0.32);
+  background: rgba(12,20,36,0.96);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.messages-whatsapp-card .messages-workspace-tab{
+  min-height: 40px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.messages-whatsapp-card .messages-shell{
+  gap: 0;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  min-height: 68vh;
+}
+
+.messages-whatsapp-card .messages-wa-sidebar{
+  border-right: 1px solid rgba(90,117,171,0.3);
+  background: linear-gradient(180deg, rgba(12,21,38,0.96), rgba(8,15,28,0.98));
+}
+
+.messages-whatsapp-card .messages-wa-sidebar-top{
+  margin: 0;
+  padding: 12px 12px 10px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.messages-whatsapp-card .messages-wa-sidebar-title-row{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.messages-whatsapp-card #messagesSidebarTitle{
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.messages-whatsapp-card #messagesSidebarHint{
+  display: none;
+}
+
+.messages-whatsapp-card .messages-wa-icon-btn{
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.messages-whatsapp-card .messages-search-wrap{
+  margin-top: 8px;
+}
+
+.messages-whatsapp-card .message-thread-list{
+  margin: 0;
+  padding: 4px 10px 12px;
+  max-height: calc(68vh - 106px);
+  gap: 6px;
+}
+
+.messages-whatsapp-card .messages-recent-title{
+  display: none;
+}
+
+.messages-whatsapp-card .message-thread-card{
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(90,117,171,0.25);
+  box-shadow: none;
+}
+
+.messages-whatsapp-card .messages-main{
+  padding: 0;
+  background:
+    radial-gradient(500px 280px at 10% 0%, rgba(56,189,248,0.06), transparent 70%),
+    radial-gradient(500px 340px at 100% 100%, rgba(45,212,191,0.08), transparent 72%),
+    linear-gradient(180deg, rgba(10,19,34,0.98), rgba(8,14,26,1));
+}
+
+.messages-whatsapp-card .messages-empty-state,
+.messages-whatsapp-card .messages-thread-view{
+  margin: 0;
+  min-height: 68vh;
+  height: 100%;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.messages-whatsapp-card .messages-empty-state{
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  text-align: center;
+  padding: 20px;
+}
+
+.messages-whatsapp-card .messages-thread-view{
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+
+.messages-whatsapp-card .messages-thread-header{
+  margin: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(90,117,171,0.3);
+  background: linear-gradient(180deg, rgba(22,34,56,0.96), rgba(14,24,42,0.98));
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+.messages-whatsapp-card .messages-thread-actions{
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+.messages-whatsapp-card .messages-thread-actions .tag-pill{
+  display: none;
+}
+
+.messages-whatsapp-card #messagesStatus{
+  padding: 8px 14px 0;
+}
+
+.messages-whatsapp-card .messages-feed{
+  margin-top: 0;
+  max-height: none;
+  min-height: 0;
+  padding: 12px 14px;
+}
+
+.messages-whatsapp-card .message-composer{
+  margin-top: 0;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(90,117,171,0.28);
+  background: linear-gradient(180deg, rgba(17,28,47,0.96), rgba(11,20,36,0.98));
+}
+
+.messages-whatsapp-card .message-composer label > span{
+  display: none;
+}
+
+.messages-whatsapp-card .message-composer textarea{
+  min-height: 48px;
+  max-height: 130px;
+  border-radius: 20px;
+  resize: none;
+}
+
+.messages-whatsapp-card .message-composer-tools{
+  margin-top: 8px;
+  grid-template-columns: auto auto;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.messages-whatsapp-card .message-composer-file-btn,
+.messages-whatsapp-card #messageComposerFilesClearBtn{
+  min-height: 36px;
+  border-radius: 999px;
+}
+
+.messages-whatsapp-card .message-composer-files{
+  margin-top: 8px;
+}
+
+.messages-whatsapp-card #messageSendBtn{
+  width: 100%;
+  min-height: 42px;
+  border-radius: 999px;
+}
+
+.messages-whatsapp-card #messagesCallsPanel,
+.messages-whatsapp-card #messagesContactsPanel{
+  padding: 12px;
+}
+
+@media (max-width: 900px){
+  .messages-whatsapp-card .messages-workspace-nav.messages-wa-tabs{
+    position: sticky;
+    top: 0;
+    z-index: 35;
+  }
+
+  .messages-whatsapp-card .messages-shell{
+    grid-template-columns: 1fr;
+    min-height: 72vh;
+  }
+
+  .messages-whatsapp-card .messages-shell.messages-shell-compact .messages-main{
+    display: none;
+  }
+
+  .messages-whatsapp-card .messages-shell.messages-shell-compact.messages-shell-thread-open .messages-sidebar{
+    display: none;
+  }
+
+  .messages-whatsapp-card .messages-shell.messages-shell-compact.messages-shell-thread-open .messages-main{
+    display: block;
+  }
+
+  .messages-whatsapp-card .messages-empty-state,
+  .messages-whatsapp-card .messages-thread-view{
+    min-height: 72vh;
+  }
+}
+
+@media (max-width: 640px){
+  .messages-whatsapp-card .messages-wa-header{
+    padding: 12px;
+  }
+
+  .messages-whatsapp-card #messagesPanelChip{
+    display: none;
+  }
+
+  .messages-whatsapp-card .messages-workspace-nav.messages-wa-tabs{
+    padding: 8px 10px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .messages-whatsapp-card .messages-thread-actions button{
+    min-height: 32px;
+    padding: 0 8px;
+    font-size: 0.72rem;
+  }
+
+  .messages-whatsapp-card .message-composer{
+    padding: 8px 10px;
+  }
+
+  .messages-whatsapp-card .messages-feed{
+    padding: 10px;
+  }
+}
+
+@media (max-width: 420px){
+  .messages-whatsapp-card .messages-workspace-nav.messages-wa-tabs{
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .messages-whatsapp-card .messages-workspace-tab{
+    min-height: 36px;
+    font-size: 0.74rem;
+  }
+}

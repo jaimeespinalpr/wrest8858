@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Teko:wght@500;600;700&display=swap"
     rel="stylesheet"
   >
-  <link rel="stylesheet" href="styles.css?v=20260319p" >
+  <link rel="stylesheet" href="styles.css?v=20260319q" >
 </head>
 
 <body>
@@ -2040,30 +2040,31 @@
 
       <!-- COACH: MESSAGES -->
       <section class="panel hidden" id="panel-messages">
-        <div class="card">
-          <div class="card-header">
+        <div class="card messages-whatsapp-card">
+          <div class="messages-wa-header">
             <div>
               <h2 id="messagesPanelTitle">Messages</h2>
               <p id="messagesPanelSubtitle" class="small muted">Direct 1:1 messaging between coaches, athletes, and linked parents.</p>
             </div>
             <div class="chip" id="messagesPanelChip">Direct threads</div>
           </div>
-          <div id="messagesWorkspaceNav" class="messages-workspace-nav" role="tablist" aria-label="Messaging workspace">
+          <div id="messagesWorkspaceNav" class="messages-workspace-nav messages-wa-tabs" role="tablist" aria-label="Messaging workspace">
             <button type="button" id="messagesModeChatsBtn" class="messages-workspace-tab active" data-mode="chats">Chats</button>
             <button type="button" id="messagesModeCallsBtn" class="messages-workspace-tab" data-mode="calls">Calls</button>
             <button type="button" id="messagesModeContactsBtn" class="messages-workspace-tab" data-mode="contacts">Contacts</button>
-            <button type="button" id="messagesModeShareBtn" class="messages-workspace-tab" data-mode="share">Share</button>
           </div>
           <section id="messagesChatsPanel" class="messages-workspace-panel">
             <div id="messagesShell" class="messages-shell">
-              <aside class="messages-sidebar">
-                <div class="messages-sidebar-block">
-                  <h3 id="messagesSidebarTitle">Contacts</h3>
+              <aside class="messages-sidebar messages-wa-sidebar">
+                <div class="messages-sidebar-block messages-wa-sidebar-top">
+                  <div class="messages-wa-sidebar-title-row">
+                    <h3 id="messagesSidebarTitle">Contacts</h3>
+                    <button type="button" id="messagesOpenContactsBtn" class="ghost messages-wa-icon-btn">Contacts</button>
+                  </div>
                   <p id="messagesSidebarHint" class="small muted">Pick a contact to open or continue a direct thread.</p>
                   <div class="messages-search-wrap">
                     <input id="messagesSearchInput" type="search" placeholder="Search chats">
                   </div>
-                  <button type="button" id="messagesOpenContactsBtn" class="ghost messages-new-chat-btn">Open contacts</button>
                 </div>
                 <div id="messageList" class="message-thread-list"></div>
               </aside>
@@ -2136,32 +2137,6 @@
             </div>
             <div id="messagesContactsDirectory" class="messages-coach-list"></div>
           </section>
-          <section id="messagesSharePanel" class="messages-workspace-panel hidden">
-            <div class="messages-utility-grid">
-              <div class="messages-sidebar-block">
-                <h3 id="messagesShareTitle">Share media</h3>
-                <p id="messagesShareHint" class="small muted">Share your media link to social apps.</p>
-                <label for="messagesShareUrl">
-                  <span id="messagesShareUrlLabel">Media URL</span>
-                  <input id="messagesShareUrl" type="url" placeholder="https://...">
-                </label>
-                <p id="messagesShareStatus" class="small muted"></p>
-              </div>
-              <div class="messages-thread-view">
-                <div class="messages-thread-header">
-                  <h3 id="messagesShareActionsTitle">Share to</h3>
-                </div>
-                <div class="messages-share-actions">
-                  <button type="button" id="messagesShareNativeBtn" class="primary">Share</button>
-                  <button type="button" id="messagesShareFacebookBtn" class="ghost">Facebook</button>
-                  <button type="button" id="messagesShareInstagramBtn" class="ghost">Instagram</button>
-                  <button type="button" id="messagesShareTiktokBtn" class="ghost">TikTok</button>
-                  <button type="button" id="messagesShareYoutubeBtn" class="ghost">YouTube Shorts</button>
-                </div>
-                <p id="messagesShareHelp" class="small muted"></p>
-              </div>
-            </div>
-          </section>
         </div>
       </section>
 
@@ -2212,6 +2187,6 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260319k"></script>
+  <script src="app.js?v=20260319l"></script>
 </body>
 </html>
