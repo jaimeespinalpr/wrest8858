@@ -17594,6 +17594,7 @@ const messagesModeChatsBtn = document.getElementById("messagesModeChatsBtn");
 const messagesModeCallsBtn = document.getElementById("messagesModeCallsBtn");
 const messagesModeContactsBtn = document.getElementById("messagesModeContactsBtn");
 const messagesModeShareBtn = document.getElementById("messagesModeShareBtn");
+const messagesShell = document.getElementById("messagesShell");
 const messagesChatsPanel = document.getElementById("messagesChatsPanel");
 const messagesCallsPanel = document.getElementById("messagesCallsPanel");
 const messagesContactsPanel = document.getElementById("messagesContactsPanel");
@@ -17608,6 +17609,9 @@ const messagesThreadView = document.getElementById("messagesThreadView");
 const messagesThreadTitle = document.getElementById("messagesThreadTitle");
 const messagesThreadMeta = document.getElementById("messagesThreadMeta");
 const messagesThreadBadge = document.getElementById("messagesThreadBadge");
+const messagesBackToChatsBtn = document.getElementById("messagesBackToChatsBtn");
+const messagesThreadVoiceBtn = document.getElementById("messagesThreadVoiceBtn");
+const messagesThreadVideoBtn = document.getElementById("messagesThreadVideoBtn");
 const messagesStatus = document.getElementById("messagesStatus");
 const messagesFeed = document.getElementById("messagesFeed");
 const messageComposer = document.getElementById("messageComposer");
@@ -17656,6 +17660,9 @@ const MESSAGES_COPY = {
   workspaceCalls: { en: "Calls", es: "Llamadas" },
   workspaceContacts: { en: "Contacts", es: "Contactos" },
   workspaceShare: { en: "Share", es: "Compartir" },
+  backToChats: { en: "Back", es: "Volver" },
+  threadVoiceBtn: { en: "Call", es: "Llamar" },
+  threadVideoBtn: { en: "Video", es: "Video" },
   sidebarTitle: { en: "Chats", es: "Chats" },
   sidebarTitleCoach: { en: "Chats", es: "Chats" },
   sidebarTitleAthlete: { en: "Chats", es: "Chats" },
@@ -19502,10 +19509,8 @@ function setMessagesCallsStatus(copy = "", type = "") {
   messagesCallsStatus.dataset.state = type;
 }
 
-async function sendMessageCallRequest(type = "voice") {
+async function sendMessageCallRequestToContact(contact, type = "voice") {
   const current = getMessagesCurrentUser();
-  const targetUid = String(messagesCallContactSelect?.value || "").trim();
-  const contact = messagesContactRows.find((item) => item.uid === targetUid) || null;
   if (!current || !contact) {
     setMessagesCallsStatus(MESSAGES_COPY.callsNoContacts, "error");
     return;
@@ -19524,6 +19529,7 @@ async function sendMessageCallRequest(type = "voice") {
       text: requestText
     });
     selectMessageThread(threadId);
+    setMessagesThreadOpenState(threadId);
     setMessagesWorkspaceMode("chats", { persist: true, rerender: false });
     appendMessageCallLog({
       contactUid: contact.uid,
@@ -19539,6 +19545,12 @@ async function sendMessageCallRequest(type = "voice") {
     console.warn("Failed to send call request", err);
     setMessagesCallsStatus(MESSAGES_COPY.callsSendError, "error");
   }
+}
+
+async function sendMessageCallRequest(type = "voice") {
+  const targetUid = String(messagesCallContactSelect?.value || "").trim();
+  const contact = messagesContactRows.find((item) => item.uid === targetUid) || null;
+  await sendMessageCallRequestToContact(contact, type);
 }
 
 function renderMessagesCallsPanel(current) {
@@ -19739,6 +19751,50 @@ function renderMessagesWorkspaceNav() {
   });
 }
 
+function getMessageContactInitials(name = "") {
+  const tokens = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return "U";
+  return tokens.slice(0, 2).map((token) => token[0]).join("").toUpperCase();
+}
+
+function isCompactMessagesViewport() {
+  if (typeof window === "undefined" || !window.matchMedia) return false;
+  return window.matchMedia("(max-width: 900px)").matches;
+}
+
+function setMessagesThreadOpenState(selectedThread) {
+  if (!messagesShell) return;
+  const compact = isCompactMessagesViewport();
+  messagesShell.classList.toggle("messages-shell-compact", compact);
+  const shouldOpen = compact && Boolean(selectedThread);
+  messagesShell.classList.toggle("messages-shell-thread-open", shouldOpen);
+  if (!compact) {
+    messagesShell.classList.remove("messages-shell-thread-open");
+  }
+}
+
+function renderMessagesThreadHeaderActions(current, selectedThread) {
+  setTextContent(messagesBackToChatsBtn, MESSAGES_COPY.backToChats);
+  setTextContent(messagesThreadVoiceBtn, MESSAGES_COPY.threadVoiceBtn);
+  setTextContent(messagesThreadVideoBtn, MESSAGES_COPY.threadVideoBtn);
+  const compact = isCompactMessagesViewport();
+  const showBack = compact && Boolean(selectedThread);
+  if (messagesBackToChatsBtn) {
+    messagesBackToChatsBtn.classList.toggle("hidden", !showBack);
+    messagesBackToChatsBtn.disabled = !showBack;
+  }
+  const canCall = Boolean(current?.uid && selectedThread);
+  if (messagesThreadVoiceBtn) messagesThreadVoiceBtn.disabled = !canCall;
+  if (messagesThreadVideoBtn) messagesThreadVideoBtn.disabled = !canCall;
+}
+
+function getSelectedThreadContact(current, selectedThread) {
+  if (!current?.uid || !selectedThread) return null;
+  const other = getMessageOtherParticipant(selectedThread, current.uid);
+  if (!other?.uid) return null;
+  return messagesContactRows.find((entry) => entry.uid === other.uid) || other;
+}
+
 function renderMessagesThreadList(current) {
   if (!messageList) return;
   const showThreadDirectory = true;
@@ -19778,20 +19834,29 @@ function renderMessagesThreadList(current) {
     }
     const preview = thread.lastMessageText || pickCopy(MESSAGES_COPY.noMessages);
     const meta = formatMessageTimestamp(thread.lastMessageAt || thread.updatedAt);
+    const initials = getMessageContactInitials(other.name || "U");
+    const unreadCount = unread ? 1 : 0;
     card.innerHTML = `
-      <div class="message-thread-card-top">
-        <div>
-          <h4>${escapeHtml(other.name || "Conversation")}</h4>
-          <small>${escapeHtml(getRoleLabelEnglish(other.role))}</small>
-        </div>
-        ${unread ? `<span class="message-thread-label">${escapeHtml(pickCopy(MESSAGES_COPY.newBadge))}</span>` : ""}
-      </div>
-      <span class="message-thread-preview">${escapeHtml(preview)}</span>
-      <small class="message-thread-meta">${escapeHtml(meta)}</small>
+      <span class="message-thread-avatar">${escapeHtml(initials)}</span>
+      <span class="message-thread-main">
+        <span class="message-thread-card-top">
+          <span>
+            <h4>${escapeHtml(other.name || "Conversation")}</h4>
+            <small>${escapeHtml(getRoleLabelEnglish(other.role))}</small>
+          </span>
+          <small class="message-thread-time">${escapeHtml(meta)}</small>
+        </span>
+        <span class="message-thread-meta-line">
+          <span class="message-thread-preview">${escapeHtml(preview)}</span>
+          ${unreadCount ? `<span class="message-thread-unread-count">${unreadCount}</span>` : ""}
+        </span>
+      </span>
       ${unread ? '<span class="message-thread-unread-badge"></span>' : ""}
     `;
     card.addEventListener("click", () => {
       selectMessageThread(thread.id);
+      setMessagesThreadOpenState(thread);
+      renderMessages();
     });
     messageList.appendChild(card);
   });
@@ -20036,6 +20101,8 @@ function renderMessages() {
     if (messagesCoachList) messagesCoachList.innerHTML = "";
     if (messageList) messageList.innerHTML = "";
     if (messagesStatus) messagesStatus.textContent = pickCopy(MESSAGES_COPY.signedOut);
+    renderMessagesThreadHeaderActions(current, null);
+    setMessagesThreadOpenState(null);
     renderMessagesWorkspacePanels(current);
     return;
   }
@@ -20052,6 +20119,8 @@ function renderMessages() {
   renderMessagesWorkspacePanels(current);
 
   const selectedThread = getSelectedMessageThread();
+  setMessagesThreadOpenState(selectedThread);
+  renderMessagesThreadHeaderActions(current, selectedThread);
   const composerDisabled = !selectedThread
     || messagesFeedLoading
     || messagesSendInFlight
@@ -20090,6 +20159,7 @@ function renderMessages() {
     messagesEmptyState?.classList.remove("hidden");
     messagesThreadView?.classList.add("hidden");
     if (messagesFeed) messagesFeed.innerHTML = "";
+    setMessagesThreadOpenState(null);
     renderMessagesWorkspacePanels(current);
     return;
   }
@@ -20281,6 +20351,35 @@ if (messageComposer && !messagesBound) {
       setMessagesWorkspaceMode(btn.dataset.mode || "chats", { persist: true, rerender: true });
     });
   });
+  if (messagesBackToChatsBtn) {
+    messagesBackToChatsBtn.addEventListener("click", () => {
+      messagesSelectedThreadId = "";
+      setMessagesThreadOpenState(null);
+      renderMessages();
+    });
+  }
+  if (messagesThreadVoiceBtn) {
+    messagesThreadVoiceBtn.addEventListener("click", () => {
+      const current = getMessagesCurrentUser();
+      const selected = getSelectedMessageThread();
+      const contact = getSelectedThreadContact(current, selected);
+      sendMessageCallRequestToContact(contact, "voice").catch((err) => {
+        console.warn("Thread voice call request failed", err);
+        setMessagesCallsStatus(MESSAGES_COPY.callsSendError, "error");
+      });
+    });
+  }
+  if (messagesThreadVideoBtn) {
+    messagesThreadVideoBtn.addEventListener("click", () => {
+      const current = getMessagesCurrentUser();
+      const selected = getSelectedMessageThread();
+      const contact = getSelectedThreadContact(current, selected);
+      sendMessageCallRequestToContact(contact, "video").catch((err) => {
+        console.warn("Thread video call request failed", err);
+        setMessagesCallsStatus(MESSAGES_COPY.callsSendError, "error");
+      });
+    });
+  }
   messageComposer.addEventListener("submit", handleMessageComposerSubmit);
   if (messageComposerFilesInput) {
     messageComposerFilesInput.addEventListener("change", () => {
@@ -20373,6 +20472,12 @@ if (messageComposer && !messagesBound) {
   });
   window.addEventListener("focus", () => {
     markSelectedMessageThreadSeen();
+  });
+  window.addEventListener("resize", () => {
+    const current = getMessagesCurrentUser();
+    const selected = getSelectedMessageThread();
+    setMessagesThreadOpenState(selected);
+    renderMessagesThreadHeaderActions(current, selected);
   });
   messagesBound = true;
 }

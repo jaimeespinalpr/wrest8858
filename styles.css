@@ -1379,6 +1379,35 @@ button:active{
   box-shadow: 0 10px 24px rgba(10,28,56,0.06);
 }
 
+.message-thread-card{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+}
+
+.message-thread-avatar{
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.74rem;
+  font-weight: 800;
+  background: rgba(79,124,255,0.16);
+  border: 1px solid rgba(79,124,255,0.32);
+  color: #29487d;
+  flex: 0 0 auto;
+}
+
+.message-thread-main{
+  min-width: 0;
+  flex: 1 1 auto;
+  display: grid;
+  gap: 4px;
+}
+
 .messages-contact-priority{
   border-color: rgba(96, 165, 250, 0.34);
   background: linear-gradient(180deg, rgba(25, 45, 86, 0.98), rgba(10, 20, 38, 0.98));
@@ -1414,9 +1443,43 @@ button:active{
 
 .message-thread-card-top{
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
+}
+
+.message-thread-time{
+  flex: 0 0 auto;
+  color: #8ea4cb;
+  font-size: 0.7rem;
+}
+
+.message-thread-meta-line{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.message-thread-unread-count{
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  font-size: 0.64rem;
+  font-weight: 700;
+  background: #22c55e;
+  color: #ffffff;
+  flex: 0 0 auto;
+}
+
+.message-thread-preview{
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .message-thread-label{
@@ -1470,6 +1533,21 @@ button:active{
   gap: 12px;
   align-items: start;
   margin-bottom: 10px;
+}
+
+.messages-thread-actions{
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+}
+
+.messages-thread-actions button{
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 0.74rem;
+  border-radius: 10px;
 }
 
 .messages-feed{
@@ -4989,6 +5067,27 @@ button.ghost,
   color: #ecfeff;
 }
 
+.message-thread-avatar{
+  border-color: rgba(96, 165, 250, 0.36);
+  background: rgba(96, 165, 250, 0.16);
+  color: #dbeafe;
+}
+
+.message-thread-time{
+  color: #9db4da;
+}
+
+.message-thread-unread-count{
+  background: #34d399;
+  color: #082f49;
+}
+
+.messages-thread-actions .tag-pill{
+  border-color: rgba(96, 165, 250, 0.32);
+  background: rgba(96, 165, 250, 0.16);
+  color: #dbe8ff;
+}
+
 .messages-contact-toggle,
 .app.parent-view-active .messages-contact-toggle{
   border-color: rgba(90, 117, 171, 0.42);
@@ -5801,6 +5900,22 @@ svg{
   .messages-shell{
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
+  }
+
+  .messages-shell.messages-shell-compact .messages-main{
+    display: none;
+  }
+
+  .messages-shell.messages-shell-compact.messages-shell-thread-open .messages-sidebar{
+    display: none;
+  }
+
+  .messages-shell.messages-shell-compact.messages-shell-thread-open .messages-main{
+    display: block;
+  }
+
+  .messages-shell.messages-shell-compact.messages-shell-thread-open .messages-thread-view{
+    min-height: 58vh;
   }
 
   .messages-utility-grid{

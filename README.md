@@ -113,10 +113,14 @@ If you later need to revert to MySQL-backed auth, remove or empty `firebase-conf
 
 The messaging area now uses a 4-tab workspace while keeping the same app color system:
 
-- **Chats:** direct real-time threads with media attachments.
+- **Chats:** direct real-time threads with media attachments (conversation list first, similar to WhatsApp flow).
 - **Calls:** quick voice/video call-request actions that log request history and send a request into the chat thread.
 - **Contacts:** grouped directories (Coaches, Athletes, Parents) collapsed by default and expandable on tap/click.
 - **Share:** social-share tools for media URLs (native share when supported, plus Facebook/Instagram/TikTok/YouTube entry points).
+
+Additional UX behavior:
+- In compact/mobile layout, Chats opens as a two-step flow: thread list first, then full thread view with a Back button.
+- Athlete contacts were moved out of the Chats list and kept in the Contacts tab.
 
 Notes:
 - Social apps differ in web share APIs. Facebook supports direct URL share links; Instagram/TikTok/YouTube flows open their upload/app entry and the app can copy the media URL for paste.
