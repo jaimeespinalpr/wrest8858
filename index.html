@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Teko:wght@500;600;700&display=swap"
     rel="stylesheet"
   >
-  <link rel="stylesheet" href="styles.css?v=20260319m" >
+  <link rel="stylesheet" href="styles.css?v=20260319n" >
 </head>
 
 <body>
@@ -2055,7 +2055,7 @@
             <button type="button" id="messagesModeShareBtn" class="messages-workspace-tab" data-mode="share">Share</button>
           </div>
           <section id="messagesChatsPanel" class="messages-workspace-panel">
-            <div class="messages-shell">
+            <div id="messagesShell" class="messages-shell">
               <aside class="messages-sidebar">
                 <div class="messages-sidebar-block">
                   <h3 id="messagesSidebarTitle">Contacts</h3>
@@ -2075,7 +2075,12 @@
                       <h3 id="messagesThreadTitle">Conversation</h3>
                       <p id="messagesThreadMeta" class="small muted"></p>
                     </div>
-                    <div id="messagesThreadBadge" class="tag-pill">Direct</div>
+                    <div class="messages-thread-actions">
+                      <button type="button" id="messagesBackToChatsBtn" class="ghost messages-back-btn">Back</button>
+                      <button type="button" id="messagesThreadVoiceBtn" class="ghost">Call</button>
+                      <button type="button" id="messagesThreadVideoBtn" class="ghost">Video</button>
+                      <div id="messagesThreadBadge" class="tag-pill">Direct</div>
+                    </div>
                   </div>
                   <div id="messagesStatus" class="small muted"></div>
                   <div id="messagesFeed" class="messages-feed"></div>
@@ -2204,6 +2209,6 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260319g"></script>
+  <script src="app.js?v=20260319h"></script>
 </body>
 </html>
