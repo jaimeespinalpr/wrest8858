@@ -17675,16 +17675,16 @@ const MESSAGES_COPY = {
   sidebarTitleAthlete: { en: "Chats", es: "Chats" },
   sidebarTitleParent: { en: "Chats", es: "Chats" },
   sidebarHintCoach: {
-    en: "Open a chat below or tap Contacts to start a new conversation.",
-    es: "Abre un chat abajo o toca Contactos para iniciar una nueva conversacion."
+    en: "Open chats already started. Use Contacts to start a new one.",
+    es: "Abre chats ya iniciados. Usa Contactos para comenzar uno nuevo."
   },
   sidebarHintAthlete: {
-    en: "Open a chat below or tap Contacts to start a new conversation.",
-    es: "Abre un chat abajo o toca Contactos para iniciar una nueva conversacion."
+    en: "Open chats already started. Use Contacts to start a new one.",
+    es: "Abre chats ya iniciados. Usa Contactos para comenzar uno nuevo."
   },
   sidebarHintParent: {
-    en: "Open a chat below or tap Contacts to start a new conversation.",
-    es: "Abre un chat abajo o toca Contactos para iniciar una nueva conversacion."
+    en: "Open chats already started. Use Contacts to start a new one.",
+    es: "Abre chats ya iniciados. Usa Contactos para comenzar uno nuevo."
   },
   openContactsBtn: { en: "Contacts", es: "Contactos" },
   searchPlaceholder: { en: "Search chats", es: "Buscar chats" },
@@ -17740,10 +17740,7 @@ const MESSAGES_COPY = {
     en: "No threads yet.",
     es: "Todavia no hay chats."
   },
-  recentHeader: {
-    en: "Chats",
-    es: "Chats"
-  },
+  recentHeader: { en: "Open chats", es: "Chats abiertos" },
   recentEmpty: {
     en: "New and recent threads will appear here.",
     es: "Los chats nuevos y recientes apareceran aqui."
@@ -19447,7 +19444,11 @@ function buildMessageContactSubgroups(group) {
     .map(([label, rows]) => ({ label, rows }));
 }
 
-function renderMessageContactDirectory(targetEl, current, { onContactSelect = null } = {}) {
+function renderMessageContactDirectory(
+  targetEl,
+  current,
+  { onContactSelect = null, showToggle = true, forceExpanded = false } = {}
+) {
   if (!targetEl) return;
   targetEl.innerHTML = "";
 
@@ -19462,25 +19463,35 @@ function renderMessageContactDirectory(targetEl, current, { onContactSelect = nu
   const groupedContacts = getGroupedMessageContacts(current);
   ensureMessagesContactGroupState(current);
   groupedContacts.forEach((group) => {
-    const isOpen = isMessagesContactGroupOpen(group.key);
+    const isOpen = forceExpanded ? true : isMessagesContactGroupOpen(group.key);
     const section = document.createElement("section");
     section.className = `messages-contact-section${group.priority ? " messages-contact-section-priority" : ""}`;
-    const toggle = document.createElement("button");
-    toggle.type = "button";
-    toggle.className = "messages-contact-toggle";
-    toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
-    toggle.innerHTML = `
-      <span class="messages-contact-toggle-main">
+    if (showToggle) {
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "messages-contact-toggle";
+      toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+      toggle.innerHTML = `
+        <span class="messages-contact-toggle-main">
+          <span class="messages-contact-section-title">${escapeHtml(group.title)}</span>
+          <span class="messages-contact-count">${group.rows.length}</span>
+        </span>
+        <span class="messages-contact-toggle-caret">${isOpen ? "▾" : "▸"}</span>
+      `;
+      toggle.addEventListener("click", () => {
+        setMessagesContactGroupOpen(group.key, !isOpen);
+        renderMessages();
+      });
+      section.appendChild(toggle);
+    } else {
+      const header = document.createElement("div");
+      header.className = "messages-contact-header";
+      header.innerHTML = `
         <span class="messages-contact-section-title">${escapeHtml(group.title)}</span>
         <span class="messages-contact-count">${group.rows.length}</span>
-      </span>
-      <span class="messages-contact-toggle-caret">${isOpen ? "▾" : "▸"}</span>
-    `;
-    toggle.addEventListener("click", () => {
-      setMessagesContactGroupOpen(group.key, !isOpen);
-      renderMessages();
-    });
-    section.appendChild(toggle);
+      `;
+      section.appendChild(header);
+    }
 
     const body = document.createElement("div");
     body.className = "messages-contact-body";
@@ -19521,6 +19532,8 @@ function renderMessagesContactsPanel(current) {
   setTextContent(messagesContactsTitle, MESSAGES_COPY.contactsTitleTab);
   setTextContent(messagesContactsHint, MESSAGES_COPY.contactsHintTab);
   renderMessageContactDirectory(messagesContactsDirectory, current, {
+    showToggle: false,
+    forceExpanded: true,
     onContactSelect: (contact) => {
       setMessagesContactGroupOpen(contact.role, true);
       setMessagesWorkspaceMode("chats", { persist: true, rerender: false });
