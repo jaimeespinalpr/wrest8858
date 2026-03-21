@@ -17614,6 +17614,10 @@ const messagesSidebarTitle = document.getElementById("messagesSidebarTitle");
 const messagesSidebarHint = document.getElementById("messagesSidebarHint");
 const messagesOpenContactsBtn = document.getElementById("messagesOpenContactsBtn");
 const messagesSearchInput = document.getElementById("messagesSearchInput");
+const messagesFilterTabs = document.getElementById("messagesFilterTabs");
+const messagesFilterAllBtn = document.getElementById("messagesFilterAllBtn");
+const messagesFilterAthletesBtn = document.getElementById("messagesFilterAthletesBtn");
+const messagesFilterParentsBtn = document.getElementById("messagesFilterParentsBtn");
 const messagesEmptyState = document.getElementById("messagesEmptyState");
 const messagesEmptyTitle = document.getElementById("messagesEmptyTitle");
 const messagesEmptyBody = document.getElementById("messagesEmptyBody");
@@ -17623,14 +17627,18 @@ const messagesThreadAvatar = document.getElementById("messagesThreadAvatar");
 const messagesThreadMeta = document.getElementById("messagesThreadMeta");
 const messagesThreadBadge = document.getElementById("messagesThreadBadge");
 const messagesBackToChatsBtn = document.getElementById("messagesBackToChatsBtn");
+const messagesShareProgressBtn = document.getElementById("messagesShareProgressBtn");
 const messagesThreadVoiceBtn = document.getElementById("messagesThreadVoiceBtn");
 const messagesThreadVideoBtn = document.getElementById("messagesThreadVideoBtn");
 const messagesStatus = document.getElementById("messagesStatus");
+const messagesTypingIndicator = document.getElementById("messagesTypingIndicator");
 const messagesFeed = document.getElementById("messagesFeed");
 const messageComposer = document.getElementById("messageComposer");
 const messageComposerLabel = document.getElementById("messageComposerLabel");
 const messageComposerInput = document.getElementById("messageComposerInput");
 const messageSendBtn = document.getElementById("messageSendBtn");
+const messageRecordVoiceBtn = document.getElementById("messageRecordVoiceBtn");
+const messageVoiceStatus = document.getElementById("messageVoiceStatus");
 const messageComposerFilesInput = document.getElementById("messageComposerFiles");
 const messageComposerFilesLabel = document.getElementById("messageComposerFilesLabel");
 const messageComposerFilesList = document.getElementById("messageComposerFilesList");
@@ -17674,8 +17682,12 @@ const MESSAGES_COPY = {
   workspaceContacts: { en: "Contacts", es: "Contactos" },
   workspaceShare: { en: "Share", es: "Compartir" },
   backToChats: { en: "Back", es: "Volver" },
+  shareProgressBtn: { en: "Share progress", es: "Compartir progreso" },
   threadVoiceBtn: { en: "Call", es: "Llamar" },
   threadVideoBtn: { en: "Video", es: "Video" },
+  filtersAll: { en: "All", es: "Todos" },
+  filtersAthletes: { en: "Athletes", es: "Atletas" },
+  filtersParents: { en: "Parents", es: "Padres" },
   sidebarTitle: { en: "Chats", es: "Chats" },
   sidebarTitleCoach: { en: "Chats", es: "Chats" },
   sidebarTitleAthlete: { en: "Chats", es: "Chats" },
@@ -17738,6 +17750,30 @@ const MESSAGES_COPY = {
     es: "No se pudo enviar este mensaje."
   },
   sentToast: { en: "Message sent.", es: "Mensaje enviado." },
+  readReceiptSeen: { en: "Seen", es: "Leido" },
+  readReceiptSent: { en: "Sent", es: "Enviado" },
+  typingLabel: { en: "typing", es: "escribiendo" },
+  voiceRecordStart: { en: "Record voice", es: "Grabar voz" },
+  voiceRecordStop: { en: "Stop recording", es: "Detener grabacion" },
+  voiceRecordingNow: { en: "Recording voice message...", es: "Grabando mensaje de voz..." },
+  voiceUploading: { en: "Uploading voice message...", es: "Subiendo mensaje de voz..." },
+  voiceReady: { en: "Voice message sent.", es: "Mensaje de voz enviado." },
+  voiceUnsupported: {
+    en: "Voice recording is not supported on this browser.",
+    es: "La grabacion de voz no esta disponible en este navegador."
+  },
+  voicePermissionDenied: {
+    en: "Microphone permission denied.",
+    es: "Permiso de microfono denegado."
+  },
+  voiceError: { en: "Could not send voice message.", es: "No se pudo enviar el mensaje de voz." },
+  shareProgressEmpty: {
+    en: "No recent training log found for this athlete.",
+    es: "No se encontro un registro reciente de entrenamiento para este atleta."
+  },
+  shareProgressSending: { en: "Sharing latest progress...", es: "Compartiendo progreso mas reciente..." },
+  shareProgressSent: { en: "Latest progress shared in chat.", es: "El progreso mas reciente fue compartido en el chat." },
+  shareProgressError: { en: "Could not share training progress.", es: "No se pudo compartir el progreso del entrenamiento." },
   noMessages: {
     en: "No messages yet. Start the conversation below.",
     es: "Todavia no hay mensajes. Empieza la conversacion abajo."
@@ -17918,9 +17954,18 @@ const MESSAGES_WORKSPACE_MODE_KEY = "wpl_messages_workspace_mode";
 const MESSAGES_CALL_LOGS_KEY = "wpl_messages_call_logs";
 let messagesWorkspaceMode = "chats";
 let messagesSearchQuery = "";
+let messagesThreadFilter = "all";
 let messagesContactGroupOpenState = {};
 let messagesContactGroupStateUid = "";
 let messagesCompactThreadVisible = false;
+let messagesReadSyncInFlight = {};
+let messagesAnimatedEntryState = {};
+let messagesTypingResetTimer = null;
+let messagesTypingState = false;
+let messagesVoiceRecorder = null;
+let messagesVoiceStream = null;
+let messagesVoiceChunks = [];
+let messagesVoiceStartedAt = 0;
 let userNameDecorationQueued = false;
 let userNameDecorationObserver = null;
 messagesWorkspaceMode = loadMessagesWorkspaceMode();
@@ -18120,6 +18165,25 @@ function doesMessageThreadMatchSearch(thread, current, query = "") {
     thread?.lastMessageText
   ].filter(Boolean).join(" "));
   return haystack.includes(safeQuery);
+}
+
+function normalizeMessagesThreadFilter(value = "") {
+  const safe = String(value || "").trim().toLowerCase();
+  if (safe === "athlete") return "athlete";
+  if (safe === "parent") return "parent";
+  return "all";
+}
+
+function doesMessageThreadMatchFilter(thread, current, filter = "all") {
+  const normalizedFilter = normalizeMessagesThreadFilter(filter);
+  if (normalizedFilter === "all") return true;
+  const other = getMessageOtherParticipant(thread, current?.uid || "");
+  return normalizeMessageParticipantRole(other?.role || "", other?.email || "") === normalizedFilter;
+}
+
+function setMessagesThreadFilter(filter = "all", { rerender = true } = {}) {
+  messagesThreadFilter = normalizeMessagesThreadFilter(filter);
+  if (rerender) renderMessages();
 }
 
 function normalizeMessagesWorkspaceMode(mode = "") {
@@ -18443,6 +18507,150 @@ function markMessageThreadSeen(threadId = "", timestamp = 0) {
 function markSelectedMessageThreadSeen() {
   if (!messagesSelectedThreadId || document.hidden || !isMessagesPanelFocused()) return;
   markMessageThreadSeen(messagesSelectedThreadId);
+  syncThreadReadReceipts(messagesSelectedThreadId, messagesFeedRows).catch(() => {});
+}
+
+function getMessageThreadDocRef(threadId = "") {
+  const threadsRef = getMessageThreadsCollectionRef();
+  const safeThreadId = String(threadId || "").trim();
+  if (!threadsRef || !safeThreadId) return null;
+  return threadsRef.doc(safeThreadId);
+}
+
+function getMessageReadEntryKey(entry = {}) {
+  return String(entry.id || entry.clientMessageId || "").trim();
+}
+
+function applyReadStateToLocalMessages(threadId = "", entries = [], currentUid = "", readAt = "") {
+  const safeThreadId = String(threadId || "").trim();
+  const safeUid = String(currentUid || "").trim();
+  const keys = new Set((Array.isArray(entries) ? entries : []).map((entry) => getMessageReadEntryKey(entry)).filter(Boolean));
+  if (!safeThreadId || !safeUid || !keys.size) return;
+
+  const stamp = String(readAt || "").trim() || new Date().toISOString();
+  messagesFeedRows = messagesFeedRows.map((entry) => {
+    const key = getMessageReadEntryKey(entry);
+    if (!keys.has(key)) return entry;
+    return { ...entry, read: true, readByUid: safeUid, readAt: stamp };
+  });
+
+  messagesThreadRows = sortMessageThreads(messagesThreadRows.map((thread) => {
+    if (thread.id !== safeThreadId) return thread;
+    const history = Array.isArray(thread.messageHistory) ? thread.messageHistory.map((entry) => {
+      const key = getMessageReadEntryKey(entry);
+      if (!keys.has(key)) return entry;
+      return { ...entry, read: true, readByUid: safeUid, readAt: stamp };
+    }) : [];
+    return { ...thread, messageHistory: history };
+  }));
+}
+
+async function syncThreadReadReceipts(threadId = "", rows = []) {
+  const safeThreadId = String(threadId || "").trim();
+  const current = getMessagesCurrentUser();
+  if (!safeThreadId || !current?.uid || !firebaseFirestoreInstance) return;
+  if (!isMessagesPanelFocused() || document.hidden) return;
+  if (messagesReadSyncInFlight[safeThreadId]) return;
+  const unreadIncoming = (Array.isArray(rows) ? rows : []).filter((entry) => (
+    entry?.id
+    && entry.senderUid
+    && entry.senderUid !== current.uid
+    && !entry.read
+  ));
+  if (!unreadIncoming.length) return;
+
+  const threadRef = getMessageThreadDocRef(safeThreadId);
+  if (!threadRef) return;
+  messagesReadSyncInFlight = { ...messagesReadSyncInFlight, [safeThreadId]: true };
+  try {
+    const batch = firebaseFirestoreInstance.batch();
+    unreadIncoming.forEach((entry) => {
+      batch.set(
+        threadRef.collection("messages").doc(entry.id),
+        {
+          read: true,
+          readByUid: current.uid,
+          readAt: new Date().toISOString(),
+          serverReadAt: getFirestoreServerTimestamp()
+        },
+        { merge: true }
+      );
+    });
+    await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_message_read_receipt_timeout");
+    applyReadStateToLocalMessages(safeThreadId, unreadIncoming, current.uid, new Date().toISOString());
+    renderMessages();
+  } catch (err) {
+    console.warn("Failed to sync read receipts", err);
+  } finally {
+    const next = { ...messagesReadSyncInFlight };
+    delete next[safeThreadId];
+    messagesReadSyncInFlight = next;
+  }
+}
+
+function getOtherTypingParticipant(thread, currentUid = "") {
+  const map = thread?.typingByUid && typeof thread.typingByUid === "object"
+    ? thread.typingByUid
+    : {};
+  const otherUid = Object.keys(map).find((uid) => uid && uid !== currentUid && map[uid]);
+  if (!otherUid) return null;
+  return getMessageOtherParticipant(thread, currentUid);
+}
+
+function renderTypingIndicator(thread = null, current = getMessagesCurrentUser()) {
+  if (!messagesTypingIndicator) return;
+  const typingParticipant = getOtherTypingParticipant(thread, current?.uid || "");
+  if (!typingParticipant) {
+    messagesTypingIndicator.classList.add("hidden");
+    return;
+  }
+  const nameEl = messagesTypingIndicator.querySelector(".messages-typing-name");
+  if (nameEl) nameEl.textContent = typingParticipant.name || pickCopy(MESSAGES_COPY.title);
+  const verbEl = messagesTypingIndicator.querySelector(".messages-typing-verb");
+  if (verbEl) verbEl.textContent = pickCopy(MESSAGES_COPY.typingLabel);
+  messagesTypingIndicator.classList.remove("hidden");
+}
+
+function clearMessagesTypingTimer() {
+  if (!messagesTypingResetTimer) return;
+  clearTimeout(messagesTypingResetTimer);
+  messagesTypingResetTimer = null;
+}
+
+async function setThreadTypingState(threadId = "", isTyping = false) {
+  const safeThreadId = String(threadId || "").trim();
+  const current = getMessagesCurrentUser();
+  if (!safeThreadId || !current?.uid) return;
+  if (messagesTypingState === Boolean(isTyping)) return;
+  messagesTypingState = Boolean(isTyping);
+  const threadRef = getMessageThreadDocRef(safeThreadId);
+  if (!threadRef) return;
+  try {
+    const payload = {
+      [`typingByUid.${current.uid}`]: messagesTypingState,
+      typingUpdatedAt: new Date().toISOString(),
+      serverTypingUpdatedAt: getFirestoreServerTimestamp()
+    };
+    await withTimeout(
+      threadRef.update(payload),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_message_typing_timeout"
+    );
+  } catch (err) {
+    console.warn("Failed to update typing state", err);
+  }
+}
+
+function handleComposerTypingInput() {
+  const selectedThread = getSelectedMessageThread();
+  const threadId = String(selectedThread?.id || "").trim();
+  if (!threadId) return;
+  setThreadTypingState(threadId, true).catch(() => {});
+  clearMessagesTypingTimer();
+  messagesTypingResetTimer = setTimeout(() => {
+    setThreadTypingState(threadId, false).catch(() => {});
+    messagesTypingResetTimer = null;
+  }, 1600);
 }
 
 function maybeShowNativeMessageNotification(title, body) {
@@ -18653,6 +18861,9 @@ function normalizeMessageData(data = {}, id = "") {
       ? data.attachments.map((entry) => normalizeMessageAttachment(entry)).filter((entry) => entry.assetPath)
       : [],
     messageTags: normalizeLooseTagList(data.messageTags || []),
+    read: Boolean(data.read),
+    readByUid: String(data.readByUid || "").trim(),
+    readAt: data.readAt || "",
     optimistic: Boolean(data.optimistic)
   };
 }
@@ -18697,6 +18908,7 @@ function normalizeMessageThreadRecord(doc) {
     userUid: String(data.userUid || "").trim(),
     userName: String(data.userName || "").trim() || participantProfiles.find((participant) => participant.uid !== data.coachUid)?.name || "User",
     userRole: normalizeMessageParticipantRole(data.userRole || participantProfiles.find((participant) => participant.uid !== data.coachUid)?.role || "athlete"),
+    typingByUid: data.typingByUid && typeof data.typingByUid === "object" ? data.typingByUid : {},
     lastMessageText: String(data.lastMessageText || latestHistoryEntry?.text || "").trim(),
     lastMessageAt: data.lastMessageAt || data.updatedAt || latestHistoryEntry?.createdAt || data.createdAt || "",
     lastSenderUid: String(data.lastSenderUid || latestHistoryEntry?.senderUid || "").trim(),
@@ -18897,10 +19109,18 @@ function teardownMessagesSession({ preserveSelection = false } = {}) {
   messagesSendInFlight = false;
   messagesLastSendByThread = {};
   messagesPendingEntriesByThread = {};
+  messagesReadSyncInFlight = {};
+  messagesAnimatedEntryState = {};
   messagesOpenRequestId = 0;
   messagesContactGroupOpenState = {};
   messagesContactGroupStateUid = "";
   messagesCompactThreadVisible = false;
+  messagesTypingState = false;
+  if (messagesTypingResetTimer) {
+    clearTimeout(messagesTypingResetTimer);
+    messagesTypingResetTimer = null;
+  }
+  stopVoiceMessageRecording({ discard: true });
   clearMessageComposerMediaInputs();
   if (!preserveSelection) messagesSelectedThreadId = "";
   resetMessagesStatus();
@@ -19013,6 +19233,7 @@ function subscribeToMessageFeed(threadId) {
   if (!threadsRef) return;
   messagesFeedLoading = true;
   setMessagesStatus(MESSAGES_COPY.loadingFeed, "");
+  renderMessages();
   messagesFeedUnsub = threadsRef
     .doc(threadId)
     .collection("messages")
@@ -19029,6 +19250,9 @@ function subscribeToMessageFeed(threadId) {
       resetMessagesStatus();
       renderMessages();
       markSelectedMessageThreadSeen();
+      syncThreadReadReceipts(threadId, remoteRows).catch((err) => {
+        console.warn("Read receipt sync failed", err);
+      });
       if (messagesFeed) {
         requestAnimationFrame(() => {
           messagesFeed.scrollTop = messagesFeed.scrollHeight;
@@ -19044,6 +19268,11 @@ function subscribeToMessageFeed(threadId) {
 
 function selectMessageThread(threadId, { openInCompact = false } = {}) {
   if (!threadId) return;
+  const previousThreadId = String(messagesSelectedThreadId || "").trim();
+  if (previousThreadId && previousThreadId !== threadId) {
+    clearMessagesTypingTimer();
+    setThreadTypingState(previousThreadId, false).catch(() => {});
+  }
   if (openInCompact) {
     messagesCompactThreadVisible = true;
   }
@@ -19054,6 +19283,7 @@ function selectMessageThread(threadId, { openInCompact = false } = {}) {
   }
   messagesSelectedThreadId = threadId;
   subscribeToMessageFeed(threadId);
+  setMessageVoiceStatus("", "");
   renderMessages();
   markSelectedMessageThreadSeen();
 }
@@ -19294,7 +19524,10 @@ async function appendMessageToThread({
     senderRole: senderProfile.role,
     createdAt: String(createdAt || "").trim() || new Date().toISOString(),
     attachments: normalizedAttachments,
-    messageTags: normalizedTags
+    messageTags: normalizedTags,
+    read: false,
+    readByUid: "",
+    readAt: ""
   };
   const messagePayload = {
     threadId,
@@ -19306,7 +19539,10 @@ async function appendMessageToThread({
     createdAt: localMessage.createdAt,
     serverCreatedAt: getFirestoreServerTimestamp(),
     attachments: normalizedAttachments,
-    messageTags: normalizedTags
+    messageTags: normalizedTags,
+    read: false,
+    readByUid: "",
+    readAt: ""
   };
   const threadPayload = buildMessageThreadPayload(participantProfiles, {
     updatedAt: localMessage.createdAt,
@@ -19982,6 +20218,21 @@ function renderMessagesWorkspaceNav() {
   });
 }
 
+function renderMessagesFilterTabs() {
+  const defs = [
+    { el: messagesFilterAllBtn, filter: "all", copy: MESSAGES_COPY.filtersAll },
+    { el: messagesFilterAthletesBtn, filter: "athlete", copy: MESSAGES_COPY.filtersAthletes },
+    { el: messagesFilterParentsBtn, filter: "parent", copy: MESSAGES_COPY.filtersParents }
+  ];
+  defs.forEach(({ el, filter, copy }) => {
+    if (!el) return;
+    el.textContent = pickCopy(copy);
+    const active = messagesThreadFilter === filter;
+    el.classList.toggle("active", active);
+    el.setAttribute("aria-selected", active ? "true" : "false");
+  });
+}
+
 function getMessageContactInitials(name = "") {
   const tokens = String(name || "").trim().split(/\s+/).filter(Boolean);
   if (!tokens.length) return "U";
@@ -20006,6 +20257,7 @@ function setMessagesThreadOpenState(selectedThread) {
 
 function renderMessagesThreadHeaderActions(current, selectedThread) {
   setTextContent(messagesBackToChatsBtn, MESSAGES_COPY.backToChats);
+  setTextContent(messagesShareProgressBtn, MESSAGES_COPY.shareProgressBtn);
   setTextContent(messagesThreadVoiceBtn, MESSAGES_COPY.threadVoiceBtn);
   setTextContent(messagesThreadVideoBtn, MESSAGES_COPY.threadVideoBtn);
   const compact = isCompactMessagesViewport();
@@ -20015,6 +20267,8 @@ function renderMessagesThreadHeaderActions(current, selectedThread) {
     messagesBackToChatsBtn.disabled = !showBack;
   }
   const canCall = Boolean(current?.uid && selectedThread);
+  const canShareProgress = Boolean(current?.uid && selectedThread && isCoachMessagingUser(current));
+  if (messagesShareProgressBtn) messagesShareProgressBtn.disabled = !canShareProgress;
   if (messagesThreadVoiceBtn) messagesThreadVoiceBtn.disabled = !canCall;
   if (messagesThreadVideoBtn) messagesThreadVideoBtn.disabled = !canCall;
 }
@@ -20128,7 +20382,10 @@ function renderMessagesThreadList(current) {
     return;
   }
 
-  const filteredThreads = sortedThreads.filter((thread) => doesMessageThreadMatchSearch(thread, current, messagesSearchQuery));
+  const filteredThreads = sortedThreads.filter((thread) => (
+    doesMessageThreadMatchSearch(thread, current, messagesSearchQuery)
+    && doesMessageThreadMatchFilter(thread, current, messagesThreadFilter)
+  ));
   if (!filteredThreads.length) {
     const empty = document.createElement("div");
     empty.className = "small muted messages-recent-empty";
@@ -20216,6 +20473,7 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
   const typeLower = String(attachment.mediaType || "").toLowerCase();
   const isVideo = typeLower.includes("video");
   const isPhoto = typeLower.includes("photo") || typeLower.includes("image");
+  const isVoice = typeLower.includes("voice") || typeLower.includes("audio");
   const previewUrl = resolveMediaLocation(attachment.thumbnailPath || attachment.assetPath || "");
 
   const head = document.createElement("div");
@@ -20261,6 +20519,16 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
       video.playsInline = true;
       card.appendChild(video);
     }
+  } else if (isVoice && assetUrl) {
+    const voiceWrap = document.createElement("div");
+    voiceWrap.className = "message-voice-player";
+    const audio = document.createElement("audio");
+    audio.className = "message-voice-audio";
+    audio.src = assetUrl;
+    audio.controls = true;
+    audio.preload = "metadata";
+    voiceWrap.appendChild(audio);
+    card.appendChild(voiceWrap);
   }
 
   const tags = normalizeLooseTagList(attachment.tags || []);
@@ -20314,10 +20582,34 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
   return card;
 }
 
-function renderMessagesFeed(current) {
+function showChatSkeletons(count = 5) {
   if (!messagesFeed) return;
   messagesFeed.innerHTML = "";
+  const total = Math.max(3, Number(count || 5));
+  for (let index = 0; index < total; index += 1) {
+    const skeleton = document.createElement("div");
+    skeleton.className = `message-skeleton${index % 2 ? " own" : ""}`;
+    skeleton.innerHTML = `
+      <span class="message-skeleton-line lg shimmer"></span>
+      <span class="message-skeleton-line md shimmer"></span>
+      <span class="message-skeleton-line sm shimmer"></span>
+    `;
+    messagesFeed.appendChild(skeleton);
+  }
+}
+
+function renderMessagesFeed(current) {
+  if (!messagesFeed) return;
+  if (messagesFeedLoading) {
+    showChatSkeletons();
+    return;
+  }
+  messagesFeed.innerHTML = "";
   const selectedThread = getSelectedMessageThread();
+  const threadId = String(selectedThread?.id || "").trim();
+  const animatedState = messagesAnimatedEntryState[threadId] && typeof messagesAnimatedEntryState[threadId] === "object"
+    ? { ...messagesAnimatedEntryState[threadId] }
+    : {};
   const rows = messagesFeedRows.length ? messagesFeedRows : (selectedThread?.messageHistory || []);
   if (!rows.length) {
     const empty = document.createElement("div");
@@ -20329,8 +20621,13 @@ function renderMessagesFeed(current) {
 
   rows.forEach((entry) => {
     const isOwn = entry.senderUid === current?.uid;
+    const entryKey = String(entry.id || entry.clientMessageId || `${entry.senderUid}-${entry.createdAt}`).trim();
     const bubble = document.createElement("div");
     bubble.className = "message-bubble";
+    if (entryKey && !animatedState[entryKey]) {
+      bubble.classList.add("message-new");
+      animatedState[entryKey] = true;
+    }
     if (isOwn) {
       bubble.classList.add("own");
     } else {
@@ -20352,7 +20649,17 @@ function renderMessagesFeed(current) {
       senderBlock.appendChild(role);
     }
     const time = document.createElement("span");
-    time.textContent = formatMessageTimestamp(entry.createdAt);
+    time.className = "message-bubble-time-wrap";
+    const timeText = document.createElement("span");
+    timeText.textContent = formatMessageTimestamp(entry.createdAt);
+    time.appendChild(timeText);
+    if (isOwn) {
+      const readCheck = document.createElement("span");
+      readCheck.className = `message-read-check ${entry.read ? "read" : "unread"}`;
+      readCheck.textContent = "✓✓";
+      readCheck.title = pickCopy(entry.read ? MESSAGES_COPY.readReceiptSeen : MESSAGES_COPY.readReceiptSent);
+      time.appendChild(readCheck);
+    }
     header.appendChild(senderBlock);
     header.appendChild(time);
 
@@ -20375,6 +20682,12 @@ function renderMessagesFeed(current) {
     }
     messagesFeed.appendChild(bubble);
   });
+  if (threadId) {
+    messagesAnimatedEntryState = {
+      ...messagesAnimatedEntryState,
+      [threadId]: animatedState
+    };
+  }
 }
 
 function renderMessages() {
@@ -20384,9 +20697,15 @@ function renderMessages() {
   setTextContent(messagesPanelSubtitle, MESSAGES_COPY.subtitle);
   setTextContent(messagesPanelChip, MESSAGES_COPY.chip);
   renderMessagesWorkspaceNav();
+  renderMessagesFilterTabs();
   setTextContent(messageComposerLabel, MESSAGES_COPY.composerLabel);
   setTextContent(messageComposerFilesLabel, MESSAGES_COPY.composerFilesLabel);
   setTextContent(messageComposerFilesClearBtn, MESSAGES_COPY.clearMedia);
+  if (messageRecordVoiceBtn) {
+    messageRecordVoiceBtn.title = messagesVoiceRecorder?.state === "recording"
+      ? pickCopy(MESSAGES_COPY.voiceRecordStop)
+      : pickCopy(MESSAGES_COPY.voiceRecordStart);
+  }
   if (messageComposerInput) {
     messageComposerInput.placeholder = pickCopy(MESSAGES_COPY.composerPlaceholder);
   }
@@ -20425,6 +20744,7 @@ function renderMessages() {
     if (messagesSearchInput) {
       messagesSearchInput.disabled = true;
     }
+    renderTypingIndicator(null, current);
     renderMessagesThreadHeaderActions(current, null);
     setMessagesThreadOpenState(null);
     renderMessagesWorkspacePanels(current);
@@ -20447,6 +20767,7 @@ function renderMessages() {
   renderMessagesWorkspacePanels(current);
 
   const selectedThread = getSelectedMessageThread();
+  renderTypingIndicator(selectedThread, current);
   setMessagesThreadOpenState(selectedThread);
   renderMessagesThreadHeaderActions(current, selectedThread);
   const threadIsOpening = isMessageThreadOpening(messagesSelectedThreadId);
@@ -20473,6 +20794,10 @@ function renderMessages() {
       : threadIsOpening
         ? (currentLang === "es" ? "Abriendo chat..." : "Opening chat...")
         : pickCopy(MESSAGES_COPY.send);
+  }
+  if (messageRecordVoiceBtn) {
+    messageRecordVoiceBtn.disabled = composerDisabled && messagesVoiceRecorder?.state !== "recording";
+    updateVoiceRecordButtonUi();
   }
   if (!selectedThread) {
     setTextContent(messagesEmptyTitle, MESSAGES_COPY.emptyTitle);
@@ -20547,6 +20872,8 @@ async function handleMessageComposerSubmit(event) {
     renderMessages();
     return;
   }
+  clearMessagesTypingTimer();
+  setThreadTypingState(threadId, false).catch(() => {});
   const sendParticipants = getMessageThreadParticipantsForSend(selectedThread, current);
   if (sendParticipants.length < 2) {
     setMessagesStatus(
@@ -20614,6 +20941,9 @@ async function handleMessageComposerSubmit(event) {
     createdAt: optimisticCreatedAt,
     attachments: uploadedAttachments,
     messageTags,
+    read: false,
+    readByUid: "",
+    readAt: "",
     optimistic: true
   }, optimisticMessageId);
   const previousThreadState = selectedThread ? {
@@ -20684,6 +21014,310 @@ async function handleMessageComposerSubmit(event) {
   }
 }
 
+function setMessageVoiceStatus(copy = "", type = "") {
+  if (!messageVoiceStatus) return;
+  messageVoiceStatus.textContent = pickCopy(copy);
+  messageVoiceStatus.dataset.state = type || "";
+}
+
+function getVoiceRecordingMimeType() {
+  if (typeof MediaRecorder === "undefined" || typeof MediaRecorder.isTypeSupported !== "function") {
+    return "";
+  }
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/mpeg"
+  ];
+  return candidates.find((mime) => MediaRecorder.isTypeSupported(mime)) || "";
+}
+
+function stopVoiceRecordingStream() {
+  if (!messagesVoiceStream) return;
+  try {
+    messagesVoiceStream.getTracks().forEach((track) => {
+      try {
+        track.stop();
+      } catch {
+        // ignore track stop errors
+      }
+    });
+  } finally {
+    messagesVoiceStream = null;
+  }
+}
+
+function updateVoiceRecordButtonUi() {
+  if (!messageRecordVoiceBtn) return;
+  const isRecording = messagesVoiceRecorder?.state === "recording";
+  messageRecordVoiceBtn.classList.toggle("recording", isRecording);
+  messageRecordVoiceBtn.setAttribute("aria-pressed", isRecording ? "true" : "false");
+  messageRecordVoiceBtn.textContent = isRecording ? "⏹" : "🎤";
+  messageRecordVoiceBtn.title = pickCopy(isRecording ? MESSAGES_COPY.voiceRecordStop : MESSAGES_COPY.voiceRecordStart);
+}
+
+async function sendVoiceMessageBlob(blob, mimeType = "audio/webm") {
+  const current = getMessagesCurrentUser();
+  const selectedThread = getSelectedMessageThread();
+  const threadId = String(selectedThread?.id || "").trim();
+  if (!blob || !current?.uid || !selectedThread || !threadId) {
+    setMessageVoiceStatus(MESSAGES_COPY.voiceError, "error");
+    return;
+  }
+  if (messagesSendInFlight) {
+    setMessageVoiceStatus(MESSAGES_COPY.sending, "");
+    return;
+  }
+  const sendParticipants = getMessageThreadParticipantsForSend(selectedThread, current);
+  if (sendParticipants.length < 2) {
+    setMessageVoiceStatus(MESSAGES_COPY.voiceError, "error");
+    return;
+  }
+  const ext = mimeType.includes("mpeg") ? "mp3" : "webm";
+  const fileName = `voice-${Date.now()}.${ext}`;
+  messagesSendInFlight = true;
+  setMessagesStatus(MESSAGES_COPY.voiceUploading, "");
+  setMessageVoiceStatus(MESSAGES_COPY.voiceUploading, "");
+  renderMessages();
+  try {
+    const uploaded = await uploadBlobToFirebase(blob, fileName, {
+      kind: "voice",
+      contentType: mimeType || "audio/webm",
+      customMetadata: {
+        uploaderUid: current.uid,
+        source: "wpl-chat-voice"
+      }
+    });
+    const voiceAttachment = normalizeMessageAttachment({
+      id: `voice-${Date.now()}`,
+      name: fileName,
+      mediaType: "Voice",
+      assetPath: uploaded.downloadURL,
+      assetStoragePath: uploaded.fullPath,
+      contentType: uploaded.contentType,
+      size: uploaded.size,
+      tags: ["voice"]
+    });
+    await appendMessageToThread({
+      threadId,
+      participants: sendParticipants,
+      sender: current,
+      text: currentLang === "es" ? "Mensaje de voz" : "Voice message",
+      attachments: [voiceAttachment],
+      messageTags: ["voice"]
+    });
+    setMessageVoiceStatus(MESSAGES_COPY.voiceReady, "ok");
+    resetMessagesStatus();
+    renderMessages();
+  } catch (err) {
+    console.warn("Voice message send failed", err);
+    setMessagesStatus(MESSAGES_COPY.voiceError, "error");
+    setMessageVoiceStatus(MESSAGES_COPY.voiceError, "error");
+    renderMessages();
+  } finally {
+    messagesSendInFlight = false;
+    renderMessages();
+  }
+}
+
+async function startVoiceMessageRecording() {
+  if (messagesVoiceRecorder?.state === "recording") return;
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+    setMessageVoiceStatus(MESSAGES_COPY.voiceUnsupported, "error");
+    return;
+  }
+  const selectedThread = getSelectedMessageThread();
+  if (!selectedThread?.id) {
+    setMessageVoiceStatus(MESSAGES_COPY.emptyBodyCoach, "error");
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    messagesVoiceStream = stream;
+    const mimeType = getVoiceRecordingMimeType();
+    const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    messagesVoiceRecorder = recorder;
+    messagesVoiceChunks = [];
+    messagesVoiceStartedAt = Date.now();
+    recorder.addEventListener("dataavailable", (event) => {
+      if (event.data && event.data.size > 0) {
+        messagesVoiceChunks.push(event.data);
+      }
+    });
+    recorder.start();
+    updateVoiceRecordButtonUi();
+    setMessageVoiceStatus(MESSAGES_COPY.voiceRecordingNow, "");
+  } catch (err) {
+    const code = String(err?.name || err?.code || "").toLowerCase();
+    setMessageVoiceStatus(
+      code.includes("denied") || code.includes("notallowed")
+        ? MESSAGES_COPY.voicePermissionDenied
+        : MESSAGES_COPY.voiceError,
+      "error"
+    );
+  }
+}
+
+async function stopVoiceMessageRecording({ discard = false } = {}) {
+  const recorder = messagesVoiceRecorder;
+  if (!recorder) return;
+  const mimeType = recorder.mimeType || "audio/webm";
+  if (recorder.state === "recording") {
+    await new Promise((resolve) => {
+      recorder.addEventListener("stop", () => resolve(), { once: true });
+      recorder.stop();
+    });
+  }
+  const chunks = [...messagesVoiceChunks];
+  messagesVoiceChunks = [];
+  messagesVoiceRecorder = null;
+  stopVoiceRecordingStream();
+  updateVoiceRecordButtonUi();
+  if (discard) {
+    setMessageVoiceStatus("", "");
+    return;
+  }
+  const durationMs = Math.max(0, Date.now() - Number(messagesVoiceStartedAt || Date.now()));
+  if (!chunks.length || durationMs < 500) {
+    setMessageVoiceStatus(MESSAGES_COPY.voiceError, "error");
+    return;
+  }
+  const blob = new Blob(chunks, { type: mimeType || "audio/webm" });
+  await sendVoiceMessageBlob(blob, mimeType);
+}
+
+function resolveThreadCoachUid(selectedThread = null, current = getMessagesCurrentUser()) {
+  const participants = Array.isArray(selectedThread?.participantProfiles) ? selectedThread.participantProfiles : [];
+  const coach = participants.find((participant) => normalizeMessageParticipantRole(participant.role, participant.email) === "coach");
+  if (coach?.uid) return coach.uid;
+  if (isCoachMessagingUser(current)) return current.uid;
+  return String(getProfile()?.linkedCoachUid || "").trim();
+}
+
+function resolveThreadAthleteIdentity(selectedThread = null, current = getMessagesCurrentUser()) {
+  const participants = Array.isArray(selectedThread?.participantProfiles) ? selectedThread.participantProfiles : [];
+  const athlete = participants.find((participant) => normalizeMessageParticipantRole(participant.role, participant.email) === "athlete");
+  if (athlete?.uid) {
+    return {
+      athleteUid: athlete.uid,
+      athleteId: String(athlete.linkedAthleteId || "").trim(),
+      athleteName: athlete.name || ""
+    };
+  }
+  if (isAthleteRole(current?.role)) {
+    return {
+      athleteUid: current.uid,
+      athleteId: String(current.linkedAthleteId || "").trim(),
+      athleteName: current.name || ""
+    };
+  }
+  return {
+    athleteUid: "",
+    athleteId: "",
+    athleteName: ""
+  };
+}
+
+function normalizeTrainingLogRecord(id = "", data = {}) {
+  return {
+    id: String(id || "").trim(),
+    createdAt: normalizeFirestoreDateValue(data.createdAt || data.updatedAt || data.loggedAt || ""),
+    athleteUid: String(data.athleteUid || data.userUid || "").trim(),
+    athleteId: String(data.athleteId || "").trim(),
+    athleteName: String(data.athleteName || data.name || "").trim(),
+    title: String(data.title || data.sessionTitle || data.planTitle || "").trim(),
+    focus: String(data.focus || data.topic || data.trainingFocus || "").trim(),
+    duration: String(data.duration || data.totalTime || "").trim(),
+    completion: String(data.completion || data.status || "").trim(),
+    note: String(data.note || data.summary || data.coachNote || "").trim(),
+    readiness: String(data.readiness || data.energy || "").trim()
+  };
+}
+
+function doesTrainingLogMatchAthlete(log = {}, athlete = {}) {
+  if (!log) return false;
+  if (athlete.athleteUid && log.athleteUid && athlete.athleteUid === log.athleteUid) return true;
+  if (athlete.athleteId && log.athleteId && athlete.athleteId === log.athleteId) return true;
+  if (athlete.athleteName && log.athleteName && normalizeName(athlete.athleteName) === normalizeName(log.athleteName)) return true;
+  return false;
+}
+
+async function getLatestTrainingLogForThread(selectedThread, current) {
+  const coachUid = resolveThreadCoachUid(selectedThread, current);
+  const athlete = resolveThreadAthleteIdentity(selectedThread, current);
+  if (!coachUid) return null;
+  const logsRef = getCoachWorkspaceCollectionRef("training_logs", coachUid);
+  if (!logsRef) return null;
+  const snapshot = await withTimeout(
+    logsRef.orderBy("createdAt", "desc").limit(25).get(),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_training_log_timeout"
+  );
+  const logs = snapshot.docs
+    .map((doc) => normalizeTrainingLogRecord(doc.id, doc.data() || {}))
+    .filter((row) => row.createdAt);
+  const match = logs.find((log) => doesTrainingLogMatchAthlete(log, athlete));
+  return match || logs[0] || null;
+}
+
+function buildTrainingProgressMessage(log = {}, athleteName = "") {
+  const safeAthleteName = athleteName || log.athleteName || "Athlete";
+  const when = formatMessageTimestamp(log.createdAt || "");
+  const lines = [
+    currentLang === "es" ? "Actualizacion de Progreso" : "Progress Update",
+    `${currentLang === "es" ? "Atleta" : "Athlete"}: ${safeAthleteName}`
+  ];
+  if (when) lines.push(`${currentLang === "es" ? "Fecha" : "Date"}: ${when}`);
+  if (log.title) lines.push(`${currentLang === "es" ? "Sesion" : "Session"}: ${log.title}`);
+  if (log.focus) lines.push(`${currentLang === "es" ? "Enfoque" : "Focus"}: ${log.focus}`);
+  if (log.duration) lines.push(`${currentLang === "es" ? "Duracion" : "Duration"}: ${log.duration}`);
+  if (log.readiness) lines.push(`${currentLang === "es" ? "Readiness" : "Readiness"}: ${log.readiness}`);
+  if (log.completion) lines.push(`${currentLang === "es" ? "Estado" : "Status"}: ${log.completion}`);
+  if (log.note) lines.push(`${currentLang === "es" ? "Nota" : "Note"}: ${log.note}`);
+  return lines.join("\n");
+}
+
+async function shareThreadProgressSnapshot() {
+  const current = getMessagesCurrentUser();
+  const selectedThread = getSelectedMessageThread();
+  const threadId = String(selectedThread?.id || "").trim();
+  if (!current?.uid || !selectedThread || !threadId) {
+    setMessagesStatus(MESSAGES_COPY.shareProgressError, "error");
+    return;
+  }
+  const participants = getMessageThreadParticipantsForSend(selectedThread, current);
+  if (participants.length < 2) {
+    setMessagesStatus(MESSAGES_COPY.shareProgressError, "error");
+    return;
+  }
+  setMessagesStatus(MESSAGES_COPY.shareProgressSending, "");
+  renderMessages();
+  try {
+    const latestLog = await getLatestTrainingLogForThread(selectedThread, current);
+    if (!latestLog) {
+      setMessagesStatus(MESSAGES_COPY.shareProgressEmpty, "error");
+      return;
+    }
+    const other = getMessageOtherParticipant(selectedThread, current.uid);
+    const message = buildTrainingProgressMessage(latestLog, other.role === "athlete" ? other.name : latestLog.athleteName);
+    await appendMessageToThread({
+      threadId,
+      participants,
+      sender: current,
+      text: message,
+      messageTags: ["progress", "training-log"]
+    });
+    setMessagesStatus(MESSAGES_COPY.shareProgressSent, "ok");
+    toast(pickCopy(MESSAGES_COPY.shareProgressSent));
+    renderMessages();
+  } catch (err) {
+    console.warn("Share progress failed", err);
+    setMessagesStatus(MESSAGES_COPY.shareProgressError, "error");
+    renderMessages();
+  }
+}
+
 if (messageComposer && !messagesBound) {
   if (messagesOpenContactsBtn) {
     messagesOpenContactsBtn.addEventListener("click", () => {
@@ -20706,10 +21340,21 @@ if (messageComposer && !messagesBound) {
   });
   if (messagesBackToChatsBtn) {
     messagesBackToChatsBtn.addEventListener("click", () => {
+      clearMessagesTypingTimer();
+      setThreadTypingState(messagesSelectedThreadId, false).catch(() => {});
       messagesSelectedThreadId = "";
       messagesCompactThreadVisible = false;
       setMessagesThreadOpenState(null);
       renderMessages();
+    });
+  }
+  if (messagesShareProgressBtn) {
+    messagesShareProgressBtn.addEventListener("click", () => {
+      shareThreadProgressSnapshot().catch((err) => {
+        console.warn("Share progress action failed", err);
+        setMessagesStatus(MESSAGES_COPY.shareProgressError, "error");
+        renderMessages();
+      });
     });
   }
   if (messagesThreadVoiceBtn) {
@@ -20735,6 +21380,32 @@ if (messageComposer && !messagesBound) {
     });
   }
   messageComposer.addEventListener("submit", handleMessageComposerSubmit);
+  if (messageComposerInput) {
+    messageComposerInput.addEventListener("input", () => {
+      handleComposerTypingInput();
+    });
+    messageComposerInput.addEventListener("blur", () => {
+      clearMessagesTypingTimer();
+      setThreadTypingState(messagesSelectedThreadId, false).catch(() => {});
+    });
+  }
+  if (messageRecordVoiceBtn) {
+    messageRecordVoiceBtn.addEventListener("click", () => {
+      if (messagesVoiceRecorder?.state === "recording") {
+        stopVoiceMessageRecording({ discard: false }).catch((err) => {
+          console.warn("Voice stop failed", err);
+          setMessageVoiceStatus(MESSAGES_COPY.voiceError, "error");
+          updateVoiceRecordButtonUi();
+        });
+        return;
+      }
+      startVoiceMessageRecording().catch((err) => {
+        console.warn("Voice start failed", err);
+        setMessageVoiceStatus(MESSAGES_COPY.voiceError, "error");
+        updateVoiceRecordButtonUi();
+      });
+    });
+  }
   if (messageComposerFilesInput) {
     messageComposerFilesInput.addEventListener("change", () => {
       const picked = Array.from(messageComposerFilesInput.files || []);
@@ -20826,10 +21497,20 @@ if (messageComposer && !messagesBound) {
       renderMessagesThreadList(current);
     });
   }
+  if (messagesFilterTabs) {
+    messagesFilterTabs.querySelectorAll("[data-filter]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        setMessagesThreadFilter(btn.dataset.filter || "all", { rerender: true });
+      });
+    });
+  }
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
       markSelectedMessageThreadSeen();
+      return;
     }
+    clearMessagesTypingTimer();
+    setThreadTypingState(messagesSelectedThreadId, false).catch(() => {});
   });
   window.addEventListener("focus", () => {
     markSelectedMessageThreadSeen();
