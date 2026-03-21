@@ -2060,6 +2060,11 @@
                   <div class="messages-search-wrap">
                     <input id="messagesSearchInput" type="search" placeholder="Search chats">
                   </div>
+                  <div id="messagesFilterTabs" class="messages-filter-tabs" role="tablist" aria-label="Chat category filters">
+                    <button type="button" id="messagesFilterAllBtn" class="messages-filter-tab active" data-filter="all" role="tab" aria-selected="true">Todos</button>
+                    <button type="button" id="messagesFilterAthletesBtn" class="messages-filter-tab" data-filter="athlete" role="tab" aria-selected="false">Atletas</button>
+                    <button type="button" id="messagesFilterParentsBtn" class="messages-filter-tab" data-filter="parent" role="tab" aria-selected="false">Padres</button>
+                  </div>
                 </div>
                 <div id="messageList" class="message-thread-list"></div>
               </aside>
@@ -2079,6 +2084,7 @@
                     </div>
                     <div class="messages-thread-actions">
                       <button type="button" id="messagesBackToChatsBtn" class="ghost messages-back-btn">Back</button>
+                      <button type="button" id="messagesShareProgressBtn" class="ghost">Compartir progreso</button>
                       <button type="button" id="messagesThreadVoiceBtn" class="ghost">Call</button>
                       <button type="button" id="messagesThreadVideoBtn" class="ghost">Video</button>
                       <button type="button" id="messagesThreadMoreBtn" class="ghost" aria-label="More actions">•••</button>
@@ -2086,6 +2092,11 @@
                     </div>
                   </div>
                   <div id="messagesStatus" class="small muted"></div>
+                  <div id="messagesTypingIndicator" class="messages-typing hidden" aria-live="polite">
+                    <span class="messages-typing-name">Coach</span>
+                    <span class="messages-typing-verb">escribiendo</span>
+                    <span class="messages-typing-dots"><span></span><span></span><span></span></span>
+                  </div>
                   <div id="messagesFeed" class="messages-feed"></div>
                   <form id="messageComposer" class="message-composer">
                     <label>
@@ -2098,9 +2109,11 @@
                       <button type="button" id="messageComposerFilesClearBtn" class="ghost">Clear media</button>
                     </div>
                     <div id="messageComposerFilesList" class="message-composer-files"></div>
-                    <div class="row">
+                    <div class="row message-composer-sendrow">
+                      <button type="button" id="messageRecordVoiceBtn" class="ghost" aria-pressed="false" title="Record voice message">🎤</button>
                       <button type="submit" id="messageSendBtn" class="primary">Send message</button>
                     </div>
+                    <div id="messageVoiceStatus" class="small muted"></div>
                   </form>
                 </div>
               </div>
@@ -2156,6 +2169,6 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260321a"></script>
+  <script src="app.js?v=20260321b"></script>
 </body>
 </html>

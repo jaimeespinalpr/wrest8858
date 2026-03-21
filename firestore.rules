@@ -237,7 +237,22 @@ service cloud.firestore {
           && request.resource.data.text is string
           && request.resource.data.text.size() > 0
           && request.resource.data.text.size() <= 1000;
-        allow update, delete: if false;
+        allow update: if signedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/message_threads/$(threadId)).data.participantIds
+          && resource.data.threadId == threadId
+          && request.resource.data.threadId == resource.data.threadId
+          && request.resource.data.senderUid == resource.data.senderUid
+          && request.resource.data.text == resource.data.text
+          && request.resource.data.read == true
+          && request.resource.data.readByUid == request.auth.uid
+          && resource.data.senderUid != request.auth.uid
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            "read",
+            "readByUid",
+            "readAt",
+            "serverReadAt"
+          ]);
+        allow delete: if false;
       }
     }
 

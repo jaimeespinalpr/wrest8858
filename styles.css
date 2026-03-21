@@ -6576,3 +6576,205 @@ svg{
     grid-template-columns: 1fr;
   }
 }
+
+/* Messaging upgrades: filters, voice UI, read receipts, skeletons, micro-interactions */
+.messages-filter-tabs{
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.messages-filter-tab{
+  min-height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(178, 197, 227, 0.84);
+  background: rgba(255, 255, 255, 0.98);
+  color: #1f355b;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.messages-filter-tab:hover{
+  transform: translateY(-1px);
+  border-color: rgba(110, 146, 206, 0.74);
+}
+
+.messages-filter-tab.active{
+  border-color: rgba(18, 28, 45, 0.72);
+  background: linear-gradient(180deg, rgba(20, 29, 44, 0.98), rgba(10, 17, 30, 0.98));
+  color: #f4f8ff;
+}
+
+.messages-whatsapp-card .message-thread-card{
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.messages-whatsapp-card .message-thread-card:hover{
+  transform: scale(1.05);
+}
+
+.message-bubble.message-new{
+  animation: messageFadeInUp 220ms ease-out;
+}
+
+.message-bubble-time-wrap{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.message-read-check{
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: -0.08em;
+}
+
+.message-read-check.unread{
+  color: #8a98b3;
+}
+
+.message-read-check.read{
+  color: #3b82f6;
+}
+
+.messages-whatsapp-card .message-composer-sendrow{
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.messages-whatsapp-card #messageRecordVoiceBtn{
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(177, 196, 226, 0.86);
+  background: rgba(255, 255, 255, 0.96);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.messages-whatsapp-card #messageRecordVoiceBtn.recording{
+  border-color: rgba(220, 38, 38, 0.46);
+  background: rgba(254, 226, 226, 0.92);
+}
+
+.messages-whatsapp-card #messageVoiceStatus{
+  margin-top: 6px;
+  color: #5f7195;
+}
+
+.message-voice-player{
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(130, 155, 201, 0.42);
+  background: rgba(19, 31, 55, 0.14);
+}
+
+.message-voice-audio{
+  width: 100%;
+  min-width: 220px;
+  height: 34px;
+}
+
+.messages-typing{
+  margin: 4px 16px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: #5f7195;
+}
+
+.messages-typing-dots{
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.messages-typing-dots span{
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.35;
+  animation: typingPulse 1s infinite;
+}
+
+.messages-typing-dots span:nth-child(2){
+  animation-delay: 0.15s;
+}
+
+.messages-typing-dots span:nth-child(3){
+  animation-delay: 0.3s;
+}
+
+.message-skeleton{
+  max-width: min(82%, 620px);
+  padding: 12px 14px;
+  border-radius: 22px;
+  border: 1px solid rgba(188, 203, 227, 0.78);
+  background: rgba(246, 250, 255, 0.9);
+  display: grid;
+  gap: 8px;
+}
+
+.message-skeleton.own{
+  margin-left: auto;
+}
+
+.message-skeleton-line{
+  display: block;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(182, 199, 227, 0.65);
+}
+
+.message-skeleton-line.lg{ width: 84%; }
+.message-skeleton-line.md{ width: 62%; }
+.message-skeleton-line.sm{ width: 36%; }
+
+.shimmer{
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer::after{
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.68), transparent);
+  animation: shimmerMove 1.15s infinite linear;
+}
+
+@keyframes messageFadeInUp{
+  from{
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to{
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes typingPulse{
+  0%, 80%, 100%{
+    opacity: 0.28;
+    transform: translateY(0);
+  }
+  40%{
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes shimmerMove{
+  100%{
+    transform: translateX(120%);
+  }
+}
