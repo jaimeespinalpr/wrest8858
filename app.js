@@ -17619,6 +17619,7 @@ const messagesEmptyTitle = document.getElementById("messagesEmptyTitle");
 const messagesEmptyBody = document.getElementById("messagesEmptyBody");
 const messagesThreadView = document.getElementById("messagesThreadView");
 const messagesThreadTitle = document.getElementById("messagesThreadTitle");
+const messagesThreadAvatar = document.getElementById("messagesThreadAvatar");
 const messagesThreadMeta = document.getElementById("messagesThreadMeta");
 const messagesThreadBadge = document.getElementById("messagesThreadBadge");
 const messagesBackToChatsBtn = document.getElementById("messagesBackToChatsBtn");
@@ -20496,6 +20497,9 @@ function renderMessages() {
   messagesEmptyState?.classList.add("hidden");
   messagesThreadView?.classList.remove("hidden");
   if (messagesThreadTitle) messagesThreadTitle.textContent = other.name || pickCopy(MESSAGES_COPY.title);
+  if (messagesThreadAvatar) {
+    messagesThreadAvatar.textContent = getMessageContactInitials(other.name || "U");
+  }
   if (messagesThreadMeta) {
     const metaBits = [getRoleLabelEnglish(other.role)];
     if (selectedThread.lastMessageAt) {

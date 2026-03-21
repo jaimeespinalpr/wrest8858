@@ -2056,23 +2056,9 @@
                     <h3 id="messagesSidebarTitle">Chats</h3>
                     <button type="button" id="messagesOpenContactsBtn" class="ghost messages-wa-icon-btn">New chat</button>
                   </div>
-                  <p id="messagesSidebarHint" class="small muted">Pick a contact to open or continue a direct thread.</p>
+                  <p id="messagesSidebarHint" class="small muted">Choose a chat to continue the conversation.</p>
                   <div class="messages-search-wrap">
                     <input id="messagesSearchInput" type="search" placeholder="Search chats">
-                  </div>
-                  <div class="messages-wa-summary">
-                    <div class="messages-wa-summary-card">
-                      <span class="messages-wa-summary-icon">💪</span>
-                      <span>Training</span>
-                    </div>
-                    <div class="messages-wa-summary-card">
-                      <span class="messages-wa-summary-icon">🏆</span>
-                      <span>Results</span>
-                    </div>
-                    <div class="messages-wa-summary-card">
-                      <span class="messages-wa-summary-icon">♻️</span>
-                      <span>Recovery</span>
-                    </div>
                   </div>
                 </div>
                 <div id="messageList" class="message-thread-list"></div>
@@ -2084,14 +2070,18 @@
                 </div>
                 <div id="messagesThreadView" class="messages-thread-view hidden">
                   <div class="messages-thread-header">
-                    <div>
+                    <div class="messages-thread-profile">
+                      <span id="messagesThreadAvatar" class="messages-thread-avatar-large">CO</span>
+                      <div>
                       <h3 id="messagesThreadTitle">Conversation</h3>
                       <p id="messagesThreadMeta" class="small muted"></p>
+                      </div>
                     </div>
                     <div class="messages-thread-actions">
                       <button type="button" id="messagesBackToChatsBtn" class="ghost messages-back-btn">Back</button>
                       <button type="button" id="messagesThreadVoiceBtn" class="ghost">Call</button>
                       <button type="button" id="messagesThreadVideoBtn" class="ghost">Video</button>
+                      <button type="button" id="messagesThreadMoreBtn" class="ghost" aria-label="More actions">•••</button>
                       <div id="messagesThreadBadge" class="tag-pill">Direct</div>
                     </div>
                   </div>
@@ -2166,6 +2156,6 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260320e"></script>
+  <script src="app.js?v=20260321a"></script>
 </body>
 </html>
