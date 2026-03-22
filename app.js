@@ -18335,6 +18335,9 @@ function shouldGenerateMessageThumbnail(file) {
   const size = Number(file?.size || 0);
   if (type.startsWith("image/")) return true;
   if (type.startsWith("video/")) {
+    const fileName = String(file?.name || "").toLowerCase();
+    // QuickTime uploads commonly fail canvas extraction for thumbnails.
+    if (type.includes("quicktime") || fileName.endsWith(".mov")) return false;
     if (size > MESSAGE_VIDEO_THUMBNAIL_MAX_BYTES) return false;
     if (shouldUseLiteVideoMessagePreview()) return false;
     return true;
@@ -20456,6 +20459,37 @@ function getMessageAttachmentDisplayName(attachment) {
   return String(attachment?.name || "").trim() || String(attachment?.mediaType || "").trim() || "Media";
 }
 
+function getMessageAttachmentExtension(attachment = {}) {
+  const candidates = [
+    attachment?.name,
+    attachment?.assetStoragePath,
+    attachment?.assetPath
+  ];
+  for (const candidate of candidates) {
+    const raw = String(candidate || "").trim();
+    if (!raw) continue;
+    const clean = raw.split("#")[0].split("?")[0];
+    const fileName = clean.split("/").pop() || clean;
+    const match = fileName.match(/\.([a-z0-9]+)$/i);
+    if (match?.[1]) {
+      return String(match[1]).toLowerCase();
+    }
+  }
+  return "";
+}
+
+function canInlineMessageVideoAttachment(attachment = {}) {
+  const contentType = String(attachment?.contentType || "").trim().toLowerCase();
+  if (contentType) {
+    return contentType === "video/mp4"
+      || contentType === "video/webm"
+      || contentType === "video/ogg";
+  }
+  const ext = getMessageAttachmentExtension(attachment);
+  if (!ext) return false;
+  return ext === "mp4" || ext === "webm" || ext === "ogg" || ext === "m4v";
+}
+
 function buildMessageAttachmentFavoriteEntry(attachment, tags = []) {
   const mergedTags = normalizeLooseTagList([...(attachment?.tags || []), ...tags]);
   return {
@@ -20502,6 +20536,24 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
   head.appendChild(type);
   card.appendChild(head);
 
+  const appendVideoFallback = () => {
+    const fallbackPreview = previewUrl || assetUrl;
+    if (fallbackPreview && !card.querySelector(".message-media-preview.video-thumb")) {
+      const img = document.createElement("img");
+      img.className = "message-media-preview video-thumb";
+      img.src = fallbackPreview;
+      img.alt = getMessageAttachmentDisplayName(attachment);
+      img.loading = "lazy";
+      card.appendChild(img);
+    }
+    if (!card.querySelector(".message-media-video-hint")) {
+      const hint = document.createElement("div");
+      hint.className = "message-media-video-hint";
+      hint.textContent = pickCopy(MESSAGES_COPY.videoTapToOpen);
+      card.appendChild(hint);
+    }
+  };
+
   if (isPhoto && (previewUrl || assetUrl)) {
     const img = document.createElement("img");
     img.className = "message-media-preview";
@@ -20511,26 +20563,23 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
     card.appendChild(img);
   } else if (isVideo) {
     const litePreview = shouldUseLiteVideoMessagePreview();
-    if (litePreview) {
-      if (previewUrl || assetUrl) {
-        const img = document.createElement("img");
-        img.className = "message-media-preview video-thumb";
-        img.src = previewUrl || assetUrl;
-        img.alt = getMessageAttachmentDisplayName(attachment);
-        img.loading = "lazy";
-        card.appendChild(img);
-      }
-      const hint = document.createElement("div");
-      hint.className = "message-media-video-hint";
-      hint.textContent = pickCopy(MESSAGES_COPY.videoTapToOpen);
-      card.appendChild(hint);
-    } else if (assetUrl) {
+    const supportsInlineVideo = canInlineMessageVideoAttachment(attachment);
+    if (litePreview || !supportsInlineVideo || !assetUrl) {
+      appendVideoFallback();
+    } else {
       const video = document.createElement("video");
       video.className = "message-media-preview video";
       video.src = assetUrl;
       video.controls = true;
-      video.preload = "none";
+      video.preload = "metadata";
       video.playsInline = true;
+      if (previewUrl) {
+        video.poster = previewUrl;
+      }
+      video.addEventListener("error", () => {
+        video.remove();
+        appendVideoFallback();
+      }, { once: true });
       card.appendChild(video);
     }
   } else if (isVoice && assetUrl) {
@@ -20558,21 +20607,21 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
     card.appendChild(tagsWrap);
   }
 
+  const actions = document.createElement("div");
+  actions.className = "message-media-actions";
+
+  if (assetUrl) {
+    const openBtn = document.createElement("button");
+    openBtn.type = "button";
+    openBtn.className = "ghost";
+    openBtn.textContent = pickCopy(MESSAGES_COPY.mediaOpen);
+    openBtn.addEventListener("click", () => {
+      window.open(assetUrl, "_blank", "noopener,noreferrer");
+    });
+    actions.appendChild(openBtn);
+  }
+
   if (allowReceiverActions) {
-    const actions = document.createElement("div");
-    actions.className = "message-media-actions";
-
-    if (assetUrl) {
-      const openBtn = document.createElement("button");
-      openBtn.type = "button";
-      openBtn.className = "ghost";
-      openBtn.textContent = pickCopy(MESSAGES_COPY.mediaOpen);
-      openBtn.addEventListener("click", () => {
-        window.open(assetUrl, "_blank", "noopener,noreferrer");
-      });
-      actions.appendChild(openBtn);
-    }
-
     const favBtn = document.createElement("button");
     favBtn.type = "button";
     favBtn.className = "ghost";
@@ -20590,7 +20639,8 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
       handleMessageAttachmentSaveToMedia(attachment);
     });
     actions.appendChild(mediaBtn);
-
+  }
+  if (actions.children.length) {
     card.appendChild(actions);
   }
   return card;
