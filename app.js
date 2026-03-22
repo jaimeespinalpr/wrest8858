@@ -17913,6 +17913,7 @@ const MESSAGES_COPY = {
     es: "Puedes enviar hasta 4 archivos por mensaje."
   },
   mediaOpen: { en: "Open", es: "Abrir" },
+  mediaFullscreen: { en: "Full screen", es: "Pantalla completa" },
   mediaFavorite: { en: "Favorite", es: "Favorito" },
   mediaSaveToMedia: { en: "Save to Media", es: "Guardar en Media" },
   mediaSaved: { en: "Saved to Media.", es: "Guardado en Media." },
@@ -20486,37 +20487,6 @@ function getMessageAttachmentDisplayName(attachment) {
   return String(attachment?.name || "").trim() || String(attachment?.mediaType || "").trim() || "Media";
 }
 
-function getMessageAttachmentExtension(attachment = {}) {
-  const candidates = [
-    attachment?.name,
-    attachment?.assetStoragePath,
-    attachment?.assetPath
-  ];
-  for (const candidate of candidates) {
-    const raw = String(candidate || "").trim();
-    if (!raw) continue;
-    const clean = raw.split("#")[0].split("?")[0];
-    const fileName = clean.split("/").pop() || clean;
-    const match = fileName.match(/\.([a-z0-9]+)$/i);
-    if (match?.[1]) {
-      return String(match[1]).toLowerCase();
-    }
-  }
-  return "";
-}
-
-function canInlineMessageVideoAttachment(attachment = {}) {
-  const contentType = String(attachment?.contentType || "").trim().toLowerCase();
-  if (contentType) {
-    return contentType === "video/mp4"
-      || contentType === "video/webm"
-      || contentType === "video/ogg";
-  }
-  const ext = getMessageAttachmentExtension(attachment);
-  if (!ext) return false;
-  return ext === "mp4" || ext === "webm" || ext === "ogg" || ext === "m4v";
-}
-
 function buildMessageAttachmentFavoriteEntry(attachment, tags = []) {
   const mergedTags = normalizeLooseTagList([...(attachment?.tags || []), ...tags]);
   return {
@@ -20541,6 +20511,42 @@ function handleMessageAttachmentSaveToMedia(attachment) {
   toast(pickCopy(result.added ? MESSAGES_COPY.mediaSaved : MESSAGES_COPY.mediaAlreadySaved));
 }
 
+function openMessageVideoFullscreen(videoEl = null, fallbackUrl = "") {
+  const safeFallbackUrl = String(fallbackUrl || "").trim();
+  if (!videoEl) {
+    if (safeFallbackUrl) window.open(safeFallbackUrl, "_blank", "noopener,noreferrer");
+    return;
+  }
+  try {
+    const playResult = videoEl.play?.();
+    if (playResult && typeof playResult.catch === "function") {
+      playResult.catch(() => {});
+    }
+    if (typeof videoEl.requestFullscreen === "function") {
+      const fullscreenResult = videoEl.requestFullscreen();
+      if (fullscreenResult && typeof fullscreenResult.catch === "function") {
+        fullscreenResult.catch(() => {
+          if (safeFallbackUrl) window.open(safeFallbackUrl, "_blank", "noopener,noreferrer");
+        });
+      }
+      return;
+    }
+    if (typeof videoEl.webkitEnterFullscreen === "function") {
+      videoEl.webkitEnterFullscreen();
+      return;
+    }
+    if (typeof videoEl.webkitRequestFullscreen === "function") {
+      videoEl.webkitRequestFullscreen();
+      return;
+    }
+  } catch (err) {
+    console.warn("Video fullscreen failed", err);
+  }
+  if (safeFallbackUrl) {
+    window.open(safeFallbackUrl, "_blank", "noopener,noreferrer");
+  }
+}
+
 function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = true } = {}) {
   const card = document.createElement("div");
   card.className = "message-media-card";
@@ -20550,6 +20556,7 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
   const isPhoto = typeLower.includes("photo") || typeLower.includes("image");
   const isVoice = typeLower.includes("voice") || typeLower.includes("audio");
   const previewUrl = resolveMediaLocation(attachment.thumbnailPath || attachment.assetPath || "");
+  let inlineVideoEl = null;
 
   const head = document.createElement("div");
   head.className = "message-media-head";
@@ -20589,9 +20596,7 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
     img.loading = "lazy";
     card.appendChild(img);
   } else if (isVideo) {
-    const litePreview = shouldUseLiteVideoMessagePreview();
-    const supportsInlineVideo = canInlineMessageVideoAttachment(attachment);
-    if (litePreview || !supportsInlineVideo || !assetUrl) {
+    if (!assetUrl) {
       appendVideoFallback();
     } else {
       const video = document.createElement("video");
@@ -20600,13 +20605,16 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
       video.controls = true;
       video.preload = "metadata";
       video.playsInline = true;
+      video.setAttribute("playsinline", "true");
       if (previewUrl) {
         video.poster = previewUrl;
       }
       video.addEventListener("error", () => {
+        inlineVideoEl = null;
         video.remove();
         appendVideoFallback();
       }, { once: true });
+      inlineVideoEl = video;
       card.appendChild(video);
     }
   } else if (isVoice && assetUrl) {
@@ -20646,6 +20654,17 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
       window.open(assetUrl, "_blank", "noopener,noreferrer");
     });
     actions.appendChild(openBtn);
+  }
+
+  if (isVideo && (inlineVideoEl || assetUrl)) {
+    const fullscreenBtn = document.createElement("button");
+    fullscreenBtn.type = "button";
+    fullscreenBtn.className = "ghost";
+    fullscreenBtn.textContent = pickCopy(MESSAGES_COPY.mediaFullscreen);
+    fullscreenBtn.addEventListener("click", () => {
+      openMessageVideoFullscreen(inlineVideoEl, assetUrl);
+    });
+    actions.appendChild(fullscreenBtn);
   }
 
   if (allowReceiverActions) {
