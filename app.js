@@ -20502,20 +20502,20 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
   head.appendChild(type);
   card.appendChild(head);
 
-  if (isPhoto && previewUrl) {
+  if (isPhoto && (previewUrl || assetUrl)) {
     const img = document.createElement("img");
     img.className = "message-media-preview";
-    img.src = previewUrl;
+    img.src = previewUrl || assetUrl;
     img.alt = getMessageAttachmentDisplayName(attachment);
     img.loading = "lazy";
     card.appendChild(img);
   } else if (isVideo) {
     const litePreview = shouldUseLiteVideoMessagePreview();
     if (litePreview) {
-      if (previewUrl) {
+      if (previewUrl || assetUrl) {
         const img = document.createElement("img");
         img.className = "message-media-preview video-thumb";
-        img.src = previewUrl;
+        img.src = previewUrl || assetUrl;
         img.alt = getMessageAttachmentDisplayName(attachment);
         img.loading = "lazy";
         card.appendChild(img);

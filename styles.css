@@ -7130,3 +7130,29 @@ svg{
     padding: 12px;
   }
 }
+
+/* DARK MODE OVERRIDES FOR MESSAGES */
+.app.parent-view-active .messages-whatsapp-card .message-bubble-body,
+.app.parent-view-active .messages-whatsapp-card .message-bubble-header {
+  color: #f1f6ff !important;
+}
+
+.app.parent-view-active .messages-whatsapp-card .message-bubble {
+  background: linear-gradient(180deg, rgba(20, 29, 44, 0.98), rgba(12, 18, 29, 0.98)) !important;
+  border-color: rgba(90, 117, 171, 0.42) !important;
+  color: #eef4ff !important;
+}
+
+.app.parent-view-active .messages-whatsapp-card .message-thread-card h4,
+.app.parent-view-active .messages-whatsapp-card #messagesThreadTitle {
+  color: #f1f6ff !important;
+}
+
+.app.parent-view-active .messages-whatsapp-card .message-media-head {
+  color: #f1f6ff !important;
+}
+
+.app.parent-view-active .messages-whatsapp-card .messages-empty-state,
+.app.parent-view-active .messages-whatsapp-card #messagesStatus {
+  color: #8ea5ca !important;
+}
