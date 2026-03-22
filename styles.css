@@ -1526,7 +1526,7 @@ button:active{
   min-width: 0;
   flex: 1 1 auto;
   display: grid;
-  gap: 4px;
+  gap: 2px;
 }
 
 .messages-contact-priority{
@@ -1556,6 +1556,10 @@ button:active{
   display: block;
   color: #64748b;
   font-size: 0.8rem;
+}
+
+.message-thread-card small{
+  line-height: 1.2;
 }
 
 .messages-coach-card h4,
@@ -1603,6 +1607,7 @@ button:active{
 
 .message-thread-preview{
   min-width: 0;
+  line-height: 1.25;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -7239,6 +7244,7 @@ svg{
 
 .messages-whatsapp-card .message-thread-preview{
   font-size: 0.85rem;
+  line-height: 1.25;
 }
 
 .messages-whatsapp-card .message-thread-card.active{

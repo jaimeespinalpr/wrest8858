@@ -17937,7 +17937,8 @@ const MESSAGES_COPY = {
   },
   tagPrompt: { en: "Tags (comma separated)", es: "Tags (separados por coma)" },
   attachmentSummarySingle: { en: "Sent 1 media file.", es: "Envio 1 archivo de media." },
-  attachmentSummaryMulti: { en: "Sent media files.", es: "Envio archivos de media." }
+  attachmentSummaryMulti: { en: "Sent media files.", es: "Envio archivos de media." },
+  previewSymbolFallback: { en: "New message", es: "Nuevo mensaje" }
 };
 
 let messagesThreadRows = [];
@@ -20391,6 +20392,14 @@ function getMessageSendErrorCopy(err = null) {
   return MESSAGES_COPY.sendError;
 }
 
+function getMessageThreadPreviewText(thread = {}) {
+  const raw = String(thread?.lastMessageText || "").trim();
+  if (!raw) return pickCopy(MESSAGES_COPY.noMessages);
+  // Single symbol previews look broken in the chat list; use a readable label.
+  if (/^[?¿!.,;:]+$/.test(raw)) return pickCopy(MESSAGES_COPY.previewSymbolFallback);
+  return raw;
+}
+
 function renderMessagesThreadList(current) {
   if (!messageList) return;
   const showThreadDirectory = true;
@@ -20441,7 +20450,7 @@ function renderMessagesThreadList(current) {
     if (unread) {
       card.classList.add("message-thread-unread");
     }
-    const preview = thread.lastMessageText || pickCopy(MESSAGES_COPY.noMessages);
+    const preview = getMessageThreadPreviewText(thread);
     const meta = formatMessageTimestamp(thread.lastMessageAt || thread.updatedAt);
     const initials = getMessageContactInitials(other.name || "U");
     const unreadCount = unread ? 1 : 0;
