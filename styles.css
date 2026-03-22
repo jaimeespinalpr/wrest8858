@@ -5482,7 +5482,6 @@ button.ghost,
   box-shadow: 0 18px 38px rgba(1, 6, 16, 0.34), 0 0 0 1px rgba(45, 212, 191, 0.08);
 }
 
-.message-bubble-header,
 .app.parent-view-active .message-bubble-header{
   color: #9fb4d9;
 }
@@ -5492,7 +5491,6 @@ button.ghost,
   color: #7dd3c7;
 }
 
-.message-bubble-body,
 .app.parent-view-active .message-bubble-body{
   color: #f4f8ff;
 }
