@@ -338,6 +338,10 @@ let viewMenuOpen = false;
 let currentView = "athlete";
 const headerViewButtons = Array.from(document.querySelectorAll("#headerMenu button[data-action^='view-']"));
 
+if (typeof window !== "undefined" && window.history && "scrollRestoration" in window.history) {
+  window.history.scrollRestoration = "manual";
+}
+
 const VIEW_OPTIONS = ["athlete", "coach", "admin", "parent"];
 const VIEW_LABELS = {
   athlete: {
@@ -619,6 +623,17 @@ function refreshHeaderViewButtons() {
     const view = action.replace(/^view-/, "");
     btn.textContent = pickCopy(VIEW_LABELS[view]) || VIEW_LABELS[view]?.en || VIEW_LABELS.athlete.en;
   });
+}
+
+function resetViewportToTop() {
+  if (typeof window === "undefined") return;
+  const applyTop = () => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  };
+  applyTop();
+  window.requestAnimationFrame(applyTop);
 }
 
 function setView(view) {
@@ -8013,11 +8028,7 @@ async function showTab(name) {
       });
   }
 
-  if (focusPanel && panels[focusPanel]) {
-    requestAnimationFrame(() => {
-      panels[focusPanel]?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  }
+  resetViewportToTop();
 }
 
 function flashActionTarget(element) {
@@ -8092,6 +8103,13 @@ function setRoleUI(role, view = "athlete") {
 tabBtns.forEach(btn => btn.addEventListener("click", () => showTab(btn.dataset.tab)));
 setView(currentView);
 refreshHeaderViewButtons();
+resetViewportToTop();
+window.addEventListener("pageshow", () => {
+  resetViewportToTop();
+});
+window.addEventListener("load", () => {
+  resetViewportToTop();
+});
 
 // ---------- PLAN SUBTABS ----------
 const subtabButtons = Array.from(document.querySelectorAll(".subtab"));
