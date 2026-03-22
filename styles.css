@@ -23,7 +23,17 @@ html{
 
 *{ box-sizing: border-box; }
 
-.hidden{ display:none; }
+.hidden{ display:none !important; }
+
+/* Mobile back button */
+.messages-back-btn {
+  display: none !important;
+}
+@media (max-width: 900px) {
+  .messages-back-btn {
+    display: inline-flex !important;
+  }
+}
 
 body{
   margin: 0;
