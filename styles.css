@@ -6778,3 +6778,108 @@ svg{
     transform: translateX(120%);
   }
 }
+
+/* Extra mobile polish for messaging */
+@media (max-width: 900px){
+  .messages-whatsapp-card{
+    border-radius: 20px;
+  }
+
+  .messages-whatsapp-card .messages-wa-header{
+    padding: 12px;
+  }
+
+  .messages-filter-tabs{
+    margin-top: 6px;
+    gap: 6px;
+  }
+
+  .messages-whatsapp-card .messages-feed{
+    padding: 10px 10px 8px;
+  }
+
+  .messages-whatsapp-card .message-bubble{
+    max-width: 92%;
+  }
+
+  .messages-whatsapp-card .messages-thread-actions{
+    gap: 4px;
+    overflow-x: auto;
+  }
+
+  .messages-whatsapp-card .messages-thread-actions button{
+    min-height: 34px;
+    padding: 0 9px;
+    font-size: 0.7rem;
+  }
+
+  .messages-whatsapp-card .message-composer{
+    padding: 8px 10px;
+  }
+
+  .messages-whatsapp-card .message-composer-sendrow{
+    grid-template-columns: 42px 1fr;
+    gap: 8px;
+  }
+
+  .messages-whatsapp-card #messageSendBtn{
+    min-height: 42px;
+  }
+}
+
+@media (max-width: 640px){
+  .messages-whatsapp-card .messages-wa-header{
+    padding: 10px 10px 8px;
+  }
+
+  .messages-whatsapp-card #messagesPanelSubtitle{
+    font-size: 0.72rem;
+  }
+
+  .messages-filter-tab{
+    min-height: 32px;
+    font-size: 0.7rem;
+  }
+
+  .messages-whatsapp-card .message-thread-list{
+    padding: 6px 8px 10px;
+  }
+
+  .messages-whatsapp-card .message-thread-card{
+    padding: 10px;
+  }
+
+  .messages-whatsapp-card .message-thread-avatar{
+    width: 36px;
+    height: 36px;
+    font-size: 0.72rem;
+  }
+
+  .messages-whatsapp-card .messages-thread-header{
+    padding: 10px;
+  }
+
+  .messages-whatsapp-card .messages-thread-avatar-large{
+    width: 38px;
+    height: 38px;
+    font-size: 0.78rem;
+  }
+
+  .messages-whatsapp-card #messagesThreadTitle{
+    font-size: 0.95rem;
+  }
+
+  .messages-whatsapp-card #messagesThreadMeta{
+    font-size: 0.72rem;
+  }
+
+  .messages-whatsapp-card .message-bubble{
+    max-width: 96%;
+    padding: 10px 12px;
+  }
+
+  .messages-whatsapp-card .message-composer textarea{
+    min-height: 48px;
+    padding: 12px;
+  }
+}
