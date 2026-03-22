@@ -19844,23 +19844,35 @@ function getMessageThreadedContactUidSet(current = getMessagesCurrentUser()) {
 
 async function openNewMessageThreadFromButton() {
   const current = getMessagesCurrentUser();
-  if (!current?.uid) {
-    setMessagesStatus(MESSAGES_COPY.signedOut, "error");
+  if (!current?.uid) return;
+
+  const isShowingContacts = !messagesContactsDirectory.classList.contains("hidden");
+  if (isShowingContacts) {
+    messagesContactsDirectory.classList.add("hidden");
+    messageList.classList.remove("hidden");
+    if (messagesFilterTabs) messagesFilterTabs.classList.remove("hidden");
+    setTextContent(messagesOpenContactsBtn, MESSAGES_COPY.openContactsBtn);
     renderMessages();
-    return;
+  } else {
+    messageList.classList.add("hidden");
+    if (messagesFilterTabs) messagesFilterTabs.classList.add("hidden");
+    messagesContactsDirectory.classList.remove("hidden");
+    setTextContent(messagesOpenContactsBtn, currentLang === "es" ? "Cerrar" : "Close");
+    setTextContent(messagesSidebarTitle, currentLang === "es" ? "Nuevo chat" : "New chat");
+    setTextContent(messagesSidebarHint, currentLang === "es" ? "Contactos disponibles" : "Available contacts");
+    
+    renderMessageContactDirectory(messagesContactsDirectory, current, {
+      showToggle: false,
+      forceExpanded: true,
+      onContactSelect: async (contact) => {
+        messagesContactsDirectory.classList.add("hidden");
+        messageList.classList.remove("hidden");
+        if (messagesFilterTabs) messagesFilterTabs.classList.remove("hidden");
+        renderMessages();
+        await openMessageThreadForContact(contact);
+      }
+    });
   }
-  const callable = getMessageCallableContacts(current);
-  if (!callable.length) {
-    toast(pickCopy(MESSAGES_COPY.emptyBodyNoContacts));
-    return;
-  }
-  const threaded = getMessageThreadedContactUidSet(current);
-  const target = callable.find((contact) => !threaded.has(contact.uid)) || callable[0];
-  if (!target) {
-    toast(pickCopy(MESSAGES_COPY.emptyBodyNoContacts));
-    return;
-  }
-  await openMessageThreadForContact(target);
 }
 
 function setMessagesCallsStatus(copy = "", type = "") {
