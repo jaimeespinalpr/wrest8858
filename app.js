@@ -17701,8 +17701,8 @@ const MESSAGES_COPY = {
     es: "Abre chats ya iniciados. Usa Contactos para comenzar uno nuevo."
   },
   sidebarHintParent: {
-    en: "Open chats already started. Use Contacts to start a new one.",
-    es: "Abre chats ya iniciados. Usa Contactos para comenzar uno nuevo."
+    en: "Open chats already started. Use New chat to contact your coach team.",
+    es: "Abre chats ya iniciados. Usa Nuevo chat para contactar al equipo de coaches."
   },
   openContactsBtn: { en: "New chat", es: "Nuevo chat" },
   searchPlaceholder: { en: "Search chats", es: "Buscar chats" },
@@ -17719,8 +17719,8 @@ const MESSAGES_COPY = {
     es: "Selecciona a un coach o atleta en la columna izquierda para abrir un chat directo."
   },
   emptyBodyParent: {
-    en: "Choose the linked coach from the left column to open a direct thread.",
-    es: "Selecciona al coach vinculado en la columna izquierda para abrir un chat directo."
+    en: "Choose a coach from the left column to open a direct thread.",
+    es: "Selecciona un coach en la columna izquierda para abrir un chat directo."
   },
   emptyBodyAuth: {
     en: "Sign in to load your direct messages.",
@@ -19143,7 +19143,9 @@ function sortMessageThreadsForInbox(items = [], current = getMessagesCurrentUser
 function canMessageContact(current, candidate) {
   if (!current?.uid || !candidate?.uid || candidate.uid === current.uid) return false;
   if (isParentRole(current.role)) {
-    return isCoachMessagingUser(candidate) && candidate.uid === getParentLinkedCoachUid();
+    if (!isCoachMessagingUser(candidate)) return false;
+    const linkedCoachUid = getParentLinkedCoachUid();
+    return linkedCoachUid ? candidate.uid === linkedCoachUid : true;
   }
   if (isCoachMessagingUser(current)) {
     return ["coach", "athlete", "parent"].includes(candidate.role) && Boolean(candidate.uid);
