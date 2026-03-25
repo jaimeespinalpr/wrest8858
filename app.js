@@ -9,6 +9,7 @@ const AUTH_USER_KEY = "wpl_auth_user";
 const DEFAULT_LANG = "en";
 const APP_TIMEZONE = "America/New_York";
 const SUPPORTED_LANGS = new Set(["en", "es", "uz", "ru"]);
+const PUBLISH_READY_MODE = String(window.WPL_PUBLISH_READY_MODE || "true").toLowerCase() !== "false";
 const CALENDAR_COPY = {
   title: {
     en: "Calendar",
@@ -48,7 +49,7 @@ let profileSyncTimeout = null;
 const FIREBASE_OP_TIMEOUT_MS = 12000;
 const STORAGE_UPLOAD_TIMEOUT_MS = 10 * 60 * 1000;
 const MEDIA_BASE_URL = String(window.WPL_MEDIA_BASE_URL || "").trim().replace(/\/+$/, "");
-const TEST_USER_DEFAULTS = {
+const TEST_USER_DEFAULTS = PUBLISH_READY_MODE ? {} : {
   "coach.test@wpl.app": { role: "coach", name: "Coach Demo" },
   "athlete.test@wpl.app": { role: "athlete", name: "Athlete Demo" },
   "gmunch@united-wc.com": { role: "admin", name: "System Admin" }
@@ -3170,7 +3171,7 @@ function buildGuestProfile(role) {
     profile.strategyC = pickCopy({ en: "Pressure transitions", es: "Presiona transiciones" });
     profile.safeMoves = pickCopy({ en: "Maintain base and claw ties", es: "Mantén base y controla muñecas" });
     profile.riskyMoves = pickCopy({ en: "Explosive throws", es: "Tiradas explosivas" });
-    profile.resultsHistory = pickCopy({ en: "Demo summary: 3-0", es: "Resumen demo: 3-0" });
+    profile.resultsHistory = pickCopy({ en: "Recent summary: 3-0", es: "Resumen reciente: 3-0" });
     profile.team = profile.team || pickCopy({ en: "Guest Team", es: "Equipo invitado" });
     profile.notes = pickCopy({ en: "Review sessions scheduled for later", es: "Revisa las sesiones planeadas" });
     profile.tags = ["planning", "match-prep", "guest"];
@@ -4086,6 +4087,13 @@ function getCoachAthleteRecords() {
     if (mergedLiveRecords.length) return mergedLiveRecords;
   }
   if (coachAthletesCache.length) return coachAthletesCache;
+  if (PUBLISH_READY_MODE) {
+    if (!athletePortalAthleteCache) return [];
+    return [normalizeCoachAthleteRecord(
+      normalizeAthleteId(athletePortalAthleteCache.id, athletePortalAthleteCache.name),
+      athletePortalAthleteCache
+    )];
+  }
   const seedRecords = ATHLETES.map((athlete) => normalizeCoachAthleteRecord(slugifyKey(athlete.name), athlete));
   if (!athletePortalAthleteCache) return seedRecords;
   const linked = normalizeCoachAthleteRecord(
@@ -4146,6 +4154,7 @@ function getAutomaticGroupMembersForAthletes(groupId = "", athletes = []) {
 function getCoachNoteRecords() {
   if (coachNotesCache.length) return coachNotesCache;
   if (athletePortalNotesCache.length) return coachWorkspaceSortByUpdated(athletePortalNotesCache);
+  if (PUBLISH_READY_MODE) return [];
   return Object.entries(COACH_ATHLETE_NOTE_BOARD).map(([athleteName, data]) => normalizeCoachNoteRecord(slugifyKey(athleteName), {
     athleteName,
     nextFocus: Array.isArray(data?.nextFocus) ? data.nextFocus.map((item) => getSeedCopyValue(item)).filter(Boolean) : [],
@@ -4465,6 +4474,7 @@ function getCoachAssignmentRecords() {
   if (isParentRole(getProfile()?.role) && parentPortalAssignmentsCache.length) {
     return coachWorkspaceSortByUpdated(parentPortalAssignmentsCache);
   }
+  if (PUBLISH_READY_MODE) return [];
   return COACH_ASSIGNMENT_ITEMS.map((item, idx) => normalizeCoachAssignmentRecord(`seed-${idx + 1}`, {
     title: pickCopy(item.title),
     assigneeName: pickCopy(item.assignee),
@@ -4479,6 +4489,7 @@ function getCoachAssignmentRecords() {
 }
 
 function getCoachGroupRecords() {
+  if (PUBLISH_READY_MODE) return coachGroupsCache;
   return coachGroupsCache.length ? coachGroupsCache : getDefaultCoachGroupSeeds();
 }
 
@@ -5021,6 +5032,11 @@ async function ensureCoachWorkspaceSeeded() {
         }, { merge: true });
       });
       await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_groups_seed_commit_timeout");
+    }
+
+    if (PUBLISH_READY_MODE) {
+      await syncCoachCompletionStatus();
+      return;
     }
 
     if (plansSnap.empty) {
@@ -5928,7 +5944,7 @@ const CALENDAR_EVENTS_ES = {};
 const CALENDAR_EVENTS_KEY = "wpl_calendar_events";
 const MEDIA_TREE_KEY = "wpl_media_tree";
 
-const MEDIA_ITEMS = [
+const MEDIA_ITEMS = PUBLISH_READY_MODE ? [] : [
   {
     title: "Single Leg Finish - Coach Chewy",
     type: "Video",
@@ -5971,7 +5987,7 @@ const MEDIA_ITEMS = [
   }
 ];
 
-const MEDIA_ITEMS_ES = [
+const MEDIA_ITEMS_ES = PUBLISH_READY_MODE ? [] : [
   {
     title: "Final de pierna simple - Coach Chewy",
     type: "Video",
@@ -6636,7 +6652,7 @@ const SMART_TAGS = [
   { id: "avoid-scramble", icon: "❌", label: { en: "Avoid scramble", es: "Evita scramble" } }
 ];
 
-const ATHLETES = [
+const ATHLETES = PUBLISH_READY_MODE ? [] : [
   {
     name: "Jaime Espinal",
     weight: "157 lb",
@@ -6870,7 +6886,7 @@ const JOURNAL_FLAGS_ES = [
   "Baja de disponibilidad antes del torneo"
 ];
 
-const JOURNAL_ATHLETES = [
+const JOURNAL_ATHLETES = PUBLISH_READY_MODE ? [] : [
   {
     name: "Jaime Espinal",
     sleep: "7.2 hrs",
@@ -6929,7 +6945,7 @@ const JOURNAL_ATHLETES = [
   }
 ];
 
-const JOURNAL_ATHLETES_ES = [
+const JOURNAL_ATHLETES_ES = PUBLISH_READY_MODE ? [] : [
   {
     name: "Jaime Espinal",
     sleep: "7.2 hrs",
@@ -6988,7 +7004,7 @@ const JOURNAL_ATHLETES_ES = [
   }
 ];
 
-const SKILLS = [
+const SKILLS = PUBLISH_READY_MODE ? [] : [
   { name: "Single Leg", rating: "Strong", updated: "2 days ago", clip: "Finish to shelf", notes: "Keep head tight to hip." },
   { name: "Half Nelson", rating: "Developing", updated: "1 week ago", clip: "Top control series", notes: "Improve hand placement." },
   { name: "Stand-Up", rating: "Strong", updated: "3 days ago", clip: "Explosive stand-up", notes: "Explode on whistle." },
@@ -6997,7 +7013,7 @@ const SKILLS = [
   { name: "Double Leg", rating: "Developing", updated: "4 days ago", clip: "Finish to corner", notes: "Cut the corner earlier." }
 ];
 
-const SKILLS_ES = [
+const SKILLS_ES = PUBLISH_READY_MODE ? [] : [
   { name: "Pierna simple", rating: "Fuerte", updated: "Hace 2 dias", clip: "Final a la repisa", notes: "Mantener la cabeza pegada a la cadera." },
   { name: "Medio nelson", rating: "En desarrollo", updated: "Hace 1 semana", clip: "Serie de control arriba", notes: "Mejorar la colocacion de manos." },
   { name: "Pararse", rating: "Fuerte", updated: "Hace 3 dias", clip: "Parada explosiva", notes: "Explota al silbato." },
@@ -7692,18 +7708,22 @@ function getCalendarEventsData() {
 }
 
 function getMediaItemsData() {
+  if (PUBLISH_READY_MODE) return [];
   return currentLang === "es" ? MEDIA_ITEMS_ES : MEDIA_ITEMS;
 }
 
 function getAnnouncementsData() {
+  if (PUBLISH_READY_MODE) return [];
   return currentLang === "es" ? ANNOUNCEMENTS_ES : ANNOUNCEMENTS;
 }
 
 function getTeamStatsData() {
+  if (PUBLISH_READY_MODE) return [];
   return currentLang === "es" ? TEAM_STATS_ES : TEAM_STATS;
 }
 
 function getTeamOverviewData() {
+  if (PUBLISH_READY_MODE) return [];
   return currentLang === "es" ? TEAM_OVERVIEW_ES : TEAM_OVERVIEW;
 }
 
@@ -7712,14 +7732,17 @@ function getQuickActionsData() {
 }
 
 function getAlertsData() {
+  if (PUBLISH_READY_MODE) return [];
   return currentLang === "es" ? ALERTS_ES : ALERTS;
 }
 
 function getHomeCompetitionsData() {
+  if (PUBLISH_READY_MODE) return [];
   return currentLang === "es" ? HOME_COMPETITIONS_ES : HOME_COMPETITIONS;
 }
 
 function getHomeRecentTrainingsData() {
+  if (PUBLISH_READY_MODE) return [];
   return currentLang === "es" ? HOME_RECENT_TRAININGS_ES : HOME_RECENT_TRAININGS;
 }
 
@@ -7871,6 +7894,7 @@ function getJournalAthletesData() {
       entryDate: entry.entryDate
     }));
   }
+  if (PUBLISH_READY_MODE) return [];
   return currentLang === "es" ? JOURNAL_ATHLETES_ES : JOURNAL_ATHLETES;
 }
 
@@ -8715,13 +8739,19 @@ function getAssignmentTargetsFromPlan(plan) {
   if (plan.audience.mode === "group") {
     const group = getCoachGroupRecords().find((item) => item.id === plan.audience.groupId) || null;
     if (!group) return [];
+    const memberNames = uniqueNames(group.memberNames || []);
+    const athleteIds = uniqueNames(group.memberIds || []);
+    const athleteUids = uniqueNames(group.memberUids || []);
+    if (!memberNames.length && !athleteIds.length && !athleteUids.length) {
+      return [];
+    }
     return [{
       assigneeType: "group",
       assigneeId: group.id,
       assigneeName: group.name,
-      assigneeNames: [...group.memberNames],
-      athleteIds: [...(group.memberIds || [])],
-      athleteUids: [...(group.memberUids || [])]
+      assigneeNames: memberNames,
+      athleteIds,
+      athleteUids
     }];
   }
   return uniqueNames(plan.audience.athleteNames).map((name) => {
@@ -8810,8 +8840,8 @@ async function saveCoachPlan({ createAssignments = false, navigateAfterSave = fa
 
   if (createAssignments && getAssignmentTargetsFromPlan(draft).length === 0) {
     setPlanSaveStatusMessage(pickCopy({
-      en: "Choose an athlete or group before sending assignments.",
-      es: "Elige un atleta o grupo antes de enviar asignaciones."
+      en: "Choose an athlete, or a group that already has members, before sending assignments.",
+      es: "Elige un atleta, o un grupo que ya tenga miembros, antes de enviar asignaciones."
     }), { error: true });
     return;
   }
@@ -12066,6 +12096,7 @@ function buildDefaultMediaTree() {
 }
 
 function ensureYoutubeMediaNode(nodes) {
+  if (PUBLISH_READY_MODE) return Array.isArray(nodes) ? nodes.slice() : [];
   const working = Array.isArray(nodes) ? nodes.slice() : [];
   const targetUrl = "https://www.flowrestling.org/training?playing=7965907";
   const normalizedTarget = normalizeMediaAssetPath(targetUrl);
@@ -12111,6 +12142,7 @@ function ensureYoutubeMediaNode(nodes) {
 }
 
 function ensureDemoMediaNodes(nodes) {
+  if (PUBLISH_READY_MODE) return Array.isArray(nodes) ? nodes.slice() : [];
   const legacyTarget = normalizeMediaAssetPath("https://www.youtube.com/watch?v=FHHOgZ3QTSY");
   const working = (Array.isArray(nodes) ? nodes : []).filter((node) => {
     if (node?.type !== "item") return true;
@@ -13295,7 +13327,14 @@ const announcementList = document.getElementById("announcementList");
 
 function renderAnnouncements() {
   announcementList.innerHTML = "";
-  getAnnouncementsData().forEach((note) => {
+  const rows = getAnnouncementsData();
+  if (!rows.length) {
+    const li = document.createElement("li");
+    li.innerHTML = `<strong>${currentLang === "es" ? "Sin anuncios por ahora" : "No announcements yet"}</strong><div class="small">${currentLang === "es" ? "Los anuncios del staff apareceran aqui." : "Staff announcements will appear here."}</div>`;
+    announcementList.appendChild(li);
+    return;
+  }
+  rows.forEach((note) => {
     const li = document.createElement("li");
     li.innerHTML = `<strong>${note.title}</strong><div class="small">${note.detail} - ${note.time}</div>`;
     announcementList.appendChild(li);
@@ -13457,6 +13496,13 @@ function getCoachAssignmentResourceRows(limit = 4) {
     .slice(0, limit)
     .map((node) => `${node.mediaType}: ${node.title}${node.note ? ` - ${node.note}` : ""}`);
   if (mediaRows.length) return mediaRows;
+  if (PUBLISH_READY_MODE) {
+    return [
+      currentLang === "es"
+        ? "No hay recursos en Media todavia. Sube video, foto o audio para asignarlos."
+        : "No resources in Media yet. Upload video, photo, or audio to assign them."
+    ];
+  }
   return COACH_ASSIGNMENT_RESOURCES.map((item) => pickCopy(item));
 }
 
@@ -13888,6 +13934,9 @@ function renderCompletionTracking() {
   });
 
   completionList.innerHTML = "";
+  if (!trackedAthletes.length) {
+    completionList.innerHTML = `<div class="mini-card"><h3>${currentLang === "es" ? "No hay atletas vinculados todavia." : "No athletes linked yet."}</h3><p class="small muted">${currentLang === "es" ? "Registra atletas o espera su registro para comenzar seguimiento." : "Register athletes or wait for athlete sign-up to start tracking."}</p></div>`;
+  }
   trackedAthletes.forEach((athlete) => {
     const taskBoard = getAthleteTaskBoard(athlete.name);
     const row = getCoachCompletionRow(athlete);
@@ -13913,9 +13962,16 @@ function renderCompletionTracking() {
   });
 
   completionAlertsList.innerHTML = "";
-  trackedAthletes
-    .filter((athlete) => getCoachCompletionRow(athlete).status !== "ontrack" || getAthleteTaskBoard(athlete.name).journalState === "stale")
-    .forEach((athlete) => {
+  const followUps = trackedAthletes
+    .filter((athlete) => getCoachCompletionRow(athlete).status !== "ontrack" || getAthleteTaskBoard(athlete.name).journalState === "stale");
+  if (!followUps.length) {
+    const li = document.createElement("li");
+    li.textContent = currentLang === "es"
+      ? "No hay alertas de seguimiento pendientes."
+      : "No follow-up alerts pending.";
+    completionAlertsList.appendChild(li);
+  }
+  followUps.forEach((athlete) => {
       const taskBoard = getAthleteTaskBoard(athlete.name);
       const row = getCoachCompletionRow(athlete);
       const li = document.createElement("li");
@@ -14315,6 +14371,11 @@ function renderDashboard() {
   if (homeCompetitions) {
     homeCompetitions.innerHTML = "";
     const items = isCoachWorkspaceActive() ? competitionRows : getHomeCompetitionsData();
+    if (!items.length) {
+      const li = document.createElement("li");
+      li.innerHTML = `<strong>${currentLang === "es" ? "Sin competencias programadas" : "No upcoming competitions"}</strong><div class="small">${currentLang === "es" ? "Agrega eventos en Calendar para verlos aqui." : "Add events in Calendar to see them here."}</div>`;
+      homeCompetitions.appendChild(li);
+    }
     items.forEach((item) => {
       const li = document.createElement("li");
       li.innerHTML = `<strong>${item.title}</strong><div class="small">${item.detail}</div>`;
@@ -14325,6 +14386,11 @@ function renderDashboard() {
   if (homeRecentTrainings) {
     homeRecentTrainings.innerHTML = "";
     const items = isCoachWorkspaceActive() ? recentTrainingRows : getHomeRecentTrainingsData();
+    if (!items.length) {
+      const li = document.createElement("li");
+      li.innerHTML = `<strong>${currentLang === "es" ? "Sin entrenamientos recientes" : "No recent trainings"}</strong><div class="small">${currentLang === "es" ? "Crea un plan para que aparezca aqui." : "Create a plan and it will appear here."}</div>`;
+      homeRecentTrainings.appendChild(li);
+    }
     items.forEach((item) => {
       const li = document.createElement("li");
       li.innerHTML = `<strong>${item.title}</strong><div class="small">${item.detail}</div>`;
@@ -14334,6 +14400,12 @@ function renderDashboard() {
 
   alertList.innerHTML = "";
   const alerts = isCoachWorkspaceActive() ? getCoachHomeAlerts() : getAlertsData();
+  if (!alerts.length) {
+    const div = document.createElement("div");
+    div.className = "alert";
+    div.textContent = currentLang === "es" ? "Sin alertas criticas por ahora." : "No critical alerts right now.";
+    alertList.appendChild(div);
+  }
   alerts.forEach((alert) => {
     const div = document.createElement("div");
     div.className = "alert";
@@ -15556,6 +15628,68 @@ function openCoachAthleteWorkspace(name = "") {
   scrollCoachAthleteProfileIntoView();
 }
 
+async function editCoachAthleteRecord(athleteName = "") {
+  const athlete = getCoachAthleteRecordByIdentity(athleteName) || getAthletesData().find((entry) => entry.name === athleteName) || null;
+  if (!athlete) return;
+
+  const labels = {
+    weight: currentLang === "es" ? "Peso actual" : "Current weight",
+    weightClass: currentLang === "es" ? "Categoria de peso" : "Weight class",
+    style: currentLang === "es" ? "Estilo" : "Style",
+    level: currentLang === "es" ? "Nivel" : "Level",
+    availability: currentLang === "es" ? "Estado actual" : "Current status",
+    preferred: currentLang === "es" ? "Ataques preferidos" : "Preferred attacks",
+    notes: currentLang === "es" ? "Notas del coach" : "Coach notes"
+  };
+
+  const nextWeight = window.prompt(labels.weight, String(athlete.weight || "").trim());
+  if (nextWeight === null) return;
+  const nextWeightClass = window.prompt(labels.weightClass, String(athlete.weightClass || "").trim());
+  if (nextWeightClass === null) return;
+  const nextStyle = window.prompt(labels.style, String(athlete.style || "").trim());
+  if (nextStyle === null) return;
+  const nextLevel = window.prompt(labels.level, String(athlete.level || "").trim());
+  if (nextLevel === null) return;
+  const nextAvailability = window.prompt(labels.availability, String(athlete.availability || "").trim());
+  if (nextAvailability === null) return;
+  const nextPreferred = window.prompt(labels.preferred, String(athlete.preferred || "").trim());
+  if (nextPreferred === null) return;
+  const nextNotes = window.prompt(labels.notes, String(athlete.notes || "").trim());
+  if (nextNotes === null) return;
+
+  const athleteId = normalizeAthleteId(athlete.id, athlete.name);
+  const payload = stripUndefinedDeep({
+    name: athlete.name,
+    athleteUid: normalizeUid(athlete.athleteUid),
+    athleteEmail: normalizeEmail(athlete.athleteEmail || athlete.email || ""),
+    coachUid: String(athlete.coachUid || getAuthUser()?.id || "").trim(),
+    coachName: String(athlete.coachName || getProfile()?.name || getAuthUser()?.email || "").trim(),
+    coachEmail: normalizeEmail(athlete.coachEmail || getAuthUser()?.email || ""),
+    weight: String(nextWeight || "").trim(),
+    weightClass: String(nextWeightClass || "").trim(),
+    style: String(nextStyle || "").trim(),
+    level: String(nextLevel || "").trim(),
+    availability: String(nextAvailability || "").trim(),
+    preferred: String(nextPreferred || "").trim(),
+    notes: String(nextNotes || "").trim(),
+    updatedAt: getFirestoreServerTimestamp()
+  });
+
+  try {
+    const athletesRef = getCoachWorkspaceCollectionRef("athletes");
+    if (!athletesRef) throw new Error("coach_athlete_store_unavailable");
+    await withTimeout(
+      athletesRef.doc(athleteId).set(payload, { merge: true }),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_coach_athlete_update_timeout"
+    );
+    toast(currentLang === "es" ? "Perfil del atleta actualizado." : "Athlete profile updated.");
+  } catch (err) {
+    console.warn("Coach athlete update failed", err);
+    toast(currentLang === "es" ? "No se pudo actualizar el atleta." : "Could not update athlete.");
+  }
+}
+
 async function messageCoachAthlete(name = "") {
   if (name) {
     selectCoachMatchAthlete(name);
@@ -16123,6 +16257,7 @@ function renderCoachAthleteQuickActions(selectedAthleteName = "") {
     </div>
     <div class="coach-athlete-action-buttons">
       <button type="button" class="primary" id="coachAthleteQuickOpenBtn">${currentLang === "es" ? "Trabajar con atleta" : "Work with athlete"}</button>
+      <button type="button" id="coachAthleteQuickEditBtn">${currentLang === "es" ? "Editar perfil" : "Edit profile"}</button>
       <button type="button" id="coachAthleteQuickSummaryBtn">${currentLang === "es" ? "Ver athlete summary" : "View athlete summary"}</button>
       <button type="button" id="coachAthleteQuickMessageBtn">${currentLang === "es" ? "Enviar mensaje" : "Send message"}</button>
     </div>
@@ -16130,6 +16265,12 @@ function renderCoachAthleteQuickActions(selectedAthleteName = "") {
 
   document.getElementById("coachAthleteQuickOpenBtn")?.addEventListener("click", () => {
     openCoachAthleteWorkspace(athlete.name);
+  });
+  document.getElementById("coachAthleteQuickEditBtn")?.addEventListener("click", () => {
+    editCoachAthleteRecord(athlete.name).catch((err) => {
+      console.warn("Coach athlete edit action failed", err);
+      toast(currentLang === "es" ? "No se pudo editar el atleta." : "Could not edit athlete.");
+    });
   });
   document.getElementById("coachAthleteQuickSummaryBtn")?.addEventListener("click", () => {
     openAthleteSummaryView(athlete.name);
@@ -17750,7 +17891,7 @@ const MESSAGES_COPY = {
   },
   composerLabel: { en: "Message", es: "Mensaje" },
   composerPlaceholder: { en: "Write your message here", es: "Escribe tu mensaje aqui" },
-  composerFilesLabel: { en: "Attach photo/video", es: "Adjuntar foto/video" },
+  composerFilesLabel: { en: "Attach photo/video/audio", es: "Adjuntar foto/video/audio" },
   composerTagsLabel: { en: "Tags", es: "Tags" },
   composerTagsPlaceholder: { en: "takedown, finals, opponent tendencies", es: "takedown, finales, tendencias del rival" },
   clearMedia: { en: "Clear media", es: "Limpiar media" },
@@ -17901,8 +18042,8 @@ const MESSAGES_COPY = {
     es: "Escribe un mensaje o adjunta al menos una foto/video."
   },
   fileTypeError: {
-    en: "Only photo and video files are allowed in messages.",
-    es: "Solo se permiten fotos y videos en mensajes."
+    en: "Only photo, video, or audio files are allowed in messages.",
+    es: "Solo se permiten fotos, videos o audios en mensajes."
   },
   fileSizeError: {
     en: "Each file must be 180 MB or less.",
@@ -18327,7 +18468,7 @@ function validateMessageComposerFiles(files = []) {
   }
   const invalid = files.find((file) => {
     const mime = String(file?.type || "").toLowerCase();
-    return !(mime.startsWith("image/") || mime.startsWith("video/"));
+    return !(mime.startsWith("image/") || mime.startsWith("video/") || mime.startsWith("audio/"));
   });
   if (invalid) {
     return { valid: false, reason: "type" };
@@ -21642,7 +21783,18 @@ function renderSkills() {
   const bestClipLabel = currentLang === "es" ? "Mejor clip" : "Best clip";
   const notesLabel = currentLang === "es" ? "Notas" : "Notes";
   const updatedLabel = currentLang === "es" ? "Actualizado" : "Updated";
-  getSkillsData().forEach((skill) => {
+  const rows = getSkillsData();
+  if (!rows.length) {
+    const card = document.createElement("div");
+    card.className = "skill-card";
+    card.innerHTML = `
+      <h3>${currentLang === "es" ? "Sin habilidades registradas" : "No skills logged yet"}</h3>
+      <div class="small">${currentLang === "es" ? "El coach puede agregar y actualizar habilidades desde el perfil del atleta." : "Coaches can add and update skills from the athlete profile."}</div>
+    `;
+    skillsGrid.appendChild(card);
+    return;
+  }
+  rows.forEach((skill) => {
     const card = document.createElement("div");
     card.className = "skill-card";
     card.innerHTML = `
@@ -21680,6 +21832,7 @@ function ensureSeedJournalEntries() {
   }
   const existing = getJournalEntries();
   if (existing.length) return existing;
+  if (PUBLISH_READY_MODE) return existing;
   const seeded = [
     {
       date: new Date(Date.now() - 1000 * 60 * 60 * 18).toISOString(),
