@@ -107,6 +107,8 @@
     dateInput: document.getElementById("plannerDateInput"),
     datePrintValue: document.getElementById("plannerDatePrintValue"),
     totalTimeInput: document.getElementById("plannerTotalTimeInput"),
+    totalTimeDownBtn: document.getElementById("plannerTotalTimeDownBtn"),
+    totalTimeUpBtn: document.getElementById("plannerTotalTimeUpBtn"),
     totalTimePrintValue: document.getElementById("plannerTotalTimePrintValue"),
     rows: document.getElementById("plannerRows"),
     footerClub: document.getElementById("plannerFooterClub"),
@@ -183,6 +185,33 @@
 
   function getUsedTime() {
     return CATEGORIES.reduce((total, category) => total + parseTimeValue(state.categoryTimes[category.id]), 0);
+  }
+
+  function normalizeTotalTime(rawValue) {
+    const parsed = parseInt(String(rawValue || "").trim(), 10);
+    if (!Number.isFinite(parsed) || parsed < 1) return 90;
+    return parsed;
+  }
+
+  function updatePrintMetaValues() {
+    if (els.datePrintValue) {
+      els.datePrintValue.textContent = formatDateForPrint(state.docInfo.date);
+    }
+    if (els.totalTimePrintValue) {
+      const total = Math.max(1, parseTimeValue(state.docInfo.totalTime || "90"));
+      els.totalTimePrintValue.textContent = `${total} min`;
+    }
+  }
+
+  function setTotalTime(nextValue) {
+    const normalized = normalizeTotalTime(nextValue);
+    state.docInfo.totalTime = String(normalized);
+    if (els.totalTimeInput) {
+      els.totalTimeInput.value = state.docInfo.totalTime;
+    }
+    persistDaily();
+    updatePrintMetaValues();
+    updateTimeStatus();
   }
 
   function updateTimeStatus() {
@@ -445,13 +474,7 @@
   function render() {
     if (els.dateInput) els.dateInput.value = state.docInfo.date || "";
     if (els.totalTimeInput) els.totalTimeInput.value = state.docInfo.totalTime || "90";
-    if (els.datePrintValue) {
-      els.datePrintValue.textContent = formatDateForPrint(state.docInfo.date);
-    }
-    if (els.totalTimePrintValue) {
-      const total = Math.max(1, parseTimeValue(state.docInfo.totalTime || "90"));
-      els.totalTimePrintValue.textContent = `${total} min`;
-    }
+    updatePrintMetaValues();
     updateFooter();
     updateLogos();
     renderCategorySelectOptions();
@@ -517,13 +540,12 @@
     if (target === els.dateInput) {
       state.docInfo.date = String(els.dateInput.value || "");
       persistDaily();
+      updatePrintMetaValues();
       return;
     }
 
     if (target === els.totalTimeInput) {
-      state.docInfo.totalTime = String(els.totalTimeInput.value || "90");
-      persistDaily();
-      updateTimeStatus();
+      setTotalTime(els.totalTimeInput.value || "90");
       return;
     }
 
@@ -557,6 +579,18 @@
     root.addEventListener("blur", handleRootBlur, true);
 
     els.printBtn?.addEventListener("click", () => window.print());
+
+    els.totalTimeDownBtn?.addEventListener("click", () => {
+      const current = normalizeTotalTime(state.docInfo.totalTime);
+      setTotalTime(Math.max(1, current - 5));
+    });
+    els.totalTimeUpBtn?.addEventListener("click", () => {
+      const current = normalizeTotalTime(state.docInfo.totalTime);
+      setTotalTime(current + 5);
+    });
+    els.totalTimeInput?.addEventListener("change", () => {
+      setTotalTime(els.totalTimeInput.value || "90");
+    });
 
     els.openSettingsBtn?.addEventListener("click", openSettingsModal);
     els.settingsCloseBtn?.addEventListener("click", closeSettingsModal);

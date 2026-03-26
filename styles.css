@@ -7573,6 +7573,21 @@ svg{
   font-weight: 900;
 }
 
+.planner-total-time-editor{
+  display: grid;
+  grid-template-columns: 42px 1fr 42px;
+  gap: 8px;
+  align-items: center;
+}
+
+.planner-total-time-editor button{
+  min-height: 56px;
+  border-radius: 12px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  padding: 0;
+}
+
 .planner-print-value,
 .planner-item-print-text,
 .planner-time-print-text{
@@ -7899,6 +7914,7 @@ svg{
     padding: 0 !important;
   }
   .planner-meta-boxes input,
+  .planner-total-time-editor button,
   .planner-time-cell input{
     display: none !important;
   }
