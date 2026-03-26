@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Teko:wght@500;600;700&display=swap"
     rel="stylesheet"
   >
-  <link rel="stylesheet" href="styles.css?v=20260326b" >
+  <link rel="stylesheet" href="styles.css?v=20260326c" >
 </head>
 
 <body>
@@ -1187,10 +1187,12 @@
                 <label>
                   <span>Date</span>
                   <input type="date" id="plannerDateInput">
+                  <div class="planner-print-value" id="plannerDatePrintValue"></div>
                 </label>
                 <label>
                   <span>Total Time (min)</span>
                   <input type="number" id="plannerTotalTimeInput" min="1" value="90">
+                  <div class="planner-print-value" id="plannerTotalTimePrintValue"></div>
                 </label>
               </div>
             </header>
@@ -1930,7 +1932,7 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260326b"></script>
-  <script src="coach-planner.js?v=20260326b"></script>
+  <script src="app.js?v=20260326c"></script>
+  <script src="coach-planner.js?v=20260326c"></script>
 </body>
 </html>
