@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Teko:wght@500;600;700&display=swap"
     rel="stylesheet"
   >
-  <link rel="stylesheet" href="styles.css?v=20260325b" >
+  <link rel="stylesheet" href="styles.css?v=20260326a" >
 </head>
 
 <body>
@@ -1157,482 +1157,135 @@
 
       <!-- COACH: CREATE PLANS -->
       <section class="panel hidden" id="panel-plans">
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <h2>Create Plan</h2>
-              <p class="small muted">Build structured training sessions here. Templates, assignments, scheduling, and tracking stay inside this same route.</p>
-            </div>
-            <button type="button" id="templatesBtn" class="chip chip-button">Open Templates</button>
-          </div>
-          <div class="section-grid plan-route-grid">
-            <div class="mini-card route-concept-card">
-              <p class="eyebrow">Plans</p>
-              <h3>Structured training</h3>
-              <p class="small muted">Design the practice itself: scope, progression, intensity, coaching notes, and match prep blocks.</p>
-            </div>
-            <div class="mini-card route-concept-card">
-              <p class="eyebrow">Assignments</p>
-              <h3>Work sent to athletes</h3>
-              <p class="small muted">Send film, match analysis, drills, notes, or journal tasks, then track completion without leaving the route.</p>
-            </div>
-          </div>
-          <div class="section-grid plan-builder-grid">
-            <div class="mini-card">
-              <div class="card-header compact-card-header">
-                <div>
-                  <h3 id="planBuildTitle">Start the plan</h3>
-                  <p class="small muted" id="planBuildSubtitle">Choose the plan type, then decide whether to start from zero, a template, or a previous plan.</p>
-                </div>
-              </div>
-              <div class="plan-source-pills" id="planSourceButtons">
-                <button type="button" class="plan-source-btn active" data-plan-source="scratch">From scratch</button>
-                <button type="button" class="plan-source-btn" data-plan-source="template">From template</button>
-                <button type="button" class="plan-source-btn" data-plan-source="duplicate">Duplicate previous</button>
-              </div>
-              <label class="plan-inline-select hidden" id="planSourceSelectWrapper">
-                <span id="planSourceSelectLabel">Template or plan</span>
-                <select id="planSourceSelect"></select>
-              </label>
-              <p class="small muted" id="planSourceSummary">Starting from scratch.</p>
-            </div>
-            <div class="mini-card">
-              <div class="card-header compact-card-header">
-                <div>
-                  <h3 id="planAssignTitle">Assign this plan</h3>
-                  <p class="small muted" id="planAssignSubtitle">Send it to one athlete, several athletes, or a full group without leaving Create Plan.</p>
-                </div>
-              </div>
-              <div class="plan-source-pills" id="planAssignModes">
-                <button type="button" class="plan-source-btn active" data-plan-assign-mode="single">Single athlete</button>
-                <button type="button" class="plan-source-btn" data-plan-assign-mode="multi">Multiple athletes</button>
-                <button type="button" class="plan-source-btn" data-plan-assign-mode="group">Group</button>
-              </div>
-              <label class="plan-inline-select hidden" id="planAssignGroupWrapper">
-                <span id="planAssignGroupLabel">Group</span>
-                <select id="planAssignGroup"></select>
-              </label>
-              <div class="plan-target-toolbar">
-                <button type="button" class="ghost" id="planAssignSelectAll">Select full team</button>
-                <span class="small muted" id="planAssignHint">Pick one athlete first.</span>
-              </div>
-              <div class="plan-athlete-picker" id="planAssignAthletes"></div>
-              <p class="small" id="planAssignSummary">No target selected yet.</p>
-            </div>
-          </div>
-          <div class="plan-quick-summary" id="planQuickSummary">Daily plan • From scratch • No target selected yet.</div>
-          <div class="section-grid plan-meta-grid">
-            <div class="mini-card">
-              <label class="plan-inline-select">
-                <span id="planTitleLabel">Plan title</span>
-                <input id="planTitleInput" type="text" placeholder="Competition prep - Week 1" >
-              </label>
-              <label class="plan-inline-select">
-                <span id="planFocusLabel">Main focus</span>
-                <input id="planFocusInput" type="text" placeholder="Chain wrestling, pace, and match finish" >
-              </label>
-            </div>
-            <div class="mini-card">
-              <label class="plan-inline-select">
-                <span id="planNotesLabel">Coach notes</span>
-                <textarea id="planNotesInput" rows="4" placeholder="What should this block accomplish and what should athletes feel by the end?"></textarea>
-              </label>
-            </div>
-          </div>
-          <div class="row plan-save-bar">
-            <button type="button" id="savePlanBtn" class="primary">Save Plan</button>
-            <button type="button" id="savePlanAssignBtn">Save Plan + Assign</button>
-            <span class="small muted" id="planSaveStatus"></span>
-          </div>
-
-          <div class="mini-card training-builder-card" id="trainingBuilderCard">
-            <div class="card-header compact-card-header">
+        <div class="card coach-planner-card" id="coachPlannerApp">
+          <nav class="planner-toolbar" aria-label="Planner toolbar">
+            <div class="planner-brand">
+              <div class="planner-brand-badge">WPL</div>
               <div>
-                <p class="eyebrow">Training Builder</p>
-                <h3 id="tbSectionTitle">Practice Builder</h3>
-                <p class="small muted" id="tbSectionSubtitle">Build the training day with reusable blocks, templates, athlete completion, and week view.</p>
-              </div>
-              <div class="row">
-                <button type="button" id="tbApplyToPlanBtn" class="primary">Apply to Create Plan</button>
+                <h2>Daily Schedule Planner</h2>
+                <p class="small muted">Coach planner with exact categories from your PDF format.</p>
               </div>
             </div>
+            <div class="planner-toolbar-actions">
+              <div class="planner-time-badge" id="plannerTimeBadge">
+                <span class="small">Used / Total</span>
+                <strong id="plannerTimeLabel">0/90 min</strong>
+              </div>
+              <button type="button" class="ghost" id="plannerOpenSettingsBtn">Customize</button>
+              <button type="button" class="ghost" id="plannerOpenLibraryBtn">Library</button>
+              <button type="button" class="primary" id="plannerPrintBtn">Print</button>
+            </div>
+          </nav>
 
-            <div class="training-builder-brand-grid">
-              <label class="plan-inline-select">
-                <span>Brand</span>
-                <input id="tbBrandTitleInput" type="text" value="Wrestling Performance Lab">
-              </label>
-              <label class="plan-inline-select">
-                <span>Dashboard</span>
-                <input id="tbDashboardTitleInput" type="text" value="Coach Dashboard">
-              </label>
-              <label class="plan-inline-select">
-                <span>Practice title</span>
-                <input id="tbPracticeTitleInput" type="text" value="Monday Neutral Attack Practice">
-              </label>
-              <label class="plan-inline-select">
-                <span>Practice description</span>
-                <textarea id="tbPracticeDescriptionInput" rows="2">Builder visual para armar una práctica usando bloques reutilizables, tiempos, notas y objetivo.</textarea>
-              </label>
+          <div class="planner-sheet">
+            <header class="planner-sheet-header">
+              <div class="planner-logo-box" id="plannerLogoBox">
+                <img id="plannerLogoPreview" alt="Team logo" class="hidden">
+                <div id="plannerLogoPlaceholder">Setup logo in Customize</div>
+              </div>
+              <div class="planner-meta-boxes">
+                <label>
+                  <span>Date</span>
+                  <input type="date" id="plannerDateInput">
+                </label>
+                <label>
+                  <span>Total Time (min)</span>
+                  <input type="number" id="plannerTotalTimeInput" min="1" value="90">
+                </label>
+              </div>
+            </header>
+
+            <div class="planner-table-wrap">
+              <table class="planner-table">
+                <thead>
+                  <tr>
+                    <th>Activity</th>
+                    <th>Time</th>
+                  </tr>
+                </thead>
+                <tbody id="plannerRows"></tbody>
+              </table>
             </div>
 
-            <div class="training-builder-grid">
-              <div class="training-builder-column">
-                <div class="training-builder-panel">
-                  <div class="training-builder-panel-header">
-                    <h4>Templates</h4>
-                    <div class="row">
-                      <button type="button" id="tbTemplateAddBtn" class="ghost">Add</button>
-                      <button type="button" id="tbTemplateRemoveBtn" class="ghost">Remove</button>
-                    </div>
+            <footer class="planner-footer">
+              <div>
+                <strong id="plannerFooterClub">ARCHMERE AUKS</strong>
+              </div>
+              <div>
+                <span id="plannerFooterCoach">Coach Espinal</span>
+                <span id="plannerFooterSeason">Season 2025-2026</span>
+              </div>
+            </footer>
+          </div>
+
+          <div class="planner-toast hidden" id="plannerToast"></div>
+          <div class="planner-alert hidden" id="plannerOvertimeAlert"></div>
+
+          <div class="planner-modal hidden" id="plannerSettingsModal" role="dialog" aria-modal="true" aria-label="Template settings">
+            <div class="planner-modal-backdrop" data-dismiss="settings"></div>
+            <div class="planner-modal-card">
+              <header>
+                <h3>Template Settings</h3>
+                <button type="button" class="ghost" id="plannerSettingsCloseBtn">Close</button>
+              </header>
+              <div class="planner-modal-body">
+                <div class="planner-logo-settings">
+                  <div class="planner-logo-preview-box">
+                    <img id="plannerSettingsLogoPreview" alt="Logo preview" class="hidden">
+                    <div id="plannerSettingsLogoPlaceholder">No logo</div>
                   </div>
-                  <div id="tbTemplateList" class="training-builder-list"></div>
-                  <label class="plan-inline-select">
-                    <span>Name</span>
-                    <input id="tbTemplateNameInput" type="text">
+                  <div class="planner-logo-buttons">
+                    <label class="ghost planner-file-label">
+                      Upload Logo
+                      <input type="file" id="plannerSettingsLogoInput" accept="image/*" hidden>
+                    </label>
+                    <button type="button" class="ghost" id="plannerSettingsRemoveLogoBtn">Remove Logo</button>
+                  </div>
+                </div>
+                <label>
+                  <span>Club / School</span>
+                  <input type="text" id="plannerSettingsClubInput">
+                </label>
+                <label>
+                  <span>Coach</span>
+                  <input type="text" id="plannerSettingsCoachInput">
+                </label>
+                <label>
+                  <span>Season</span>
+                  <input type="text" id="plannerSettingsSeasonInput">
+                </label>
+              </div>
+              <footer>
+                <button type="button" class="ghost" id="plannerSettingsCancelBtn">Cancel</button>
+                <button type="button" class="primary" id="plannerSettingsSaveBtn">Save</button>
+              </footer>
+            </div>
+          </div>
+
+          <div class="planner-modal hidden" id="plannerLibraryModal" role="dialog" aria-modal="true" aria-label="Exercise library">
+            <div class="planner-modal-backdrop" data-dismiss="library"></div>
+            <div class="planner-modal-card planner-modal-wide">
+              <header>
+                <h3>Exercise Library</h3>
+                <button type="button" class="ghost" id="plannerLibraryCloseBtn">Close</button>
+              </header>
+              <div class="planner-modal-body">
+                <div class="planner-library-form">
+                  <label>
+                    <span>Exercise name</span>
+                    <input type="text" id="plannerNewExerciseNameInput" placeholder="e.g. Single-leg finish chain">
                   </label>
-                  <label class="plan-inline-select">
-                    <span>Blocks</span>
-                    <input id="tbTemplateBlocksInput" type="number" min="1" max="20">
+                  <label>
+                    <span>Category</span>
+                    <select id="plannerNewExerciseCategorySelect"></select>
                   </label>
-                  <label class="plan-inline-select">
-                    <span>Duration</span>
-                    <input id="tbTemplateDurationInput" type="text">
-                  </label>
-                  <label class="plan-inline-select">
-                    <span>Level</span>
-                    <input id="tbTemplateLevelInput" type="text">
-                  </label>
+                  <button type="button" class="primary" id="plannerSaveLibraryItemBtn">Save exercise</button>
                 </div>
-
-                <div class="training-builder-panel">
-                  <div class="training-builder-panel-header">
-                    <h4>Athlete Completion</h4>
-                  </div>
-                  <div id="tbAthleteList" class="training-builder-list compact"></div>
-                </div>
-
-                <div class="training-builder-panel">
-                  <div class="training-builder-panel-header">
-                    <h4>Library</h4>
-                  </div>
-                  <div id="tbLibraryList" class="training-builder-list compact"></div>
-                </div>
+                <div id="plannerLibraryGroups" class="planner-library-groups"></div>
               </div>
-
-              <div class="training-builder-column wide">
-                <div class="training-builder-panel">
-                  <div class="training-builder-panel-header">
-                    <h4>Practice Blocks</h4>
-                    <div class="row">
-                      <button type="button" id="tbBlockAddBtn" class="ghost">Add block</button>
-                    </div>
-                  </div>
-                  <div id="tbBlockTotalMinutes" class="small muted"></div>
-                  <div id="tbBlockList" class="training-builder-block-list"></div>
-                </div>
-              </div>
-
-              <div class="training-builder-column">
-                <div class="training-builder-panel">
-                  <div class="training-builder-panel-header">
-                    <h4>Week View</h4>
-                  </div>
-                  <div id="tbWeekList" class="training-builder-list"></div>
-                </div>
-                <div id="tbStatus" class="small muted"></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="subtabs" role="tablist" aria-label="Plan scope">
-            <button type="button" class="subtab active" data-subtab="plan-daily">Daily</button>
-            <button type="button" class="subtab" data-subtab="plan-weekly">Weekly</button>
-            <button type="button" class="subtab" data-subtab="plan-monthly">Monthly</button>
-            <button type="button" class="subtab" data-subtab="plan-season">Season</button>
-          </div>
-
-          <div class="plan-range-wrapper form-section">
-            <div class="plan-calendar-hub">
-              <div class="plan-calendar-card month-card">
-                <div class="card-header">
-                  <div>
-                    <span class="calendar-card-title">Month View</span>
-                    <span class="calendar-card-label" id="planCalendarLabel">June 2021</span>
-                  </div>
-                  <div class="calendar-card-controls">
-                    <button type="button" id="planMonthPrev" aria-label="Previous month">‹</button>
-                    <button type="button" id="planMonthNext" aria-label="Next month">›</button>
-                  </div>
-                </div>
-                <div class="plan-calendar calendar-container" id="planCalendarContainer"></div>
-              </div>
-            </div>
-            <div class="plan-calendar-detail">
-              <div class="plan-monthly-selection" id="planMonthlySelection">Selecciona un día para comenzar.</div>
-              <textarea id="planMonthlyNotes" rows="4" placeholder="Notas rápidas del día"></textarea>
-              <div class="row plan-monthly-actions">
-                <button type="button" class="ghost" id="planMonthlyClear">Limpiar</button>
-                <button type="button" class="primary" id="planMonthlySave">Guardar día</button>
-              </div>
-            </div>
-            <div class="plan-range-inputs">
-              <label class="range-input">
-                <span id="planRangeStartTitle">Start</span>
-                <input type="date" id="planRangeStart" >
-              </label>
-              <label class="range-input hidden" id="planRangeEndWrapper">
-                <span id="planRangeEndTitle">End</span>
-                <input type="date" id="planRangeEnd" >
-              </label>
-            </div>
-            <p class="small muted" id="planRangeHint"></p>
-          </div>
-
-          <div class="subpanel" id="plan-daily">
-            <div class="accordion">
-              <div class="accordion-item">
-                <button type="button" class="accordion-toggle active" data-accordion="intro">Introduction</button>
-                <div class="accordion-panel" id="intro">
-                  <div class="selection-block" data-block="intro">
-                    <div class="selection-options">
-                      <p class="small muted">Options</p>
-                      <ul class="option-list">
-                        <li data-value="Joke or story of the day">Joke or story of the day</li>
-                        <li data-value="Talk through today's plan">Talk through today's plan</li>
-                        <li data-value="Review last dual meet">Review last dual meet</li>
-                        <li data-value="Review last competition">Review last competition</li>
-                        <li data-value="Call out a key moment or lesson">Call out a key moment or lesson</li>
-                        <li data-value="Team focus or mindset cue">Team focus or mindset cue</li>
-                        <li data-value="Highlight athlete effort">Highlight athlete effort</li>
-                      </ul>
-                      <div class="row">
-                        <input type="text" class="custom-input" placeholder="Other (optional)" >
-                        <button type="button" class="add-custom-btn">Add</button>
-                      </div>
-                    </div>
-                    <div class="selection-chosen">
-                      <p class="small muted">Selected</p>
-                      <ul class="chosen-list"></ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="accordion-item">
-                <button type="button" class="accordion-toggle" data-accordion="warmup">Warm-up</button>
-                <div class="accordion-panel hidden" id="warmup">
-                  <div class="selection-block" data-block="warmup">
-                    <div class="selection-options">
-                      <p class="small muted">Options</p>
-                      <ul class="option-list">
-                        <li data-value="Dynamic movement and mobility">Dynamic movement and mobility</li>
-                        <li data-value="Stance motion and footwork">Stance motion and footwork</li>
-                        <li data-value="Hip and shoulder activation">Hip and shoulder activation</li>
-                        <li data-value="Light hand-fighting">Light hand-fighting</li>
-                        <li data-value="Speed ladder or cones">Speed ladder or cones</li>
-                      </ul>
-                      <div class="row">
-                        <input type="text" class="custom-input" placeholder="Other (optional)" >
-                        <button type="button" class="add-custom-btn">Add</button>
-                      </div>
-                    </div>
-                    <div class="selection-chosen">
-                      <p class="small muted">Selected</p>
-                      <ul class="chosen-list"></ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="accordion-item">
-                <button type="button" class="accordion-toggle" data-accordion="drills">Drills + Technique Intro</button>
-                <div class="accordion-panel hidden" id="drills">
-                  <div class="selection-block" data-block="drills">
-                    <div class="selection-options">
-                      <p class="small muted">Options</p>
-                      <ul class="option-list">
-                        <li data-value="Technique teaching">Technique teaching</li>
-                        <li data-value="Drilling reps">Drilling reps</li>
-                        <li data-value="Situational focus">Situational focus</li>
-                        <li data-value="Neutral entries">Neutral entries</li>
-                        <li data-value="Top control series">Top control series</li>
-                        <li data-value="Bottom escapes">Bottom escapes</li>
-                      </ul>
-                      <div class="row">
-                        <input type="text" class="custom-input" placeholder="Other (optional)" >
-                        <button type="button" class="add-custom-btn">Add</button>
-                      </div>
-                    </div>
-                    <div class="selection-chosen">
-                      <p class="small muted">Selected</p>
-                      <ul class="chosen-list"></ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="accordion-item">
-                <button type="button" class="accordion-toggle" data-accordion="live">Live / Hard Pace + Conditioning</button>
-                <div class="accordion-panel hidden" id="live">
-                  <div class="selection-block" data-block="live">
-                    <div class="selection-options">
-                      <p class="small muted">Options</p>
-                      <ul class="option-list">
-                        <li data-value="Live goes">Live goes</li>
-                        <li data-value="Hard pace drill">Hard pace drill</li>
-                        <li data-value="Shark tank rounds">Shark tank rounds</li>
-                        <li data-value="Short go sprints">Short go sprints</li>
-                        <li data-value="Conditioning finisher">Conditioning finisher</li>
-                      </ul>
-                      <div class="row">
-                        <input type="text" class="custom-input" placeholder="Other (optional)" >
-                        <button type="button" class="add-custom-btn">Add</button>
-                      </div>
-                    </div>
-                    <div class="selection-chosen">
-                      <p class="small muted">Selected</p>
-                      <ul class="chosen-list"></ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="accordion-item">
-                <button type="button" class="accordion-toggle" data-accordion="cooldown">Visualization + Cool Down</button>
-                <div class="accordion-panel hidden" id="cooldown">
-                  <div class="selection-block" data-block="cooldown">
-                    <div class="selection-options">
-                      <p class="small muted">Options</p>
-                      <ul class="option-list">
-                        <li data-value="Visualization and breathing">Visualization and breathing</li>
-                        <li data-value="Stretching and recovery">Stretching and recovery</li>
-                        <li data-value="Mobility reset">Mobility reset</li>
-                        <li data-value="Guided breathing">Guided breathing</li>
-                      </ul>
-                      <div class="row">
-                        <input type="text" class="custom-input" placeholder="Other (optional)" >
-                        <button type="button" class="add-custom-btn">Add</button>
-                      </div>
-                    </div>
-                    <div class="selection-chosen">
-                      <p class="small muted">Selected</p>
-                      <ul class="chosen-list"></ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="accordion-item">
-                <button type="button" class="accordion-toggle" data-accordion="announcements">Announcements</button>
-                <div class="accordion-panel hidden" id="announcements">
-                  <div class="selection-block" data-block="announcements">
-                    <div class="selection-options">
-                      <p class="small muted">Options</p>
-                      <ul class="option-list">
-                        <li data-value="Upcoming events and reminders">Upcoming events and reminders</li>
-                        <li data-value="Gear checklist">Gear checklist</li>
-                        <li data-value="Coach notes for tomorrow">Coach notes for tomorrow</li>
-                        <li data-value="Tournament travel info">Tournament travel info</li>
-                        <li data-value="Weight check reminder">Weight check reminder</li>
-                      </ul>
-                      <div class="row">
-                        <input type="text" class="custom-input" placeholder="Other (optional)" >
-                        <button type="button" class="add-custom-btn">Add</button>
-                      </div>
-                    </div>
-                    <div class="selection-chosen">
-                      <p class="small muted">Selected</p>
-                      <ul class="chosen-list"></ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="row plan-actions">
-              <button type="button" id="doneDailyPlan" class="primary">Done</button>
-              <button type="button" id="saveDailyPlan">Save</button>
-              <button type="button" id="shareDailyPlan">Share</button>
-              <button type="button" id="printTemplatePlan">Print from Template</button>
-            </div>
-          </div>
-
-          <div class="subpanel hidden" id="plan-weekly">
-            <div class="section-grid">
-              <div class="mini-card">
-                <h3>Week Template</h3>
-                <ul class="list">
-                  <li>Goal: Build chain wrestling</li>
-                  <li>Intensity: High</li>
-                  <li>Live rounds: 6 x 1:00</li>
-                  <li>Strength: 5x5 squat + pull</li>
-                  <li>Conditioning: 10 x 30s sprint</li>
-                  <li>Homework: Watch "Single Leg Finish"</li>
-                </ul>
-              </div>
-              <div class="mini-card">
-                <h3>Tools</h3>
-                <ul class="list">
-                  <li>Pre-built templates by discipline</li>
-                  <li>Copy and duplicate weeks</li>
-                  <li>Assign to athlete or group</li>
-                  <li>Assign by date and training type</li>
-                </ul>
-              </div>
-            </div>
-            <div class="section-grid">
-              <div class="mini-card">
-                <h3>Template Workflow</h3>
-                <ul class="list">
-                  <li>Save strong practice structures as reusable templates</li>
-                  <li>Duplicate templates by phase, discipline, or training goal</li>
-                  <li>Jump to Templates to upload PDF forms or keep seasonal builds</li>
-                  <li>Turn any plan block into an assignment without leaving this route</li>
-                </ul>
-              </div>
-              <div class="mini-card">
-                <h3>Assignment Link</h3>
-                <ul class="list">
-                  <li>Attach video, match study, drill work, notes, or journal follow-up</li>
-                  <li>Assign by athlete, group, date, or competition week</li>
-                  <li>Mark each task as required, optional, or review with coach</li>
-                  <li>Use Completion Tracking to see what needs follow-up fast</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          <div class="subpanel hidden" id="plan-monthly">
-            <p class="small muted">
-              El calendario mensual completo se muestra arriba. Selecciona cualquier día para planificar el trabajo de todo el mes; la vista cambiará automáticamente cuando navegues entre meses.
-            </p>
-          </div>
-
-          <div class="subpanel hidden" id="plan-season">
-            <div class="form-section">
-                <h3>Select Season Year</h3>
-                <div class="row">
-                    <select id="season-year-select"></select>
-                </div>
-            </div>
-            <div class="section-grid">
-              <div class="mini-card">
-                <h3>Season Build</h3>
-                <ul class="list">
-                  <li>Pre-season, in-season, post-season</li>
-                  <li>Peak timing for tournaments</li>
-                  <li>Strength and conditioning phases</li>
-                </ul>
-              </div>
-              <div class="mini-card">
-                <h3>Milestones</h3>
-                <ul class="list">
-                  <li>Key tournaments and travel</li>
-                  <li>Weight management blocks</li>
-                  <li>Coach review checkpoints</li>
-                </ul>
-              </div>
+              <footer>
+                <button type="button" class="ghost" id="plannerLibraryCancelBtn">Close</button>
+              </footer>
             </div>
           </div>
         </div>
@@ -2277,6 +1930,7 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260325b"></script>
+  <script src="app.js?v=20260326a"></script>
+  <script src="coach-planner.js?v=20260326a"></script>
 </body>
 </html>

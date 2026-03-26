@@ -7960,7 +7960,7 @@ const panels = {
 const COACH_ROUTE_PANELS = {
   "coach-home": ["dashboard", "coach-profile"],
   "coach-athletes": ["athletes", "coach-match", "skills", "journal-monitor", "athlete-notes"],
-  "coach-plans": ["plans", "templates", "media", "assignments", "calendar-manager", "calendar", "completion-tracking"],
+  "coach-plans": ["plans"],
   "coach-competition": ["competition-preview"],
   "coach-messages": ["messages"]
 };
@@ -14729,8 +14729,8 @@ function renderDashboard() {
   quickActions.innerHTML = "";
   const quickActionHandlers = [
     () => focusRoutePanel("athletes", { selector: "#athleteSearchInput", selectText: true }),
-    () => focusRoutePanel("plans", { selector: "#planTitleInput", selectText: true }),
-    () => focusRoutePanel("plans", { selector: "#savePlanAssignBtn" }),
+    () => focusRoutePanel("plans", { selector: "#plannerDateInput", selectText: true }),
+    () => focusRoutePanel("plans", { selector: "#plannerOpenLibraryBtn" }),
     () => focusRoutePanel("competition-preview")
   ];
   getQuickActionsData().forEach((action, index) => {
