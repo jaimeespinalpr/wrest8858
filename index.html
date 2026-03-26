@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Teko:wght@500;600;700&display=swap"
     rel="stylesheet"
   >
-  <link rel="stylesheet" href="styles.css?v=20260321m" >
+  <link rel="stylesheet" href="styles.css?v=20260325b" >
 </head>
 
 <body>
@@ -1244,6 +1244,107 @@
             <button type="button" id="savePlanAssignBtn">Save Plan + Assign</button>
             <span class="small muted" id="planSaveStatus"></span>
           </div>
+
+          <div class="mini-card training-builder-card" id="trainingBuilderCard">
+            <div class="card-header compact-card-header">
+              <div>
+                <p class="eyebrow">Training Builder</p>
+                <h3 id="tbSectionTitle">Practice Builder</h3>
+                <p class="small muted" id="tbSectionSubtitle">Build the training day with reusable blocks, templates, athlete completion, and week view.</p>
+              </div>
+              <div class="row">
+                <button type="button" id="tbApplyToPlanBtn" class="primary">Apply to Create Plan</button>
+              </div>
+            </div>
+
+            <div class="training-builder-brand-grid">
+              <label class="plan-inline-select">
+                <span>Brand</span>
+                <input id="tbBrandTitleInput" type="text" value="Wrestling Performance Lab">
+              </label>
+              <label class="plan-inline-select">
+                <span>Dashboard</span>
+                <input id="tbDashboardTitleInput" type="text" value="Coach Dashboard">
+              </label>
+              <label class="plan-inline-select">
+                <span>Practice title</span>
+                <input id="tbPracticeTitleInput" type="text" value="Monday Neutral Attack Practice">
+              </label>
+              <label class="plan-inline-select">
+                <span>Practice description</span>
+                <textarea id="tbPracticeDescriptionInput" rows="2">Builder visual para armar una práctica usando bloques reutilizables, tiempos, notas y objetivo.</textarea>
+              </label>
+            </div>
+
+            <div class="training-builder-grid">
+              <div class="training-builder-column">
+                <div class="training-builder-panel">
+                  <div class="training-builder-panel-header">
+                    <h4>Templates</h4>
+                    <div class="row">
+                      <button type="button" id="tbTemplateAddBtn" class="ghost">Add</button>
+                      <button type="button" id="tbTemplateRemoveBtn" class="ghost">Remove</button>
+                    </div>
+                  </div>
+                  <div id="tbTemplateList" class="training-builder-list"></div>
+                  <label class="plan-inline-select">
+                    <span>Name</span>
+                    <input id="tbTemplateNameInput" type="text">
+                  </label>
+                  <label class="plan-inline-select">
+                    <span>Blocks</span>
+                    <input id="tbTemplateBlocksInput" type="number" min="1" max="20">
+                  </label>
+                  <label class="plan-inline-select">
+                    <span>Duration</span>
+                    <input id="tbTemplateDurationInput" type="text">
+                  </label>
+                  <label class="plan-inline-select">
+                    <span>Level</span>
+                    <input id="tbTemplateLevelInput" type="text">
+                  </label>
+                </div>
+
+                <div class="training-builder-panel">
+                  <div class="training-builder-panel-header">
+                    <h4>Athlete Completion</h4>
+                  </div>
+                  <div id="tbAthleteList" class="training-builder-list compact"></div>
+                </div>
+
+                <div class="training-builder-panel">
+                  <div class="training-builder-panel-header">
+                    <h4>Library</h4>
+                  </div>
+                  <div id="tbLibraryList" class="training-builder-list compact"></div>
+                </div>
+              </div>
+
+              <div class="training-builder-column wide">
+                <div class="training-builder-panel">
+                  <div class="training-builder-panel-header">
+                    <h4>Practice Blocks</h4>
+                    <div class="row">
+                      <button type="button" id="tbBlockAddBtn" class="ghost">Add block</button>
+                    </div>
+                  </div>
+                  <div id="tbBlockTotalMinutes" class="small muted"></div>
+                  <div id="tbBlockList" class="training-builder-block-list"></div>
+                </div>
+              </div>
+
+              <div class="training-builder-column">
+                <div class="training-builder-panel">
+                  <div class="training-builder-panel-header">
+                    <h4>Week View</h4>
+                  </div>
+                  <div id="tbWeekList" class="training-builder-list"></div>
+                </div>
+                <div id="tbStatus" class="small muted"></div>
+              </div>
+            </div>
+          </div>
+
           <div class="subtabs" role="tablist" aria-label="Plan scope">
             <button type="button" class="subtab active" data-subtab="plan-daily">Daily</button>
             <button type="button" class="subtab" data-subtab="plan-weekly">Weekly</button>
@@ -2176,6 +2277,6 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260325a"></script>
+  <script src="app.js?v=20260325b"></script>
 </body>
 </html>
