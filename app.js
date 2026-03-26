@@ -8244,6 +8244,384 @@ let planAssignMode = "single";
 let planAssignedAthletes = [];
 let planAssignedGroup = "varsity";
 
+const tbSectionTitle = document.getElementById("tbSectionTitle");
+const tbSectionSubtitle = document.getElementById("tbSectionSubtitle");
+const tbBrandTitleInput = document.getElementById("tbBrandTitleInput");
+const tbDashboardTitleInput = document.getElementById("tbDashboardTitleInput");
+const tbPracticeTitleInput = document.getElementById("tbPracticeTitleInput");
+const tbPracticeDescriptionInput = document.getElementById("tbPracticeDescriptionInput");
+const tbTemplateList = document.getElementById("tbTemplateList");
+const tbTemplateNameInput = document.getElementById("tbTemplateNameInput");
+const tbTemplateBlocksInput = document.getElementById("tbTemplateBlocksInput");
+const tbTemplateDurationInput = document.getElementById("tbTemplateDurationInput");
+const tbTemplateLevelInput = document.getElementById("tbTemplateLevelInput");
+const tbTemplateAddBtn = document.getElementById("tbTemplateAddBtn");
+const tbTemplateRemoveBtn = document.getElementById("tbTemplateRemoveBtn");
+const tbAthleteList = document.getElementById("tbAthleteList");
+const tbLibraryList = document.getElementById("tbLibraryList");
+const tbBlockList = document.getElementById("tbBlockList");
+const tbBlockAddBtn = document.getElementById("tbBlockAddBtn");
+const tbBlockTotalMinutes = document.getElementById("tbBlockTotalMinutes");
+const tbWeekList = document.getElementById("tbWeekList");
+const tbApplyToPlanBtn = document.getElementById("tbApplyToPlanBtn");
+const tbStatus = document.getElementById("tbStatus");
+const TRAINING_BUILDER_STORAGE_KEY = "wpl_training_builder_state";
+let trainingBuilderBound = false;
+
+function createDefaultTrainingBuilderState() {
+  return {
+    templates: [
+      { name: "Monday Neutral Attack", blocks: 6, duration: "95 min", level: "Varsity" },
+      { name: "Top Pressure Series", blocks: 5, duration: "80 min", level: "JV" },
+      { name: "Pre-Match Light Session", blocks: 4, duration: "55 min", level: "All Levels" }
+    ],
+    athletes: [
+      { name: "Ethan Cruz", status: "Complete", progress: 100 },
+      { name: "Jayden Morales", status: "In Progress", progress: 68 },
+      { name: "Luis Romero", status: "Not Started", progress: 12 },
+      { name: "Noah Castillo", status: "Complete", progress: 100 }
+    ],
+    library: [
+      { title: "Warm-up Movement Flow", type: "Drill", tag: "Mobility" },
+      { title: "Single Leg Finish Series", type: "Video", tag: "Neutral" },
+      { title: "Top Pressure Spiral Ride", type: "Drill", tag: "Top" },
+      { title: "Live Go x 6", type: "Note", tag: "Conditioning" },
+      { title: "Sled Push + Med Ball", type: "Strength", tag: "Explosive" }
+    ],
+    blocks: [
+      { phase: "Warm-up", title: "Movement Flow", time: "10 min", note: "Raise temperature and activate hips." },
+      { phase: "Technique", title: "Single Leg Finish Series", time: "15 min", note: "Sharp entries and clean finishes." },
+      { phase: "Drill", title: "Top Pressure Spiral Ride", time: "12 min", note: "Heavy hips and forward pressure." },
+      { phase: "Live", title: "Go x 6", time: "12 min", note: "Fast pace, short goes." },
+      { phase: "Conditioning", title: "Sled Push + Med Ball", time: "15 min", note: "Explosive finish to practice." }
+    ],
+    week: [
+      { day: "Mon", title: "Neutral Attack", note: "High pace" },
+      { day: "Tue", title: "Recovery / Film", note: "Light day" },
+      { day: "Wed", title: "Top & Bottom", note: "Technique focus" },
+      { day: "Thu", title: "Live Situations", note: "Competition pace" },
+      { day: "Fri", title: "Pre-Match Session", note: "Short + sharp" }
+    ],
+    brandTitle: "Wrestling Performance Lab",
+    dashboardTitle: "Coach Dashboard",
+    practiceTitle: "Monday Neutral Attack Practice",
+    practiceDescription: "Builder visual para armar una practica usando bloques reutilizables, tiempos, notas y objetivo.",
+    selectedTemplate: 0,
+    selectedAthlete: 0,
+    selectedLibrary: 0,
+    selectedDay: 0
+  };
+}
+
+function cloneTrainingBuilderState(state = createDefaultTrainingBuilderState()) {
+  return {
+    ...state,
+    templates: (state.templates || []).map((entry) => ({ ...entry })),
+    athletes: (state.athletes || []).map((entry) => ({ ...entry })),
+    library: (state.library || []).map((entry) => ({ ...entry })),
+    blocks: (state.blocks || []).map((entry) => ({ ...entry })),
+    week: (state.week || []).map((entry) => ({ ...entry }))
+  };
+}
+
+function normalizeTrainingBuilderIndex(index, list = []) {
+  const size = Array.isArray(list) ? list.length : 0;
+  if (!size) return 0;
+  const parsed = Number(index);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.min(size - 1, Math.floor(parsed)));
+}
+
+function loadTrainingBuilderState() {
+  const fallback = createDefaultTrainingBuilderState();
+  try {
+    const raw = localStorage.getItem(TRAINING_BUILDER_STORAGE_KEY);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return fallback;
+    const merged = {
+      ...fallback,
+      ...parsed,
+      templates: Array.isArray(parsed.templates) && parsed.templates.length ? parsed.templates : fallback.templates,
+      athletes: Array.isArray(parsed.athletes) && parsed.athletes.length ? parsed.athletes : fallback.athletes,
+      library: Array.isArray(parsed.library) && parsed.library.length ? parsed.library : fallback.library,
+      blocks: Array.isArray(parsed.blocks) && parsed.blocks.length ? parsed.blocks : fallback.blocks,
+      week: Array.isArray(parsed.week) && parsed.week.length ? parsed.week : fallback.week
+    };
+    merged.selectedTemplate = normalizeTrainingBuilderIndex(merged.selectedTemplate, merged.templates);
+    merged.selectedAthlete = normalizeTrainingBuilderIndex(merged.selectedAthlete, merged.athletes);
+    merged.selectedLibrary = normalizeTrainingBuilderIndex(merged.selectedLibrary, merged.library);
+    merged.selectedDay = normalizeTrainingBuilderIndex(merged.selectedDay, merged.week);
+    return merged;
+  } catch {
+    return fallback;
+  }
+}
+
+let trainingBuilderState = loadTrainingBuilderState();
+
+function persistTrainingBuilderState() {
+  try {
+    localStorage.setItem(TRAINING_BUILDER_STORAGE_KEY, JSON.stringify(trainingBuilderState));
+  } catch {
+    // ignore persistence errors
+  }
+}
+
+function getTrainingBuilderTotalMinutes() {
+  return (trainingBuilderState.blocks || []).reduce((sum, block) => {
+    const parsed = parseInt(String(block?.time || "").replace(/[^0-9]/g, ""), 10);
+    return sum + (Number.isFinite(parsed) ? parsed : 0);
+  }, 0);
+}
+
+function updateTrainingBuilderStatus(message = "", { error = false } = {}) {
+  if (!tbStatus) return;
+  tbStatus.textContent = message;
+  tbStatus.dataset.state = error ? "error" : "";
+}
+
+function renderTrainingBuilderTemplateDetails() {
+  const current = trainingBuilderState.templates[trainingBuilderState.selectedTemplate] || null;
+  if (!tbTemplateNameInput || !tbTemplateBlocksInput || !tbTemplateDurationInput || !tbTemplateLevelInput) return;
+  tbTemplateNameInput.value = current?.name || "";
+  tbTemplateBlocksInput.value = current?.blocks != null ? String(current.blocks) : "";
+  tbTemplateDurationInput.value = current?.duration || "";
+  tbTemplateLevelInput.value = current?.level || "";
+}
+
+function renderTrainingBuilderLists() {
+  if (tbTemplateList) {
+    tbTemplateList.innerHTML = "";
+    trainingBuilderState.templates.forEach((template, index) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = `training-builder-item${index === trainingBuilderState.selectedTemplate ? " active" : ""}`;
+      item.innerHTML = `<strong>${escapeHtml(template.name || "Template")}</strong><small>${escapeHtml(`${template.blocks || 0} blocks • ${template.duration || "0 min"} • ${template.level || "-"}`)}</small>`;
+      item.addEventListener("click", () => {
+        trainingBuilderState.selectedTemplate = index;
+        renderTrainingBuilder();
+      });
+      tbTemplateList.appendChild(item);
+    });
+  }
+
+  if (tbAthleteList) {
+    tbAthleteList.innerHTML = "";
+    trainingBuilderState.athletes.forEach((athlete, index) => {
+      const item = document.createElement("div");
+      item.className = `training-builder-item${index === trainingBuilderState.selectedAthlete ? " active" : ""}`;
+      item.innerHTML = `<strong>${escapeHtml(athlete.name || "Athlete")}</strong><small>${escapeHtml(`${athlete.status || "-"} • ${athlete.progress || 0}%`)}</small><div class="training-builder-progress"><span style="width:${Math.max(0, Math.min(100, Number(athlete.progress || 0)))}%"></span></div>`;
+      item.addEventListener("click", () => {
+        trainingBuilderState.selectedAthlete = index;
+        renderTrainingBuilder();
+      });
+      tbAthleteList.appendChild(item);
+    });
+  }
+
+  if (tbLibraryList) {
+    tbLibraryList.innerHTML = "";
+    trainingBuilderState.library.forEach((entry, index) => {
+      const item = document.createElement("div");
+      item.className = `training-builder-item${index === trainingBuilderState.selectedLibrary ? " active" : ""}`;
+      item.innerHTML = `<strong>${escapeHtml(entry.title || "Library item")}</strong><small>${escapeHtml(`${entry.type || "Item"} • ${entry.tag || "-"}`)}</small>`;
+      item.addEventListener("click", () => {
+        trainingBuilderState.selectedLibrary = index;
+        renderTrainingBuilder();
+      });
+      tbLibraryList.appendChild(item);
+    });
+  }
+
+  if (tbWeekList) {
+    tbWeekList.innerHTML = "";
+    trainingBuilderState.week.forEach((entry, index) => {
+      const wrap = document.createElement("div");
+      wrap.className = `training-builder-item${index === trainingBuilderState.selectedDay ? " active" : ""}`;
+      wrap.innerHTML = `
+        <strong>${escapeHtml(entry.day || "Day")} • ${escapeHtml(entry.title || "-")}</strong>
+        <small>${escapeHtml(entry.note || "")}</small>
+      `;
+      const row = document.createElement("div");
+      row.className = "training-builder-block-grid";
+      row.innerHTML = `
+        <input type="text" data-field="day" value="${escapeHtml(entry.day || "")}">
+        <input type="text" data-field="title" value="${escapeHtml(entry.title || "")}">
+        <input type="text" data-field="note" value="${escapeHtml(entry.note || "")}">
+      `;
+      row.querySelectorAll("input").forEach((input) => {
+        input.addEventListener("input", () => {
+          trainingBuilderState.week[index][input.dataset.field] = input.value;
+          trainingBuilderState.selectedDay = index;
+          persistTrainingBuilderState();
+          renderTrainingBuilder();
+        });
+      });
+      wrap.appendChild(row);
+      wrap.addEventListener("click", () => {
+        trainingBuilderState.selectedDay = index;
+        renderTrainingBuilder();
+      });
+      tbWeekList.appendChild(wrap);
+    });
+  }
+}
+
+function renderTrainingBuilderBlocks() {
+  if (!tbBlockList) return;
+  tbBlockList.innerHTML = "";
+  trainingBuilderState.blocks.forEach((block, index) => {
+    const card = document.createElement("article");
+    card.className = "training-builder-block";
+    card.innerHTML = `
+      <div class="training-builder-block-top">
+        <strong>${currentLang === "es" ? `Bloque ${index + 1}` : `Block ${index + 1}`}</strong>
+        <button type="button" class="ghost" data-remove-index="${index}">${currentLang === "es" ? "Eliminar" : "Remove"}</button>
+      </div>
+      <div class="training-builder-block-grid">
+        <input type="text" data-field="phase" value="${escapeHtml(block.phase || "")}">
+        <input type="text" data-field="title" value="${escapeHtml(block.title || "")}">
+        <input type="text" data-field="time" value="${escapeHtml(block.time || "")}">
+      </div>
+      <textarea rows="2" data-field="note">${escapeHtml(block.note || "")}</textarea>
+    `;
+    card.querySelectorAll("input, textarea").forEach((field) => {
+      field.addEventListener("input", () => {
+        const key = field.dataset.field;
+        trainingBuilderState.blocks[index][key] = field.value;
+        persistTrainingBuilderState();
+        renderTrainingBuilder();
+      });
+    });
+    card.querySelector("[data-remove-index]")?.addEventListener("click", () => {
+      trainingBuilderState.blocks = trainingBuilderState.blocks.filter((_, itemIndex) => itemIndex !== index);
+      if (!trainingBuilderState.blocks.length) {
+        trainingBuilderState.blocks = [{ phase: "Technique", title: "New Block", time: "10 min", note: "Coach note here." }];
+      }
+      persistTrainingBuilderState();
+      renderTrainingBuilder();
+    });
+    tbBlockList.appendChild(card);
+  });
+}
+
+function renderTrainingBuilder() {
+  if (!tbBrandTitleInput || !tbDashboardTitleInput || !tbPracticeTitleInput || !tbPracticeDescriptionInput) return;
+  if (tbSectionTitle) tbSectionTitle.textContent = currentLang === "es" ? "Constructor de entrenamiento" : "Practice Builder";
+  if (tbSectionSubtitle) {
+    tbSectionSubtitle.textContent = currentLang === "es"
+      ? "Arma la practica con bloques reutilizables, plantillas, progreso de atletas y vista semanal."
+      : "Build practice with reusable blocks, templates, athlete completion, and week view.";
+  }
+  if (tbApplyToPlanBtn) {
+    tbApplyToPlanBtn.textContent = currentLang === "es" ? "Aplicar a Create Plan" : "Apply to Create Plan";
+  }
+  tbBrandTitleInput.value = trainingBuilderState.brandTitle || "";
+  tbDashboardTitleInput.value = trainingBuilderState.dashboardTitle || "";
+  tbPracticeTitleInput.value = trainingBuilderState.practiceTitle || "";
+  tbPracticeDescriptionInput.value = trainingBuilderState.practiceDescription || "";
+  renderTrainingBuilderTemplateDetails();
+  renderTrainingBuilderLists();
+  renderTrainingBuilderBlocks();
+  if (tbBlockTotalMinutes) {
+    const total = getTrainingBuilderTotalMinutes();
+    tbBlockTotalMinutes.textContent = currentLang === "es"
+      ? `Tiempo total estimado: ${total} min`
+      : `Estimated total time: ${total} min`;
+  }
+}
+
+function getTrainingBuilderPayload() {
+  return cloneTrainingBuilderState(trainingBuilderState);
+}
+
+function applyTrainingBuilderToPlan() {
+  if (planTitleInput) planTitleInput.value = String(trainingBuilderState.practiceTitle || "").trim();
+  if (planFocusInput) planFocusInput.value = String(trainingBuilderState.practiceDescription || "").trim();
+  const blockSummary = trainingBuilderState.blocks
+    .map((block) => `${block.phase || "Block"} - ${block.title || ""} (${block.time || ""})${block.note ? `: ${block.note}` : ""}`.trim())
+    .filter(Boolean)
+    .join("\n");
+  if (planNotesInput) planNotesInput.value = blockSummary;
+  if (planMonthlyNotes) {
+    planMonthlyNotes.value = trainingBuilderState.week
+      .map((entry) => `${entry.day || ""}: ${entry.title || ""}${entry.note ? ` - ${entry.note}` : ""}`.trim())
+      .filter(Boolean)
+      .join("\n");
+  }
+  clearPlanSaveStatus();
+  updateTrainingBuilderStatus(
+    currentLang === "es" ? "Contenido aplicado a Create Plan." : "Builder content applied to Create Plan."
+  );
+}
+
+function bindTrainingBuilderEvents() {
+  if (trainingBuilderBound) return;
+  const simpleFields = [
+    [tbBrandTitleInput, "brandTitle"],
+    [tbDashboardTitleInput, "dashboardTitle"],
+    [tbPracticeTitleInput, "practiceTitle"],
+    [tbPracticeDescriptionInput, "practiceDescription"]
+  ];
+  simpleFields.forEach(([input, key]) => {
+    if (!input) return;
+    input.addEventListener("input", () => {
+      trainingBuilderState[key] = input.value;
+      persistTrainingBuilderState();
+    });
+  });
+
+  const templateFields = [
+    [tbTemplateNameInput, "name"],
+    [tbTemplateBlocksInput, "blocks"],
+    [tbTemplateDurationInput, "duration"],
+    [tbTemplateLevelInput, "level"]
+  ];
+  templateFields.forEach(([input, key]) => {
+    if (!input) return;
+    input.addEventListener("input", () => {
+      const index = normalizeTrainingBuilderIndex(trainingBuilderState.selectedTemplate, trainingBuilderState.templates);
+      if (!trainingBuilderState.templates[index]) return;
+      trainingBuilderState.templates[index][key] = key === "blocks" ? Number(input.value || 0) : input.value;
+      persistTrainingBuilderState();
+      renderTrainingBuilder();
+    });
+  });
+
+  tbTemplateAddBtn?.addEventListener("click", () => {
+    trainingBuilderState.templates.push({ name: "New Template", blocks: 4, duration: "60 min", level: "All Levels" });
+    trainingBuilderState.selectedTemplate = trainingBuilderState.templates.length - 1;
+    persistTrainingBuilderState();
+    renderTrainingBuilder();
+  });
+
+  tbTemplateRemoveBtn?.addEventListener("click", () => {
+    if (trainingBuilderState.templates.length <= 1) return;
+    trainingBuilderState.templates = trainingBuilderState.templates.filter((_, index) => index !== trainingBuilderState.selectedTemplate);
+    trainingBuilderState.selectedTemplate = normalizeTrainingBuilderIndex(trainingBuilderState.selectedTemplate, trainingBuilderState.templates);
+    persistTrainingBuilderState();
+    renderTrainingBuilder();
+  });
+
+  tbBlockAddBtn?.addEventListener("click", () => {
+    trainingBuilderState.blocks.push({ phase: "New Phase", title: "New Block", time: "10 min", note: "Coach note here." });
+    persistTrainingBuilderState();
+    renderTrainingBuilder();
+  });
+
+  tbApplyToPlanBtn?.addEventListener("click", () => {
+    applyTrainingBuilderToPlan();
+  });
+  trainingBuilderBound = true;
+}
+
+function initializeTrainingBuilder() {
+  if (!tbBlockList) return;
+  bindTrainingBuilderEvents();
+  renderTrainingBuilder();
+}
+
 const PLAN_SOURCE_LIBRARY = {
   scratch: {
     label: { en: "From scratch", es: "Desde cero" },
@@ -8706,6 +9084,7 @@ function buildCoachPlanDraft() {
     items: normalizePlanItems(collectDailySelections()),
     monthlyNotes: String(planMonthlyNotes?.value || "").trim() || String(sourceRecord?.monthlyNotes || "").trim(),
     seasonYear: String(seasonYearSelect?.value || "").trim(),
+    trainingBuilder: getTrainingBuilderPayload(),
     audience: getCurrentPlanAudience(),
     createdBy: String(getProfile()?.name || getAuthUser()?.email || "").trim(),
     updatedBy: String(getProfile()?.name || getAuthUser()?.email || "").trim()
@@ -9086,6 +9465,7 @@ function initializePlanSelectors() {
     updateRangeInputsFromSelection();
     renderPlanSourceControls();
     renderPlanAssignControls();
+    initializeTrainingBuilder();
 }
 
 function toIsoDate(date) {

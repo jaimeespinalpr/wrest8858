@@ -7276,3 +7276,138 @@ svg{
 .messages-whatsapp-card .message-bubble.own .message-bubble-body{
   color: #f6fbff !important;
 }
+
+.training-builder-card{
+  margin-top: 14px;
+}
+
+.training-builder-brand-grid{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0 14px;
+}
+
+.training-builder-grid{
+  display: grid;
+  grid-template-columns: 1fr 1.4fr 1fr;
+  gap: 12px;
+}
+
+.training-builder-column{
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.training-builder-column.wide{
+  min-width: 0;
+}
+
+.training-builder-panel{
+  border: 1px solid rgba(109, 139, 191, 0.22);
+  border-radius: 16px;
+  padding: 10px;
+  background: rgba(9, 18, 33, 0.64);
+}
+
+.training-builder-panel-header{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.training-builder-panel-header h4{
+  margin: 0;
+  font-size: 0.96rem;
+}
+
+.training-builder-list{
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.training-builder-list.compact{
+  margin-bottom: 0;
+}
+
+.training-builder-item{
+  border: 1px solid rgba(109, 139, 191, 0.26);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: rgba(15, 28, 49, 0.72);
+  cursor: pointer;
+}
+
+.training-builder-item.active{
+  border-color: rgba(91, 145, 255, 0.48);
+  background: rgba(30, 54, 95, 0.92);
+}
+
+.training-builder-item strong{
+  display: block;
+  line-height: 1.2;
+}
+
+.training-builder-item small{
+  display: block;
+  color: #98add0;
+  line-height: 1.25;
+}
+
+.training-builder-progress{
+  margin-top: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.training-builder-progress > span{
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #4f7cff, #2dd4bf);
+}
+
+.training-builder-block-list{
+  display: grid;
+  gap: 8px;
+}
+
+.training-builder-block{
+  border: 1px solid rgba(109, 139, 191, 0.26);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(16, 30, 53, 0.82);
+  display: grid;
+  gap: 8px;
+}
+
+.training-builder-block-top{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.training-builder-block-grid{
+  display: grid;
+  grid-template-columns: 0.9fr 1.5fr 0.7fr;
+  gap: 8px;
+}
+
+.training-builder-block textarea{
+  min-height: 64px;
+}
+
+@media (max-width: 980px){
+  .training-builder-brand-grid{
+    grid-template-columns: 1fr;
+  }
+  .training-builder-grid{
+    grid-template-columns: 1fr;
+  }
+}
