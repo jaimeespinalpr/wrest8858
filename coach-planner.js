@@ -105,7 +105,9 @@
     openLibraryBtn: document.getElementById("plannerOpenLibraryBtn"),
     printBtn: document.getElementById("plannerPrintBtn"),
     dateInput: document.getElementById("plannerDateInput"),
+    datePrintValue: document.getElementById("plannerDatePrintValue"),
     totalTimeInput: document.getElementById("plannerTotalTimeInput"),
+    totalTimePrintValue: document.getElementById("plannerTotalTimePrintValue"),
     rows: document.getElementById("plannerRows"),
     footerClub: document.getElementById("plannerFooterClub"),
     footerCoach: document.getElementById("plannerFooterCoach"),
@@ -166,6 +168,17 @@
   function parseTimeValue(value) {
     const parsed = parseInt(String(value || "0"), 10);
     return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function formatDateForPrint(value) {
+    if (!value) return "--";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric"
+    });
   }
 
   function getUsedTime() {
@@ -383,6 +396,7 @@
                 rows="1"
                 placeholder="Type drill here..."
               >${escapeHtml(item.name)}</textarea>
+              <div class="planner-item-print-text">${escapeHtml(item.name || "-")}</div>
               <button type="button" class="ghost" data-action="remove-item" data-category="${category.id}" data-item-id="${item.id}">Delete</button>
             </li>
           `;
@@ -409,6 +423,7 @@
               data-action="time-input"
               data-category="${category.id}"
               value="${escapeHtml(state.categoryTimes[category.id] || "0")}" />
+            <div class="planner-time-print-text">${escapeHtml(state.categoryTimes[category.id] || "0")} min</div>
           </td>
         </tr>
       `;
@@ -430,6 +445,13 @@
   function render() {
     if (els.dateInput) els.dateInput.value = state.docInfo.date || "";
     if (els.totalTimeInput) els.totalTimeInput.value = state.docInfo.totalTime || "90";
+    if (els.datePrintValue) {
+      els.datePrintValue.textContent = formatDateForPrint(state.docInfo.date);
+    }
+    if (els.totalTimePrintValue) {
+      const total = Math.max(1, parseTimeValue(state.docInfo.totalTime || "90"));
+      els.totalTimePrintValue.textContent = `${total} min`;
+    }
     updateFooter();
     updateLogos();
     renderCategorySelectOptions();

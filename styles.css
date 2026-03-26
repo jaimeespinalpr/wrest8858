@@ -7573,6 +7573,12 @@ svg{
   font-weight: 900;
 }
 
+.planner-print-value,
+.planner-item-print-text,
+.planner-time-print-text{
+  display: none;
+}
+
 .planner-table-wrap{
   overflow-x: auto;
   border-radius: 10px;
@@ -7886,9 +7892,42 @@ svg{
     color: #111 !important;
   }
   .planner-items-list textarea{
+    display: none !important;
     border: 0 !important;
     background: transparent !important;
     color: #111 !important;
     padding: 0 !important;
+  }
+  .planner-meta-boxes input,
+  .planner-time-cell input{
+    display: none !important;
+  }
+  .planner-print-value,
+  .planner-item-print-text,
+  .planner-time-print-text{
+    display: block !important;
+    color: #111 !important;
+    background: transparent !important;
+  }
+  .planner-print-value{
+    font-size: 12pt;
+    font-weight: 700;
+    min-height: 20px;
+    padding-top: 2px;
+  }
+  .planner-items-list li{
+    display: block !important;
+    margin: 0 0 4px 0;
+  }
+  .planner-item-print-text{
+    white-space: pre-wrap;
+    line-height: 1.35;
+    font-size: 11pt;
+  }
+  .planner-time-print-text{
+    text-align: center;
+    font-weight: 800;
+    font-size: 12pt;
+    padding-top: 8px;
   }
 }
