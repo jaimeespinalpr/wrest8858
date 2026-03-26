@@ -7531,9 +7531,46 @@ svg{
 
 .planner-meta-boxes label{
   display: grid;
-  gap: 5px;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(124, 147, 183, 0.28);
+  background: rgba(12, 25, 45, 0.84);
   font-weight: 600;
   color: #dce8f8;
+}
+
+.planner-meta-boxes label > span{
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #b7c9e4;
+}
+
+.planner-meta-boxes input{
+  min-height: 56px;
+  border-radius: 12px;
+  border: 1px solid rgba(154, 177, 211, 0.34);
+  background: rgba(6, 16, 33, 0.92);
+  font-size: clamp(1rem, 1.8vw, 1.25rem);
+  font-weight: 700;
+  color: #f3f8ff;
+  padding: 8px 12px;
+  color-scheme: dark;
+}
+
+#plannerDateInput{
+  letter-spacing: 0.02em;
+}
+
+#plannerDateInput::-webkit-calendar-picker-indicator{
+  opacity: 0.9;
+}
+
+#plannerTotalTimeInput{
+  text-align: center;
+  font-size: clamp(1.2rem, 2.2vw, 1.5rem);
+  font-weight: 900;
 }
 
 .planner-table-wrap{
@@ -7610,6 +7647,9 @@ svg{
 .planner-time-cell input{
   width: 100%;
   text-align: center;
+  min-height: 58px;
+  font-size: 1.24rem;
+  font-weight: 800;
 }
 
 .planner-footer{
