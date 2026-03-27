@@ -125,6 +125,10 @@
     librarySyncTimer: null,
     categoryDrafts: {},
     pendingLibraryFocus: "",
+    templateRecords: [],
+    activeTemplateId: "",
+    activeTemplateName: "",
+    templateSaveBusy: false,
     assignAthletes: [],
     selectedAthleteIds: [],
     assignSearch: "",
@@ -150,6 +154,7 @@
     timeLabel: document.getElementById("plannerTimeLabel"),
     openSettingsBtn: document.getElementById("plannerOpenSettingsBtn"),
     openLibraryBtn: document.getElementById("plannerOpenLibraryBtn"),
+    loadTemplateBtn: document.getElementById("plannerLoadTemplateBtn"),
     saveTemplateTopBtn: document.getElementById("plannerSaveTemplateTopBtn"),
     sendAthletesTopBtn: document.getElementById("plannerSendAthletesTopBtn"),
     printBtn: document.getElementById("plannerPrintBtn"),
@@ -192,6 +197,12 @@
     saveTemplateBtn: document.getElementById("plannerSaveTemplateBtn"),
     sendAthletesBtn: document.getElementById("plannerSendAthletesBtn"),
     bottomStatus: document.getElementById("plannerBottomStatus"),
+    templatesModal: document.getElementById("plannerTemplatesModal"),
+    templatesCloseBtn: document.getElementById("plannerTemplatesCloseBtn"),
+    templatesCancelBtn: document.getElementById("plannerTemplatesCancelBtn"),
+    templatesRefreshBtn: document.getElementById("plannerTemplatesRefreshBtn"),
+    templatesStatus: document.getElementById("plannerTemplatesStatus"),
+    templatesList: document.getElementById("plannerTemplatesList"),
     assignModal: document.getElementById("plannerAssignModal"),
     assignCloseBtn: document.getElementById("plannerAssignCloseBtn"),
     assignCancelBtn: document.getElementById("plannerAssignCancelBtn"),
@@ -437,6 +448,13 @@
     els.bottomStatus.classList.toggle("planner-status-error", Boolean(isError));
   }
 
+  function getBottomStatusDefaultMessage() {
+    if (state.activeTemplateName) {
+      return `Editing template: ${state.activeTemplateName}`;
+    }
+    return "Save as template or send this training to athletes.";
+  }
+
   function setAssignStatus(message, isError = false) {
     if (!els.assignStatus) return;
     els.assignStatus.textContent = String(message || "");
@@ -470,6 +488,224 @@
       ...getScheduleItemsByCategory("announcements")
     ];
     return { intro, warmup, drills, live, cooldown, announcements };
+  }
+
+  function serializePlannerSchedule() {
+    const next = {};
+    CATEGORIES.forEach((category) => {
+      next[category.id] = (state.schedule[category.id] || [])
+        .map((entry) => String(entry?.name || "").trim())
+        .filter(Boolean);
+    });
+    return next;
+  }
+
+  function normalizeTemplateScheduleValue(value) {
+    const next = {};
+    CATEGORIES.forEach((category) => {
+      const list = Array.isArray(value?.[category.id]) ? value[category.id] : [];
+      next[category.id] = list
+        .map((item) => {
+          if (typeof item === "string") return item.trim();
+          return String(item?.name || "").trim();
+        })
+        .filter(Boolean)
+        .map((name) => ({ id: makeId(), name }));
+    });
+    return next;
+  }
+
+  function mapTemplateItemsToSchedule(items = {}) {
+    const categoryLists = {
+      roll_call: Array.isArray(items.intro) ? items.intro : [],
+      warm_up: Array.isArray(items.warmup) ? items.warmup : [],
+      techniques: Array.isArray(items.drills) ? items.drills : [],
+      live_wrestling: Array.isArray(items.live) ? items.live : [],
+      strength: [],
+      cool_down: Array.isArray(items.cooldown) ? items.cooldown : [],
+      announcements: Array.isArray(items.announcements) ? items.announcements : []
+    };
+    return normalizeTemplateScheduleValue(categoryLists);
+  }
+
+  function normalizeTemplateTimesValue(value) {
+    const base = { ...INITIAL_TIMES };
+    if (!value || typeof value !== "object") return base;
+    CATEGORIES.forEach((category) => {
+      const raw = String(value?.[category.id] ?? "").trim();
+      if (raw) base[category.id] = raw;
+    });
+    return base;
+  }
+
+  function normalizeTemplateCategoryNamesValue(value) {
+    const base = getDefaultCategoryNames();
+    if (!value || typeof value !== "object") return base;
+    CATEGORIES.forEach((category) => {
+      const label = String(value?.[category.id] || "").trim();
+      if (label) base[category.id] = label;
+    });
+    return base;
+  }
+
+  function normalizeTemplateItemsValue(value) {
+    const normalized = {
+      intro: [],
+      warmup: [],
+      drills: [],
+      live: [],
+      cooldown: [],
+      announcements: []
+    };
+    Object.keys(normalized).forEach((key) => {
+      normalized[key] = Array.isArray(value?.[key]) ? value[key].map((item) => String(item || "").trim()).filter(Boolean) : [];
+    });
+    return normalized;
+  }
+
+  function normalizeTemplateDateValue(value) {
+    if (!value) return "";
+    if (typeof value?.toDate === "function") {
+      try {
+        return value.toDate().toISOString();
+      } catch {
+        return "";
+      }
+    }
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toISOString();
+  }
+
+  function normalizePlannerTemplateRecord(id, data = {}) {
+    const name = String(data?.name || "").trim();
+    if (!name) return null;
+    const items = normalizeTemplateItemsValue(data?.items || {});
+    const schedule = data?.plannerSchedule && typeof data.plannerSchedule === "object"
+      ? normalizeTemplateScheduleValue(data.plannerSchedule)
+      : mapTemplateItemsToSchedule(items);
+    return {
+      id: String(id || "").trim(),
+      name,
+      type: String(data?.type || "day").trim(),
+      items,
+      schedule,
+      categoryTimes: normalizeTemplateTimesValue(data?.plannerCategoryTimes || {}),
+      categoryNames: normalizeTemplateCategoryNamesValue(data?.plannerCategoryNames || {}),
+      totalTime: String(data?.plannerTotalTime || "").trim(),
+      savedDate: String(data?.plannerDate || "").trim(),
+      updatedAt: normalizeTemplateDateValue(data?.updatedAt),
+      createdAt: normalizeTemplateDateValue(data?.createdAt)
+    };
+  }
+
+  function formatTemplateUpdatedLabel(record) {
+    const raw = record?.updatedAt || record?.createdAt || "";
+    if (!raw) return "No date";
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return "No date";
+    return date.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit"
+    });
+  }
+
+  function setTemplatesStatus(message, isError = false) {
+    if (!els.templatesStatus) return;
+    els.templatesStatus.textContent = String(message || "");
+    els.templatesStatus.classList.toggle("planner-status-error", Boolean(isError));
+  }
+
+  function renderTemplateList() {
+    if (!els.templatesList) return;
+    if (!state.templateRecords.length) {
+      els.templatesList.innerHTML = `<p class="small muted">No templates found yet.</p>`;
+      return;
+    }
+    const html = state.templateRecords.map((template) => {
+      const isActive = template.id && template.id === state.activeTemplateId;
+      return `
+        <article class="planner-template-card${isActive ? " active" : ""}">
+          <div>
+            <strong>${escapeHtml(template.name)}</strong>
+            <p class="small muted">Updated: ${escapeHtml(formatTemplateUpdatedLabel(template))}</p>
+          </div>
+          <button
+            type="button"
+            class="primary"
+            data-action="load-template-record"
+            data-template-id="${escapeHtml(template.id)}"
+          >Load</button>
+        </article>
+      `;
+    }).join("");
+    els.templatesList.innerHTML = html;
+  }
+
+  async function loadPlannerTemplates() {
+    const templatesRef = getPlannerWorkspaceCollectionRef("templates");
+    if (!templatesRef) {
+      state.templateRecords = [];
+      renderTemplateList();
+      setTemplatesStatus("Template storage is not available.", true);
+      return;
+    }
+    try {
+      setTemplatesStatus("Loading templates...");
+      const snap = await templatesRef.get();
+      state.templateRecords = snap.docs
+        .map((doc) => normalizePlannerTemplateRecord(doc.id, doc.data() || {}))
+        .filter(Boolean)
+        .sort((left, right) => {
+          const leftDate = Number(new Date(left.updatedAt || left.createdAt || 0));
+          const rightDate = Number(new Date(right.updatedAt || right.createdAt || 0));
+          return rightDate - leftDate;
+        });
+      renderTemplateList();
+      setTemplatesStatus(state.templateRecords.length ? `${state.templateRecords.length} templates loaded.` : "No templates found.");
+    } catch (err) {
+      console.warn("Failed to load planner templates", err);
+      state.templateRecords = [];
+      renderTemplateList();
+      setTemplatesStatus("Could not load templates right now.", true);
+    }
+  }
+
+  function openTemplatesModal() {
+    els.templatesModal?.classList.remove("hidden");
+    loadPlannerTemplates().catch(() => {});
+  }
+
+  function closeTemplatesModal() {
+    els.templatesModal?.classList.add("hidden");
+  }
+
+  function applyTemplateToPlanner(templateId) {
+    const targetId = String(templateId || "").trim();
+    const template = state.templateRecords.find((record) => record.id === targetId);
+    if (!template) {
+      setTemplatesStatus("Template not found.", true);
+      return;
+    }
+    state.activeTemplateId = template.id;
+    state.activeTemplateName = template.name;
+    state.schedule = normalizeTemplateScheduleValue(template.schedule || {});
+    state.categoryTimes = normalizeTemplateTimesValue(template.categoryTimes || {});
+    state.categoryNames = normalizeTemplateCategoryNamesValue(template.categoryNames || {});
+    if (template.totalTime) {
+      state.docInfo.totalTime = String(template.totalTime).trim();
+    }
+    persistDaily();
+    persistCategoryNames();
+    render();
+    closeTemplatesModal();
+    triggerToast(`Template loaded: ${template.name}`);
+    setBottomStatus(`Loaded template: ${template.name}`);
   }
 
   function getPlannerTitle() {
@@ -582,15 +818,30 @@
   }
 
   async function savePlannerAsTemplate() {
-    if (state.assignModalBusy) return;
+    if (state.templateSaveBusy || state.assignModalBusy) return;
     const templatesRef = getPlannerWorkspaceCollectionRef("templates");
     if (!templatesRef) {
       setBottomStatus("Template storage is not available.", true);
       return;
     }
 
-    const defaultName = `Template - ${formatDateLabel(state.docInfo.date || getTodayDateKey())}`;
-    const nextName = window.prompt("Template name", defaultName);
+    let saveAsNew = true;
+    let targetId = "";
+    let defaultName = `Template - ${formatDateLabel(state.docInfo.date || getTodayDateKey())}`;
+
+    if (state.activeTemplateId) {
+      const useCurrent = window.confirm(`Save changes to current template "${state.activeTemplateName}"?\nPress Cancel to save as a new template.`);
+      if (useCurrent) {
+        saveAsNew = false;
+        targetId = state.activeTemplateId;
+        defaultName = state.activeTemplateName || defaultName;
+      } else if (state.activeTemplateName) {
+        defaultName = `${state.activeTemplateName} copy`;
+      }
+    }
+
+    const namePrompt = saveAsNew ? "Template name (new)" : "Template name";
+    const nextName = window.prompt(namePrompt, defaultName);
     if (nextName == null) return;
     const cleanName = String(nextName || "").trim();
     if (!cleanName) {
@@ -598,6 +849,7 @@
       return;
     }
 
+    state.templateSaveBusy = true;
     const timestamp = getPlannerTimestamp();
     const payload = {
       name: cleanName,
@@ -605,22 +857,39 @@
       focus: `${Math.max(1, parseTimeValue(state.docInfo.totalTime || "90"))} min practice flow`,
       coachNotes: "Saved from Coach Planner.",
       items: buildPlanItemsFromPlanner(),
+      plannerSchedule: serializePlannerSchedule(),
+      plannerCategoryTimes: { ...state.categoryTimes },
+      plannerCategoryNames: { ...state.categoryNames },
+      plannerTotalTime: String(state.docInfo.totalTime || "90"),
+      plannerDate: String(state.docInfo.date || ""),
       monthlyNotes: "",
       seasonYear: String(state.settings?.season || "").trim(),
       system: false,
-      createdAt: timestamp,
       updatedAt: timestamp
     };
+    if (saveAsNew) {
+      payload.createdAt = timestamp;
+    }
 
     try {
-      const ref = templatesRef.doc();
+      const ref = saveAsNew ? templatesRef.doc() : templatesRef.doc(targetId);
       await ref.set(payload, { merge: true });
+      state.activeTemplateId = ref.id;
+      state.activeTemplateName = cleanName;
       state.lastSavedTemplateId = ref.id;
-      setBottomStatus(`Template saved: ${cleanName}`);
+      const message = saveAsNew
+        ? `Template saved as new: ${cleanName}`
+        : `Template updated: ${cleanName}`;
+      setBottomStatus(message);
       triggerToast("Template saved.");
+      if (!els.templatesModal?.classList.contains("hidden")) {
+        loadPlannerTemplates().catch(() => {});
+      }
     } catch (err) {
       console.warn("Failed to save planner template", err);
       setBottomStatus("Could not save template.", true);
+    } finally {
+      state.templateSaveBusy = false;
     }
   }
 
@@ -1312,7 +1581,7 @@
     renderRows();
     renderLibraryGroups();
     updateTimeStatus();
-    setBottomStatus("Save as template or send this training to athletes.");
+    setBottomStatus(getBottomStatusDefaultMessage());
   }
 
   function handleRootClick(event) {
@@ -1361,6 +1630,10 @@
     }
     if (action === "quick-add-library-item") {
       quickAddLibraryItem(trigger.dataset.category);
+      return;
+    }
+    if (action === "load-template-record") {
+      applyTemplateToPlanner(trigger.dataset.templateId);
     }
   }
 
@@ -1538,8 +1811,14 @@
     });
 
     els.openLibraryBtn?.addEventListener("click", openLibraryModal);
+    els.loadTemplateBtn?.addEventListener("click", openTemplatesModal);
     els.libraryCloseBtn?.addEventListener("click", closeLibraryModal);
     els.libraryCancelBtn?.addEventListener("click", closeLibraryModal);
+    els.templatesCloseBtn?.addEventListener("click", closeTemplatesModal);
+    els.templatesCancelBtn?.addEventListener("click", closeTemplatesModal);
+    els.templatesRefreshBtn?.addEventListener("click", () => {
+      loadPlannerTemplates().catch(() => {});
+    });
     els.saveLibraryItemBtn?.addEventListener("click", saveExerciseToLibrary);
     els.newExerciseNameInput?.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;
@@ -1573,6 +1852,7 @@
         const dismiss = backdrop.dataset.dismiss;
         if (dismiss === "settings") closeSettingsModal();
         if (dismiss === "library") closeLibraryModal();
+        if (dismiss === "templates") closeTemplatesModal();
         if (dismiss === "assign") closeAssignModal();
       });
     });

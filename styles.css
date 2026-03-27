@@ -8009,6 +8009,39 @@ svg{
   gap: 8px;
 }
 
+.planner-template-modal-top{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.planner-template-list{
+  display: grid;
+  gap: 8px;
+}
+
+.planner-template-card{
+  border: 1px solid rgba(124, 147, 183, 0.24);
+  border-radius: 10px;
+  background: rgba(8, 18, 34, 0.72);
+  padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.planner-template-card.active{
+  border-color: rgba(59, 130, 246, 0.75);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.24) inset;
+}
+
+.planner-template-card p{
+  margin: 4px 0 0;
+}
+
 .planner-assign-toolbar{
   display: grid;
   grid-template-columns: 1fr 180px;
@@ -8087,6 +8120,13 @@ svg{
   }
   .planner-assign-toolbar{
     grid-template-columns: 1fr;
+  }
+  .planner-template-card{
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .planner-template-card button{
+    width: 100%;
   }
   .planner-footer{
     flex-direction: column;

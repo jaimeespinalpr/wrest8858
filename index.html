@@ -1173,6 +1173,7 @@
               </div>
               <button type="button" class="ghost" id="plannerOpenSettingsBtn">Customize</button>
               <button type="button" class="ghost" id="plannerOpenLibraryBtn">Library</button>
+              <button type="button" class="ghost" id="plannerLoadTemplateBtn">Load template</button>
               <button type="button" class="ghost" id="plannerSaveTemplateTopBtn">Save template</button>
               <button type="button" class="primary" id="plannerSendAthletesTopBtn">Send to athletes</button>
               <button type="button" class="primary" id="plannerPrintBtn">Print</button>
@@ -1314,6 +1315,26 @@
               </div>
               <footer>
                 <button type="button" class="ghost" id="plannerLibraryCancelBtn">Close</button>
+              </footer>
+            </div>
+          </div>
+
+          <div class="planner-modal hidden" id="plannerTemplatesModal" role="dialog" aria-modal="true" aria-label="Load template">
+            <div class="planner-modal-backdrop" data-dismiss="templates"></div>
+            <div class="planner-modal-card planner-modal-wide">
+              <header>
+                <h3>Load template</h3>
+                <button type="button" class="ghost" id="plannerTemplatesCloseBtn">Close</button>
+              </header>
+              <div class="planner-modal-body">
+                <div class="planner-template-modal-top">
+                  <p class="small muted" id="plannerTemplatesStatus">Loading templates...</p>
+                  <button type="button" class="ghost" id="plannerTemplatesRefreshBtn">Refresh</button>
+                </div>
+                <div id="plannerTemplatesList" class="planner-template-list"></div>
+              </div>
+              <footer>
+                <button type="button" class="ghost" id="plannerTemplatesCancelBtn">Close</button>
               </footer>
             </div>
           </div>
@@ -1991,7 +2012,7 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260326e"></script>
-  <script src="coach-planner.js?v=20260326e"></script>
+  <script src="app.js?v=20260326f"></script>
+  <script src="coach-planner.js?v=20260326f"></script>
 </body>
 </html>
