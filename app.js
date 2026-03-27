@@ -3648,6 +3648,13 @@ function normalizeCoachCompetitionRecord(id, data = {}) {
     id,
     name: String(data.name || "").trim(),
     location: String(data.location || "").trim(),
+    style: String(data.style || "").trim(),
+    description: String(data.description || "").trim(),
+    organizer: String(data.organizer || "").trim(),
+    note: String(data.note || "").trim(),
+    allowSelfJoin: data.allowSelfJoin !== false,
+    allowCoachInvite: data.allowCoachInvite !== false,
+    system: data.system === true,
     startDateKey,
     endDateKey,
     athleteNames: uniqueNames(data.athleteNames || []),
@@ -4208,45 +4215,210 @@ function getSeedCoachCalendarEntries() {
 }
 
 function getSeedCoachCompetitionRecords() {
-  const today = getCurrentAppDate();
-  const currentStart = toDateKey(addDays(today, -1));
-  const currentEnd = toDateKey(addDays(today, 1));
-  const futureStart = toDateKey(addDays(today, 14));
-  const futureEnd = toDateKey(addDays(today, 16));
-  const pastStart = toDateKey(addDays(today, -18));
-  const pastEnd = toDateKey(addDays(today, -16));
   return [
     {
-      id: "seed-competition-current",
-      name: "Northeast Spring Open",
-      location: "Wilmington, DE",
-      startDateKey: currentStart,
-      endDateKey: currentEnd,
-      athleteNames: ["Carlos Vega", "Maya Cruz", "Olivia Chen"],
-      athleteIds: ["carlos-vega", "maya-cruz", "olivia-chen"],
+      id: "official-pausaw-downingtown-qualifier-2026",
+      name: "PAUSAW Downingtown Qualifier",
+      organizer: "Pennsylvania USA Wrestling",
+      location: "Downingtown West High School, Downingtown, PA",
+      startDateKey: "2026-04-11",
+      endDateKey: "2026-04-11",
+      style: "Freestyle • Greco-Roman",
+      description: "Local USA Wrestling qualifier. Top placers advance toward PAUSAW state finals.",
+      note: "Individual qualifier tournament.",
+      allowSelfJoin: true,
+      allowCoachInvite: true,
+      system: true,
+      athleteNames: [],
+      athleteIds: [],
       athleteUids: []
     },
     {
-      id: "seed-competition-future",
-      name: "Atlantic Championship Series",
-      location: "Philadelphia, PA",
-      startDateKey: futureStart,
-      endDateKey: futureEnd,
-      athleteNames: ["Carlos Vega", "Jaime Espinal"],
-      athleteIds: ["carlos-vega", "jaime-espinal"],
+      id: "official-downingtown-club-duals-2026",
+      name: "Downingtown Club Duals",
+      organizer: "Pennsylvania USA Wrestling",
+      location: "Downingtown West High School, Downingtown, PA",
+      startDateKey: "2026-04-12",
+      endDateKey: "2026-04-12",
+      style: "Freestyle",
+      description: "Team dual event focused on club-vs-club competition.",
+      note: "Team event (Duals). Junior and girls divisions often included.",
+      allowSelfJoin: true,
+      allowCoachInvite: true,
+      system: true,
+      athleteNames: [],
+      athleteIds: [],
       athleteUids: []
     },
     {
-      id: "seed-competition-past",
-      name: "Mid-Atlantic Winter Classic",
-      location: "Newark, DE",
-      startDateKey: pastStart,
-      endDateKey: pastEnd,
-      athleteNames: ["Maya Cruz", "Olivia Chen"],
-      athleteIds: ["maya-cruz", "olivia-chen"],
+      id: "official-pausaw-northampton-qualifier-2026",
+      name: "PAUSAW Northampton Qualifier",
+      organizer: "Pennsylvania USA Wrestling",
+      location: "Northampton, PA",
+      startDateKey: "2026-04-18",
+      endDateKey: "2026-04-18",
+      style: "Freestyle • Greco-Roman",
+      description: "Qualifier tournament for PAUSAW state championship advancement.",
+      note: "Individual qualifier tournament.",
+      allowSelfJoin: true,
+      allowCoachInvite: true,
+      system: true,
+      athleteNames: [],
+      athleteIds: [],
+      athleteUids: []
+    },
+    {
+      id: "official-pausaw-emmaus-qualifier-2026",
+      name: "PAUSAW Emmaus Qualifier",
+      organizer: "Pennsylvania USA Wrestling",
+      location: "Emmaus, PA",
+      startDateKey: "2026-04-26",
+      endDateKey: "2026-04-26",
+      style: "Freestyle • Greco-Roman",
+      description: "Qualifier tournament for PAUSAW state championship advancement.",
+      note: "Individual qualifier tournament.",
+      allowSelfJoin: true,
+      allowCoachInvite: true,
+      system: true,
+      athleteNames: [],
+      athleteIds: [],
+      athleteUids: []
+    },
+    {
+      id: "official-pausaw-northern-york-qualifier-2026",
+      name: "PAUSAW Northern York Qualifier",
+      organizer: "Pennsylvania USA Wrestling",
+      location: "Northern York, PA",
+      startDateKey: "2026-05-02",
+      endDateKey: "2026-05-02",
+      style: "Freestyle • Greco-Roman",
+      description: "Qualifier tournament for PAUSAW state championship advancement.",
+      note: "Individual qualifier tournament.",
+      allowSelfJoin: true,
+      allowCoachInvite: true,
+      system: true,
+      athleteNames: [],
+      athleteIds: [],
+      athleteUids: []
+    },
+    {
+      id: "official-ne-regionals-phil-portuese-2026",
+      name: "NE Regionals (Phil Portuese Championships)",
+      organizer: "USA Wrestling Northeast Region",
+      location: "Kalahari Resort, Pocono Manor, PA",
+      startDateKey: "2026-05-08",
+      endDateKey: "2026-05-10",
+      style: "Freestyle • Greco-Roman",
+      description: "Major Northeast regional event from 8U to Juniors; key prep/qualifier path to national events.",
+      note: "High-competition regional championship.",
+      allowSelfJoin: true,
+      allowCoachInvite: true,
+      system: true,
+      athleteNames: [],
+      athleteIds: [],
+      athleteUids: []
+    },
+    {
+      id: "official-delaware-free-greco-states-2026",
+      name: "DE Free/Greco States",
+      organizer: "Delaware USA Wrestling",
+      location: "Delaware",
+      startDateKey: "2026-05-17",
+      endDateKey: "2026-05-17",
+      style: "Freestyle • Greco-Roman",
+      description: "Official Delaware state championship in international styles.",
+      note: "Mandatory in-state path for Team Delaware Fargo representation.",
+      allowSelfJoin: true,
+      allowCoachInvite: true,
+      system: true,
+      athleteNames: [],
+      athleteIds: [],
+      athleteUids: []
+    },
+    {
+      id: "official-fargo-junior-16u-nationals-2026",
+      name: "Fargo (U.S. Marine Corps Junior & 16U Nationals)",
+      organizer: "USA Wrestling",
+      location: "FargoDome, Fargo, North Dakota",
+      startDateKey: "2026-07-09",
+      endDateKey: "2026-07-18",
+      style: "Men's Freestyle • Women's Freestyle • Greco-Roman",
+      description: "Largest and most prestigious youth wrestling event in the U.S.; top offseason national stage.",
+      note: "All-American placement is a premier high school milestone.",
+      allowSelfJoin: true,
+      allowCoachInvite: true,
+      system: true,
+      athleteNames: [],
+      athleteIds: [],
       athleteUids: []
     }
   ];
+}
+
+async function ensureOfficialCompetitionRecordsForWorkspace(ownerUid = "", competitionsSnapshot = null) {
+  const safeOwnerUid = String(ownerUid || "").trim();
+  if (!safeOwnerUid || !firebaseFirestoreInstance) return;
+  const competitionsRef = getCoachWorkspaceCollectionRef("competitions", safeOwnerUid);
+  if (!competitionsRef) return;
+  const snapshot = competitionsSnapshot || await withTimeout(
+    competitionsRef.get(),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_competitions_seed_timeout"
+  );
+  const existingRows = (snapshot?.docs || []).map((doc) => normalizeCoachCompetitionRecord(doc.id, doc.data() || {}));
+  const existingById = new Map(existingRows.map((row) => [row.id, row]));
+  const batch = firebaseFirestoreInstance.batch();
+  let hasWrites = false;
+
+  getSeedCoachCompetitionRecords().forEach((seed) => {
+    const existing = existingById.get(seed.id) || null;
+    const mergedAthleteNames = uniqueNames([...(existing?.athleteNames || []), ...(seed.athleteNames || [])]);
+    const mergedAthleteIds = uniqueNames([...(existing?.athleteIds || []), ...(seed.athleteIds || [])])
+      .map((value) => String(value || "").trim())
+      .filter(Boolean);
+    const mergedAthleteUids = uniqueNames([...(existing?.athleteUids || []), ...(seed.athleteUids || [])])
+      .map((value) => String(value || "").trim())
+      .filter(Boolean);
+    const baseChanged = !existing
+      || String(existing.name || "") !== String(seed.name || "")
+      || String(existing.location || "") !== String(seed.location || "")
+      || String(existing.style || "") !== String(seed.style || "")
+      || String(existing.description || "") !== String(seed.description || "")
+      || String(existing.organizer || "") !== String(seed.organizer || "")
+      || String(existing.note || "") !== String(seed.note || "")
+      || String(existing.startDateKey || "") !== String(seed.startDateKey || "")
+      || String(existing.endDateKey || "") !== String(seed.endDateKey || "")
+      || Boolean(existing.allowSelfJoin !== false) !== Boolean(seed.allowSelfJoin !== false)
+      || Boolean(existing.allowCoachInvite !== false) !== Boolean(seed.allowCoachInvite !== false)
+      || existing.system !== true;
+    const rosterChanged = !existing
+      || !stringListsEqual(existing.athleteNames || [], mergedAthleteNames)
+      || !stringListsEqual(existing.athleteIds || [], mergedAthleteIds)
+      || !stringListsEqual(existing.athleteUids || [], mergedAthleteUids);
+    if (!baseChanged && !rosterChanged) {
+      return;
+    }
+    const payload = stripUndefinedDeep({
+      ...seed,
+      athleteNames: mergedAthleteNames,
+      athleteIds: mergedAthleteIds,
+      athleteUids: mergedAthleteUids,
+      updatedBy: String(getAuthUser()?.id || safeOwnerUid).trim(),
+      updatedAt: getFirestoreServerTimestamp(),
+      createdBy: String(existing?.createdBy || getAuthUser()?.id || safeOwnerUid).trim(),
+      createdAt: existing ? undefined : getFirestoreServerTimestamp()
+    });
+    batch.set(competitionsRef.doc(seed.id), payload, { merge: true });
+    hasWrites = true;
+  });
+
+  if (hasWrites) {
+    await withTimeout(
+      batch.commit(),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_official_competitions_seed_commit_timeout"
+    );
+  }
 }
 
 function getSeedCopyValue(value) {
@@ -5274,18 +5446,7 @@ async function ensureCoachWorkspaceSeeded() {
       await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_groups_seed_commit_timeout");
     }
 
-    if (!PUBLISH_READY_MODE && competitionsSnap.empty) {
-      const batch = firebaseFirestoreInstance.batch();
-      getSeedCoachCompetitionRecords().forEach((competition) => {
-        const ref = getCoachWorkspaceCollectionRef("competitions", authUser.id).doc(competition.id);
-        batch.set(ref, stripUndefinedDeep({
-          ...competition,
-          createdAt: getFirestoreServerTimestamp(),
-          updatedAt: getFirestoreServerTimestamp()
-        }), { merge: true });
-      });
-      await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_competitions_seed_commit_timeout");
-    }
+    await ensureOfficialCompetitionRecordsForWorkspace(authUser.id, competitionsSnap);
 
     if (PUBLISH_READY_MODE) {
       await syncCoachCompletionStatus();
@@ -11156,6 +11317,10 @@ async function createCoachCompetitionRecord(payload = {}) {
   const startDateKey = isDateKey(payload.startDateKey) ? payload.startDateKey : getCurrentAppDateKey();
   const endDateKey = isDateKey(payload.endDateKey) ? payload.endDateKey : startDateKey;
   const location = String(payload.location || "").trim();
+  const style = String(payload.style || "").trim();
+  const description = String(payload.description || "").trim();
+  const organizer = String(payload.organizer || "").trim();
+  const note = String(payload.note || "").trim();
   if (!name) {
     throw new Error("competition_name_required");
   }
@@ -11166,6 +11331,12 @@ async function createCoachCompetitionRecord(payload = {}) {
       startDateKey,
       endDateKey,
       location,
+      style,
+      description,
+      organizer,
+      note,
+      allowSelfJoin: payload.allowSelfJoin !== false,
+      allowCoachInvite: payload.allowCoachInvite !== false,
       athleteNames: [],
       athleteIds: [],
       athleteUids: [],
@@ -11180,8 +11351,8 @@ async function createCoachCompetitionRecord(payload = {}) {
   selectedCompetitionId = docId;
 }
 
-async function updateCoachCompetitionRoster(competition, athleteIdentity, { remove = false } = {}) {
-  const competitionsRef = getCoachWorkspaceCollectionRef("competitions");
+async function updateCoachCompetitionRoster(competition, athleteIdentity, { remove = false, workspaceUid = "" } = {}) {
+  const competitionsRef = getCoachWorkspaceCollectionRef("competitions", workspaceUid || getAuthUser()?.id);
   if (!competitionsRef || !competition?.id) {
     throw new Error("competition_store_unavailable");
   }
@@ -11253,6 +11424,8 @@ function renderCompetitionManager(selectedProfile = null) {
   const activeAthlete = selectedProfile || (isAthleteRole(getProfile()?.role) ? (getAthletePortalLinkedAthlete() || getProfile()) : null);
   const activeAthleteName = String(activeAthlete?.name || "").trim();
   const athleteFromRoster = getSelectedCoachAthleteRecord();
+  const viewerProfile = getProfile();
+  const athleteCoachUid = getAthleteLinkedCoachUid(viewerProfile);
 
   competitionCurrentCard.innerHTML = `
     <div class="competition-current-top">
@@ -11263,6 +11436,8 @@ function renderCompetitionManager(selectedProfile = null) {
       ? `
         <p class="competition-current-name">${escapeHtml(currentCompetition.name || (currentLang === "es" ? "Sin nombre" : "Untitled competition"))}</p>
         <p class="small competition-current-meta">${escapeHtml(getCompetitionDateRangeLabel(currentCompetition))}${currentCompetition.location ? ` • ${escapeHtml(currentCompetition.location)}` : ""}</p>
+        ${currentCompetition.style ? `<p class="small competition-current-meta">${escapeHtml(currentCompetition.style)}</p>` : ""}
+        ${currentCompetition.description ? `<p class="small muted">${escapeHtml(currentCompetition.description)}</p>` : ""}
       `
       : `
         <div class="competition-empty">${currentLang === "es" ? "No hay una competencia activa ahora mismo." : "No active competition right now."}</div>
@@ -11274,6 +11449,10 @@ function renderCompetitionManager(selectedProfile = null) {
         <input id="competitionCreateStartInput" type="date" value="${getCurrentAppDateKey()}">
         <input id="competitionCreateEndInput" type="date" value="${getCurrentAppDateKey()}">
         <input id="competitionCreateLocationInput" type="text" placeholder="${currentLang === "es" ? "Lugar (opcional)" : "Location (optional)"}">
+        <input id="competitionCreateStyleInput" type="text" placeholder="${currentLang === "es" ? "Estilo (Freestyle / Greco)" : "Style (Freestyle / Greco)"}">
+        <input id="competitionCreateOrganizerInput" type="text" placeholder="${currentLang === "es" ? "Organizador (opcional)" : "Organizer (optional)"}">
+        <input id="competitionCreateNoteInput" type="text" placeholder="${currentLang === "es" ? "Nota rapida (opcional)" : "Quick note (optional)"}">
+        <textarea id="competitionCreateDescriptionInput" rows="3" placeholder="${currentLang === "es" ? "Descripcion de la competencia" : "Competition description"}"></textarea>
       </div>
       <div class="row">
         <button type="button" class="primary" id="competitionCreateSaveBtn">${currentLang === "es" ? "Guardar competencia" : "Save competition"}</button>
@@ -11297,6 +11476,7 @@ function renderCompetitionManager(selectedProfile = null) {
       button.innerHTML = `
         <span class="competition-row-name">${escapeHtml(item.name || (currentLang === "es" ? "Sin nombre" : "Untitled competition"))}</span>
         <span class="competition-row-meta">${escapeHtml(getCompetitionDateRangeLabel(item))}${item.location ? ` • ${escapeHtml(item.location)}` : ""}</span>
+        ${item.style ? `<span class="competition-row-meta">${escapeHtml(item.style)}</span>` : ""}
       `;
       button.addEventListener("click", () => {
         selectedCompetitionId = item.id;
@@ -11321,6 +11501,12 @@ function renderCompetitionManager(selectedProfile = null) {
     competitionDetailCard.innerHTML = `<h3>${currentLang === "es" ? "Atletas del torneo" : "Tournament athletes"}</h3><div class="competition-empty">${currentLang === "es" ? "Selecciona o crea una competencia para ver atletas registrados." : "Select or create a competition to view registered athletes."}</div>`;
   } else {
     const roster = getCompetitionAthleteRoster(selectedCompetition);
+    const athleteAlreadyJoined = activeAthlete ? competitionIncludesAthlete(selectedCompetition, activeAthlete) : false;
+    const canAthleteSelfJoin = !canEdit
+      && isAthleteRole(viewerProfile?.role)
+      && Boolean(activeAthlete)
+      && selectedCompetition.allowSelfJoin !== false
+      && !athleteAlreadyJoined;
     const rosterHtml = roster.length
       ? roster.map((entry) => {
         const isActiveAthlete = activeAthleteName && normalizeName(entry.athleteName) === normalizeName(activeAthleteName);
@@ -11363,6 +11549,10 @@ function renderCompetitionManager(selectedProfile = null) {
     competitionDetailCard.innerHTML = `
       <h3>${escapeHtml(selectedCompetition.name || (currentLang === "es" ? "Competencia" : "Competition"))}</h3>
       <p class="small muted">${escapeHtml(getCompetitionDateRangeLabel(selectedCompetition))}${selectedCompetition.location ? ` • ${escapeHtml(selectedCompetition.location)}` : ""}</p>
+      ${selectedCompetition.style ? `<p class="small muted">${escapeHtml(selectedCompetition.style)}</p>` : ""}
+      ${selectedCompetition.organizer ? `<p class="small muted">${escapeHtml(selectedCompetition.organizer)}</p>` : ""}
+      ${selectedCompetition.description ? `<p class="small">${escapeHtml(selectedCompetition.description)}</p>` : ""}
+      ${selectedCompetition.note ? `<p class="small muted">${escapeHtml(selectedCompetition.note)}</p>` : ""}
       <div class="competition-athlete-list">${rosterHtml}</div>
       ${canEdit ? `
         <div class="competition-picker-shell">
@@ -11376,9 +11566,14 @@ function renderCompetitionManager(selectedProfile = null) {
           <input id="competitionAthleteSearchInput" type="text" placeholder="${currentLang === "es" ? "Buscar atleta..." : "Search athlete..."}">
           <div class="competition-picker-grid" id="competitionAthletePickerGrid">${pickerCards}</div>
           <div class="competition-roster-tools">
-            <button type="button" class="primary" id="competitionAddSelectedAthletesBtn">${currentLang === "es" ? "Agregar seleccionados (0)" : "Add selected (0)"}</button>
+            <button type="button" class="primary" id="competitionAddSelectedAthletesBtn">${currentLang === "es" ? "Invitar seleccionados (0)" : "Invite selected (0)"}</button>
             <button type="button" id="competitionAddSelectedBtn">${escapeHtml(selectedFromAthletesLabel)}</button>
           </div>
+        </div>
+      ` : ""}
+      ${canAthleteSelfJoin ? `
+        <div class="competition-roster-tools competition-roster-tools-single">
+          <button type="button" class="primary" id="competitionAthleteJoinBtn">${currentLang === "es" ? "Agregarme a esta competencia" : "Add me to this competition"}</button>
         </div>
       ` : ""}
     `;
@@ -11402,8 +11597,8 @@ function renderCompetitionManager(selectedProfile = null) {
         if (!addManyBtn) return;
         const count = getCheckedNames().length;
         addManyBtn.textContent = currentLang === "es"
-          ? `Agregar seleccionados (${count})`
-          : `Add selected (${count})`;
+          ? `Invitar seleccionados (${count})`
+          : `Invite selected (${count})`;
         addManyBtn.disabled = count === 0;
       };
 
@@ -11497,6 +11692,28 @@ function renderCompetitionManager(selectedProfile = null) {
       applyPickerFilter();
       updateAddManyButtonLabel();
     }
+
+    const athleteJoinBtn = document.getElementById("competitionAthleteJoinBtn");
+    athleteJoinBtn?.addEventListener("click", async () => {
+      if (!activeAthlete) {
+        toast(currentLang === "es" ? "No se pudo detectar el atleta actual." : "Could not detect current athlete.");
+        return;
+      }
+      try {
+        athleteJoinBtn.disabled = true;
+        await updateCoachCompetitionRoster(
+          selectedCompetition,
+          activeAthlete,
+          { remove: false, workspaceUid: athleteCoachUid || selectedCompetition.createdBy || "" }
+        );
+        toast(currentLang === "es" ? "Te agregaste a la competencia." : "You joined the competition.");
+      } catch (err) {
+        console.warn("Athlete self-join failed", err);
+        toast(currentLang === "es" ? "No se pudo completar el registro." : "Could not complete competition registration.");
+      } finally {
+        athleteJoinBtn.disabled = false;
+      }
+    });
   }
 
   const toggleCreateBtn = document.getElementById("competitionToggleCreateBtn");
@@ -11510,12 +11727,25 @@ function renderCompetitionManager(selectedProfile = null) {
     const startDateKey = String(document.getElementById("competitionCreateStartInput")?.value || "").trim();
     const endDateKey = String(document.getElementById("competitionCreateEndInput")?.value || "").trim();
     const location = String(document.getElementById("competitionCreateLocationInput")?.value || "").trim();
+    const style = String(document.getElementById("competitionCreateStyleInput")?.value || "").trim();
+    const organizer = String(document.getElementById("competitionCreateOrganizerInput")?.value || "").trim();
+    const note = String(document.getElementById("competitionCreateNoteInput")?.value || "").trim();
+    const description = String(document.getElementById("competitionCreateDescriptionInput")?.value || "").trim();
     if (!name || !isDateKey(startDateKey) || !isDateKey(endDateKey)) {
       toast(currentLang === "es" ? "Completa nombre, fecha inicio y fecha fin." : "Provide competition name, start date, and end date.");
       return;
     }
     try {
-      await createCoachCompetitionRecord({ name, startDateKey, endDateKey, location });
+      await createCoachCompetitionRecord({
+        name,
+        startDateKey,
+        endDateKey,
+        location,
+        style,
+        organizer,
+        note,
+        description
+      });
       competitionCreateOpen = false;
       toast(currentLang === "es" ? "Competencia guardada." : "Competition saved.");
     } catch (err) {
@@ -12457,6 +12687,36 @@ function getVisibleItemsForDate(dateKey, profile = getProfile()) {
   return isEntryAssignedToProfile(entry, profile) ? entry.items : [];
 }
 
+function doesCompetitionRunOnDate(competition, dateKey = "") {
+  const key = normalizeDateKey(dateKey);
+  const startKey = isDateKey(competition?.startDateKey) ? competition.startDateKey : "";
+  const endKey = isDateKey(competition?.endDateKey) ? competition.endDateKey : (startKey || "");
+  if (!startKey && !endKey) return false;
+  if (!startKey) return key <= endKey;
+  if (!endKey) return key >= startKey;
+  return key >= startKey && key <= endKey;
+}
+
+function getCompetitionCalendarItemsForDate(dateKey, profile = getProfile()) {
+  const records = getCompetitionRecordsForContext();
+  if (!Array.isArray(records) || !records.length) return [];
+  return sortCompetitionsByDate(records)
+    .filter((competition) => doesCompetitionRunOnDate(competition, dateKey))
+    .map((competition) => {
+      const label = `${currentLang === "es" ? "Competencia" : "Competition"}: ${competition.name || (currentLang === "es" ? "Sin nombre" : "Untitled")}`;
+      const meta = [competition.location, competition.style].filter(Boolean).join(" • ");
+      const details = [meta, competition.description].filter(Boolean).join(" - ");
+      return details ? `${label} - ${details}` : label;
+    });
+}
+
+function getVisibleCalendarItemsForDate(dateKey, profile = getProfile()) {
+  return uniqueNames([
+    ...getVisibleItemsForDate(dateKey, profile),
+    ...getCompetitionCalendarItemsForDate(dateKey, profile)
+  ]);
+}
+
 function getAudienceText(entry, profile) {
   const isCoach = isCoachRole(profile?.role);
   if (entry.audience.all) return pickCopy(CALENDAR_AUDIENCE_COPY.team);
@@ -12575,7 +12835,7 @@ function renderCalendar(selectedKey, options = {}) {
     for (let day = 1; day <= numDays; day += 1) {
       const date = new Date(panelYear, panelMonth, day);
       const key = toDateKey(date);
-      const visibleCount = getVisibleItemsForDate(key, profile).length;
+      const visibleCount = getVisibleCalendarItemsForDate(key, profile).length;
       const cell = document.createElement("button");
       cell.type = "button";
       const isToday = key === todayKey;
@@ -12615,7 +12875,7 @@ function renderCalendarDetails(dateKey) {
   const date = dateFromKey(key);
   const profile = getProfile();
   const entry = getCalendarEntry(key);
-  const visibleItems = getVisibleItemsForDate(key, profile);
+  const visibleItems = getVisibleCalendarItemsForDate(key, profile);
   const locale = currentLang === "es" ? "es-ES" : "en-US";
   const label = date.toLocaleDateString(locale, {
     weekday: "long",
@@ -16671,6 +16931,7 @@ function refreshAthletePortalDataSync() {
   let journalByName = [];
   let analysisById = [];
   let analysisByName = [];
+  let competitionsAll = [];
   let competitionsById = [];
   let competitionsByName = [];
   const applyAssignments = () => {
@@ -16692,7 +16953,7 @@ function refreshAthletePortalDataSync() {
     renderCompetitionPreview(getAthletePortalLinkedAthlete() || getProfile());
   };
   const applyCompetitions = () => {
-    athletePortalCompetitionsCache = mergeCoachRecordsById(competitionsById, competitionsByName);
+    athletePortalCompetitionsCache = mergeCoachRecordsById(competitionsAll, competitionsById, competitionsByName);
     renderCompetitionPreview(getAthletePortalLinkedAthlete() || getProfile());
   };
 
@@ -16748,6 +17009,10 @@ function refreshAthletePortalDataSync() {
       );
       applyAnalysis();
     }, (err) => console.warn("Athlete analysis name fallback sync failed", err)),
+    competitionsRef.onSnapshot((snapshot) => {
+      competitionsAll = snapshot.docs.map((doc) => normalizeCoachCompetitionRecord(doc.id, doc.data() || {}));
+      applyCompetitions();
+    }, (err) => console.warn("Athlete all-competitions sync failed", err)),
     competitionsRef.where("athleteIds", "array-contains", athleteId).onSnapshot((snapshot) => {
       competitionsById = snapshot.docs.map((doc) => normalizeCoachCompetitionRecord(doc.id, doc.data() || {}));
       applyCompetitions();
