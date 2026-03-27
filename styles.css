@@ -2190,6 +2190,20 @@ button:active{
   object-fit: cover;
 }
 
+.message-media-video-placeholder{
+  min-height: 140px;
+  border-radius: 10px;
+  border: 1px dashed rgba(159, 192, 244, 0.38);
+  background: rgba(7, 12, 22, 0.78);
+  color: #d7e6ff;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 12px;
+}
+
 .message-media-head{
   display: flex;
   justify-content: space-between;
