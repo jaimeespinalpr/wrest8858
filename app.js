@@ -20586,33 +20586,58 @@ function normalizeLooseTagList(raw = "") {
 }
 
 function normalizeMessageAttachment(entry = {}) {
-  const mediaType = String(entry.mediaType || "").trim() || inferMediaTypeFromFile({ type: entry.contentType || "" }) || "Media";
+  const mediaType = String(entry.mediaType || entry.type || "").trim()
+    || inferMediaTypeFromFile({ type: entry.contentType || entry.mimeType || "" })
+    || "Media";
+  const assetPath = String(
+    entry.assetPath
+      || entry.downloadURL
+      || entry.downloadUrl
+      || entry.url
+      || entry.src
+      || entry.mediaUrl
+      || ""
+  ).trim();
   return {
     id: String(entry.id || makeMediaId("msg_media")).trim(),
     name: String(entry.name || "").trim() || mediaType,
     mediaType,
-    assetPath: String(entry.assetPath || "").trim(),
-    assetStoragePath: String(entry.assetStoragePath || "").trim(),
-    thumbnailPath: String(entry.thumbnailPath || "").trim(),
-    thumbnailStoragePath: String(entry.thumbnailStoragePath || "").trim(),
-    contentType: String(entry.contentType || "").trim(),
-    size: Number(entry.size || 0),
+    assetPath,
+    assetStoragePath: String(entry.assetStoragePath || entry.storagePath || entry.path || "").trim(),
+    thumbnailPath: String(entry.thumbnailPath || entry.thumbnailURL || entry.thumbnailUrl || entry.poster || "").trim(),
+    thumbnailStoragePath: String(entry.thumbnailStoragePath || entry.thumbnailStorage || "").trim(),
+    contentType: String(entry.contentType || entry.mimeType || "").trim(),
+    size: Number(entry.size || entry.fileSize || 0),
     tags: normalizeLooseTagList(entry.tags || [])
   };
 }
 
+function normalizeMessageText(rawText = "", attachments = []) {
+  const safeText = String(rawText || "").trim();
+  if (!attachments.length) return safeText;
+  if (!safeText) return buildMessageAttachmentSummaryText(attachments);
+  const normalized = normalizeName(safeText);
+  const hasAlphanumeric = /[a-z0-9]/i.test(normalized);
+  if (!hasAlphanumeric && safeText.length <= 3) {
+    return buildMessageAttachmentSummaryText(attachments);
+  }
+  return safeText;
+}
+
 function normalizeMessageData(data = {}, id = "") {
+  const attachments = Array.isArray(data.attachments)
+    ? data.attachments.map((entry) => normalizeMessageAttachment(entry))
+      .filter((entry) => entry.assetPath || entry.assetStoragePath)
+    : [];
   return {
     id,
     clientMessageId: String(data.clientMessageId || "").trim(),
-    text: String(data.text || "").trim(),
+    text: normalizeMessageText(data.text || "", attachments),
     senderUid: String(data.senderUid || "").trim(),
     senderName: String(data.senderName || "").trim() || "User",
     senderRole: normalizeMessageParticipantRole(data.senderRole, data.senderEmail || ""),
     createdAt: data.createdAt || data.updatedAt || "",
-    attachments: Array.isArray(data.attachments)
-      ? data.attachments.map((entry) => normalizeMessageAttachment(entry)).filter((entry) => entry.assetPath)
-      : [],
+    attachments,
     messageTags: normalizeLooseTagList(data.messageTags || []),
     read: Boolean(data.read),
     readByUid: String(data.readByUid || "").trim(),
@@ -22274,7 +22299,36 @@ function renderMessagesThreadList(current) {
 }
 
 function resolveMessageAttachmentUrl(attachment) {
-  return resolveMediaLocation(String(attachment?.assetPath || "").trim());
+  const preferred = String(
+    attachment?.assetPath
+      || attachment?.downloadURL
+      || attachment?.downloadUrl
+      || attachment?.url
+      || attachment?.src
+      || ""
+  ).trim();
+  return resolveMediaLocation(preferred);
+}
+
+function canInlinePlayMessageVideo(attachment = {}, assetUrl = "") {
+  const safeUrl = String(assetUrl || "").trim();
+  if (!safeUrl) return false;
+  const mimeType = String(attachment?.contentType || "").trim().toLowerCase();
+  const fileName = String(attachment?.name || "").trim().toLowerCase();
+  if (mimeType.includes("quicktime") || fileName.endsWith(".mov") || /\.mov(?:$|\?)/i.test(safeUrl)) {
+    return false;
+  }
+  if (shouldUseLiteVideoMessagePreview() && Number(attachment?.size || 0) > 40 * 1024 * 1024) {
+    return false;
+  }
+  if (!mimeType) return true;
+  try {
+    const probe = document.createElement("video");
+    const support = typeof probe.canPlayType === "function" ? probe.canPlayType(mimeType) : "";
+    return Boolean(support);
+  } catch {
+    return true;
+  }
 }
 
 function getMessageAttachmentDisplayName(attachment) {
@@ -22351,6 +22405,7 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
   const isVoice = typeLower.includes("voice") || typeLower.includes("audio");
   const previewUrl = resolveMediaLocation(attachment.thumbnailPath || attachment.assetPath || "");
   const litePreview = shouldUseLiteVideoMessagePreview();
+  const canInlineVideo = isVideo ? canInlinePlayMessageVideo(attachment, assetUrl) : false;
   let inlineVideoEl = null;
 
   const head = document.createElement("div");
@@ -22367,7 +22422,7 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
 
   const appendVideoFallback = (statusText = "") => {
     const safeStatus = String(statusText || "").trim();
-    const fallbackPreview = previewUrl || assetUrl;
+    const fallbackPreview = previewUrl || "";
     const previousWrap = card.querySelector(".message-media-video-wrap");
     if (previousWrap) previousWrap.remove();
     if (fallbackPreview && !card.querySelector(".message-media-preview.video-thumb")) {
@@ -22377,6 +22432,11 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
       img.alt = getMessageAttachmentDisplayName(attachment);
       img.loading = "lazy";
       card.appendChild(img);
+    } else if (!fallbackPreview && !card.querySelector(".message-media-video-placeholder")) {
+      const placeholder = document.createElement("div");
+      placeholder.className = "message-media-video-placeholder";
+      placeholder.textContent = currentLang === "es" ? "Video listo para abrir" : "Video ready to open";
+      card.appendChild(placeholder);
     }
     if (safeStatus) {
       let status = card.querySelector(".message-media-video-status");
@@ -22406,6 +22466,12 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
   } else if (isVideo) {
     if (!assetUrl) {
       appendVideoFallback(currentLang === "es" ? "Video no disponible todavia." : "Video is not available yet.");
+    } else if (!canInlineVideo) {
+      appendVideoFallback(
+        currentLang === "es"
+          ? "Este video se abrira en el reproductor del dispositivo."
+          : "This video will open in your device player."
+      );
     } else {
       const videoWrap = document.createElement("div");
       videoWrap.className = "message-media-video-wrap";
