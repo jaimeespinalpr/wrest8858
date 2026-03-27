@@ -17629,6 +17629,38 @@ function renderAthleteFilters() {
   }
 }
 
+function isValidEmailAddress(value = "") {
+  const email = normalizeEmail(value);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function openCoachAthleteInviteEmail(initialEmail = "") {
+  if (typeof window === "undefined") return;
+  const promptLabel = currentLang === "es"
+    ? "Escribe el correo del atleta para enviar la invitacion:"
+    : "Enter the athlete email to send the invite:";
+  const rawInput = window.prompt(promptLabel, initialEmail || "");
+  if (rawInput === null) return;
+  const inviteEmail = normalizeEmail(rawInput);
+  if (!isValidEmailAddress(inviteEmail)) {
+    toast(currentLang === "es" ? "Correo invalido. Intenta de nuevo." : "Invalid email. Try again.");
+    return;
+  }
+
+  const profile = getProfile();
+  const coachName = String(profile?.name || "").trim() || "United Wrestling Club Coach";
+  const appUrl = `${window.location.origin}${window.location.pathname}`;
+  const subject = currentLang === "es"
+    ? "Invitacion a Wrestling Performance Lab"
+    : "Invitation to Wrestling Performance Lab";
+  const body = currentLang === "es"
+    ? `Hola,\n\n${coachName} te invita a registrarte en Wrestling Performance Lab para recibir entrenamientos y mensajes.\n\nRegistrate aqui:\n${appUrl}\n\nCuando abras la pagina, selecciona \"Create account\" y elige el rol de atleta.\n\nNos vemos en el mat!`
+    : `Hi,\n\n${coachName} invited you to join Wrestling Performance Lab to receive training plans and coach messaging.\n\nRegister here:\n${appUrl}\n\nWhen you open the page, choose "Create account" and select the athlete role.\n\nSee you on the mat!`;
+  const mailtoUrl = `mailto:${encodeURIComponent(inviteEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.location.href = mailtoUrl;
+  toast(currentLang === "es" ? "Invitacion lista para enviar por email." : "Invite email draft opened.");
+}
+
 function renderCoachAthleteQuickActions(selectedAthleteName = "") {
   if (!coachAthleteQuickActions) return;
   const athlete = getAthletesData().find((item) => item.name === selectedAthleteName);
@@ -17639,7 +17671,13 @@ function renderCoachAthleteQuickActions(selectedAthleteName = "") {
       <p class="small muted">${currentLang === "es"
         ? "La lista de arriba es el punto de entrada. Desde ahi puedes abrir el perfil, el summary o los mensajes."
         : "The roster above is the entry point. From there you can open the profile, the summary, or messages."}</p>
+      <div class="coach-athlete-action-buttons">
+        <button type="button" id="coachAthleteInviteBtn">${currentLang === "es" ? "Invitar atleta por email" : "Invite athlete by email"}</button>
+      </div>
     `;
+    document.getElementById("coachAthleteInviteBtn")?.addEventListener("click", () => {
+      openCoachAthleteInviteEmail();
+    });
     return;
   }
 
@@ -17676,6 +17714,7 @@ function renderCoachAthleteQuickActions(selectedAthleteName = "") {
       <button type="button" id="coachAthleteQuickEditBtn">${currentLang === "es" ? "Editar perfil" : "Edit profile"}</button>
       <button type="button" id="coachAthleteQuickSummaryBtn">${currentLang === "es" ? "Ver athlete summary" : "View athlete summary"}</button>
       <button type="button" id="coachAthleteQuickMessageBtn">${currentLang === "es" ? "Enviar mensaje" : "Send message"}</button>
+      <button type="button" id="coachAthleteInviteBtn">${currentLang === "es" ? "Invitar atleta por email" : "Invite athlete by email"}</button>
     </div>
   `;
 
@@ -17693,6 +17732,9 @@ function renderCoachAthleteQuickActions(selectedAthleteName = "") {
   });
   document.getElementById("coachAthleteQuickMessageBtn")?.addEventListener("click", () => {
     messageCoachAthlete(athlete.name);
+  });
+  document.getElementById("coachAthleteInviteBtn")?.addEventListener("click", () => {
+    openCoachAthleteInviteEmail();
   });
 }
 
