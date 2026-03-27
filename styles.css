@@ -8098,6 +8098,46 @@ svg{
 }
 
 @media print{
+  @page{
+    margin: 10mm;
+    size: auto;
+  }
+
+  html,
+  body{
+    background: #fff !important;
+  }
+
+  /* Print only the coach planner panel */
+  body *{
+    visibility: hidden !important;
+  }
+  #panel-plans,
+  #panel-plans *{
+    visibility: visible !important;
+  }
+  #panel-plans{
+    display: block !important;
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  #panel-plans .card{
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+  #panel-plans .coach-planner-card,
+  #panel-plans .planner-sheet{
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
   .planner-toolbar,
   .planner-bottom-actions,
   .planner-row-controls,
@@ -8110,9 +8150,20 @@ svg{
   .planner-sheet{
     border: 1px solid #111 !important;
     background: #fff !important;
+    color: #111 !important;
+    border-radius: 0 !important;
+    padding: 12px !important;
+    break-inside: avoid;
+  }
+  .planner-table-wrap{
+    overflow: visible !important;
+    border-radius: 0 !important;
+    border: 1px solid #111 !important;
   }
   .planner-table{
     background: #fff !important;
+    width: 100% !important;
+    min-width: 0 !important;
   }
   .planner-table th,
   .planner-table td{
@@ -8130,6 +8181,11 @@ svg{
   .planner-total-time-editor button,
   .planner-time-cell input{
     display: none !important;
+  }
+  .planner-footer,
+  .planner-footer *{
+    color: #111 !important;
+    border-color: #111 !important;
   }
   .planner-print-value,
   .planner-item-print-text,
