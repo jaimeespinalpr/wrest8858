@@ -31,7 +31,8 @@
   const STORAGE_KEYS = {
     settings: "planner_template_settings",
     library: "archmere_exercise_library",
-    daily: "planner_daily_state"
+    daily: "planner_daily_state",
+    categoryNames: "planner_category_names"
   };
 
   function readJson(key, fallback) {
@@ -65,6 +66,34 @@
     return `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
   }
 
+  function getDefaultCategoryNames() {
+    return CATEGORIES.reduce((acc, category) => {
+      acc[category.id] = category.name;
+      return acc;
+    }, {});
+  }
+
+  function normalizeCategoryId(value) {
+    const raw = String(value || "").trim();
+    return CATEGORIES.some((category) => category.id === raw) ? raw : CATEGORIES[0].id;
+  }
+
+  function normalizeLibraryEntries(entries = []) {
+    if (!Array.isArray(entries)) return [];
+    return entries
+      .map((entry) => {
+        const name = String(entry?.name || "").trim();
+        const categoryId = normalizeCategoryId(entry?.categoryId);
+        if (!name) return null;
+        return {
+          id: String(entry?.id || makeId()),
+          name,
+          categoryId
+        };
+      })
+      .filter(Boolean);
+  }
+
   const dailyState = readJson(STORAGE_KEYS.daily, {});
 
   const state = {
@@ -79,12 +108,30 @@
       logoUrl: null
     }),
     tempSettings: null,
-    exerciseLibrary: readJson(STORAGE_KEYS.library, INITIAL_LIBRARY),
+    categoryNames: {
+      ...getDefaultCategoryNames(),
+      ...(readJson(STORAGE_KEYS.categoryNames, {}) || {})
+    },
+    exerciseLibrary: normalizeLibraryEntries(readJson(STORAGE_KEYS.library, INITIAL_LIBRARY)),
     schedule: dailyState.schedule && typeof dailyState.schedule === "object" ? dailyState.schedule : {},
     categoryTimes: {
       ...INITIAL_TIMES,
       ...(dailyState.categoryTimes && typeof dailyState.categoryTimes === "object" ? dailyState.categoryTimes : {})
     },
+    coachLibraries: [],
+    coachLibrariesStatus: "Loading coach libraries...",
+    coachLibrariesUnsub: null,
+    coachLibrariesReady: false,
+    librarySyncTimer: null,
+    categoryDrafts: {},
+    pendingLibraryFocus: "",
+    assignAthletes: [],
+    selectedAthleteIds: [],
+    assignSearch: "",
+    assignDueDate: "",
+    assignModalBusy: false,
+    lastSavedTemplateId: "",
+    lastSentPlanId: "",
     toastTimer: null,
     pendingFocus: null
   };
@@ -103,6 +150,8 @@
     timeLabel: document.getElementById("plannerTimeLabel"),
     openSettingsBtn: document.getElementById("plannerOpenSettingsBtn"),
     openLibraryBtn: document.getElementById("plannerOpenLibraryBtn"),
+    saveTemplateTopBtn: document.getElementById("plannerSaveTemplateTopBtn"),
+    sendAthletesTopBtn: document.getElementById("plannerSendAthletesTopBtn"),
     printBtn: document.getElementById("plannerPrintBtn"),
     dateInput: document.getElementById("plannerDateInput"),
     datePrintValue: document.getElementById("plannerDatePrintValue"),
@@ -137,7 +186,22 @@
     newExerciseNameInput: document.getElementById("plannerNewExerciseNameInput"),
     newExerciseCategorySelect: document.getElementById("plannerNewExerciseCategorySelect"),
     saveLibraryItemBtn: document.getElementById("plannerSaveLibraryItemBtn"),
-    libraryGroups: document.getElementById("plannerLibraryGroups")
+    libraryGroups: document.getElementById("plannerLibraryGroups"),
+    coachLibrariesStatus: document.getElementById("plannerCoachLibrariesStatus"),
+    coachLibraries: document.getElementById("plannerCoachLibraries"),
+    saveTemplateBtn: document.getElementById("plannerSaveTemplateBtn"),
+    sendAthletesBtn: document.getElementById("plannerSendAthletesBtn"),
+    bottomStatus: document.getElementById("plannerBottomStatus"),
+    assignModal: document.getElementById("plannerAssignModal"),
+    assignCloseBtn: document.getElementById("plannerAssignCloseBtn"),
+    assignCancelBtn: document.getElementById("plannerAssignCancelBtn"),
+    assignSendBtn: document.getElementById("plannerAssignSendBtn"),
+    assignList: document.getElementById("plannerAssignList"),
+    assignStatus: document.getElementById("plannerAssignStatus"),
+    assignSearchInput: document.getElementById("plannerAssignSearchInput"),
+    assignSelectAllBtn: document.getElementById("plannerAssignSelectAllBtn"),
+    assignClearBtn: document.getElementById("plannerAssignClearBtn"),
+    assignDueDateInput: document.getElementById("plannerAssignDueDateInput")
   };
 
   function persistDaily() {
@@ -155,6 +219,25 @@
 
   function persistLibrary() {
     writeJson(STORAGE_KEYS.library, state.exerciseLibrary);
+  }
+
+  function persistCategoryNames() {
+    writeJson(STORAGE_KEYS.categoryNames, state.categoryNames);
+  }
+
+  function getCategoryNameById(categoryId) {
+    const fallback = CATEGORIES.find((category) => category.id === categoryId)?.name || "Category";
+    return String(state.categoryNames?.[categoryId] || fallback).trim() || fallback;
+  }
+
+  function isDuplicateLibraryEntry(name, categoryId) {
+    const cleanName = String(name || "").trim().toLowerCase();
+    const safeCategoryId = normalizeCategoryId(categoryId);
+    if (!cleanName) return false;
+    return state.exerciseLibrary.some((entry) => {
+      return normalizeCategoryId(entry.categoryId) === safeCategoryId
+        && String(entry.name || "").trim().toLowerCase() === cleanName;
+    });
   }
 
   function triggerToast(message) {
@@ -261,6 +344,575 @@
     }
   }
 
+  function getPlannerAuthUser() {
+    if (typeof getAuthUser === "function") {
+      try {
+        return getAuthUser();
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  function getPlannerProfile() {
+    if (typeof getProfile === "function") {
+      try {
+        return getProfile();
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  function getPlannerWorkspaceCollectionRef(name) {
+    if (!name) return null;
+    if (typeof getCoachWorkspaceCollectionRef === "function") {
+      try {
+        const ref = getCoachWorkspaceCollectionRef(name, getPlannerAuthUser()?.id);
+        if (ref) return ref;
+      } catch {
+        // fallback below
+      }
+    }
+    try {
+      const uid = String(getPlannerAuthUser()?.id || "").trim();
+      if (!uid || typeof firebaseFirestoreInstance === "undefined" || !firebaseFirestoreInstance) return null;
+      const root = typeof FIREBASE_COACH_WORKSPACES_COLLECTION === "string" && FIREBASE_COACH_WORKSPACES_COLLECTION
+        ? FIREBASE_COACH_WORKSPACES_COLLECTION
+        : "coach_workspaces";
+      return firebaseFirestoreInstance.collection(root).doc(uid).collection(name);
+    } catch {
+      return null;
+    }
+  }
+
+  function getPlannerTimestamp() {
+    try {
+      if (typeof getFirestoreServerTimestamp === "function") {
+        return getFirestoreServerTimestamp();
+      }
+    } catch {
+      // fallback below
+    }
+    try {
+      if (typeof firebase !== "undefined" && firebase?.firestore?.FieldValue?.serverTimestamp) {
+        return firebase.firestore.FieldValue.serverTimestamp();
+      }
+    } catch {
+      // fallback below
+    }
+    return new Date().toISOString();
+  }
+
+  function getTodayDateKey() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function normalizeDateKeyValue(value) {
+    const raw = String(value || "").trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return getTodayDateKey();
+    return date.toISOString().slice(0, 10);
+  }
+
+  function formatDateLabel(value) {
+    const safe = normalizeDateKeyValue(value);
+    const date = new Date(`${safe}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return safe;
+    return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  }
+
+  function toSimpleSlug(value) {
+    const raw = String(value || "").trim().toLowerCase();
+    if (!raw) return `item-${Date.now()}`;
+    return raw.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || `item-${Date.now()}`;
+  }
+
+  function setBottomStatus(message, isError = false) {
+    if (!els.bottomStatus) return;
+    els.bottomStatus.textContent = String(message || "");
+    els.bottomStatus.classList.toggle("planner-status-error", Boolean(isError));
+  }
+
+  function setAssignStatus(message, isError = false) {
+    if (!els.assignStatus) return;
+    els.assignStatus.textContent = String(message || "");
+    els.assignStatus.classList.toggle("planner-status-error", Boolean(isError));
+  }
+
+  function getScheduleItemsByCategory(categoryId) {
+    return (state.schedule[normalizeCategoryId(categoryId)] || [])
+      .map((entry) => String(entry?.name || "").trim())
+      .filter(Boolean);
+  }
+
+  function buildPlanItemsFromPlanner() {
+    const intro = [
+      ...getScheduleItemsByCategory("roll_call")
+    ];
+    const warmup = [
+      ...getScheduleItemsByCategory("warm_up")
+    ];
+    const drills = [
+      ...getScheduleItemsByCategory("techniques"),
+      ...getScheduleItemsByCategory("strength")
+    ];
+    const live = [
+      ...getScheduleItemsByCategory("live_wrestling")
+    ];
+    const cooldown = [
+      ...getScheduleItemsByCategory("cool_down")
+    ];
+    const announcements = [
+      ...getScheduleItemsByCategory("announcements")
+    ];
+    return { intro, warmup, drills, live, cooldown, announcements };
+  }
+
+  function getPlannerTitle() {
+    const dateKey = normalizeDateKeyValue(state.docInfo.date || getTodayDateKey());
+    return `Daily Training Plan - ${formatDateLabel(dateKey)}`;
+  }
+
+  function normalizeAthleteRecord(id, data = {}) {
+    const name = String(data?.name || "").trim();
+    if (!name) return null;
+    const athleteUid = String(data?.athleteUid || data?.uid || "").trim();
+    const athleteEmail = String(data?.athleteEmail || data?.email || "").trim();
+    return {
+      id: String(id || toSimpleSlug(name)).trim() || toSimpleSlug(name),
+      name,
+      athleteUid,
+      athleteEmail
+    };
+  }
+
+  function renderAssignAthleteList() {
+    if (!els.assignList) return;
+    const filter = String(state.assignSearch || "").trim().toLowerCase();
+    const filtered = state.assignAthletes.filter((athlete) => {
+      if (!filter) return true;
+      return athlete.name.toLowerCase().includes(filter)
+        || athlete.id.toLowerCase().includes(filter)
+        || athlete.athleteEmail.toLowerCase().includes(filter);
+    });
+    if (!filtered.length) {
+      els.assignList.innerHTML = `<p class="small muted">No athletes found.</p>`;
+      return;
+    }
+    const html = filtered.map((athlete) => {
+      const isSelected = state.selectedAthleteIds.includes(athlete.id);
+      return `
+        <button
+          type="button"
+          class="planner-assign-athlete${isSelected ? " active" : ""}"
+          data-action="toggle-assign-athlete"
+          data-athlete-id="${escapeHtml(athlete.id)}"
+        >
+          <strong>${escapeHtml(athlete.name)}</strong>
+          <span>${escapeHtml(athlete.athleteEmail || athlete.id)}</span>
+        </button>
+      `;
+    }).join("");
+    els.assignList.innerHTML = html;
+  }
+
+  async function loadPlannerAthletesForAssignment() {
+    const athletesRef = getPlannerWorkspaceCollectionRef("athletes");
+    if (!athletesRef) {
+      state.assignAthletes = [];
+      state.selectedAthleteIds = [];
+      renderAssignAthleteList();
+      setAssignStatus("Coach workspace is not available right now.", true);
+      return;
+    }
+
+    try {
+      setAssignStatus("Loading athletes...");
+      const snap = await athletesRef.get();
+      let records = snap.docs
+        .map((doc) => normalizeAthleteRecord(doc.id, doc.data() || {}))
+        .filter(Boolean)
+        .sort((left, right) => left.name.localeCompare(right.name));
+
+      if (!records.length) {
+        const usersRef = getPlannerUsersCollectionRef();
+        if (usersRef) {
+          const usersSnap = await usersRef.where("role", "==", "athlete").get();
+          records = usersSnap.docs
+            .map((doc) => normalizeAthleteRecord(doc.id, doc.data() || {}))
+            .filter(Boolean)
+            .sort((left, right) => left.name.localeCompare(right.name));
+        }
+      }
+
+      state.assignAthletes = records;
+      state.selectedAthleteIds = state.selectedAthleteIds.filter((athleteId) => records.some((item) => item.id === athleteId));
+      renderAssignAthleteList();
+      if (!records.length) {
+        setAssignStatus("No athletes available yet. Register athletes first.");
+      } else {
+        setAssignStatus(`${records.length} athletes available.`);
+      }
+    } catch (err) {
+      console.warn("Failed to load athletes for planner assignment", err);
+      state.assignAthletes = [];
+      state.selectedAthleteIds = [];
+      renderAssignAthleteList();
+      setAssignStatus("Could not load athletes. Try again.", true);
+    }
+  }
+
+  function openAssignModal() {
+    const nextDue = normalizeDateKeyValue(state.docInfo.date || getTodayDateKey());
+    state.assignDueDate = nextDue;
+    state.assignSearch = "";
+    if (els.assignDueDateInput) els.assignDueDateInput.value = nextDue;
+    if (els.assignSearchInput) els.assignSearchInput.value = "";
+    els.assignModal?.classList.remove("hidden");
+    setAssignStatus("Choose athletes, then send.");
+    loadPlannerAthletesForAssignment().catch(() => {});
+  }
+
+  function closeAssignModal() {
+    els.assignModal?.classList.add("hidden");
+  }
+
+  async function savePlannerAsTemplate() {
+    if (state.assignModalBusy) return;
+    const templatesRef = getPlannerWorkspaceCollectionRef("templates");
+    if (!templatesRef) {
+      setBottomStatus("Template storage is not available.", true);
+      return;
+    }
+
+    const defaultName = `Template - ${formatDateLabel(state.docInfo.date || getTodayDateKey())}`;
+    const nextName = window.prompt("Template name", defaultName);
+    if (nextName == null) return;
+    const cleanName = String(nextName || "").trim();
+    if (!cleanName) {
+      setBottomStatus("Template name is required.", true);
+      return;
+    }
+
+    const timestamp = getPlannerTimestamp();
+    const payload = {
+      name: cleanName,
+      type: "day",
+      focus: `${Math.max(1, parseTimeValue(state.docInfo.totalTime || "90"))} min practice flow`,
+      coachNotes: "Saved from Coach Planner.",
+      items: buildPlanItemsFromPlanner(),
+      monthlyNotes: "",
+      seasonYear: String(state.settings?.season || "").trim(),
+      system: false,
+      createdAt: timestamp,
+      updatedAt: timestamp
+    };
+
+    try {
+      const ref = templatesRef.doc();
+      await ref.set(payload, { merge: true });
+      state.lastSavedTemplateId = ref.id;
+      setBottomStatus(`Template saved: ${cleanName}`);
+      triggerToast("Template saved.");
+    } catch (err) {
+      console.warn("Failed to save planner template", err);
+      setBottomStatus("Could not save template.", true);
+    }
+  }
+
+  async function sendPlannerTrainingToAthletes() {
+    if (state.assignModalBusy) return;
+    const selected = state.assignAthletes.filter((athlete) => state.selectedAthleteIds.includes(athlete.id));
+    if (!selected.length) {
+      setAssignStatus("Select at least one athlete.", true);
+      return;
+    }
+
+    const plansRef = getPlannerWorkspaceCollectionRef("plans");
+    const assignmentsRef = getPlannerWorkspaceCollectionRef("assignments");
+    if (!plansRef || !assignmentsRef || typeof firebaseFirestoreInstance === "undefined" || !firebaseFirestoreInstance) {
+      setAssignStatus("Plan/assignment storage is not available.", true);
+      return;
+    }
+
+    state.assignModalBusy = true;
+    if (els.assignSendBtn) {
+      els.assignSendBtn.disabled = true;
+      els.assignSendBtn.textContent = "Sending...";
+    }
+    setAssignStatus("Saving plan and assignments...");
+
+    const dueDateKey = normalizeDateKeyValue(state.assignDueDate || state.docInfo.date || getTodayDateKey());
+    const timestamp = getPlannerTimestamp();
+    const authUser = getPlannerAuthUser();
+    const profile = getPlannerProfile();
+    const createdBy = String(profile?.name || authUser?.email || "Coach").trim();
+    const planTitle = getPlannerTitle();
+    const athleteNames = selected.map((athlete) => athlete.name);
+    const athleteIds = selected.map((athlete) => athlete.id);
+    const athleteUids = selected.map((athlete) => athlete.athleteUid).filter(Boolean);
+    const audienceMode = selected.length > 1 ? "multi" : "single";
+    const note = `Coach planner session (${Math.max(1, parseTimeValue(state.docInfo.totalTime || "90"))} min total).`;
+
+    try {
+      const planRef = plansRef.doc();
+      const planPayload = {
+        title: planTitle,
+        type: "day",
+        focus: note,
+        coachNotes: note,
+        sourceMode: "scratch",
+        sourceRefId: "",
+        sourceLabel: "Coach Planner",
+        range: {
+          startKey: dueDateKey,
+          endKey: dueDateKey
+        },
+        items: buildPlanItemsFromPlanner(),
+        monthlyNotes: "",
+        seasonYear: String(state.settings?.season || "").trim(),
+        audience: {
+          mode: audienceMode,
+          athleteNames,
+          athleteIds,
+          athleteUids,
+          groupId: "",
+          groupName: ""
+        },
+        createdBy,
+        updatedBy: createdBy,
+        createdAt: timestamp,
+        updatedAt: timestamp
+      };
+
+      await planRef.set(planPayload, { merge: true });
+
+      const dueLabel = formatDateLabel(dueDateKey);
+      const batch = firebaseFirestoreInstance.batch();
+      const createdAssignments = [];
+      selected.forEach((athlete) => {
+        const assignmentRef = assignmentsRef.doc();
+        const assignmentPayload = {
+          title: planTitle,
+          assigneeType: "athlete",
+          assigneeId: athlete.id,
+          assigneeName: athlete.name,
+          assigneeNames: [athlete.name],
+          athleteIds: [athlete.id],
+          athleteUids: athlete.athleteUid ? [athlete.athleteUid] : [],
+          type: "Daily Plan",
+          dueDateKey,
+          dueLabel,
+          status: "not_started",
+          note,
+          source: "Coach Planner",
+          planId: planRef.id,
+          planType: "day",
+          notificationStatus: "pending",
+          createdAt: timestamp,
+          updatedAt: timestamp
+        };
+        batch.set(assignmentRef, assignmentPayload);
+        createdAssignments.push({
+          id: assignmentRef.id,
+          ...assignmentPayload,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      });
+
+      await batch.commit();
+      state.lastSentPlanId = planRef.id;
+
+      if (typeof sendCoachAssignmentNotification === "function") {
+        Promise.all(createdAssignments.map((assignment) => sendCoachAssignmentNotification(assignment))).catch((err) => {
+          console.warn("Planner assignment notifications failed", err);
+        });
+      }
+
+      const successMessage = `Training sent to ${selected.length} athlete${selected.length === 1 ? "" : "s"}.`;
+      setAssignStatus(successMessage);
+      setBottomStatus(successMessage);
+      triggerToast(successMessage);
+      closeAssignModal();
+    } catch (err) {
+      console.warn("Failed to send planner training assignments", err);
+      setAssignStatus("Could not send training. Try again.", true);
+    } finally {
+      state.assignModalBusy = false;
+      if (els.assignSendBtn) {
+        els.assignSendBtn.disabled = false;
+        els.assignSendBtn.textContent = "Send training";
+      }
+    }
+  }
+
+  function getPlannerUsersCollectionRef() {
+    try {
+      if (typeof firebaseFirestoreInstance === "undefined" || !firebaseFirestoreInstance) return null;
+      const collectionName = typeof FIREBASE_USERS_COLLECTION === "string" && FIREBASE_USERS_COLLECTION
+        ? FIREBASE_USERS_COLLECTION
+        : "users";
+      return firebaseFirestoreInstance.collection(collectionName);
+    } catch {
+      return null;
+    }
+  }
+
+  function isCoachLikeRole(value) {
+    const role = String(value || "").trim().toLowerCase();
+    return role === "coach" || role === "admin" || role === "administrator" || role === "head_coach";
+  }
+
+  function setCoachLibrariesStatus(message = "") {
+    state.coachLibrariesStatus = String(message || "");
+    if (els.coachLibrariesStatus) {
+      els.coachLibrariesStatus.textContent = state.coachLibrariesStatus;
+    }
+  }
+
+  function normalizeCoachLibraryFromUserDoc(uid, data = {}) {
+    const role = String(data?.role || "").trim().toLowerCase();
+    if (!isCoachLikeRole(role)) return null;
+    const entries = normalizeLibraryEntries(data?.plannerLibrary || data?.coachPlannerLibrary || []);
+    const incomingCategoryNames = data?.plannerCategoryNames && typeof data.plannerCategoryNames === "object"
+      ? data.plannerCategoryNames
+      : {};
+    const categoryNames = CATEGORIES.reduce((acc, category) => {
+      const candidate = String(incomingCategoryNames?.[category.id] || "").trim();
+      if (candidate) acc[category.id] = candidate;
+      return acc;
+    }, {});
+    return {
+      uid: String(uid || "").trim(),
+      name: String(data?.name || "").trim() || String(data?.email || "").trim() || "Coach",
+      email: String(data?.email || "").trim(),
+      entries,
+      categoryNames,
+      updatedAt: String(data?.plannerLibraryUpdatedAt || data?.updatedAt || "").trim()
+    };
+  }
+
+  function renderCoachLibraries() {
+    if (!els.coachLibraries) return;
+    if (!state.coachLibraries.length) {
+      els.coachLibraries.innerHTML = `<p class=\"small muted\">No coach libraries available yet.</p>`;
+      return;
+    }
+    const cardsHtml = state.coachLibraries.map((coach) => {
+      const grouped = CATEGORIES.map((category) => {
+        const entries = coach.entries.filter((entry) => normalizeCategoryId(entry.categoryId) === category.id);
+        if (!entries.length) return "";
+        const label = String(coach.categoryNames?.[category.id] || getCategoryNameById(category.id)).trim() || getCategoryNameById(category.id);
+        const items = entries.map((entry) => (
+          `<li>
+            <span>${escapeHtml(entry.name)}</span>
+            <button type=\"button\" class=\"ghost\" data-action=\"import-coach-item\" data-coach-uid=\"${escapeHtml(coach.uid)}\" data-item-id=\"${escapeHtml(entry.id)}\" title=\"Add to current library\">+</button>
+          </li>`
+        )).join("");
+        return `
+          <div class=\"planner-coach-category\">
+            <strong>${escapeHtml(label)}</strong>
+            <ul>${items}</ul>
+          </div>
+        `;
+      }).join("");
+      return `
+        <article class=\"planner-coach-card\">
+          <header>
+            <strong>${escapeHtml(coach.name)}</strong>
+            <span>${escapeHtml(coach.email || "coach")}</span>
+          </header>
+          ${grouped || `<p class=\"small muted\">No exercises shared yet.</p>`}
+        </article>
+      `;
+    }).join("");
+    els.coachLibraries.innerHTML = cardsHtml;
+  }
+
+  function importCoachLibraryEntry(coachUid, itemId) {
+    const coach = state.coachLibraries.find((entry) => entry.uid === String(coachUid || "").trim());
+    if (!coach) return;
+    const item = coach.entries.find((entry) => entry.id === String(itemId || "").trim());
+    if (!item) return;
+    if (isDuplicateLibraryEntry(item.name, item.categoryId)) {
+      triggerToast("Exercise already exists in this category.");
+      return;
+    }
+    state.exerciseLibrary = [
+      ...state.exerciseLibrary,
+      {
+        id: makeId(),
+        name: String(item.name || "").trim(),
+        categoryId: normalizeCategoryId(item.categoryId)
+      }
+    ];
+    persistLibrary();
+    queuePlannerLibrarySync();
+    renderRows();
+    renderLibraryGroups();
+    triggerToast(`Added from ${coach.name}`);
+  }
+
+  async function syncPlannerLibraryNow() {
+    const usersRef = getPlannerUsersCollectionRef();
+    const authUser = getPlannerAuthUser();
+    const uid = String(authUser?.id || "").trim();
+    if (!usersRef || !uid) return;
+    try {
+      await usersRef.doc(uid).set({
+        plannerLibrary: normalizeLibraryEntries(state.exerciseLibrary),
+        plannerCategoryNames: { ...state.categoryNames },
+        plannerLibraryUpdatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.warn("Planner library sync failed", err);
+    }
+  }
+
+  function queuePlannerLibrarySync() {
+    if (state.librarySyncTimer) {
+      clearTimeout(state.librarySyncTimer);
+      state.librarySyncTimer = null;
+    }
+    state.librarySyncTimer = window.setTimeout(() => {
+      syncPlannerLibraryNow().catch(() => {});
+    }, 650);
+  }
+
+  function subscribeCoachLibraries() {
+    const usersRef = getPlannerUsersCollectionRef();
+    if (!usersRef) {
+      setCoachLibrariesStatus("Coach libraries available after Firebase connects.");
+      renderCoachLibraries();
+      return;
+    }
+    if (state.coachLibrariesUnsub) return;
+    setCoachLibrariesStatus("Syncing coach libraries...");
+    state.coachLibrariesUnsub = usersRef.onSnapshot((snapshot) => {
+      const rows = snapshot.docs
+        .map((doc) => normalizeCoachLibraryFromUserDoc(doc.id, doc.data() || {}))
+        .filter(Boolean)
+        .sort((left, right) => left.name.localeCompare(right.name));
+      state.coachLibraries = rows;
+      state.coachLibrariesReady = true;
+      setCoachLibrariesStatus(rows.length ? `${rows.length} coach libraries loaded.` : "No coach libraries yet.");
+      renderCoachLibraries();
+    }, (err) => {
+      console.warn("Failed to load coach libraries", err);
+      setCoachLibrariesStatus("Could not load coach libraries right now.");
+      renderCoachLibraries();
+    });
+  }
+
+  function ensureCoachLibrariesSync() {
+    subscribeCoachLibraries();
+  }
+
   function openSettingsModal() {
     state.tempSettings = { ...state.settings };
     if (els.settingsClubInput) els.settingsClubInput.value = state.tempSettings.clubName || "";
@@ -306,6 +958,9 @@
   function openLibraryModal() {
     els.libraryModal?.classList.remove("hidden");
     renderLibraryGroups();
+    renderCoachLibraries();
+    ensureCoachLibrariesSync();
+    queuePlannerLibrarySync();
     els.newExerciseNameInput?.focus();
   }
 
@@ -339,37 +994,173 @@
   function ensureItemInLibrary(categoryId, itemName) {
     const cleanName = String(itemName || "").trim();
     if (!cleanName) return;
-    const exists = state.exerciseLibrary.some((entry) => {
-      return entry.categoryId === categoryId && entry.name.toLowerCase() === cleanName.toLowerCase();
-    });
-    if (exists) return;
-    state.exerciseLibrary = [...state.exerciseLibrary, { id: makeId(), name: cleanName, categoryId }];
+    if (isDuplicateLibraryEntry(cleanName, categoryId)) return;
+    state.exerciseLibrary = [...state.exerciseLibrary, { id: makeId(), name: cleanName, categoryId: normalizeCategoryId(categoryId) }];
     persistLibrary();
+    queuePlannerLibrarySync();
   }
 
   function saveExerciseToLibrary() {
     const name = String(els.newExerciseNameInput?.value || "").trim();
-    const categoryId = String(els.newExerciseCategorySelect?.value || CATEGORIES[0].id);
-    if (!name) return;
+    const categoryId = normalizeCategoryId(els.newExerciseCategorySelect?.value || CATEGORIES[0].id);
+    if (!name) {
+      triggerToast("Write an exercise name first.");
+      els.newExerciseNameInput?.focus();
+      return;
+    }
+    if (isDuplicateLibraryEntry(name, categoryId)) {
+      triggerToast("Exercise already exists in this category.");
+      return;
+    }
     state.exerciseLibrary = [...state.exerciseLibrary, { id: makeId(), name, categoryId }];
     persistLibrary();
+    queuePlannerLibrarySync();
     renderRows();
     renderLibraryGroups();
+    renderCoachLibraries();
     if (els.newExerciseNameInput) els.newExerciseNameInput.value = "";
+    els.newExerciseNameInput?.focus();
     triggerToast("Exercise saved to library!");
   }
 
   function deleteExerciseFromLibrary(id) {
     state.exerciseLibrary = state.exerciseLibrary.filter((entry) => entry.id !== id);
     persistLibrary();
+    queuePlannerLibrarySync();
     renderRows();
     renderLibraryGroups();
+    renderCoachLibraries();
+  }
+
+  function updateCategoryName(categoryId, name) {
+    const safeCategoryId = normalizeCategoryId(categoryId);
+    const cleanName = String(name || "").trim();
+    state.categoryNames[safeCategoryId] = cleanName || CATEGORIES.find((category) => category.id === safeCategoryId)?.name || safeCategoryId;
+    persistCategoryNames();
+    queuePlannerLibrarySync();
+    renderCategorySelectOptions();
+    renderRows();
+    renderLibraryGroups();
+    renderCoachLibraries();
+  }
+
+  function updateLibraryDraft(categoryId, value) {
+    state.categoryDrafts[normalizeCategoryId(categoryId)] = String(value || "");
+  }
+
+  function addDraftExerciseToLibrary(categoryId) {
+    const safeCategoryId = normalizeCategoryId(categoryId);
+    const draftName = String(state.categoryDrafts[safeCategoryId] || "").trim();
+    if (!draftName) {
+      triggerToast("Write an exercise name first.");
+      return;
+    }
+    if (isDuplicateLibraryEntry(draftName, safeCategoryId)) {
+      triggerToast("Exercise already exists in this category.");
+      return;
+    }
+    state.exerciseLibrary = [
+      ...state.exerciseLibrary,
+      { id: makeId(), name: draftName, categoryId: safeCategoryId }
+    ];
+    state.categoryDrafts[safeCategoryId] = "";
+    persistLibrary();
+    queuePlannerLibrarySync();
+    renderRows();
+    renderLibraryGroups();
+    renderCoachLibraries();
+    triggerToast("Exercise added.");
+  }
+
+  function getNextDefaultLibraryName(categoryId) {
+    const safeCategoryId = normalizeCategoryId(categoryId);
+    const baseName = "New exercise";
+    const normalized = state.exerciseLibrary
+      .filter((entry) => normalizeCategoryId(entry.categoryId) === safeCategoryId)
+      .map((entry) => String(entry.name || "").trim().toLowerCase());
+    if (!normalized.includes(baseName.toLowerCase())) return baseName;
+    let index = 2;
+    while (normalized.includes(`${baseName.toLowerCase()} ${index}`)) {
+      index += 1;
+    }
+    return `${baseName} ${index}`;
+  }
+
+  function quickAddLibraryItem(categoryId) {
+    const safeCategoryId = normalizeCategoryId(categoryId);
+    const itemId = makeId();
+    const name = getNextDefaultLibraryName(safeCategoryId);
+    state.exerciseLibrary = [
+      ...state.exerciseLibrary,
+      { id: itemId, name, categoryId: safeCategoryId }
+    ];
+    state.pendingLibraryFocus = itemId;
+    persistLibrary();
+    queuePlannerLibrarySync();
+    renderRows();
+    renderLibraryGroups();
+    renderCoachLibraries();
+    triggerToast("Exercise added. Edit the name.");
+  }
+
+  function updateLibraryItemName(itemId, categoryId, nextName) {
+    const safeItemId = String(itemId || "").trim();
+    const safeCategoryId = normalizeCategoryId(categoryId);
+    const cleanName = String(nextName || "").trim();
+    if (!safeItemId) return;
+    if (cleanName) {
+      const duplicate = state.exerciseLibrary.some((entry) => {
+        if (entry.id === safeItemId) return false;
+        return normalizeCategoryId(entry.categoryId) === safeCategoryId
+          && String(entry.name || "").trim().toLowerCase() === cleanName.toLowerCase();
+      });
+      if (duplicate) {
+        triggerToast("Exercise already exists in this category.");
+        renderLibraryGroups();
+        return;
+      }
+    }
+    state.exerciseLibrary = state.exerciseLibrary.map((entry) => {
+      if (entry.id !== safeItemId) return entry;
+      return {
+        ...entry,
+        categoryId: safeCategoryId,
+        name: cleanName || entry.name
+      };
+    });
+    persistLibrary();
+    queuePlannerLibrarySync();
+    renderRows();
+    renderLibraryGroups();
+    renderCoachLibraries();
+  }
+
+  function setLibraryItemDraft(itemId, categoryId, nextName) {
+    const safeItemId = String(itemId || "").trim();
+    if (!safeItemId) return;
+    state.exerciseLibrary = state.exerciseLibrary.map((entry) => {
+      if (entry.id !== safeItemId) return entry;
+      return {
+        ...entry,
+        categoryId: normalizeCategoryId(categoryId),
+        name: String(nextName || "")
+      };
+    });
+  }
+
+  function addLibraryItemToPlan(itemId, categoryId) {
+    const safeItemId = String(itemId || "").trim();
+    const safeCategoryId = normalizeCategoryId(categoryId);
+    const item = state.exerciseLibrary.find((entry) => entry.id === safeItemId);
+    if (!item) return;
+    addToSchedule(safeCategoryId, item.name);
+    triggerToast("Added to current plan.");
   }
 
   function renderCategorySelectOptions() {
     if (!els.newExerciseCategorySelect) return;
     els.newExerciseCategorySelect.innerHTML = CATEGORIES
-      .map((category) => `<option value="${category.id}">${escapeHtml(category.name)}</option>`)
+      .map((category) => `<option value="${category.id}">${escapeHtml(getCategoryNameById(category.id))}</option>`)
       .join("");
   }
 
@@ -377,26 +1168,66 @@
     if (!els.libraryGroups) return;
     const groupsHtml = CATEGORIES.map((category) => {
       const items = state.exerciseLibrary.filter((entry) => entry.categoryId === category.id);
-      if (!items.length) {
-        return `
-          <section class="planner-library-group">
-            <header>${escapeHtml(category.name)} <span>0</span></header>
-            <p class="small muted">No exercises saved yet.</p>
-          </section>
-        `;
-      }
+      const draft = String(state.categoryDrafts[category.id] || "");
+      const itemsHtml = items.length
+        ? `<ul>
+            ${items
+              .map((item) => `
+                <li>
+                  <input
+                    type="text"
+                    value="${escapeHtml(item.name)}"
+                    data-action="edit-library-item"
+                    data-id="${item.id}"
+                    data-category="${category.id}"
+                  >
+                  <div class="planner-library-item-actions">
+                    <button type="button" class="ghost" data-action="add-library-item-to-plan" data-id="${item.id}" data-category="${category.id}" title="Add to plan">+</button>
+                    <button type="button" class="ghost" data-action="delete-library" data-id="${item.id}">Delete</button>
+                  </div>
+                </li>
+              `)
+              .join("")}
+          </ul>`
+        : `<p class="small muted">No exercises saved yet.</p>`;
       return `
         <section class="planner-library-group">
-          <header>${escapeHtml(category.name)} <span>${items.length}</span></header>
-          <ul>
-            ${items
-              .map((item) => `<li><span>${escapeHtml(item.name)}</span><button type="button" class="ghost" data-action="delete-library" data-id="${item.id}">Delete</button></li>`)
-              .join("")}
-          </ul>
+          <header>
+            <input
+              type="text"
+              class="planner-library-category-input"
+              value="${escapeHtml(getCategoryNameById(category.id))}"
+              data-action="edit-category-name"
+              data-category="${category.id}"
+            >
+            <div class="planner-library-header-actions">
+              <button type="button" class="ghost planner-library-plus" data-action="quick-add-library-item" data-category="${category.id}" title="Add exercise">+</button>
+              <span>${items.length}</span>
+            </div>
+          </header>
+          <div class="planner-library-quick-add">
+            <input
+              type="text"
+              placeholder="Add new movement/exercise"
+              value="${escapeHtml(draft)}"
+              data-action="library-draft-input"
+              data-category="${category.id}"
+            >
+            <button type="button" class="primary" data-action="save-library-draft" data-category="${category.id}">Add +</button>
+          </div>
+          ${itemsHtml}
         </section>
       `;
     }).join("");
     els.libraryGroups.innerHTML = groupsHtml;
+    if (state.pendingLibraryFocus) {
+      const target = els.libraryGroups.querySelector(`input[data-action="edit-library-item"][data-id="${state.pendingLibraryFocus}"]`);
+      if (target && target instanceof HTMLInputElement) {
+        target.focus();
+        target.select();
+      }
+      state.pendingLibraryFocus = "";
+    }
   }
 
   function autoResizeAllTextareas() {
@@ -435,7 +1266,7 @@
       return `
         <tr>
           <td>
-            <div class="planner-category-title">${escapeHtml(category.name)}</div>
+            <div class="planner-category-title">${escapeHtml(getCategoryNameById(category.id))}</div>
             <div class="planner-row-controls">
               <select data-action="pick-library" data-category="${category.id}">
                 <option value="">Choose saved drill...</option>
@@ -481,6 +1312,7 @@
     renderRows();
     renderLibraryGroups();
     updateTimeStatus();
+    setBottomStatus("Save as template or send this training to athletes.");
   }
 
   function handleRootClick(event) {
@@ -497,6 +1329,38 @@
     }
     if (action === "delete-library") {
       deleteExerciseFromLibrary(trigger.dataset.id);
+      return;
+    }
+    if (action === "save-library-draft") {
+      const safeCategoryId = normalizeCategoryId(trigger.dataset.category);
+      const draftInput = root.querySelector(`input[data-action="library-draft-input"][data-category="${safeCategoryId}"]`);
+      if (draftInput && draftInput instanceof HTMLInputElement) {
+        updateLibraryDraft(safeCategoryId, draftInput.value);
+      }
+      addDraftExerciseToLibrary(trigger.dataset.category);
+      return;
+    }
+    if (action === "add-library-item-to-plan") {
+      addLibraryItemToPlan(trigger.dataset.id, trigger.dataset.category);
+      return;
+    }
+    if (action === "import-coach-item") {
+      importCoachLibraryEntry(trigger.dataset.coachUid, trigger.dataset.itemId);
+      return;
+    }
+    if (action === "toggle-assign-athlete") {
+      const athleteId = String(trigger.dataset.athleteId || "").trim();
+      if (!athleteId) return;
+      if (state.selectedAthleteIds.includes(athleteId)) {
+        state.selectedAthleteIds = state.selectedAthleteIds.filter((id) => id !== athleteId);
+      } else {
+        state.selectedAthleteIds = [...state.selectedAthleteIds, athleteId];
+      }
+      renderAssignAthleteList();
+      return;
+    }
+    if (action === "quick-add-library-item") {
+      quickAddLibraryItem(trigger.dataset.category);
     }
   }
 
@@ -520,6 +1384,21 @@
       state.categoryTimes[categoryId] = String(target.value || "0");
       persistDaily();
       updateTimeStatus();
+      return;
+    }
+
+    if (target.matches("input[data-action='library-draft-input']")) {
+      updateLibraryDraft(target.dataset.category, target.value);
+      return;
+    }
+
+    if (target.matches("input[data-action='edit-category-name']")) {
+      updateCategoryName(target.dataset.category, target.value);
+      return;
+    }
+
+    if (target.matches("input[data-action='edit-library-item']")) {
+      updateLibraryItemName(target.dataset.id, target.dataset.category, target.value);
     }
   }
 
@@ -534,6 +1413,33 @@
       updateScheduleItem(categoryId, itemId, target.value);
       target.style.height = "auto";
       target.style.height = `${target.scrollHeight}px`;
+      return;
+    }
+
+    if (target.matches("input[data-action='library-draft-input']")) {
+      updateLibraryDraft(target.dataset.category, target.value);
+      return;
+    }
+
+    if (target.matches("input[data-action='edit-category-name']")) {
+      const categoryId = normalizeCategoryId(target.dataset.category);
+      state.categoryNames[categoryId] = target.value;
+      return;
+    }
+
+    if (target.matches("input[data-action='edit-library-item']")) {
+      setLibraryItemDraft(target.dataset.id, target.dataset.category, target.value);
+      return;
+    }
+
+    if (target === els.assignSearchInput) {
+      state.assignSearch = String(els.assignSearchInput.value || "");
+      renderAssignAthleteList();
+      return;
+    }
+
+    if (target === els.assignDueDateInput) {
+      state.assignDueDate = normalizeDateKeyValue(els.assignDueDateInput.value || "");
       return;
     }
 
@@ -565,11 +1471,29 @@
   function handleRootBlur(event) {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
-    if (!target.matches("textarea[data-action='item-input']")) return;
-    const categoryId = target.dataset.category;
-    if (!categoryId) return;
-    ensureItemInLibrary(categoryId, target.value);
-    renderRows();
+    if (target.matches("textarea[data-action='item-input']")) {
+      const categoryId = target.dataset.category;
+      if (!categoryId) return;
+      ensureItemInLibrary(categoryId, target.value);
+      renderRows();
+      return;
+    }
+    if (target.matches("input[data-action='edit-category-name']")) {
+      updateCategoryName(target.dataset.category, target.value);
+      return;
+    }
+    if (target.matches("input[data-action='edit-library-item']")) {
+      updateLibraryItemName(target.dataset.id, target.dataset.category, target.value);
+    }
+  }
+
+  function handleRootKeydown(event) {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (!target.matches("input[data-action='library-draft-input']")) return;
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    addDraftExerciseToLibrary(target.dataset.category);
   }
 
   function bindStaticEvents() {
@@ -577,6 +1501,7 @@
     root.addEventListener("change", handleRootChange);
     root.addEventListener("input", handleRootInput);
     root.addEventListener("blur", handleRootBlur, true);
+    root.addEventListener("keydown", handleRootKeydown);
 
     els.printBtn?.addEventListener("click", () => window.print());
 
@@ -616,12 +1541,39 @@
     els.libraryCloseBtn?.addEventListener("click", closeLibraryModal);
     els.libraryCancelBtn?.addEventListener("click", closeLibraryModal);
     els.saveLibraryItemBtn?.addEventListener("click", saveExerciseToLibrary);
+    els.newExerciseNameInput?.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      saveExerciseToLibrary();
+    });
+    els.saveTemplateBtn?.addEventListener("click", () => {
+      savePlannerAsTemplate().catch(() => {});
+    });
+    els.sendAthletesBtn?.addEventListener("click", openAssignModal);
+    els.saveTemplateTopBtn?.addEventListener("click", () => {
+      savePlannerAsTemplate().catch(() => {});
+    });
+    els.sendAthletesTopBtn?.addEventListener("click", openAssignModal);
+    els.assignCloseBtn?.addEventListener("click", closeAssignModal);
+    els.assignCancelBtn?.addEventListener("click", closeAssignModal);
+    els.assignSendBtn?.addEventListener("click", () => {
+      sendPlannerTrainingToAthletes().catch(() => {});
+    });
+    els.assignSelectAllBtn?.addEventListener("click", () => {
+      state.selectedAthleteIds = state.assignAthletes.map((athlete) => athlete.id);
+      renderAssignAthleteList();
+    });
+    els.assignClearBtn?.addEventListener("click", () => {
+      state.selectedAthleteIds = [];
+      renderAssignAthleteList();
+    });
 
     root.querySelectorAll(".planner-modal-backdrop").forEach((backdrop) => {
       backdrop.addEventListener("click", () => {
         const dismiss = backdrop.dataset.dismiss;
         if (dismiss === "settings") closeSettingsModal();
         if (dismiss === "library") closeLibraryModal();
+        if (dismiss === "assign") closeAssignModal();
       });
     });
   }

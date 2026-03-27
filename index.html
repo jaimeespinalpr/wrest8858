@@ -1173,6 +1173,8 @@
               </div>
               <button type="button" class="ghost" id="plannerOpenSettingsBtn">Customize</button>
               <button type="button" class="ghost" id="plannerOpenLibraryBtn">Library</button>
+              <button type="button" class="ghost" id="plannerSaveTemplateTopBtn">Save template</button>
+              <button type="button" class="primary" id="plannerSendAthletesTopBtn">Send to athletes</button>
               <button type="button" class="primary" id="plannerPrintBtn">Print</button>
             </div>
           </nav>
@@ -1211,6 +1213,14 @@
                 </thead>
                 <tbody id="plannerRows"></tbody>
               </table>
+            </div>
+
+            <div class="planner-bottom-actions">
+              <div class="planner-bottom-actions-row">
+                <button type="button" class="ghost" id="plannerSaveTemplateBtn">Save as template</button>
+                <button type="button" class="primary" id="plannerSendAthletesBtn">Send training to athletes</button>
+              </div>
+              <p class="small muted" id="plannerBottomStatus">Save as template or send this training to athletes.</p>
             </div>
 
             <footer class="planner-footer">
@@ -1287,10 +1297,55 @@
                   </label>
                   <button type="button" class="primary" id="plannerSaveLibraryItemBtn">Save exercise</button>
                 </div>
-                <div id="plannerLibraryGroups" class="planner-library-groups"></div>
+                <section class="planner-library-section">
+                  <div class="planner-library-section-header">
+                    <h4>Working Library (Editable by category)</h4>
+                    <span class="small muted">Edit categories and exercises directly.</span>
+                  </div>
+                  <div id="plannerLibraryGroups" class="planner-library-groups"></div>
+                </section>
+                <section class="planner-library-section">
+                  <div class="planner-library-section-header">
+                    <h4>Coach Libraries</h4>
+                    <span class="small muted" id="plannerCoachLibrariesStatus">Loading coach libraries...</span>
+                  </div>
+                  <div id="plannerCoachLibraries" class="planner-coach-libraries"></div>
+                </section>
               </div>
               <footer>
                 <button type="button" class="ghost" id="plannerLibraryCancelBtn">Close</button>
+              </footer>
+            </div>
+          </div>
+
+          <div class="planner-modal hidden" id="plannerAssignModal" role="dialog" aria-modal="true" aria-label="Send training to athletes">
+            <div class="planner-modal-backdrop" data-dismiss="assign"></div>
+            <div class="planner-modal-card planner-modal-wide">
+              <header>
+                <h3>Send training to athletes</h3>
+                <button type="button" class="ghost" id="plannerAssignCloseBtn">Close</button>
+              </header>
+              <div class="planner-modal-body">
+                <div class="planner-assign-toolbar">
+                  <label>
+                    <span>Search athlete</span>
+                    <input type="text" id="plannerAssignSearchInput" placeholder="Type athlete name">
+                  </label>
+                  <label>
+                    <span>Due date</span>
+                    <input type="date" id="plannerAssignDueDateInput">
+                  </label>
+                </div>
+                <div class="planner-assign-actions">
+                  <button type="button" class="ghost" id="plannerAssignSelectAllBtn">Select all</button>
+                  <button type="button" class="ghost" id="plannerAssignClearBtn">Clear</button>
+                </div>
+                <div id="plannerAssignList" class="planner-assign-list"></div>
+                <p class="small muted" id="plannerAssignStatus">Choose athletes, then send.</p>
+              </div>
+              <footer>
+                <button type="button" class="ghost" id="plannerAssignCancelBtn">Cancel</button>
+                <button type="button" class="primary" id="plannerAssignSendBtn">Send training</button>
               </footer>
             </div>
           </div>
@@ -1936,7 +1991,7 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260326d"></script>
-  <script src="coach-planner.js?v=20260326d"></script>
+  <script src="app.js?v=20260326e"></script>
+  <script src="coach-planner.js?v=20260326e"></script>
 </body>
 </html>

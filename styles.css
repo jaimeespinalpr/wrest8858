@@ -7682,6 +7682,29 @@ svg{
   padding-top: 10px;
 }
 
+.planner-bottom-actions{
+  border: 1px solid rgba(124, 147, 183, 0.26);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(7, 18, 33, 0.72);
+  display: grid;
+  gap: 8px;
+}
+
+.planner-bottom-actions-row{
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.planner-bottom-actions-row button{
+  min-height: 42px;
+}
+
+.planner-status-error{
+  color: #fecaca !important;
+}
+
 .planner-footer strong{
   font-size: clamp(1.1rem, 4vw, 2rem);
   letter-spacing: 0.03em;
@@ -7821,6 +7844,28 @@ svg{
   align-items: end;
 }
 
+.planner-library-section{
+  display: grid;
+  gap: 10px;
+}
+
+.planner-library-section + .planner-library-section{
+  border-top: 1px solid rgba(124, 147, 183, 0.24);
+  padding-top: 10px;
+}
+
+.planner-library-section-header{
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.planner-library-section-header h4{
+  margin: 0;
+}
+
 .planner-library-groups{
   display: grid;
   gap: 10px;
@@ -7839,6 +7884,13 @@ svg{
   align-items: center;
   margin-bottom: 6px;
   font-weight: 700;
+  gap: 8px;
+}
+
+.planner-library-header-actions{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .planner-library-group > header span{
@@ -7846,6 +7898,19 @@ svg{
   border: 1px solid rgba(124, 147, 183, 0.24);
   border-radius: 999px;
   padding: 2px 8px;
+}
+
+.planner-library-plus{
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.05rem;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .planner-library-group ul{
@@ -7863,6 +7928,141 @@ svg{
   gap: 8px;
 }
 
+.planner-library-group input[type="text"]{
+  width: 100%;
+}
+
+.planner-library-category-input{
+  font-weight: 700;
+  border: 1px solid rgba(124, 147, 183, 0.26);
+  border-radius: 8px;
+  background: rgba(8, 19, 36, 0.62);
+  color: #ebf2ff;
+  padding: 7px 9px;
+}
+
+.planner-library-quick-add{
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.planner-library-item-actions{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.planner-coach-libraries{
+  display: grid;
+  gap: 10px;
+}
+
+.planner-coach-card{
+  border: 1px solid rgba(124, 147, 183, 0.24);
+  border-radius: 10px;
+  background: rgba(8, 18, 34, 0.7);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.planner-coach-card > header{
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.planner-coach-card > header span{
+  font-size: 0.75rem;
+  color: #9bb1d3;
+}
+
+.planner-coach-category{
+  border-top: 1px solid rgba(124, 147, 183, 0.2);
+  padding-top: 8px;
+}
+
+.planner-coach-category strong{
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.82rem;
+  color: #dbeafe;
+}
+
+.planner-coach-category ul{
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.planner-coach-category li{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.planner-assign-toolbar{
+  display: grid;
+  grid-template-columns: 1fr 180px;
+  gap: 8px;
+}
+
+.planner-assign-actions{
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.planner-assign-list{
+  border: 1px solid rgba(124, 147, 183, 0.24);
+  border-radius: 10px;
+  background: rgba(7, 18, 33, 0.52);
+  padding: 8px;
+  max-height: 300px;
+  overflow: auto;
+  display: grid;
+  gap: 6px;
+}
+
+.planner-assign-athlete{
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(124, 147, 183, 0.26);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(7, 18, 33, 0.75);
+  color: #e7effc;
+  display: grid;
+  gap: 2px;
+  transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
+}
+
+.planner-assign-athlete strong{
+  font-size: 0.95rem;
+}
+
+.planner-assign-athlete span{
+  font-size: 0.78rem;
+  color: #9cb3d6;
+}
+
+.planner-assign-athlete.active{
+  border-color: rgba(59, 130, 246, 0.75);
+  background: rgba(11, 38, 79, 0.78);
+}
+
+.planner-assign-athlete:hover{
+  transform: translateY(-1px);
+}
+
 @media (max-width: 860px){
   .planner-sheet-header{
     grid-template-columns: 1fr;
@@ -7876,6 +8076,18 @@ svg{
   .planner-library-form{
     grid-template-columns: 1fr;
   }
+  .planner-library-quick-add{
+    grid-template-columns: 1fr;
+  }
+  .planner-bottom-actions-row{
+    flex-direction: column;
+  }
+  .planner-bottom-actions-row button{
+    width: 100%;
+  }
+  .planner-assign-toolbar{
+    grid-template-columns: 1fr;
+  }
   .planner-footer{
     flex-direction: column;
     align-items: flex-start;
@@ -7887,6 +8099,7 @@ svg{
 
 @media print{
   .planner-toolbar,
+  .planner-bottom-actions,
   .planner-row-controls,
   .planner-items-list button,
   .planner-toast,
