@@ -14,11 +14,25 @@
 
   --shadow: 0 18px 40px rgba(10,28,56,0.12);
   --radius: 18px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --app-vh: 100vh;
+}
+
+@supports (height: 100dvh){
+  :root{
+    --app-vh: 100dvh;
+  }
 }
 
 html{
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 *{ box-sizing: border-box; }
@@ -44,8 +58,13 @@ body{
     radial-gradient(circle at 8% 4%, rgba(18,52,98,0.06), transparent 34%),
     radial-gradient(circle at 88% 10%, rgba(200,16,46,0.12), transparent 36%),
     linear-gradient(180deg, #fbfdff 0%, #f5f9ff 45%, #f8fbff 100%);
-  min-height: 100vh;
+  min-height: var(--app-vh);
   background-attachment: fixed;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
 }
 
 body::before{
@@ -62,9 +81,19 @@ body::before{
 }
 
 .app{
+  width: min(100%, 980px);
   max-width: 980px;
   margin: 0 auto;
-  padding: 22px 16px 40px;
+  padding: calc(22px + var(--safe-top)) 16px calc(40px + var(--safe-bottom));
+  min-width: 0;
+}
+
+img,
+video,
+canvas,
+svg,
+iframe{
+  max-width: 100%;
 }
 
 .app-header{
@@ -1062,6 +1091,30 @@ button:active{
 
 .coach-match-card{
   overflow: hidden;
+}
+
+.coach-match-panel{
+  display: grid;
+  gap: 14px;
+}
+
+.coach-match-panel.hidden{
+  display: none;
+}
+
+.coach-match-selector-card{
+  position: sticky;
+  top: 84px;
+  z-index: 8;
+}
+
+.coach-match-select-field{
+  max-width: 420px;
+}
+
+.coach-match-selector-meta{
+  margin: 0;
+  font-size: 12px;
 }
 
 .coach-match-shell{
@@ -4292,6 +4345,12 @@ textarea:focus{
     background: rgba(15,19,36,0.9);
     border-color: rgba(255,255,255,0.18);
     -webkit-overflow-scrolling: touch;
+  }
+  .coach-match-selector-card{
+    top: 62px;
+  }
+  .coach-match-select-field{
+    max-width: 100%;
   }
   .tabs::-webkit-scrollbar{
     display: none;
@@ -8134,6 +8193,187 @@ svg{
   }
   .planner-footer > div:last-child{
     justify-items: start;
+  }
+}
+
+/* Global mobile + orientation responsiveness */
+body.viewport-mobile{
+  background-attachment: scroll;
+}
+
+body.viewport-mobile input,
+body.viewport-mobile select,
+body.viewport-mobile textarea,
+body.viewport-mobile button{
+  font-size: 16px;
+}
+
+body.viewport-mobile .app{
+  padding-top: calc(12px + var(--safe-top));
+  padding-bottom: calc(24px + var(--safe-bottom));
+  padding-left: max(10px, calc(10px + var(--safe-left)));
+  padding-right: max(10px, calc(10px + var(--safe-right)));
+}
+
+@media (max-width: 1024px){
+  .app{
+    max-width: 100%;
+  }
+
+  .app-header,
+  .tabs,
+  .card,
+  .mini-card,
+  .messages-whatsapp-card{
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .row{
+    flex-wrap: wrap;
+  }
+
+  .row > *{
+    min-width: 0;
+  }
+
+  .grid,
+  .section-grid,
+  .plan-grid,
+  .media-grid,
+  .media-layout,
+  .media-item-list,
+  .media-tools,
+  .stat-grid,
+  .action-grid,
+  .athlete-grid,
+  .coach-profile-section-grid,
+  .tech-grid,
+  .onepager-grid,
+  .coach-match-shell,
+  .coach-match-grid,
+  .selection-block,
+  .template-help-grid,
+  .assignment-type-grid,
+  .assignment-toolbar,
+  .plan-athlete-picker,
+  .assignment-card-fields,
+  .training-builder-grid,
+  .training-builder-brand-grid,
+  .training-builder-block-grid{
+    grid-template-columns: 1fr !important;
+  }
+
+  .coach-athlete-roster-shell,
+  .athlete-roster-summary{
+    grid-template-columns: 1fr !important;
+  }
+
+  .admin-user-row{
+    grid-template-columns: 1fr !important;
+    align-items: stretch;
+  }
+
+  .assignment-status-select{
+    min-width: 0;
+    width: 100%;
+  }
+
+  .planner-modal-card{
+    max-height: calc(var(--app-vh) - 24px);
+    margin: 12px auto;
+  }
+
+  .planner-alert{
+    left: 10px;
+    right: 10px;
+    max-width: none;
+  }
+}
+
+@media (max-width: 900px){
+  .app{
+    padding-top: calc(10px + var(--safe-top));
+  }
+
+  .app-header{
+    padding: 12px;
+  }
+
+  .tabs{
+    top: calc(var(--safe-top) + 4px);
+  }
+
+  .messages-whatsapp-card .messages-shell{
+    grid-template-columns: 1fr;
+    height: calc(var(--app-vh) - 136px);
+    min-height: 360px;
+    max-height: none;
+  }
+
+  .messages-whatsapp-card .messages-empty-state,
+  .messages-whatsapp-card .messages-thread-view{
+    min-height: 0;
+    height: 100%;
+  }
+
+  .messages-whatsapp-card #messagesContactsDirectory{
+    max-height: calc(var(--app-vh) - 220px);
+  }
+}
+
+@media (max-width: 1024px) and (orientation: landscape) and (max-height: 760px){
+  .app{
+    padding-top: calc(8px + var(--safe-top));
+  }
+
+  .app-header{
+    padding: 10px 12px;
+  }
+
+  .tabs{
+    margin: 8px 0 10px;
+    top: calc(var(--safe-top) + 2px);
+  }
+
+  .card,
+  .mini-card{
+    padding: 10px;
+  }
+
+  .coach-match-selector-card{
+    position: static;
+  }
+
+  .messages-whatsapp-card .messages-shell{
+    height: calc(var(--app-vh) - 104px);
+    min-height: 280px;
+  }
+
+  .messages-whatsapp-card .messages-feed{
+    padding: 8px 10px;
+  }
+
+  .messages-whatsapp-card .message-composer{
+    padding: 8px;
+  }
+}
+
+@media (max-width: 480px){
+  .row > *{
+    flex: 1 1 100%;
+  }
+
+  .quick-actions button,
+  .athlete-roster-actions button,
+  .assignment-card-actions button{
+    width: 100%;
+  }
+
+  .coach-match-avatar{
+    width: 72px;
+    height: 72px;
+    font-size: 24px;
   }
 }
 

@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" >
   <title>Wrestling Performance Lab</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" >
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" >
   <link rel="preconnect" href="https://fonts.googleapis.com" >
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin >
   <link
     href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Teko:wght@500;600;700&display=swap"
     rel="stylesheet"
   >
-  <link rel="stylesheet" href="styles.css?v=20260326d" >
+  <link rel="stylesheet" href="styles.css?v=20260326h" >
 </head>
 
 <body>
@@ -700,6 +700,69 @@
             </div>
 
             <div class="form-section">
+              <h3>Corner View Inputs</h3>
+              <p class="small muted">Fill these so the coach competition screen has complete athlete data.</p>
+              <div class="grid">
+                <label>
+                  <span>Top setup #1</span>
+                  <input id="aSetup1" type="text" placeholder="Primary setup" >
+                </label>
+                <label>
+                  <span>Top setup #2</span>
+                  <input id="aSetup2" type="text" placeholder="Secondary setup" >
+                </label>
+                <label>
+                  <span>Top setup #3</span>
+                  <input id="aSetup3" type="text" placeholder="Counter setup" >
+                </label>
+                <label>
+                  <span>Coach cue #1</span>
+                  <input id="aCornerCue1" type="text" placeholder="Short cue" >
+                </label>
+                <label>
+                  <span>Coach cue #2</span>
+                  <input id="aCornerCue2" type="text" placeholder="Pressure cue" >
+                </label>
+                <label>
+                  <span>Coach cue #3</span>
+                  <input id="aCornerCue3" type="text" placeholder="End-match cue" >
+                </label>
+                <label>
+                  <span>Mental reminder #1</span>
+                  <input id="aMentalReminder1" type="text" placeholder="Mindset reminder" >
+                </label>
+                <label>
+                  <span>Mental reminder #2</span>
+                  <input id="aMentalReminder2" type="text" placeholder="Confidence cue" >
+                </label>
+                <label>
+                  <span>Mental reminder #3</span>
+                  <input id="aMentalReminder3" type="text" placeholder="Reset cue" >
+                </label>
+                <label>
+                  <span>Safety warning #1</span>
+                  <input id="aSafetyWarning1" type="text" placeholder="Do not force position" >
+                </label>
+                <label>
+                  <span>Safety warning #2</span>
+                  <input id="aSafetyWarning2" type="text" placeholder="Protect body area" >
+                </label>
+                <label>
+                  <span>Physical limitation #1</span>
+                  <input id="aPhysicalLimitation1" type="text" placeholder="Known limitation" >
+                </label>
+                <label>
+                  <span>Physical limitation #2</span>
+                  <input id="aPhysicalLimitation2" type="text" placeholder="Secondary limitation" >
+                </label>
+                <label>
+                  <span>Competition call</span>
+                  <textarea id="aCompetitionCue" rows="3" placeholder="What coach should repeat in the corner"></textarea>
+                </label>
+              </div>
+            </div>
+
+            <div class="form-section">
               <h3 id="aTopMovesHeading">Top 3 Moves</h3>
               <div class="section-grid coach-move-grid">
                   <div class="mini-card">
@@ -1103,17 +1166,22 @@
         </div>
       </section>
 
-      <section class="panel hidden" id="panel-coach-match">
+      <section class="panel hidden coach-match-panel" id="panel-coach-match">
+        <div class="card coach-match-selector-card">
+          <div class="card-header">
+            <h3 id="coachMatchPickerTitle">Select Athlete First</h3>
+            <div class="small muted coach-match-selector-meta" id="coachMatchPickerHint">Competition setup</div>
+          </div>
+          <label class="inline-field coach-match-select-field">
+            <span id="coachMatchSelectLabel">Select athlete</span>
+            <select id="coachMatchSelect"></select>
+          </label>
+        </div>
+
         <div class="card coach-match-card" id="athleteSummaryCard">
           <div class="card-header">
             <h2>Athlete Summary</h2>
             <div class="chip">Real-time corner view</div>
-          </div>
-          <div class="row">
-            <label class="inline-field">
-              <span id="coachMatchSelectLabel">Select athlete</span>
-              <select id="coachMatchSelect"></select>
-            </label>
           </div>
 
           <div class="coach-match-shell">
@@ -2012,7 +2080,7 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260326g"></script>
-  <script src="coach-planner.js?v=20260326g"></script>
+  <script src="app.js?v=20260326h"></script>
+  <script src="coach-planner.js?v=20260326h"></script>
 </body>
 </html>

@@ -351,6 +351,7 @@ let calendarCoachBound = false;
 let headerMenuOpen = false;
 let viewMenuOpen = false;
 let currentView = "athlete";
+let responsiveViewportEventsBound = false;
 const headerViewButtons = Array.from(document.querySelectorAll("#headerMenu button[data-action^='view-']"));
 
 if (typeof window !== "undefined" && window.history && "scrollRestoration" in window.history) {
@@ -649,6 +650,36 @@ function resetViewportToTop() {
   };
   applyTop();
   window.requestAnimationFrame(applyTop);
+}
+
+function updateResponsiveViewportState() {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  const width = Number(window.innerWidth || document.documentElement.clientWidth || 0);
+  const height = Number(window.innerHeight || document.documentElement.clientHeight || 0);
+  if (height > 0) {
+    document.documentElement.style.setProperty("--app-vh", `${height}px`);
+  }
+  const mobile = width <= 1024;
+  const landscape = width > height;
+  const shortViewport = height > 0 && height <= 760;
+  document.body.classList.toggle("viewport-mobile", mobile);
+  document.body.classList.toggle("viewport-mobile-landscape", mobile && landscape);
+  document.body.classList.toggle("viewport-short", shortViewport);
+}
+
+function bindResponsiveViewportEvents() {
+  if (typeof window === "undefined" || responsiveViewportEventsBound) return;
+  const debouncedUpdate = () => {
+    window.requestAnimationFrame(updateResponsiveViewportState);
+  };
+  window.addEventListener("resize", debouncedUpdate, { passive: true });
+  window.addEventListener("orientationchange", () => {
+    setTimeout(updateResponsiveViewportState, 120);
+  });
+  if (window.visualViewport?.addEventListener) {
+    window.visualViewport.addEventListener("resize", debouncedUpdate, { passive: true });
+  }
+  responsiveViewportEventsBound = true;
 }
 
 function setView(view) {
@@ -2931,6 +2962,14 @@ function applyStaticTranslations() {
   setTextContent("#planRangeHeading", PLAN_RANGE_COPY.heading);
   setTextContent("#planRangeStartTitle", PLAN_RANGE_COPY.start);
   setTextContent("#planRangeEndTitle", PLAN_RANGE_COPY.end);
+  setTextContent("#coachMatchPickerTitle", {
+    en: "Select Athlete First",
+    es: "Selecciona atleta primero"
+  });
+  setTextContent("#coachMatchPickerHint", {
+    en: "Competition setup",
+    es: "Configuracion de competencia"
+  });
   document.querySelectorAll(".tab").forEach((tab) => {
     const key = tab.dataset.tab;
     if (key && TAB_COPY[key]) tab.textContent = pickCopy(TAB_COPY[key]);
@@ -3007,6 +3046,7 @@ function authErrorMessage(code, fallback = "") {
 }
 
 function blankAthleteFields(profile) {
+  profile.age = "";
   profile.weightClass = "";
   profile.currentWeight = "";
   profile.style = "";
@@ -3035,6 +3075,21 @@ function blankAthleteFields(profile) {
   profile.coachCues = "";
   profile.cueNotes = "";
   profile.injuryNotes = "";
+  profile.schoolGrade = "";
+  profile.cueWords = [];
+  profile.setupsTop3 = [];
+  profile.cornerCoachCues = [];
+  profile.mentalReminders = [];
+  profile.safetyWarnings = [];
+  profile.physicalLimitations = [];
+  profile.competitionCue = "";
+  profile.defaultTechniques = {
+    leadLeg: "left",
+    leftAttack: "",
+    rightAttack: "",
+    preferredTies: "",
+    miscNotes: ""
+  };
   profile.techniques = {
     neutral: [],
     top: [],
@@ -3057,6 +3112,7 @@ function buildProfileFromForm({ email, role, userId = null } = {}) {
     email: email || pEmail.value.trim(),
     name: pName.value.trim(),
     role: role || pRole.value,
+    age: aAge?.value.trim() || "",
     team: pInstitution?.value.trim(),
     institution: pInstitution?.value.trim(),
     level: pLevel.value,
@@ -3074,6 +3130,7 @@ function buildProfileFromForm({ email, role, userId = null } = {}) {
     schoolClub: pSchoolClub.value,
     schoolName: pInstitution?.value.trim(),
     clubName: pInstitution?.value.trim(),
+    schoolGrade: aSchoolGrade?.value.trim() || "",
     international: pInternational.value,
     internationalEvents: pInternationalEvents.value.trim(),
     internationalYears: pInternationalYears.value.trim(),
@@ -3097,6 +3154,12 @@ function buildProfileFromForm({ email, role, userId = null } = {}) {
     pressureError: "",
     coachSignal: "",
     cueWords: [aCueWord1?.value.trim(), aCueWord2?.value.trim(), aCueWord3?.value.trim()].filter(Boolean),
+    setupsTop3: topThreeFromInputs([aSetup1, aSetup2, aSetup3]),
+    cornerCoachCues: topThreeFromInputs([aCornerCue1, aCornerCue2, aCornerCue3]),
+    mentalReminders: topThreeFromInputs([aMentalReminder1, aMentalReminder2, aMentalReminder3]),
+    safetyWarnings: [aSafetyWarning1?.value.trim(), aSafetyWarning2?.value.trim()].filter(Boolean),
+    physicalLimitations: [aPhysicalLimitation1?.value.trim(), aPhysicalLimitation2?.value.trim()].filter(Boolean),
+    competitionCue: aCompetitionCue?.value.trim() || "",
     offenseTop3: neutralTech.slice(0, 3),
     defenseTop3: defenseTech.slice(0, 3),
     techniques: {
@@ -3140,6 +3203,14 @@ function buildGuestProfile(role) {
     trainingFocus: pickCopy(copy.focus),
     international: "no",
     coachCues: "specific",
+    cueWords: [],
+    setupsTop3: [],
+    cornerCoachCues: [],
+    mentalReminders: [],
+    safetyWarnings: [],
+    physicalLimitations: [],
+    competitionCue: "",
+    schoolGrade: "",
     tags: [],
     techniques: {
       neutral: [],
@@ -3159,7 +3230,8 @@ function buildGuestProfile(role) {
   leadLeg: "left",
   leftAttack: "",
   rightAttack: "",
-  preferredTies: ""
+  preferredTies: "",
+  miscNotes: ""
 };
 
   if (!isCoach) {
@@ -3561,6 +3633,7 @@ function normalizeCoachAthleteRecord(id, data = {}) {
   return {
     id,
     name: String(data.name || "").trim(),
+    age: String(data.age || "").trim(),
     athleteUid: String(data.athleteUid || "").trim(),
     athleteEmail: normalizeEmail(data.athleteEmail || data.email || ""),
     coachUid: String(data.coachUid || "").trim(),
@@ -3579,10 +3652,26 @@ function normalizeCoachAthleteRecord(id, data = {}) {
     level: String(data.level || "").trim(),
     position: String(data.position || "").trim(),
     strategy: String(data.strategy || "").trim(),
+    trainingRoutines: String(data.trainingRoutines || "").trim(),
+    trainingVolume: String(data.trainingVolume || "").trim(),
+    trainingFocus: String(data.trainingFocus || "").trim(),
+    schoolName: String(data.schoolName || "").trim(),
+    clubName: String(data.clubName || "").trim(),
+    schoolGrade: String(data.schoolGrade || "").trim(),
     favoritePosition: String(data.favoritePosition || data.position || "").trim(),
     psychTendency: String(data.psychTendency || "").trim(),
+    coachCues: String(data.coachCues || "").trim(),
+    archetype: String(data.archetype || "").trim(),
+    bodyType: String(data.bodyType || "").trim(),
     offenseTop3: Array.isArray(data.offenseTop3) ? data.offenseTop3.map((item) => String(item).trim()).filter(Boolean) : [],
     defenseTop3: Array.isArray(data.defenseTop3) ? data.defenseTop3.map((item) => String(item).trim()).filter(Boolean) : [],
+    setupsTop3: Array.isArray(data.setupsTop3) ? data.setupsTop3.map((item) => String(item).trim()).filter(Boolean) : [],
+    cornerCoachCues: Array.isArray(data.cornerCoachCues) ? data.cornerCoachCues.map((item) => String(item).trim()).filter(Boolean) : [],
+    cueWords: Array.isArray(data.cueWords) ? data.cueWords.map((item) => String(item).trim()).filter(Boolean) : [],
+    mentalReminders: Array.isArray(data.mentalReminders) ? data.mentalReminders.map((item) => String(item).trim()).filter(Boolean) : [],
+    safetyWarnings: Array.isArray(data.safetyWarnings) ? data.safetyWarnings.map((item) => String(item).trim()).filter(Boolean) : [],
+    physicalLimitations: Array.isArray(data.physicalLimitations) ? data.physicalLimitations.map((item) => String(item).trim()).filter(Boolean) : [],
+    competitionCue: String(data.competitionCue || "").trim(),
     pressureError: String(data.pressureError || "").trim(),
     coachSignal: String(data.coachSignal || "").trim(),
     tags: normalizeSmartTags(data.tags || []),
@@ -3596,6 +3685,13 @@ function normalizeCoachAthleteRecord(id, data = {}) {
     resultsHistory: String(data.resultsHistory || "").trim(),
     internationalEvents: String(data.internationalEvents || "").trim(),
     internationalYears: String(data.internationalYears || "").trim(),
+    defaultTechniques: {
+      leadLeg: String(data.defaultTechniques?.leadLeg || "").trim(),
+      leftAttack: String(data.defaultTechniques?.leftAttack || "").trim(),
+      rightAttack: String(data.defaultTechniques?.rightAttack || "").trim(),
+      preferredTies: String(data.defaultTechniques?.preferredTies || "").trim(),
+      miscNotes: String(data.defaultTechniques?.miscNotes || "").trim()
+    },
     techniques: {
       neutral: Array.isArray(data.techniques?.neutral) ? data.techniques.neutral.map((item) => String(item).trim()).filter(Boolean) : [],
       top: Array.isArray(data.techniques?.top) ? data.techniques.top.map((item) => String(item).trim()).filter(Boolean) : [],
@@ -10293,12 +10389,14 @@ let currentProfileSubtab = "training";
 
 const aName = document.getElementById("aName");
 const aRole = document.getElementById("aRole");
+const aAge = document.getElementById("aAge");
 const aPhoto = document.getElementById("aPhoto");
 const aCountry = document.getElementById("aCountry");
 const aCity = document.getElementById("aCity");
 const aSchoolClub = document.getElementById("aSchoolClub");
 const aSchool = document.getElementById("aSchool");
 const aClub = document.getElementById("aClub");
+const aSchoolGrade = document.getElementById("aSchoolGrade");
 const aTrainingRoutines = document.getElementById("aTrainingRoutines");
 const aTrainingVolume = document.getElementById("aTrainingVolume");
 const aTrainingFocus = document.getElementById("aTrainingFocus");
@@ -10346,6 +10444,20 @@ const aBodyType = document.getElementById("aBodyType");
 const aCueWord1 = document.getElementById("aCueWord1");
 const aCueWord2 = document.getElementById("aCueWord2");
 const aCueWord3 = document.getElementById("aCueWord3");
+const aSetup1 = document.getElementById("aSetup1");
+const aSetup2 = document.getElementById("aSetup2");
+const aSetup3 = document.getElementById("aSetup3");
+const aCornerCue1 = document.getElementById("aCornerCue1");
+const aCornerCue2 = document.getElementById("aCornerCue2");
+const aCornerCue3 = document.getElementById("aCornerCue3");
+const aMentalReminder1 = document.getElementById("aMentalReminder1");
+const aMentalReminder2 = document.getElementById("aMentalReminder2");
+const aMentalReminder3 = document.getElementById("aMentalReminder3");
+const aSafetyWarning1 = document.getElementById("aSafetyWarning1");
+const aSafetyWarning2 = document.getElementById("aSafetyWarning2");
+const aPhysicalLimitation1 = document.getElementById("aPhysicalLimitation1");
+const aPhysicalLimitation2 = document.getElementById("aPhysicalLimitation2");
+const aCompetitionCue = document.getElementById("aCompetitionCue");
 
 function collectTechniques(selector) {
   return Array.from(document.querySelectorAll(selector))
@@ -10421,17 +10533,24 @@ function readAthleteProfileForm(existing = {}) {
   const defenseTech = collectTechniques(".a-tech-defense");
   const offenseTop3 = topThreeFromInputs([aOffense1, aOffense2, aOffense3]);
   const defenseTop3 = topThreeFromInputs([aDefense1, aDefense2, aDefense3]);
+  const setupsTop3 = topThreeFromInputs([aSetup1, aSetup2, aSetup3]);
+  const cornerCoachCues = topThreeFromInputs([aCornerCue1, aCornerCue2, aCornerCue3]);
+  const mentalReminders = topThreeFromInputs([aMentalReminder1, aMentalReminder2, aMentalReminder3]);
+  const safetyWarnings = [aSafetyWarning1?.value.trim(), aSafetyWarning2?.value.trim()].filter(Boolean);
+  const physicalLimitations = [aPhysicalLimitation1?.value.trim(), aPhysicalLimitation2?.value.trim()].filter(Boolean);
   const tendency = aPsychTendency?.value || tendencyFallback(aStrategy?.value);
   return {
     ...existing,
     role: normalizeAuthRole(aRole?.value || existing.role),
     name: aName?.value.trim() || "",
+    age: aAge?.value.trim() || "",
     photo: aPhoto?.value.trim() || "",
     country: aCountry?.value.trim() || "",
     city: aCity?.value.trim() || "",
     schoolClub: aSchoolClub?.value || "no",
     schoolName: aSchool?.value.trim() || "",
     clubName: aClub?.value.trim() || "",
+    schoolGrade: aSchoolGrade?.value.trim() || "",
     trainingRoutines: aTrainingRoutines?.value.trim() || "",
     trainingVolume: aTrainingVolume?.value.trim() || "",
     trainingFocus: aTrainingFocus?.value.trim() || "",
@@ -10472,7 +10591,21 @@ function readAthleteProfileForm(existing = {}) {
     cueNotes: aCueNotes?.value.trim() || "",
     injuryNotes: aInjuryNotes?.value.trim() || "",
     archetype: aArchetype?.value || "",
-    bodyType: aBodyType?.value || ""
+    bodyType: aBodyType?.value || "",
+    cueWords: [aCueWord1?.value.trim(), aCueWord2?.value.trim(), aCueWord3?.value.trim()].filter(Boolean),
+    defaultTechniques: {
+      leadLeg: aLeadLeg?.value || "left",
+      leftAttack: aLeftAttack?.value.trim() || "",
+      rightAttack: aRightAttack?.value.trim() || "",
+      preferredTies: aPreferredTies?.value.trim() || "",
+      miscNotes: aMiscNotes?.value.trim() || ""
+    },
+    setupsTop3,
+    cornerCoachCues,
+    mentalReminders,
+    safetyWarnings,
+    physicalLimitations,
+    competitionCue: aCompetitionCue?.value.trim() || ""
   };
 }
 
@@ -10488,7 +10621,9 @@ function renderCoachQuickPreview(profile) {
   const tendency = translateOptionValue("aPsychTendency", tendencyKey) || translateValue(tendencyKey) || na;
   const offense = translateTechniqueList(profile.offenseTop3 || []).join(", ") || na;
   const defense = translateTechniqueList(profile.defenseTop3 || []).join(", ") || na;
+  const setups = translateTechniqueList(profile.setupsTop3 || []).join(", ") || na;
   const signal = profile.coachSignal || na;
+  const competitionCue = profile.competitionCue || signal;
   const pressureError = profile.pressureError || na;
   const tags = normalizeSmartTags(profile.tags).map((tag) => formatSmartTag(tag)).join(" • ") || na;
   const labels = currentLang === "es"
@@ -10497,6 +10632,8 @@ function renderCoachQuickPreview(profile) {
         tendency: "Tendencia",
         error: "Error bajo presion",
         signal: "Senal clave",
+        setups: "Top setups",
+        call: "Llamado de competencia",
         offense: "Top ofensivo",
         defense: "Top defensivo",
         tags: "Tags"
@@ -10506,6 +10643,8 @@ function renderCoachQuickPreview(profile) {
         tendency: "Tendency",
         error: "Common error",
         signal: "Coach signal",
+        setups: "Top setups",
+        call: "Competition call",
         offense: "Top offense",
         defense: "Top defense",
         tags: "Tags"
@@ -10515,8 +10654,10 @@ function renderCoachQuickPreview(profile) {
     <div class="coach-quick-line"><strong>${labels.tendency}:</strong> ${tendency}</div>
     <div class="coach-quick-line"><strong>${labels.error}:</strong> ${pressureError}</div>
     <div class="coach-quick-line"><strong>${labels.signal}:</strong> ${signal}</div>
+    <div class="coach-quick-line"><strong>${labels.call}:</strong> ${competitionCue}</div>
     <div class="coach-quick-line"><strong>${labels.offense}:</strong> ${offense}</div>
     <div class="coach-quick-line"><strong>${labels.defense}:</strong> ${defense}</div>
+    <div class="coach-quick-line"><strong>${labels.setups}:</strong> ${setups}</div>
     <div class="coach-quick-line tags"><strong>${labels.tags}:</strong> ${tags}</div>
   `;
 }
@@ -10525,12 +10666,14 @@ function fillAthleteProfileForm(profile) {
   if (!athleteProfileForm || !profile) return;
   aName.value = profile.name || "";
   if (aRole) aRole.value = normalizeAuthRole(profile.role);
+  if (aAge) aAge.value = profile.age || "";
   aPhoto.value = profile.photo || "";
   aCountry.value = profile.country || "";
   aCity.value = profile.city || "";
   if (aSchoolClub) aSchoolClub.value = profile.schoolClub || "no";
   aSchool.value = profile.schoolName || "";
   aClub.value = profile.clubName || "";
+  if (aSchoolGrade) aSchoolGrade.value = profile.schoolGrade || "";
   if (aTrainingRoutines) aTrainingRoutines.value = profile.trainingRoutines || "";
   if (aTrainingVolume) aTrainingVolume.value = profile.trainingVolume || "";
   if (aTrainingFocus) aTrainingFocus.value = profile.trainingFocus || "";
@@ -10574,6 +10717,20 @@ function fillAthleteProfileForm(profile) {
   if (aCueWord1) aCueWord1.value = (profile.cueWords || [])[0] || "";
   if (aCueWord2) aCueWord2.value = (profile.cueWords || [])[1] || "";
   if (aCueWord3) aCueWord3.value = (profile.cueWords || [])[2] || "";
+  if (aSetup1) aSetup1.value = (profile.setupsTop3 || [])[0] || "";
+  if (aSetup2) aSetup2.value = (profile.setupsTop3 || [])[1] || "";
+  if (aSetup3) aSetup3.value = (profile.setupsTop3 || [])[2] || "";
+  if (aCornerCue1) aCornerCue1.value = (profile.cornerCoachCues || [])[0] || "";
+  if (aCornerCue2) aCornerCue2.value = (profile.cornerCoachCues || [])[1] || "";
+  if (aCornerCue3) aCornerCue3.value = (profile.cornerCoachCues || [])[2] || "";
+  if (aMentalReminder1) aMentalReminder1.value = (profile.mentalReminders || [])[0] || "";
+  if (aMentalReminder2) aMentalReminder2.value = (profile.mentalReminders || [])[1] || "";
+  if (aMentalReminder3) aMentalReminder3.value = (profile.mentalReminders || [])[2] || "";
+  if (aSafetyWarning1) aSafetyWarning1.value = (profile.safetyWarnings || [])[0] || "";
+  if (aSafetyWarning2) aSafetyWarning2.value = (profile.safetyWarnings || [])[1] || "";
+  if (aPhysicalLimitation1) aPhysicalLimitation1.value = (profile.physicalLimitations || [])[0] || "";
+  if (aPhysicalLimitation2) aPhysicalLimitation2.value = (profile.physicalLimitations || [])[1] || "";
+  if (aCompetitionCue) aCompetitionCue.value = profile.competitionCue || "";
   if (aLeadLeg) aLeadLeg.value = profile.defaultTechniques?.leadLeg || "left";
   if (aLeftAttack) aLeftAttack.value = profile.defaultTechniques?.leftAttack || "";
   if (aRightAttack) aRightAttack.value = profile.defaultTechniques?.rightAttack || "";
@@ -10587,6 +10744,94 @@ function fillAthleteProfileForm(profile) {
 
   setProfileTags(profile.tags || []);
   renderCoachQuickPreview(profile);
+}
+
+async function syncAthleteProfileToCoachWorkspace(profile = getProfile(), authUser = getAuthUser()) {
+  if (!isAthleteRole(profile?.role) || !authUser?.id) return;
+  const coachUid = getAthleteLinkedCoachUid(profile);
+  const athleteId = getAthleteLinkedAthleteId(profile);
+  const athleteUid = getAthleteLinkedAthleteUid(profile, authUser) || authUser.id;
+  const athletesRef = getCoachWorkspaceCollectionRef("athletes", coachUid);
+  if (!coachUid || !athleteId || !athletesRef) return;
+
+  const payload = stripUndefinedDeep({
+    name: String(profile.name || authUser.email || "").trim(),
+    athleteUid: String(athleteUid || "").trim(),
+    athleteEmail: normalizeEmail(profile.email || authUser.email || ""),
+    coachUid: String(coachUid || "").trim(),
+    coachName: String(getAthleteLinkedCoachName(profile) || profile.linkedCoachName || "").trim(),
+    coachEmail: normalizeEmail(profile.linkedCoachEmail || ""),
+    age: String(profile.age || "").trim(),
+    weight: String(profile.currentWeight || profile.weight || "").trim(),
+    currentWeight: String(profile.currentWeight || profile.weight || "").trim(),
+    weightClass: String(profile.weightClass || "").trim(),
+    style: String(profile.style || "").trim(),
+    level: String(profile.level || "").trim(),
+    position: String(profile.position || "").trim(),
+    strategy: String(profile.strategy || "").trim(),
+    trainingRoutines: String(profile.trainingRoutines || "").trim(),
+    trainingVolume: String(profile.trainingVolume || "").trim(),
+    trainingFocus: String(profile.trainingFocus || "").trim(),
+    schoolName: String(profile.schoolName || "").trim(),
+    clubName: String(profile.clubName || "").trim(),
+    schoolGrade: String(profile.schoolGrade || "").trim(),
+    favoritePosition: String(profile.favoritePosition || profile.position || "").trim(),
+    psychTendency: String(profile.psychTendency || strategyToTendency(profile.strategy) || "").trim(),
+    coachCues: String(profile.coachCues || "").trim(),
+    archetype: String(profile.archetype || "").trim(),
+    bodyType: String(profile.bodyType || "").trim(),
+    offenseTop3: normalizeTopThree(profile.offenseTop3 || []),
+    defenseTop3: normalizeTopThree(profile.defenseTop3 || []),
+    setupsTop3: normalizeTopThree(profile.setupsTop3 || []),
+    cornerCoachCues: normalizeTopThree(profile.cornerCoachCues || []),
+    cueWords: normalizeTopThree(profile.cueWords || []),
+    mentalReminders: normalizeTopThree(profile.mentalReminders || []),
+    safetyWarnings: (Array.isArray(profile.safetyWarnings) ? profile.safetyWarnings : []).map((item) => String(item || "").trim()).filter(Boolean),
+    physicalLimitations: (Array.isArray(profile.physicalLimitations) ? profile.physicalLimitations : []).map((item) => String(item || "").trim()).filter(Boolean),
+    competitionCue: String(profile.competitionCue || "").trim(),
+    pressureError: String(profile.pressureError || "").trim(),
+    coachSignal: String(profile.coachSignal || "").trim(),
+    tags: normalizeSmartTags(profile.tags || []),
+    injuryNotes: String(profile.injuryNotes || "").trim(),
+    cueNotes: String(profile.cueNotes || "").trim(),
+    safeMoves: String(profile.safeMoves || "").trim(),
+    riskyMoves: String(profile.riskyMoves || "").trim(),
+    strategyA: String(profile.strategyA || "").trim(),
+    strategyB: String(profile.strategyB || "").trim(),
+    strategyC: String(profile.strategyC || "").trim(),
+    resultsHistory: String(profile.resultsHistory || "").trim(),
+    international: String(profile.international || "").trim(),
+    internationalEvents: String(profile.internationalEvents || "").trim(),
+    internationalYears: String(profile.internationalYears || "").trim(),
+    techniques: {
+      neutral: Array.isArray(profile.techniques?.neutral) ? profile.techniques.neutral.map((item) => String(item || "").trim()).filter(Boolean) : [],
+      top: Array.isArray(profile.techniques?.top) ? profile.techniques.top.map((item) => String(item || "").trim()).filter(Boolean) : [],
+      bottom: Array.isArray(profile.techniques?.bottom) ? profile.techniques.bottom.map((item) => String(item || "").trim()).filter(Boolean) : [],
+      defense: Array.isArray(profile.techniques?.defense) ? profile.techniques.defense.map((item) => String(item || "").trim()).filter(Boolean) : [],
+      neutralOther: String(profile.techniques?.neutralOther || "").trim(),
+      topOther: String(profile.techniques?.topOther || "").trim(),
+      bottomOther: String(profile.techniques?.bottomOther || "").trim(),
+      defenseOther: String(profile.techniques?.defenseOther || "").trim()
+    },
+    defaultTechniques: {
+      leadLeg: String(profile.defaultTechniques?.leadLeg || "").trim(),
+      leftAttack: String(profile.defaultTechniques?.leftAttack || "").trim(),
+      rightAttack: String(profile.defaultTechniques?.rightAttack || "").trim(),
+      preferredTies: String(profile.defaultTechniques?.preferredTies || "").trim(),
+      miscNotes: String(profile.defaultTechniques?.miscNotes || "").trim()
+    },
+    availability: String(profile.availability || "Available").trim(),
+    preferred: String(profile.preferred || profile.trainingFocus || "").trim(),
+    history: String(profile.history || "").trim(),
+    notes: String(profile.notes || profile.resultsHistory || "").trim(),
+    updatedAt: getFirestoreServerTimestamp()
+  });
+
+  await withTimeout(
+    athletesRef.doc(athleteId).set(payload, { merge: true }),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_athlete_profile_workspace_sync_timeout"
+  );
 }
 
 function buildCompetitionPreview(profile) {
@@ -10781,7 +11026,7 @@ if (profileSubtabButtons.length) {
 }
 
 if (athleteProfileForm) {
-  athleteProfileForm.addEventListener("submit", (e) => {
+  athleteProfileForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const existing = getProfile() || {};
     const updated = readAthleteProfileForm(existing);
@@ -10793,7 +11038,14 @@ if (athleteProfileForm) {
       setAuthUser({ ...authUser, role: nextRole });
     }
     setProfile(updated);
-    applyProfile(updated);
+    await applyProfile(updated);
+    if (isAthleteRole(nextRole)) {
+      try {
+        await syncAthleteProfileToCoachWorkspace(updated, getAuthUser());
+      } catch (err) {
+        console.warn("Athlete workspace profile sync failed", err);
+      }
+    }
     renderCoachQuickPreview(updated);
     toast(pickCopy({ en: "Profile saved.", es: "Perfil guardado." }));
   });
@@ -10844,6 +11096,23 @@ const coachQuickInputs = [
   aPsychTendency,
   aPressureError,
   aCoachSignal,
+  aSetup1,
+  aSetup2,
+  aSetup3,
+  aCornerCue1,
+  aCornerCue2,
+  aCornerCue3,
+  aMentalReminder1,
+  aMentalReminder2,
+  aMentalReminder3,
+  aSafetyWarning1,
+  aSafetyWarning2,
+  aPhysicalLimitation1,
+  aPhysicalLimitation2,
+  aCompetitionCue,
+  aCueWord1,
+  aCueWord2,
+  aCueWord3,
   aOffense1,
   aOffense2,
   aOffense3,
@@ -16211,12 +16480,19 @@ function getAthleteCornerPlan(athlete) {
   const saved = getOnePagerData(athlete.name) || {};
   const plan = ATHLETE_CORNER_PLANS[athlete.name] || {};
   const attacks = topThree(athlete.offenseTop3 || athlete.techniques?.neutral || []);
-  const setups = localizeCornerItems(plan.setups || [], { translateMoves: true });
+  const profileSetups = localizeCornerItems(athlete.setupsTop3 || [], { translateMoves: true });
+  const setups = profileSetups.length
+    ? profileSetups
+    : localizeCornerItems(plan.setups || [], { translateMoves: true });
   const cuesFromSaved = localizeCornerItems(saved.cueWords || []);
+  const cuesFromProfile = localizeCornerItems(athlete.cornerCoachCues || athlete.cueWords || []);
   const coachCues = cuesFromSaved.length
     ? cuesFromSaved
-    : localizeCornerItems(plan.coachCues || []);
-  const mentalReminders = localizeCornerItems(plan.mentalReminders || []);
+    : (cuesFromProfile.length ? cuesFromProfile : localizeCornerItems(plan.coachCues || []));
+  const mentalReminders = Array.from(new Set([
+    ...localizeCornerItems(athlete.mentalReminders || []),
+    ...localizeCornerItems(plan.mentalReminders || [])
+  ].filter(Boolean)));
   const planA = saved.plan || pickCopy(plan.planA || { en: athlete.strategyA || athlete.coachSignal || "", es: athlete.strategyA || athlete.coachSignal || "" });
   const planB = pickCopy(plan.planB || { en: athlete.strategyB || athlete.preferred || "", es: athlete.strategyB || athlete.preferred || "" });
   const planC = pickCopy(plan.planC || { en: athlete.strategyC || athlete.notes || "", es: athlete.strategyC || athlete.notes || "" });
@@ -16225,14 +16501,16 @@ function getAthleteCornerPlan(athlete) {
     ...localizeCornerItems(plan.pressureErrors || [])
   ].filter(Boolean);
   const physicalLimitations = [
+    ...localizeCornerItems(athlete.physicalLimitations || []),
     athlete.injuryNotes,
     ...localizeCornerItems(plan.physicalLimitations || [])
   ].filter(Boolean);
   const safetyWarnings = [
+    ...localizeCornerItems(athlete.safetyWarnings || []),
     saved.injuryNotes,
     ...localizeCornerItems(plan.safetyWarnings || [])
   ].filter(Boolean);
-  const competitionCue = saved.cueNotes || athlete.coachSignal || coachCues[0] || "";
+  const competitionCue = athlete.competitionCue || saved.cueNotes || athlete.coachSignal || coachCues[0] || "";
 
   return {
     attacks: localizeCornerItems(attacks, { translateMoves: true }),
@@ -20828,7 +21106,8 @@ function getMessageContactInitials(name = "") {
 
 function isCompactMessagesViewport() {
   if (typeof window === "undefined" || !window.matchMedia) return false;
-  return window.matchMedia("(max-width: 900px)").matches;
+  return window.matchMedia("(max-width: 900px)").matches
+    || window.matchMedia("(max-height: 760px) and (orientation: landscape)").matches;
 }
 
 function setMessagesThreadOpenState(selectedThread) {
@@ -22176,6 +22455,7 @@ if (messageComposer && !messagesBound) {
     markSelectedMessageThreadSeen();
   });
   window.addEventListener("resize", () => {
+    updateResponsiveViewportState();
     const current = getMessagesCurrentUser();
     const selected = getSelectedMessageThread();
     setMessagesThreadOpenState(selected);
@@ -22353,6 +22633,8 @@ if (saveJournalBtn) {
 
 async function startApp() {
   ensureUserNameDecorationObserver();
+  bindResponsiveViewportEvents();
+  updateResponsiveViewportState();
   clearLegacyRegisteredUsersCache();
   ensureSeedJournalEntries();
   renderJournalEntries();
