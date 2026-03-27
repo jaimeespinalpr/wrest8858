@@ -4267,6 +4267,29 @@ function getCoachAthleteRecords() {
     };
     const directoryRecords = coachAthleteDirectoryCache.map((user) => buildCoachAthleteRecordFromUser(user, coachMeta));
     const mergedLiveRecords = mergeCoachRecordsById(directoryRecords, coachAthletesCache);
+    if (PUBLISH_READY_MODE && directoryRecords.length) {
+      const directoryIds = new Set(directoryRecords.map((record) => normalizeAthleteId(record.id, record.name)));
+      const directoryUids = new Set(directoryRecords.map((record) => normalizeUid(record.athleteUid)).filter(Boolean));
+      const directoryEmails = new Set(
+        directoryRecords
+          .map((record) => normalizeEmail(record.athleteEmail || record.email || ""))
+          .filter(Boolean)
+      );
+      const filteredRecords = mergedLiveRecords.filter((record) => {
+        const recordId = normalizeAthleteId(record.id, record.name);
+        const recordUid = normalizeUid(record.athleteUid || record.uid || "");
+        const recordEmail = normalizeEmail(record.athleteEmail || record.email || "");
+        const recordName = normalizeName(record.name || "");
+        return (
+          directoryIds.has(recordId)
+          || (recordUid && directoryUids.has(recordUid))
+          || (recordEmail && directoryEmails.has(recordEmail))
+          || directoryRecords.some((entry) => normalizeName(entry.name || "") === recordName)
+        );
+      });
+      if (filteredRecords.length) return filteredRecords;
+      return directoryRecords;
+    }
     if (mergedLiveRecords.length) return mergedLiveRecords;
   }
   if (coachAthletesCache.length) return coachAthletesCache;
