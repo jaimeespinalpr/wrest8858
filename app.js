@@ -16283,6 +16283,7 @@ const coachAthleteProfileTabButtons = Array.from(document.querySelectorAll("[dat
 let selectedCoachTags = new Set();
 let athleteSearchQuery = "";
 let currentCoachAthleteProfileTab = "identity";
+let selectedCoachAthleteRosterName = "";
 
 const COACH_ATHLETE_PROFILE_TAB_COPY = {
   identity: { en: "Identity", es: "Identidad" },
@@ -16622,20 +16623,24 @@ function athleteMatchesSearch(athlete) {
 function syncCoachMatchAthleteSelect() {
   if (!coachMatchSelect) return;
   const athletes = getAthletesData();
-  const currentValue = coachMatchSelect.value;
+  const currentValue = String(coachMatchSelect.value || "").trim();
   coachMatchSelect.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = currentLang === "es" ? "Seleccionar atleta" : "Select athlete";
+  coachMatchSelect.appendChild(placeholder);
   athletes.forEach((athlete) => {
     const option = document.createElement("option");
     option.value = athlete.name;
     option.textContent = athlete.name;
     coachMatchSelect.appendChild(option);
   });
-  const nextValue = athletes.some((athlete) => athlete.name === currentValue) ? currentValue : athletes[0]?.name || "";
+  const nextValue = athletes.some((athlete) => athlete.name === currentValue) ? currentValue : "";
   coachMatchSelect.value = nextValue;
 }
 
 function getSelectedCoachAthleteName() {
-  return coachMatchSelect?.value || getAthletesData()[0]?.name || "";
+  return String(coachMatchSelect?.value || "").trim();
 }
 
 function renderCoachAthleteProfile(athleteName = getSelectedCoachAthleteName()) {
@@ -16971,8 +16976,8 @@ function renderAthleteManagement() {
   if (!athleteFilters || !athleteList) return;
   if (coachAthleteRosterIntro) {
     coachAthleteRosterIntro.textContent = currentLang === "es"
-      ? "Empieza aqui. Elige un atleta y luego abre su perfil, athlete summary o mensajes."
-      : "Start here. Pick an athlete first, then open the profile, athlete summary, or messages.";
+      ? "Paso 1: selecciona un atleta registrado en la lista. Paso 2: al tocar su nombre se abre su informacion completa."
+      : "Step 1: choose a registered athlete from the list. Step 2: tap the name to open the full athlete details.";
   }
   renderAthleteFilters();
   if (athleteSearchInput && athleteSearchInput.value !== athleteSearchQuery) {
@@ -16986,10 +16991,11 @@ function renderAthleteManagement() {
   const athletes = getAthletesData();
   const filtered = athletes.filter((athlete) => athleteMatchesTagFilter(athlete.tags) && athleteMatchesSearch(athlete));
 
-  let selectedName = getSelectedCoachAthleteName();
-  if (filtered.length && !filtered.some((athlete) => athlete.name === selectedName)) {
-    selectedName = filtered[0].name;
-    if (coachMatchSelect) coachMatchSelect.value = selectedName;
+  let selectedName = String(selectedCoachAthleteRosterName || "").trim();
+  if (selectedName && !filtered.some((athlete) => athlete.name === selectedName)) {
+    selectedName = "";
+    selectedCoachAthleteRosterName = "";
+    if (coachMatchSelect) coachMatchSelect.value = "";
   }
 
   if (!filtered.length) {
@@ -17003,63 +17009,32 @@ function renderAthleteManagement() {
   }
 
   filtered.forEach((athlete) => {
-    const card = document.createElement("div");
-    card.className = "athlete-roster-item";
-    card.classList.toggle("active", athlete.name === selectedName);
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "athlete-roster-item coach-athlete-name-option";
+    const isActive = athlete.name === selectedName;
+    card.classList.toggle("active", isActive);
     const board = getAthleteTaskBoard(athlete.name);
     const alerts = getAthleteAlerts(athlete);
-    const badges = buildAthleteIndicatorBadges(athlete, board, alerts);
-    const taskSummary = board.tasks.length
-      ? board.tasks.slice(0, 2).join(" - ")
-      : (currentLang === "es" ? "Sin tareas pendientes" : "No pending tasks");
-    const alertSummary = alerts.length
-      ? alerts.slice(0, 2).join(" - ")
-      : (currentLang === "es" ? "Sin alertas activas" : "No active alerts");
+    const pendingCount = board.tasks.length;
+    const alertCount = alerts.length;
     const meta = [athlete.weight, `${currentLang === "es" ? "Cat." : "Class"} ${athlete.weightClass || "-"}`, athlete.style].join(" • ");
     card.innerHTML = `
-      <div class="athlete-roster-main">
-        <div class="athlete-roster-copy">
-          <h4>${athlete.name}</h4>
+      <div class="coach-athlete-name-option-main">
+        <div class="coach-athlete-name-option-copy">
+          <h4>${athlete.name}${isActive ? ` <span class="small">(${currentLang === "es" ? "trabajando" : "working"})</span>` : ""}</h4>
           <div class="small athlete-card-meta">${meta}</div>
         </div>
-        <div class="athlete-card-status athlete-roster-badges">
-          ${badges.map((badge) => `<span class="${badge.className}">${badge.label}</span>`).join("")}
+        <div class="coach-athlete-name-option-stats">
+          <span class="status-pill status-pill-pending">${currentLang === "es" ? "Pendientes" : "Pending"}: ${pendingCount}</span>
+          <span class="status-pill status-pill-alert">${currentLang === "es" ? "Alertas" : "Alerts"}: ${alertCount}</span>
         </div>
       </div>
-      <div class="athlete-roster-summary">
-        <div class="athlete-roster-summary-item">
-          <span class="small athlete-card-label">${currentLang === "es" ? "Estado" : "Status"}</span>
-          <p class="small">${athlete.availability}</p>
-        </div>
-        <div class="athlete-roster-summary-item">
-          <span class="small athlete-card-label">${currentLang === "es" ? "Pendientes" : "Pending"}</span>
-          <p class="small">${taskSummary}</p>
-        </div>
-        <div class="athlete-roster-summary-item">
-          <span class="small athlete-card-label">${currentLang === "es" ? "Alertas" : "Alerts"}</span>
-          <p class="small">${alertSummary}</p>
-        </div>
-      </div>
-      <div class="athlete-roster-actions">
-        <button type="button" class="primary athlete-roster-open">${currentLang === "es" ? "Trabajar con atleta" : "Work with athlete"}</button>
-        <button type="button" class="athlete-roster-summary-btn">${currentLang === "es" ? "Ver summary" : "View summary"}</button>
-        <button type="button" class="athlete-roster-message-btn">${currentLang === "es" ? "Mensaje" : "Message"}</button>
-      </div>
+      <div class="small muted">${currentLang === "es" ? "Toca para abrir este atleta." : "Tap to open this athlete."}</div>
     `;
     card.addEventListener("click", () => {
-      selectCoachMatchAthlete(athlete.name);
-    });
-    card.querySelector(".athlete-roster-open")?.addEventListener("click", (event) => {
-      event.stopPropagation();
-      openCoachAthleteWorkspace(athlete.name);
-    });
-    card.querySelector(".athlete-roster-summary-btn")?.addEventListener("click", (event) => {
-      event.stopPropagation();
-      openAthleteSummaryView(athlete.name);
-    });
-    card.querySelector(".athlete-roster-message-btn")?.addEventListener("click", (event) => {
-      event.stopPropagation();
-      messageCoachAthlete(athlete.name);
+      selectedCoachAthleteRosterName = athlete.name;
+      selectCoachMatchAthlete(athlete.name, { allowFallback: false });
     });
     athleteList.appendChild(card);
   });
@@ -18407,10 +18382,21 @@ function renderCoachMatchView(athleteName) {
   renderOnePager(data.name);
 }
 
-function selectCoachMatchAthlete(name) {
+function selectCoachMatchAthlete(name, { allowFallback = false } = {}) {
   const athletes = getAthletesData();
-  const selectedAthlete = athletes.find((athlete) => athlete.name === name) || athletes[0];
-  if (!selectedAthlete) return;
+  const requestedName = String(name || "").trim();
+  const selectedAthlete = athletes.find((athlete) => athlete.name === requestedName)
+    || (allowFallback ? athletes[0] : null);
+  if (!selectedAthlete) {
+    if (coachMatchSelect) coachMatchSelect.value = "";
+    if (!allowFallback) {
+      selectedCoachAthleteRosterName = "";
+      renderCoachAthleteProfile("");
+      renderAthleteManagement();
+    }
+    return;
+  }
+  selectedCoachAthleteRosterName = selectedAthlete.name;
   if (coachMatchSelect) coachMatchSelect.value = selectedAthlete.name;
   renderCoachAthleteProfile(selectedAthlete.name);
   renderCoachMatchView(selectedAthlete.name);
@@ -18435,9 +18421,8 @@ function openAthleteSummaryView(name = "") {
 
 if (coachMatchSelect) {
   syncCoachMatchAthleteSelect();
-  coachMatchSelect.addEventListener("change", () => selectCoachMatchAthlete(coachMatchSelect.value));
-  const defaultName = getAthletesData()[0]?.name;
-  if (defaultName) selectCoachMatchAthlete(defaultName);
+  coachMatchSelect.addEventListener("change", () => selectCoachMatchAthlete(coachMatchSelect.value, { allowFallback: false }));
+  selectCoachMatchAthlete("", { allowFallback: false });
 }
 
 // ---------- MESSAGES ----------

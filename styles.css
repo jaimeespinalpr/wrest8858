@@ -691,6 +691,42 @@ button:active{
   transform: translateY(-1px);
 }
 
+.coach-athlete-name-option{
+  width: 100%;
+  text-align: left;
+  display: grid;
+  gap: 8px;
+}
+
+.coach-athlete-name-option-main{
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.coach-athlete-name-option-copy{
+  min-width: 0;
+}
+
+.coach-athlete-name-option-copy h4{
+  margin: 0 0 4px;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.coach-athlete-name-option-copy h4 .small{
+  font-size: 0.72rem;
+  color: rgba(186, 216, 255, 0.78);
+}
+
+.coach-athlete-name-option-stats{
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
 .athlete-roster-main{
   display: flex;
   justify-content: space-between;
