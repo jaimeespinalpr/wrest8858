@@ -7303,7 +7303,8 @@ svg{
 }
 
 .messages-whatsapp-card .message-thread-card:hover{
-  transform: scale(1.05);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(16, 30, 50, 0.12);
 }
 
 .message-bubble.message-new{
@@ -7835,6 +7836,90 @@ svg{
 
 .messages-whatsapp-card .message-bubble.own .message-bubble-body{
   color: #f6fbff !important;
+}
+
+/* Final messaging consistency overrides (kept last on purpose). */
+.messages-whatsapp-card .message-thread-list{
+  gap: 8px;
+}
+
+.messages-whatsapp-card .message-thread-card{
+  width: 100%;
+  align-items: center;
+  overflow: hidden;
+}
+
+.messages-whatsapp-card .message-thread-main{
+  min-width: 0;
+}
+
+.messages-whatsapp-card .message-thread-card-top{
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.messages-whatsapp-card .message-thread-card-top > span{
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.messages-whatsapp-card .message-thread-card h4{
+  margin: 0 0 2px;
+  max-width: 100%;
+}
+
+.messages-whatsapp-card .message-thread-time{
+  flex: 0 0 auto;
+  margin-left: 8px;
+}
+
+.messages-whatsapp-card .message-thread-meta-line{
+  min-width: 0;
+}
+
+.messages-whatsapp-card .message-thread-preview{
+  display: block;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.messages-whatsapp-card .messages-feed{
+  scroll-behavior: smooth;
+}
+
+.messages-whatsapp-card .message-bubble-header{
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.messages-whatsapp-card .message-bubble-time-wrap{
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.messages-whatsapp-card .message-bubble-sender{
+  min-width: 0;
+}
+
+.messages-whatsapp-card .message-bubble-sender strong{
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 640px){
+  .messages-whatsapp-card .message-thread-preview{
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
 }
 
 .training-builder-card{

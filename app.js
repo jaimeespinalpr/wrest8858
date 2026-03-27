@@ -21144,7 +21144,9 @@ function subscribeToMessageThreads(current) {
         (thread.id === messagesSelectedThreadId || thread.id === messagesThreadOpeningId)
         && !syncedRows.some((item) => item.id === thread.id)
       ));
-      const nextRows = sortMessageThreads([...syncedRows, ...pendingLocalRows]);
+      const nextRows = sortMessageThreads(
+        dedupeMessageThreads(uid, [...syncedRows, ...pendingLocalRows])
+      );
       messagesThreadRows = nextRows;
       ensureSelectedMessageThread();
       const allowRecentFirstSnapshotNotifications = !messagesThreadsPrimed;
@@ -22207,7 +22209,10 @@ function renderMessagesThreadList(current) {
 
   if (!current) return;
 
-  const sortedThreads = sortMessageThreadsForInbox(messagesThreadRows, current);
+  const sortedThreads = sortMessageThreadsForInbox(
+    dedupeMessageThreads(current.uid, messagesThreadRows),
+    current
+  );
   if (!sortedThreads.length) {
     const empty = document.createElement("div");
     empty.className = "small muted messages-recent-empty";
