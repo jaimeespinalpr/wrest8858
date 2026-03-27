@@ -3784,6 +3784,12 @@ textarea:focus{
   min-width: 0;
 }
 
+.competition-create-grid textarea{
+  grid-column: 1 / -1;
+  min-height: 80px;
+  resize: vertical;
+}
+
 .competition-picker-shell{
   border-radius: 14px;
   border: 1px solid rgba(125, 168, 255, 0.22);
@@ -3854,6 +3860,10 @@ textarea:focus{
   grid-template-columns: minmax(0,1fr) auto;
   gap: 8px;
   align-items: center;
+}
+
+.competition-roster-tools-single{
+  grid-template-columns: 1fr;
 }
 
 @media (max-width: 860px){
