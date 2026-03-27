@@ -18795,6 +18795,7 @@ let messagesLastSendByThread = {};
 let messagesPendingEntriesByThread = {};
 let messagesOpenRequestId = 0;
 let messagesComposerFiles = [];
+let messagesComposerPreviewUrls = [];
 const MESSAGE_MAX_ATTACHMENTS = 4;
 const MESSAGE_MAX_FILE_SIZE_BYTES = 180 * 1024 * 1024;
 const MESSAGE_VIDEO_THUMBNAIL_MAX_BYTES = 40 * 1024 * 1024;
@@ -19117,22 +19118,89 @@ function formatMessageFileSize(bytes = 0) {
   return `${Math.max(1, Math.round(size / 1024))} KB`;
 }
 
+function releaseMessageComposerPreviewUrls() {
+  if (!Array.isArray(messagesComposerPreviewUrls) || !messagesComposerPreviewUrls.length) return;
+  messagesComposerPreviewUrls.forEach((url) => {
+    if (!url) return;
+    try {
+      URL.revokeObjectURL(url);
+    } catch {
+      // ignore revoke errors
+    }
+  });
+  messagesComposerPreviewUrls = [];
+}
+
+function getMessageComposerFileKind(file = null) {
+  const mime = String(file?.type || "").toLowerCase();
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("video/")) return "video";
+  if (mime.startsWith("audio/")) return "audio";
+  return "file";
+}
+
+function createMessageComposerPreviewUrl(file = null) {
+  const kind = getMessageComposerFileKind(file);
+  const isFile = typeof File !== "undefined" && file instanceof File;
+  const isBlob = typeof Blob !== "undefined" && file instanceof Blob;
+  if ((kind !== "image" && kind !== "video") || (!isFile && !isBlob)) {
+    return "";
+  }
+  try {
+    const url = URL.createObjectURL(file);
+    messagesComposerPreviewUrls.push(url);
+    return url;
+  } catch {
+    return "";
+  }
+}
+
+function removeMessageComposerFileAt(index = -1) {
+  const targetIndex = Number(index);
+  if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= messagesComposerFiles.length) return;
+  messagesComposerFiles = messagesComposerFiles.filter((_, entryIndex) => entryIndex !== targetIndex);
+  if (messageComposerFilesInput) {
+    messageComposerFilesInput.value = "";
+  }
+  renderMessageComposerFiles();
+  renderMessages();
+}
+
 function renderMessageComposerFiles() {
   if (!messageComposerFilesList) return;
+  releaseMessageComposerPreviewUrls();
   messageComposerFilesList.innerHTML = "";
   if (!messagesComposerFiles.length) return;
-  messagesComposerFiles.forEach((file) => {
+  messagesComposerFiles.forEach((file, index) => {
+    const kind = getMessageComposerFileKind(file);
+    const previewUrl = createMessageComposerPreviewUrl(file);
     const pill = document.createElement("div");
-    pill.className = "message-composer-file-pill";
+    pill.className = `message-composer-file-pill${previewUrl ? " has-preview" : ""}`;
+    const previewMarkup = previewUrl
+      ? kind === "image"
+        ? `<img class="message-composer-file-preview" src="${escapeHtml(previewUrl)}" alt="${escapeHtml(file.name || "media")}" loading="lazy">`
+        : `<video class="message-composer-file-preview" src="${escapeHtml(previewUrl)}" muted playsinline preload="metadata"></video>`
+      : `<span class="message-composer-file-preview message-composer-file-preview-fallback">${escapeHtml(kind.toUpperCase())}</span>`;
     pill.innerHTML = `
-      <span>${escapeHtml(file.name || "media")}</span>
-      <small>${escapeHtml(formatMessageFileSize(file.size || 0))}</small>
+      ${previewMarkup}
+      <span class="message-composer-file-meta">
+        <span>${escapeHtml(file.name || "media")}</span>
+        <small>${escapeHtml(formatMessageFileSize(file.size || 0))}</small>
+      </span>
+      <button type="button" class="message-composer-file-remove" data-index="${index}" aria-label="${escapeHtml(currentLang === "es" ? "Quitar archivo" : "Remove file")}">✕</button>
     `;
+    const removeBtn = pill.querySelector(".message-composer-file-remove");
+    if (removeBtn) {
+      removeBtn.addEventListener("click", () => {
+        removeMessageComposerFileAt(index);
+      });
+    }
     messageComposerFilesList.appendChild(pill);
   });
 }
 
 function clearMessageComposerMediaInputs({ preserveTags = false } = {}) {
+  releaseMessageComposerPreviewUrls();
   messagesComposerFiles = [];
   if (messageComposerFilesInput) messageComposerFilesInput.value = "";
   if (!preserveTags && messageComposerTagsInput) messageComposerTagsInput.value = "";
@@ -19140,6 +19208,7 @@ function clearMessageComposerMediaInputs({ preserveTags = false } = {}) {
 }
 
 function setMessageComposerFiles(files = []) {
+  releaseMessageComposerPreviewUrls();
   messagesComposerFiles = Array.isArray(files) ? files.filter(Boolean) : [];
   renderMessageComposerFiles();
 }
@@ -19199,9 +19268,28 @@ function buildMessageAttachmentSummaryText(attachments = []) {
     : pickCopy(MESSAGES_COPY.attachmentSummarySingle);
 }
 
-async function uploadMessageComposerAttachments(files = [], tags = []) {
+function formatMessageUploadProgressStatus(currentIndex = 0, total = 0, fileName = "") {
+  const safeCurrent = Math.max(0, Number(currentIndex || 0));
+  const safeTotal = Math.max(0, Number(total || 0));
+  const safeFileName = String(fileName || "").trim();
+  if (currentLang === "es") {
+    return safeFileName
+      ? `Subiendo ${safeCurrent}/${safeTotal}: ${safeFileName}`
+      : `Subiendo ${safeCurrent}/${safeTotal}...`;
+  }
+  return safeFileName
+    ? `Uploading ${safeCurrent}/${safeTotal}: ${safeFileName}`
+    : `Uploading ${safeCurrent}/${safeTotal}...`;
+}
+
+async function uploadMessageComposerAttachments(files = [], tags = [], onProgress = null) {
   const uploads = [];
-  for (const file of files) {
+  const total = files.length;
+  for (let index = 0; index < files.length; index += 1) {
+    const file = files[index];
+    if (typeof onProgress === "function") {
+      onProgress({ current: index + 1, total, file, phase: "uploading" });
+    }
     const uploaded = await uploadMediaAssetBundleToFirebase(file, {
       generateThumbnail: shouldGenerateMessageThumbnail(file)
     });
@@ -19217,6 +19305,9 @@ async function uploadMessageComposerAttachments(files = [], tags = []) {
       size: Number(file.size || 0),
       tags
     }));
+    if (typeof onProgress === "function") {
+      onProgress({ current: index + 1, total, file, phase: "uploaded" });
+    }
   }
   return uploads;
 }
@@ -21385,6 +21476,7 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
   const isPhoto = typeLower.includes("photo") || typeLower.includes("image");
   const isVoice = typeLower.includes("voice") || typeLower.includes("audio");
   const previewUrl = resolveMediaLocation(attachment.thumbnailPath || attachment.assetPath || "");
+  const litePreview = shouldUseLiteVideoMessagePreview();
   let inlineVideoEl = null;
 
   const head = document.createElement("div");
@@ -21399,8 +21491,11 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
   head.appendChild(type);
   card.appendChild(head);
 
-  const appendVideoFallback = () => {
+  const appendVideoFallback = (statusText = "") => {
+    const safeStatus = String(statusText || "").trim();
     const fallbackPreview = previewUrl || assetUrl;
+    const previousWrap = card.querySelector(".message-media-video-wrap");
+    if (previousWrap) previousWrap.remove();
     if (fallbackPreview && !card.querySelector(".message-media-preview.video-thumb")) {
       const img = document.createElement("img");
       img.className = "message-media-preview video-thumb";
@@ -21408,6 +21503,16 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
       img.alt = getMessageAttachmentDisplayName(attachment);
       img.loading = "lazy";
       card.appendChild(img);
+    }
+    if (safeStatus) {
+      let status = card.querySelector(".message-media-video-status");
+      if (!status) {
+        status = document.createElement("div");
+        status.className = "message-media-video-status";
+        card.appendChild(status);
+      }
+      status.textContent = safeStatus;
+      status.dataset.state = "warning";
     }
     if (!card.querySelector(".message-media-video-hint")) {
       const hint = document.createElement("div");
@@ -21426,25 +21531,79 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
     card.appendChild(img);
   } else if (isVideo) {
     if (!assetUrl) {
-      appendVideoFallback();
+      appendVideoFallback(currentLang === "es" ? "Video no disponible todavia." : "Video is not available yet.");
     } else {
+      const videoWrap = document.createElement("div");
+      videoWrap.className = "message-media-video-wrap";
       const video = document.createElement("video");
       video.className = "message-media-preview video";
       video.src = assetUrl;
       video.controls = true;
-      video.preload = "metadata";
+      video.preload = litePreview ? "none" : "metadata";
       video.playsInline = true;
       video.setAttribute("playsinline", "true");
+      video.setAttribute("controlslist", "nodownload");
+      video.setAttribute("disablepictureinpicture", "true");
       if (previewUrl) {
         video.poster = previewUrl;
       }
+      const status = document.createElement("div");
+      status.className = "message-media-video-status";
+      status.textContent = currentLang === "es" ? "Cargando video..." : "Loading video...";
+      const setStatus = (text = "", state = "") => {
+        const safeText = String(text || "").trim();
+        status.textContent = safeText;
+        status.dataset.state = String(state || "").trim();
+        status.classList.toggle("hidden", !safeText);
+      };
+      setStatus(
+        litePreview
+          ? (currentLang === "es" ? "Pulsa reproducir para cargar el video." : "Tap play to load the video.")
+          : (currentLang === "es" ? "Cargando video..." : "Loading video..."),
+        "info"
+      );
+      const clearStatus = () => setStatus("", "");
+      video.addEventListener("loadeddata", clearStatus);
+      video.addEventListener("canplay", clearStatus);
+      video.addEventListener("waiting", () => {
+        setStatus(currentLang === "es" ? "Cargando..." : "Buffering...", "info");
+      });
+      video.addEventListener("stalled", () => {
+        setStatus(
+          currentLang === "es" ? "Conexion lenta, puedes usar Abrir." : "Slow connection, you can use Open.",
+          "warning"
+        );
+      });
       video.addEventListener("error", () => {
         inlineVideoEl = null;
-        video.remove();
-        appendVideoFallback();
+        appendVideoFallback(
+          currentLang === "es"
+            ? "Este video no se puede reproducir inline en este dispositivo."
+            : "This video cannot play inline on this device."
+        );
       }, { once: true });
       inlineVideoEl = video;
-      card.appendChild(video);
+      if (litePreview) {
+        const overlayBtn = document.createElement("button");
+        overlayBtn.type = "button";
+        overlayBtn.className = "message-media-video-overlay";
+        overlayBtn.textContent = currentLang === "es" ? "Reproducir" : "Play";
+        overlayBtn.addEventListener("click", () => {
+          try {
+            video.load();
+            const playPromise = video.play?.();
+            if (playPromise && typeof playPromise.catch === "function") {
+              playPromise.catch(() => {});
+            }
+          } catch {
+            // ignore playback start errors; user can still open externally.
+          }
+        });
+        videoWrap.appendChild(overlayBtn);
+      }
+      videoWrap.appendChild(video);
+      videoWrap.appendChild(status);
+      card.appendChild(videoWrap);
     }
   } else if (isVoice && assetUrl) {
     const voiceWrap = document.createElement("div");
@@ -21847,7 +22006,22 @@ async function handleMessageComposerSubmit(event) {
     try {
       setMessagesStatus(MESSAGES_COPY.sendingMedia, "");
       renderMessages();
-      uploadedAttachments = await uploadMessageComposerAttachments(selectedFiles, messageTags);
+      uploadedAttachments = await uploadMessageComposerAttachments(
+        selectedFiles,
+        messageTags,
+        ({ current: currentFileIndex = 0, total = selectedFiles.length, file = null, phase = "" } = {}) => {
+          if (phase !== "uploading") return;
+          const progressLabel = formatMessageUploadProgressStatus(currentFileIndex, total, file?.name || "");
+          setMessagesStatus(
+            {
+              en: progressLabel,
+              es: progressLabel
+            },
+            ""
+          );
+          renderMessages();
+        }
+      );
     } catch (err) {
       console.warn("Failed to upload message media", err);
       messagesSendInFlight = false;
