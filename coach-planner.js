@@ -28,6 +28,11 @@
     announcements: "5"
   };
 
+  const DEFAULT_PLANNER_LOGO_URL = "https://united-wc.com/assets/uwc-logo.png";
+  const LEGACY_PLANNER_CLUB_NAME = "ARCHMERE AUKS";
+  const LEGACY_PLANNER_COACH_NAME = "Coach Espinal";
+  const LEGACY_PLANNER_SEASON = "Season 2025-2026";
+
   const STORAGE_KEYS = {
     settings: "planner_template_settings",
     library: "archmere_exercise_library",
@@ -94,6 +99,71 @@
       .filter(Boolean);
   }
 
+  function getDefaultPlannerCoachName() {
+    const profile = (typeof getProfile === "function" ? getProfile() : null) || {};
+    const authUser = (typeof getAuthUser === "function" ? getAuthUser() : null) || {};
+    const fromProfile = String(profile?.name || "").trim();
+    const fromAuthName = String(authUser?.name || "").trim();
+    const fromAuthEmail = String(authUser?.email || "").trim();
+    return fromProfile || fromAuthName || fromAuthEmail || "Coach";
+  }
+
+  function buildPlannerDefaultSettings() {
+    return {
+      clubName: "United Wrestling Club",
+      coach: getDefaultPlannerCoachName(),
+      season: LEGACY_PLANNER_SEASON,
+      logoUrl: DEFAULT_PLANNER_LOGO_URL
+    };
+  }
+
+  function shouldUseDefaultClubName(value) {
+    const clean = String(value || "").trim();
+    return !clean || clean === LEGACY_PLANNER_CLUB_NAME;
+  }
+
+  function shouldUseDefaultCoachName(value) {
+    const clean = String(value || "").trim();
+    return !clean || clean === LEGACY_PLANNER_COACH_NAME;
+  }
+
+  function shouldUseDefaultSeason(value) {
+    const clean = String(value || "").trim();
+    return !clean || clean === LEGACY_PLANNER_SEASON;
+  }
+
+  function normalizePlannerSettings(raw = {}, { migrateLegacy = false } = {}) {
+    const defaults = buildPlannerDefaultSettings();
+    const source = raw && typeof raw === "object" ? raw : {};
+    const next = {
+      clubName: String(source.clubName || "").trim(),
+      coach: String(source.coach || "").trim(),
+      season: String(source.season || "").trim(),
+      logoUrl: String(source.logoUrl || "").trim()
+    };
+
+    if (migrateLegacy) {
+      if (shouldUseDefaultClubName(next.clubName)) next.clubName = defaults.clubName;
+      if (shouldUseDefaultCoachName(next.coach)) next.coach = defaults.coach;
+      if (shouldUseDefaultSeason(next.season)) next.season = defaults.season;
+      if (!next.logoUrl) next.logoUrl = defaults.logoUrl;
+    } else {
+      next.clubName = next.clubName || defaults.clubName;
+      next.coach = next.coach || defaults.coach;
+      next.season = next.season || defaults.season;
+      next.logoUrl = next.logoUrl || defaults.logoUrl;
+    }
+
+    return next;
+  }
+
+  const profilePlannerSettings = (() => {
+    const profile = getPlannerProfile() || {};
+    return profile?.plannerTemplateSettings && typeof profile.plannerTemplateSettings === "object"
+      ? profile.plannerTemplateSettings
+      : {};
+  })();
+
   const dailyState = readJson(STORAGE_KEYS.daily, {});
 
   const state = {
@@ -101,12 +171,10 @@
       date: String(dailyState.date || ""),
       totalTime: String(dailyState.totalTime || "90")
     },
-    settings: readJson(STORAGE_KEYS.settings, {
-      clubName: "ARCHMERE AUKS",
-      coach: "Coach Espinal",
-      season: "Season 2025-2026",
-      logoUrl: null
-    }),
+    settings: normalizePlannerSettings({
+      ...(readJson(STORAGE_KEYS.settings, buildPlannerDefaultSettings()) || {}),
+      ...profilePlannerSettings
+    }, { migrateLegacy: true }),
     tempSettings: null,
     categoryNames: {
       ...getDefaultCategoryNames(),
@@ -123,6 +191,7 @@
     coachLibrariesUnsub: null,
     coachLibrariesReady: false,
     librarySyncTimer: null,
+    settingsSyncTimer: null,
     categoryDrafts: {},
     pendingLibraryFocus: "",
     templateRecords: [],
@@ -226,6 +295,17 @@
 
   function persistSettings() {
     writeJson(STORAGE_KEYS.settings, state.settings);
+  }
+
+  function mergePlannerSettings(nextSettings = {}, { sync = false } = {}) {
+    const normalized = normalizePlannerSettings(nextSettings, { migrateLegacy: true });
+    state.settings = normalized;
+    persistSettings();
+    updateFooter();
+    updateLogos();
+    if (sync) {
+      queuePlannerSettingsSync();
+    }
   }
 
   function persistLibrary() {
@@ -335,9 +415,10 @@
   }
 
   function updateFooter() {
-    if (els.footerClub) els.footerClub.textContent = state.settings.clubName || "ARCHMERE AUKS";
-    if (els.footerCoach) els.footerCoach.textContent = state.settings.coach || "Coach Espinal";
-    if (els.footerSeason) els.footerSeason.textContent = state.settings.season || "Season";
+    const defaults = buildPlannerDefaultSettings();
+    if (els.footerClub) els.footerClub.textContent = state.settings.clubName || defaults.clubName;
+    if (els.footerCoach) els.footerCoach.textContent = state.settings.coach || defaults.coach;
+    if (els.footerSeason) els.footerSeason.textContent = state.settings.season || defaults.season;
   }
 
   function updateLogos() {
@@ -1032,6 +1113,63 @@
     }
   }
 
+  function queuePlannerSettingsSync() {
+    if (state.settingsSyncTimer) {
+      clearTimeout(state.settingsSyncTimer);
+      state.settingsSyncTimer = null;
+    }
+    state.settingsSyncTimer = window.setTimeout(() => {
+      syncPlannerSettingsNow().catch(() => {});
+    }, 650);
+  }
+
+  async function syncPlannerSettingsNow() {
+    const usersRef = getPlannerUsersCollectionRef();
+    const authUser = getPlannerAuthUser();
+    const uid = String(authUser?.id || "").trim();
+    if (!usersRef || !uid) return;
+    const settingsPayload = normalizePlannerSettings(state.settings, { migrateLegacy: true });
+    try {
+      await usersRef.doc(uid).set({
+        plannerTemplateSettings: settingsPayload,
+        plannerTemplateSettingsUpdatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.warn("Planner settings sync failed", err);
+    }
+  }
+
+  async function hydratePlannerSettingsFromCloud() {
+    const usersRef = getPlannerUsersCollectionRef();
+    const authUser = getPlannerAuthUser();
+    const uid = String(authUser?.id || "").trim();
+    if (!usersRef || !uid) {
+      persistSettings();
+      return;
+    }
+    try {
+      const doc = await usersRef.doc(uid).get();
+      const raw = doc.exists ? (doc.data() || {}) : {};
+      const remoteSettings = normalizePlannerSettings(raw?.plannerTemplateSettings || {}, { migrateLegacy: true });
+      const localSettings = normalizePlannerSettings(state.settings, { migrateLegacy: true });
+      const remoteSerialized = JSON.stringify(remoteSettings);
+      const localSerialized = JSON.stringify(localSettings);
+      if (remoteSerialized !== localSerialized) {
+        if (raw?.plannerTemplateSettings && typeof raw.plannerTemplateSettings === "object" && Object.keys(raw.plannerTemplateSettings).length) {
+          mergePlannerSettings(remoteSettings, { sync: false });
+          render();
+        } else {
+          mergePlannerSettings(localSettings, { sync: true });
+        }
+      } else {
+        persistSettings();
+      }
+    } catch (err) {
+      console.warn("Planner settings cloud hydrate failed", err);
+      persistSettings();
+    }
+  }
+
   function isCoachLikeRole(value) {
     const role = String(value || "").trim().toLowerCase();
     return role === "coach" || role === "admin" || role === "administrator" || role === "head_coach";
@@ -1211,15 +1349,7 @@
 
   function saveSettings() {
     if (!state.tempSettings) return;
-    state.settings = {
-      ...state.tempSettings,
-      clubName: String(state.tempSettings.clubName || "").trim() || "ARCHMERE AUKS",
-      coach: String(state.tempSettings.coach || "").trim() || "Coach Espinal",
-      season: String(state.tempSettings.season || "").trim() || "Season 2025-2026"
-    };
-    persistSettings();
-    updateFooter();
-    updateLogos();
+    mergePlannerSettings(state.tempSettings, { sync: true });
     closeSettingsModal();
     triggerToast("Template settings saved!");
   }
@@ -1860,4 +1990,6 @@
 
   bindStaticEvents();
   render();
+  persistSettings();
+  hydratePlannerSettingsFromCloud().catch(() => {});
 })();

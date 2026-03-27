@@ -64,6 +64,11 @@ const OFFICIAL_COACH_EMAILS = new Set([
   "zspence@united-wc.com",
   "csizemore@united-wc.com"
 ]);
+const COACH_PLANNER_DEFAULTS = {
+  clubName: "United Wrestling Club",
+  season: "Season 2025-2026",
+  logoUrl: "https://united-wc.com/assets/uwc-logo.png"
+};
 const SIGNUP_ALLOWED_ROLES = new Set(["athlete", "coach", "parent"]);
 let coachWorkspaceRealtimeUserId = "";
 let coachWorkspaceUnsubs = [];
@@ -118,6 +123,15 @@ let parentScoutingAudioBlob = null;
 let parentScoutingAudioUrl = "";
 const PARENT_INLINE_MEDIA_MAX_BYTES = 240 * 1024;
 const MEDIA_THUMBNAIL_MAX_EDGE = 640;
+
+function buildCoachPlannerTemplateSettings(name = "") {
+  return {
+    clubName: COACH_PLANNER_DEFAULTS.clubName,
+    coach: String(name || "").trim() || "Coach",
+    season: COACH_PLANNER_DEFAULTS.season,
+    logoUrl: COACH_PLANNER_DEFAULTS.logoUrl
+  };
+}
 const MEDIA_THUMBNAIL_QUALITY = 0.82;
 
 function initFirebaseClient() {
@@ -5507,6 +5521,10 @@ async function registerWithFirebase({
     weightClass,
     weight_class: weightClass,
     notes,
+    plannerTemplateSettings: resolvedRole === "coach"
+      ? buildCoachPlannerTemplateSettings(name)
+      : undefined,
+    plannerTemplateSettingsUpdatedAt: resolvedRole === "coach" ? now : undefined,
     createdAt: now,
     updatedAt: now
   };
@@ -5527,6 +5545,17 @@ async function handleSuccessfulAuth(result) {
     { ...(result.profile || {}), role: resolvedRole, view: targetView },
     resolvedAuthUser
   );
+  if (resolvedRole === "coach") {
+    const currentSettings = profile.plannerTemplateSettings && typeof profile.plannerTemplateSettings === "object"
+      ? profile.plannerTemplateSettings
+      : {};
+    const mergedSettings = {
+      ...buildCoachPlannerTemplateSettings(profile.name || resolvedAuthUser.email || ""),
+      ...currentSettings
+    };
+    profile.plannerTemplateSettings = mergedSettings;
+    profile.plannerTemplateSettingsUpdatedAt = profile.plannerTemplateSettingsUpdatedAt || new Date().toISOString();
+  }
   if (resolvedRole !== "parent") {
     await persistFirebaseProfile(resolvedAuthUser.id, {
       ...profile,
