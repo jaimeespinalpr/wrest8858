@@ -19754,7 +19754,7 @@ function addPendingThreadEntry(threadId = "", entry = null) {
   const safeThreadId = String(threadId || "").trim();
   if (!safeThreadId) return;
   const existing = getPendingThreadEntries(safeThreadId);
-  setPendingThreadEntries(safeThreadId, [...existing, entry]);
+  setPendingThreadEntries(safeThreadId, dedupeMessageEntries([...existing, entry]));
 }
 
 function removePendingThreadEntry(threadId = "", clientMessageId = "") {
@@ -19769,18 +19769,17 @@ function removePendingThreadEntry(threadId = "", clientMessageId = "") {
 
 function mergePendingMessagesIntoFeed(threadId = "", remoteRows = []) {
   const safeThreadId = String(threadId || "").trim();
-  if (!safeThreadId) return remoteRows.slice();
+  if (!safeThreadId) return dedupeMessageEntries(remoteRows);
+  const normalizedRemoteRows = dedupeMessageEntries(remoteRows);
   const remoteClientIds = new Set(
-    remoteRows.map((entry) => String(entry.clientMessageId || "").trim()).filter(Boolean)
+    normalizedRemoteRows.map((entry) => String(entry.clientMessageId || "").trim()).filter(Boolean)
   );
   const pendingRows = getPendingThreadEntries(safeThreadId).filter((entry) => {
     const clientMessageId = String(entry.clientMessageId || "").trim();
     return clientMessageId && !remoteClientIds.has(clientMessageId);
   });
-  if (!pendingRows.length) return remoteRows.slice();
-  return [...remoteRows, ...pendingRows].sort(
-    (left, right) => messageTimestampToMillis(left.createdAt) - messageTimestampToMillis(right.createdAt)
-  );
+  if (!pendingRows.length) return normalizedRemoteRows;
+  return dedupeMessageEntries([...normalizedRemoteRows, ...pendingRows]);
 }
 
 function resetMessagesContactGroupState(current = getMessagesCurrentUser()) {
@@ -20220,7 +20219,7 @@ function updateLocalThreadPreview(threadId = "", {
   const nextRows = messagesThreadRows.map((thread) => {
     if (thread.id !== safeThreadId) return thread;
     const nextHistory = messageEntry
-      ? [...(Array.isArray(thread.messageHistory) ? thread.messageHistory : []), messageEntry]
+      ? dedupeMessageEntries([...(Array.isArray(thread.messageHistory) ? thread.messageHistory : []), messageEntry])
       : (Array.isArray(thread.messageHistory) ? thread.messageHistory : []);
     return {
       ...thread,
@@ -20622,13 +20621,55 @@ function normalizeMessageData(data = {}, id = "") {
   };
 }
 
+function getMessageEntryIdentityKey(entry = {}) {
+  const byId = String(entry.id || "").trim();
+  if (byId) return `id:${byId}`;
+  const byClientId = String(entry.clientMessageId || "").trim();
+  if (byClientId) return `client:${byClientId}`;
+  const sender = String(entry.senderUid || "").trim();
+  const createdAt = String(entry.createdAt || "").trim();
+  const text = String(entry.text || "").trim();
+  return `fallback:${sender}:${createdAt}:${text}`;
+}
+
+function dedupeMessageEntries(rows = []) {
+  const byKey = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((entry) => {
+    if (!entry) return;
+    const key = getMessageEntryIdentityKey(entry);
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, entry);
+      return;
+    }
+    const nextMillis = messageTimestampToMillis(entry.createdAt);
+    const existingMillis = messageTimestampToMillis(existing.createdAt);
+    if (nextMillis > existingMillis) {
+      byKey.set(key, entry);
+      return;
+    }
+    if (nextMillis === existingMillis) {
+      if (!entry.optimistic && existing.optimistic) {
+        byKey.set(key, entry);
+        return;
+      }
+      if (entry.read && !existing.read) {
+        byKey.set(key, entry);
+      }
+    }
+  });
+  return Array.from(byKey.values()).sort(
+    (left, right) => messageTimestampToMillis(left.createdAt) - messageTimestampToMillis(right.createdAt)
+  );
+}
+
 function normalizeMessageThreadRecord(doc) {
   const data = doc.data() || {};
-  const historyRows = Array.isArray(data.messageHistory)
+  const historyRows = dedupeMessageEntries(Array.isArray(data.messageHistory)
     ? data.messageHistory
         .map((entry, index) => normalizeMessageData(entry || {}, `history-${index + 1}`))
         .filter((entry) => entry.text)
-    : [];
+    : []);
   const latestHistoryEntry = historyRows[historyRows.length - 1] || null;
   const fallbackProfiles = [
     data.coachUid ? {
@@ -20882,7 +20923,23 @@ function teardownMessagesSession({ preserveSelection = false } = {}) {
 }
 
 function sortMessageThreads(items = []) {
-  return items.slice().sort((a, b) => messageTimestampToMillis(b.updatedAt) - messageTimestampToMillis(a.updatedAt));
+  const byId = new Map();
+  (Array.isArray(items) ? items : []).forEach((thread) => {
+    if (!thread?.id) return;
+    const existing = byId.get(thread.id);
+    if (!existing) {
+      byId.set(thread.id, thread);
+      return;
+    }
+    const nextMillis = messageTimestampToMillis(thread.updatedAt || thread.lastMessageAt);
+    const existingMillis = messageTimestampToMillis(existing.updatedAt || existing.lastMessageAt);
+    if (nextMillis >= existingMillis) {
+      byId.set(thread.id, thread);
+    }
+  });
+  return Array.from(byId.values()).sort(
+    (left, right) => messageTimestampToMillis(right.updatedAt || right.lastMessageAt) - messageTimestampToMillis(left.updatedAt || left.lastMessageAt)
+  );
 }
 
 function sortMessageThreadsForInbox(items = [], current = getMessagesCurrentUser()) {
@@ -20995,13 +21052,13 @@ function subscribeToMessageFeed(threadId) {
     .collection("messages")
     .orderBy("createdAt", "asc")
     .onSnapshot((snapshot) => {
-      const remoteRows = snapshot.docs.map((doc) => normalizeMessageEntry(doc));
+      const remoteRows = dedupeMessageEntries(snapshot.docs.map((doc) => normalizeMessageEntry(doc)));
       remoteRows.forEach((entry) => {
         if (entry.clientMessageId) {
           removePendingThreadEntry(threadId, entry.clientMessageId);
         }
       });
-      messagesFeedRows = mergePendingMessagesIntoFeed(threadId, remoteRows);
+      messagesFeedRows = dedupeMessageEntries(mergePendingMessagesIntoFeed(threadId, remoteRows));
       messagesFeedLoading = false;
       resetMessagesStatus();
       renderMessages();
@@ -22520,7 +22577,7 @@ function renderMessagesFeed(current) {
   const animatedState = messagesAnimatedEntryState[threadId] && typeof messagesAnimatedEntryState[threadId] === "object"
     ? { ...messagesAnimatedEntryState[threadId] }
     : {};
-  const rows = messagesFeedRows.length ? messagesFeedRows : (selectedThread?.messageHistory || []);
+  const rows = dedupeMessageEntries(messagesFeedRows.length ? messagesFeedRows : (selectedThread?.messageHistory || []));
   if (!rows.length) {
     const empty = document.createElement("div");
     empty.className = "small muted";
