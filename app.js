@@ -76,6 +76,7 @@ let coachPlansCache = [];
 let coachTemplatesCache = [];
 let coachAssignmentsCache = [];
 let coachGroupsCache = [];
+let coachCompetitionsCache = [];
 let coachCalendarEntriesCache = {};
 let coachAthletesCache = [];
 let coachNotesCache = [];
@@ -113,6 +114,7 @@ let athletePortalJournalCache = [];
 let athletePortalNotesCache = [];
 let athletePortalCompletionCache = null;
 let athletePortalMatchAnalysisCache = [];
+let athletePortalCompetitionsCache = [];
 let athletePortalPlanFetchKey = "";
 let coachRelationshipSyncTimeout = null;
 let coachRelationshipSyncInFlight = false;
@@ -351,6 +353,8 @@ let calendarCoachBound = false;
 let headerMenuOpen = false;
 let viewMenuOpen = false;
 let currentView = "athlete";
+let selectedCompetitionId = "";
+let competitionCreateOpen = false;
 let responsiveViewportEventsBound = false;
 const headerViewButtons = Array.from(document.querySelectorAll("#headerMenu button[data-action^='view-']"));
 
@@ -1749,6 +1753,12 @@ const TAB_COPY = {
     es: "Avisos",
     uz: "E'lonlar",
     ru: "Объявления"
+  },
+  "competition-preview": {
+    en: "Competition",
+    es: "Competencia",
+    uz: "Musobaqa",
+    ru: "Соревнование"
   },
   dashboard: {
     en: "Dashboard",
@@ -3629,6 +3639,27 @@ function normalizeCoachGroupRecord(id, data = {}) {
   };
 }
 
+function normalizeCoachCompetitionRecord(id, data = {}) {
+  const startDateKey = isDateKey(data.startDateKey) ? data.startDateKey : "";
+  const endDateKey = isDateKey(data.endDateKey)
+    ? data.endDateKey
+    : (startDateKey || "");
+  return {
+    id,
+    name: String(data.name || "").trim(),
+    location: String(data.location || "").trim(),
+    startDateKey,
+    endDateKey,
+    athleteNames: uniqueNames(data.athleteNames || []),
+    athleteIds: uniqueNames((data.athleteIds || []).map((value) => String(value || "").trim())).map((value) => String(value || "").trim()),
+    athleteUids: uniqueNames((data.athleteUids || []).map((value) => String(value || "").trim())).map((value) => String(value || "").trim()),
+    createdAt: normalizeFirestoreDateValue(data.createdAt),
+    updatedAt: normalizeFirestoreDateValue(data.updatedAt),
+    createdBy: String(data.createdBy || "").trim(),
+    updatedBy: String(data.updatedBy || "").trim()
+  };
+}
+
 function normalizeCoachAthleteRecord(id, data = {}) {
   return {
     id,
@@ -4176,6 +4207,48 @@ function getSeedCoachCalendarEntries() {
   };
 }
 
+function getSeedCoachCompetitionRecords() {
+  const today = getCurrentAppDate();
+  const currentStart = toDateKey(addDays(today, -1));
+  const currentEnd = toDateKey(addDays(today, 1));
+  const futureStart = toDateKey(addDays(today, 14));
+  const futureEnd = toDateKey(addDays(today, 16));
+  const pastStart = toDateKey(addDays(today, -18));
+  const pastEnd = toDateKey(addDays(today, -16));
+  return [
+    {
+      id: "seed-competition-current",
+      name: "Northeast Spring Open",
+      location: "Wilmington, DE",
+      startDateKey: currentStart,
+      endDateKey: currentEnd,
+      athleteNames: ["Carlos Vega", "Maya Cruz", "Olivia Chen"],
+      athleteIds: ["carlos-vega", "maya-cruz", "olivia-chen"],
+      athleteUids: []
+    },
+    {
+      id: "seed-competition-future",
+      name: "Atlantic Championship Series",
+      location: "Philadelphia, PA",
+      startDateKey: futureStart,
+      endDateKey: futureEnd,
+      athleteNames: ["Carlos Vega", "Jaime Espinal"],
+      athleteIds: ["carlos-vega", "jaime-espinal"],
+      athleteUids: []
+    },
+    {
+      id: "seed-competition-past",
+      name: "Mid-Atlantic Winter Classic",
+      location: "Newark, DE",
+      startDateKey: pastStart,
+      endDateKey: pastEnd,
+      athleteNames: ["Maya Cruz", "Olivia Chen"],
+      athleteIds: ["maya-cruz", "olivia-chen"],
+      athleteUids: []
+    }
+  ];
+}
+
 function getSeedCopyValue(value) {
   if (value && typeof value === "object") {
     return String(value.en || value.es || Object.values(value)[0] || "").trim();
@@ -4667,12 +4740,13 @@ async function syncCoachWorkspaceRelationships() {
     const athletesRef = getCoachWorkspaceCollectionRef("athletes", authUser.id);
     const groupsRef = getCoachWorkspaceCollectionRef("groups", authUser.id);
     const assignmentsRef = getCoachWorkspaceCollectionRef("assignments", authUser.id);
+    const competitionsRef = getCoachWorkspaceCollectionRef("competitions", authUser.id);
     const plansRef = getCoachWorkspaceCollectionRef("plans", authUser.id);
     const notesRef = getCoachWorkspaceCollectionRef("coach_notes", authUser.id);
     const journalRef = getCoachWorkspaceCollectionRef("journal_entries", authUser.id);
     const completionRef = getCoachWorkspaceCollectionRef("completion_status", authUser.id);
     const matchAnalysisRef = getCoachWorkspaceCollectionRef("match_analysis", authUser.id);
-    if (!usersRef || !athletesRef || !groupsRef || !assignmentsRef || !plansRef || !notesRef || !journalRef || !completionRef || !matchAnalysisRef) {
+    if (!usersRef || !athletesRef || !groupsRef || !assignmentsRef || !competitionsRef || !plansRef || !notesRef || !journalRef || !completionRef || !matchAnalysisRef) {
       return;
     }
 
@@ -4927,6 +5001,35 @@ async function syncCoachWorkspaceRelationships() {
       }
     });
 
+    coachCompetitionsCache.forEach((competition) => {
+      const roster = getCompetitionAthleteRoster(competition);
+      const resolvedNames = uniqueNames([
+        ...(competition.athleteNames || []),
+        ...roster.map((entry) => entry.athleteName)
+      ]).filter(Boolean);
+      const resolvedIds = uniqueNames([
+        ...(competition.athleteIds || []),
+        ...roster.map((entry) => entry.athleteId)
+      ]).filter(Boolean);
+      const resolvedUids = uniqueNames([
+        ...(competition.athleteUids || []),
+        ...roster.map((entry) => entry.athleteUid)
+      ]).filter(Boolean);
+      if (
+        !stringListsEqual(competition.athleteNames || [], resolvedNames)
+        || !stringListsEqual(competition.athleteIds || [], resolvedIds)
+        || !stringListsEqual(competition.athleteUids || [], resolvedUids)
+      ) {
+        batch.set(competitionsRef.doc(competition.id), stripUndefinedDeep({
+          athleteNames: resolvedNames,
+          athleteIds: resolvedIds,
+          athleteUids: resolvedUids,
+          updatedAt: timestamp
+        }), { merge: true });
+        writes += 1;
+      }
+    });
+
     coachNotesCache.forEach((record) => {
       const athlete = athletesById.get(normalizeAthleteId(record.athleteId, record.athleteName)) || getCoachAthleteRecordByIdentity(record);
       const nextAthleteId = normalizeAthleteId(athlete?.id || record.athleteId, record.athleteName);
@@ -5072,6 +5175,7 @@ function stopCoachWorkspaceRealtimeSync() {
   coachTemplatesCache = [];
   coachAssignmentsCache = [];
   coachGroupsCache = [];
+  coachCompetitionsCache = [];
   coachCalendarEntriesCache = {};
   coachAthletesCache = [];
   coachNotesCache = [];
@@ -5082,6 +5186,8 @@ function stopCoachWorkspaceRealtimeSync() {
   coachDirectoryCache = [];
   coachAthleteDirectoryCache = [];
   coachParentScoutingCache = [];
+  selectedCompetitionId = "";
+  competitionCreateOpen = false;
   currentEditingCoachPlanId = "";
 }
 
@@ -5104,7 +5210,7 @@ async function ensureCoachWorkspaceSeeded() {
       "firestore_workspace_seed_timeout"
     );
 
-    const [templatesSnap, groupsSnap, plansSnap, assignmentsSnap, calendarSnap, athletesSnap, notesSnap, journalSnap, matchAnalysisSnap] = await Promise.all([
+    const [templatesSnap, groupsSnap, plansSnap, assignmentsSnap, calendarSnap, athletesSnap, notesSnap, journalSnap, matchAnalysisSnap, competitionsSnap] = await Promise.all([
       withTimeout(getCoachWorkspaceCollectionRef("templates", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_templates_seed_timeout"),
       withTimeout(getCoachWorkspaceCollectionRef("groups", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_groups_seed_timeout"),
       withTimeout(getCoachWorkspaceCollectionRef("plans", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_plans_seed_timeout"),
@@ -5113,7 +5219,8 @@ async function ensureCoachWorkspaceSeeded() {
       withTimeout(getCoachWorkspaceCollectionRef("athletes", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_athletes_seed_timeout"),
       withTimeout(getCoachWorkspaceCollectionRef("coach_notes", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_notes_seed_timeout"),
       withTimeout(getCoachWorkspaceCollectionRef("journal_entries", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_journal_seed_timeout"),
-      withTimeout(getCoachWorkspaceCollectionRef("match_analysis", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_match_analysis_seed_timeout")
+      withTimeout(getCoachWorkspaceCollectionRef("match_analysis", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_match_analysis_seed_timeout"),
+      withTimeout(getCoachWorkspaceCollectionRef("competitions", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_competitions_seed_timeout")
     ]);
 
     if (templatesSnap.empty) {
@@ -5142,6 +5249,19 @@ async function ensureCoachWorkspaceSeeded() {
         }, { merge: true });
       });
       await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_groups_seed_commit_timeout");
+    }
+
+    if (!PUBLISH_READY_MODE && competitionsSnap.empty) {
+      const batch = firebaseFirestoreInstance.batch();
+      getSeedCoachCompetitionRecords().forEach((competition) => {
+        const ref = getCoachWorkspaceCollectionRef("competitions", authUser.id).doc(competition.id);
+        batch.set(ref, stripUndefinedDeep({
+          ...competition,
+          createdAt: getFirestoreServerTimestamp(),
+          updatedAt: getFirestoreServerTimestamp()
+        }), { merge: true });
+      });
+      await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_competitions_seed_commit_timeout");
     }
 
     if (PUBLISH_READY_MODE) {
@@ -5269,6 +5389,7 @@ async function startCoachWorkspaceRealtimeSync() {
   const templatesRef = getCoachWorkspaceCollectionRef("templates", authUser.id);
   const assignmentsRef = getCoachWorkspaceCollectionRef("assignments", authUser.id);
   const groupsRef = getCoachWorkspaceCollectionRef("groups", authUser.id);
+  const competitionsRef = getCoachWorkspaceCollectionRef("competitions", authUser.id);
   const calendarRef = getCoachWorkspaceCollectionRef("calendar_entries", authUser.id);
   const athletesRef = getCoachWorkspaceCollectionRef("athletes", authUser.id);
   const notesRef = getCoachWorkspaceCollectionRef("coach_notes", authUser.id);
@@ -5277,7 +5398,7 @@ async function startCoachWorkspaceRealtimeSync() {
   const matchAnalysisRef = getCoachWorkspaceCollectionRef("match_analysis", authUser.id);
   const parentScoutingRef = getCoachWorkspaceCollectionRef("parent_scouting", authUser.id);
   const usersRef = firebaseFirestoreInstance?.collection(FIREBASE_USERS_COLLECTION) || null;
-  if (!plansRef || !templatesRef || !assignmentsRef || !groupsRef || !calendarRef || !athletesRef || !notesRef || !journalRef || !completionRef || !matchAnalysisRef || !parentScoutingRef) return;
+  if (!plansRef || !templatesRef || !assignmentsRef || !groupsRef || !competitionsRef || !calendarRef || !athletesRef || !notesRef || !journalRef || !completionRef || !matchAnalysisRef || !parentScoutingRef) return;
 
   coachWorkspaceUnsubs.push(
     plansRef.onSnapshot((snapshot) => {
@@ -5325,6 +5446,13 @@ async function startCoachWorkspaceRealtimeSync() {
       renderMedia();
       scheduleCoachCompletionSync();
     }, (err) => console.warn("Group sync failed", err)),
+    competitionsRef.onSnapshot((snapshot) => {
+      coachCompetitionsCache = coachWorkspaceSortByUpdated(
+        snapshot.docs.map((doc) => normalizeCoachCompetitionRecord(doc.id, doc.data() || {}))
+      );
+      renderCompetitionPreview(getSelectedCoachAthleteRecord());
+      renderDashboard();
+    }, (err) => console.warn("Competition sync failed", err)),
     calendarRef.onSnapshot((snapshot) => {
       const next = {};
       snapshot.docs.forEach((doc) => {
@@ -8151,7 +8279,11 @@ async function showTab(name) {
   }
 
   if (visiblePanels.includes("competition-preview")) {
-    renderCompetitionPreview(getSelectedCoachAthleteRecord());
+    const profile = getProfile();
+    const competitionProfile = isCoachRouteContext()
+      ? getSelectedCoachAthleteRecord()
+      : (isAthleteRole(profile?.role) ? (getAthletePortalLinkedAthlete() || profile) : profile);
+    renderCompetitionPreview(competitionProfile);
   }
 
   if (visiblePanels.includes("calendar-manager")) {
@@ -10376,6 +10508,14 @@ athleteProfileForm = document.getElementById("athleteProfileForm");
 const previewProfileBtn = document.getElementById("previewProfileBtn");
 const backToProfileBtn = document.getElementById("backToProfileBtn");
 competitionPreview = document.getElementById("competitionPreview");
+const competitionManager = document.getElementById("competitionManager");
+const competitionCurrentCard = document.getElementById("competitionCurrentCard");
+const competitionPastHeading = document.getElementById("competitionPastHeading");
+const competitionFutureHeading = document.getElementById("competitionFutureHeading");
+const competitionPastList = document.getElementById("competitionPastList");
+const competitionFutureList = document.getElementById("competitionFutureList");
+const competitionDetailCard = document.getElementById("competitionDetailCard");
+const competitionPreviewChip = document.querySelector("#panel-competition-preview .card-header .chip");
 const openCoachMatchBtn = document.getElementById("openCoachMatchBtn");
 const openCompetitionPreviewBtn = document.getElementById("openCompetitionPreviewBtn");
 const coachQuickPreview = document.getElementById("coachQuickPreview");
@@ -10831,6 +10971,438 @@ async function syncAthleteProfileToCoachWorkspace(profile = getProfile(), authUs
   );
 }
 
+function getCompetitionRecordsForContext() {
+  const role = normalizeAuthRole(getProfile()?.role);
+  if (role === "coach" || role === "admin") {
+    if (coachCompetitionsCache.length) return coachWorkspaceSortByUpdated(coachCompetitionsCache);
+    if (athletePortalCompetitionsCache.length) return coachWorkspaceSortByUpdated(athletePortalCompetitionsCache);
+  } else if (role === "athlete") {
+    if (athletePortalCompetitionsCache.length) return coachWorkspaceSortByUpdated(athletePortalCompetitionsCache);
+    if (coachCompetitionsCache.length) return coachWorkspaceSortByUpdated(coachCompetitionsCache);
+  } else {
+    if (coachCompetitionsCache.length) return coachWorkspaceSortByUpdated(coachCompetitionsCache);
+    if (athletePortalCompetitionsCache.length) return coachWorkspaceSortByUpdated(athletePortalCompetitionsCache);
+  }
+  if (PUBLISH_READY_MODE) return [];
+  return getSeedCoachCompetitionRecords().map((record) => normalizeCoachCompetitionRecord(record.id, record));
+}
+
+function getCompetitionStatus(competition, todayKey = getCurrentAppDateKey()) {
+  if (!competition) return "future";
+  const startKey = isDateKey(competition.startDateKey) ? competition.startDateKey : "";
+  const endKey = isDateKey(competition.endDateKey)
+    ? competition.endDateKey
+    : (startKey || "");
+  if (!startKey && !endKey) return "future";
+  if (!startKey && endKey) {
+    return todayKey <= endKey ? "current" : "past";
+  }
+  if (startKey && !endKey) {
+    return todayKey < startKey ? "future" : "current";
+  }
+  if (todayKey < startKey) return "future";
+  if (todayKey > endKey) return "past";
+  return "current";
+}
+
+function getCompetitionDateRangeLabel(competition) {
+  if (!competition) return currentLang === "es" ? "Sin fecha" : "No date";
+  const startKey = isDateKey(competition.startDateKey) ? competition.startDateKey : "";
+  const endKey = isDateKey(competition.endDateKey) ? competition.endDateKey : "";
+  if (startKey && endKey && startKey !== endKey) {
+    return `${formatPlanDateLabel(startKey)} - ${formatPlanDateLabel(endKey)}`;
+  }
+  if (startKey) return formatPlanDateLabel(startKey);
+  if (endKey) return formatPlanDateLabel(endKey);
+  return currentLang === "es" ? "Sin fecha" : "No date";
+}
+
+function sortCompetitionsByDate(records = []) {
+  return [...records].sort((left, right) => {
+    const leftStart = left.startDateKey || left.endDateKey || "9999-99-99";
+    const rightStart = right.startDateKey || right.endDateKey || "9999-99-99";
+    if (leftStart !== rightStart) return leftStart.localeCompare(rightStart);
+    return String(left.name || "").localeCompare(String(right.name || ""), undefined, { sensitivity: "base" });
+  });
+}
+
+function getCompetitionTimeline(records = []) {
+  const todayKey = getCurrentAppDateKey();
+  const sorted = sortCompetitionsByDate(records);
+  const current = sorted.filter((record) => getCompetitionStatus(record, todayKey) === "current");
+  const past = sorted
+    .filter((record) => getCompetitionStatus(record, todayKey) === "past")
+    .sort((left, right) => {
+      const leftEnd = left.endDateKey || left.startDateKey || "";
+      const rightEnd = right.endDateKey || right.startDateKey || "";
+      return rightEnd.localeCompare(leftEnd);
+    });
+  const future = sorted.filter((record) => getCompetitionStatus(record, todayKey) === "future");
+  return { current, past, future };
+}
+
+function getCompetitionAthleteRoster(competition) {
+  if (!competition) return [];
+  const athletes = getAthletesData();
+  const idSet = new Set((competition.athleteIds || []).map((value) => String(value || "").trim()).filter(Boolean));
+  const uidSet = new Set((competition.athleteUids || []).map((value) => String(value || "").trim()).filter(Boolean));
+  const nameSet = new Set((competition.athleteNames || []).map((value) => normalizeName(value)).filter(Boolean));
+  const roster = [];
+  const seenKeys = new Set();
+
+  function pushEntry(entry) {
+    const athleteName = String(entry?.name || entry?.athleteName || "").trim();
+    const explicitId = String(entry?.id || entry?.athleteId || "").trim();
+    const athleteId = explicitId || (athleteName ? normalizeAthleteId("", athleteName) : "");
+    const athleteUid = normalizeUid(entry?.athleteUid || entry?.uid);
+    const uniqueKey = athleteUid || athleteId || normalizeName(athleteName);
+    if (!uniqueKey || seenKeys.has(uniqueKey)) return;
+    seenKeys.add(uniqueKey);
+    roster.push({
+      athleteId,
+      athleteUid,
+      athleteName: athleteName || (currentLang === "es" ? "Atleta" : "Athlete"),
+      availability: entry?.availability || "",
+      level: entry?.level || ""
+    });
+  }
+
+  athletes.forEach((athlete) => {
+    const athleteId = normalizeAthleteId(athlete.id, athlete.name);
+    const athleteUid = normalizeUid(athlete.athleteUid);
+    const athleteName = normalizeName(athlete.name);
+    if (
+      (athleteId && idSet.has(athleteId))
+      || (athleteUid && uidSet.has(athleteUid))
+      || (athleteName && nameSet.has(athleteName))
+    ) {
+      pushEntry(athlete);
+    }
+  });
+
+  (competition.athleteIds || []).forEach((athleteId, index) => {
+    const athlete = getCoachAthleteRecordByIdentity({ athleteId: String(athleteId || "").trim() });
+    const fallbackName = competition.athleteNames?.[index] || athlete?.name || "";
+    pushEntry({
+      id: athleteId,
+      athleteUid: athlete?.athleteUid || competition.athleteUids?.[index] || "",
+      name: fallbackName || athlete?.name || "",
+      availability: athlete?.availability || "",
+      level: athlete?.level || ""
+    });
+  });
+
+  (competition.athleteUids || []).forEach((athleteUid, index) => {
+    const athlete = getCoachAthleteRecordByIdentity({ athleteUid: String(athleteUid || "").trim() });
+    pushEntry({
+      id: athlete?.id || competition.athleteIds?.[index] || "",
+      athleteUid,
+      name: athlete?.name || competition.athleteNames?.[index] || "",
+      availability: athlete?.availability || "",
+      level: athlete?.level || ""
+    });
+  });
+
+  (competition.athleteNames || []).forEach((athleteName) => {
+    pushEntry({
+      name: athleteName
+    });
+  });
+
+  return roster;
+}
+
+function competitionIncludesAthlete(competition, athleteInput) {
+  if (!competition || !athleteInput) return false;
+  const identity = resolveAthleteIdentity(athleteInput);
+  const idSet = new Set((competition.athleteIds || []).map((value) => String(value || "").trim()).filter(Boolean));
+  const uidSet = new Set((competition.athleteUids || []).map((value) => String(value || "").trim()).filter(Boolean));
+  const nameSet = new Set((competition.athleteNames || []).map((value) => normalizeName(value)).filter(Boolean));
+  if (identity.athleteId && idSet.has(identity.athleteId)) return true;
+  if (identity.athleteUid && uidSet.has(identity.athleteUid)) return true;
+  if (identity.athleteName && nameSet.has(normalizeName(identity.athleteName))) return true;
+  return false;
+}
+
+async function createCoachCompetitionRecord(payload = {}) {
+  const competitionsRef = getCoachWorkspaceCollectionRef("competitions");
+  if (!competitionsRef) {
+    throw new Error("competition_store_unavailable");
+  }
+  const name = String(payload.name || "").trim();
+  const startDateKey = isDateKey(payload.startDateKey) ? payload.startDateKey : getCurrentAppDateKey();
+  const endDateKey = isDateKey(payload.endDateKey) ? payload.endDateKey : startDateKey;
+  const location = String(payload.location || "").trim();
+  if (!name) {
+    throw new Error("competition_name_required");
+  }
+  const docId = `${slugifyKey(name)}-${Date.now().toString(36)}`;
+  await withTimeout(
+    competitionsRef.doc(docId).set(stripUndefinedDeep({
+      name,
+      startDateKey,
+      endDateKey,
+      location,
+      athleteNames: [],
+      athleteIds: [],
+      athleteUids: [],
+      createdBy: String(getAuthUser()?.id || "").trim(),
+      updatedBy: String(getAuthUser()?.id || "").trim(),
+      createdAt: getFirestoreServerTimestamp(),
+      updatedAt: getFirestoreServerTimestamp()
+    }), { merge: true }),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_competition_create_timeout"
+  );
+  selectedCompetitionId = docId;
+}
+
+async function updateCoachCompetitionRoster(competition, athleteIdentity, { remove = false } = {}) {
+  const competitionsRef = getCoachWorkspaceCollectionRef("competitions");
+  if (!competitionsRef || !competition?.id) {
+    throw new Error("competition_store_unavailable");
+  }
+  const identity = resolveAthleteIdentity(athleteIdentity);
+  const hasIdentity = Boolean(identity.athleteId || identity.athleteUid || identity.athleteName);
+  if (!hasIdentity) {
+    throw new Error("competition_athlete_required");
+  }
+  const existingIds = (competition.athleteIds || []).map((value) => String(value || "").trim()).filter(Boolean);
+  const existingUids = (competition.athleteUids || []).map((value) => String(value || "").trim()).filter(Boolean);
+  const existingNames = uniqueNames(competition.athleteNames || []);
+  const normalizedName = String(identity.athleteName || "").trim();
+  const normalizedId = String(identity.athleteId || "").trim();
+  const normalizedUid = String(identity.athleteUid || "").trim();
+  const rosterMatch = getCompetitionAthleteRoster(competition).find((entry) => athleteIdentityMatches(entry, identity)) || null;
+  const targetName = String(rosterMatch?.athleteName || normalizedName).trim();
+  const targetId = String(rosterMatch?.athleteId || normalizedId).trim();
+  const targetUid = String(rosterMatch?.athleteUid || normalizedUid).trim();
+
+  const nextIds = remove
+    ? existingIds.filter((value) => value !== targetId && value !== normalizedId)
+    : uniqueNames([...existingIds, targetId || normalizedId]).filter(Boolean);
+  const nextUids = remove
+    ? existingUids.filter((value) => value !== targetUid && value !== normalizedUid)
+    : uniqueNames([...existingUids, targetUid || normalizedUid]).filter(Boolean);
+  const nextNames = remove
+    ? existingNames.filter((value) => normalizeName(value) !== normalizeName(targetName || normalizedName))
+    : uniqueNames([...existingNames, targetName || normalizedName]).filter(Boolean);
+
+  await withTimeout(
+    competitionsRef.doc(competition.id).set(stripUndefinedDeep({
+      athleteIds: nextIds,
+      athleteUids: nextUids,
+      athleteNames: nextNames,
+      updatedBy: String(getAuthUser()?.id || "").trim(),
+      updatedAt: getFirestoreServerTimestamp()
+    }), { merge: true }),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_competition_roster_update_timeout"
+  );
+}
+
+function renderCompetitionManager(selectedProfile = null) {
+  if (!competitionManager || !competitionCurrentCard || !competitionPastList || !competitionFutureList || !competitionDetailCard) return;
+  if (competitionPastHeading) {
+    competitionPastHeading.textContent = currentLang === "es" ? "Competencias pasadas" : "Past Competitions";
+  }
+  if (competitionFutureHeading) {
+    competitionFutureHeading.textContent = currentLang === "es" ? "Competencias futuras" : "Future Competitions";
+  }
+  const canEdit = isCoachWorkspaceActive();
+  if (competitionPreviewChip) {
+    competitionPreviewChip.textContent = canEdit
+      ? (currentLang === "es" ? "Vista entrenador" : "Coach view")
+      : (currentLang === "es" ? "Vista atleta" : "Athlete view");
+  }
+  const records = getCompetitionRecordsForContext();
+  const timeline = getCompetitionTimeline(records);
+  const lookup = new Map(records.map((record) => [record.id, record]));
+  if (!selectedCompetitionId || !lookup.has(selectedCompetitionId)) {
+    selectedCompetitionId = timeline.current[0]?.id || timeline.future[0]?.id || timeline.past[0]?.id || "";
+  }
+  const selectedCompetition = lookup.get(selectedCompetitionId) || null;
+  const currentCompetition = timeline.current[0] || null;
+  const activeAthlete = selectedProfile || (isAthleteRole(getProfile()?.role) ? (getAthletePortalLinkedAthlete() || getProfile()) : null);
+  const activeAthleteName = String(activeAthlete?.name || "").trim();
+  const athleteFromRoster = getSelectedCoachAthleteRecord();
+
+  competitionCurrentCard.innerHTML = `
+    <div class="competition-current-top">
+      <h3>${currentLang === "es" ? "Competencia actual" : "Current competition"}</h3>
+      ${canEdit ? `<button type="button" id="competitionToggleCreateBtn">${competitionCreateOpen ? (currentLang === "es" ? "Cancelar" : "Cancel") : (currentLang === "es" ? "Nueva competencia" : "New competition")}</button>` : ""}
+    </div>
+    ${currentCompetition
+      ? `
+        <p class="competition-current-name">${escapeHtml(currentCompetition.name || (currentLang === "es" ? "Sin nombre" : "Untitled competition"))}</p>
+        <p class="small competition-current-meta">${escapeHtml(getCompetitionDateRangeLabel(currentCompetition))}${currentCompetition.location ? ` • ${escapeHtml(currentCompetition.location)}` : ""}</p>
+      `
+      : `
+        <div class="competition-empty">${currentLang === "es" ? "No hay una competencia activa ahora mismo." : "No active competition right now."}</div>
+      `
+    }
+    ${(canEdit && competitionCreateOpen) ? `
+      <div class="competition-create-grid">
+        <input id="competitionCreateNameInput" type="text" placeholder="${currentLang === "es" ? "Nombre de la competencia" : "Competition name"}">
+        <input id="competitionCreateStartInput" type="date" value="${getCurrentAppDateKey()}">
+        <input id="competitionCreateEndInput" type="date" value="${getCurrentAppDateKey()}">
+        <input id="competitionCreateLocationInput" type="text" placeholder="${currentLang === "es" ? "Lugar (opcional)" : "Location (optional)"}">
+      </div>
+      <div class="row">
+        <button type="button" class="primary" id="competitionCreateSaveBtn">${currentLang === "es" ? "Guardar competencia" : "Save competition"}</button>
+      </div>
+    ` : ""}
+  `;
+
+  const renderTimelineList = (target, items, emptyLabel) => {
+    target.innerHTML = "";
+    if (!items.length) {
+      target.innerHTML = `<div class="competition-empty">${emptyLabel}</div>`;
+      return;
+    }
+    items.forEach((item) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "competition-row";
+      if (item.id === selectedCompetitionId) {
+        button.classList.add("active");
+      }
+      button.innerHTML = `
+        <span class="competition-row-name">${escapeHtml(item.name || (currentLang === "es" ? "Sin nombre" : "Untitled competition"))}</span>
+        <span class="competition-row-meta">${escapeHtml(getCompetitionDateRangeLabel(item))}${item.location ? ` • ${escapeHtml(item.location)}` : ""}</span>
+      `;
+      button.addEventListener("click", () => {
+        selectedCompetitionId = item.id;
+        renderCompetitionPreview(selectedProfile);
+      });
+      target.appendChild(button);
+    });
+  };
+
+  renderTimelineList(
+    competitionPastList,
+    timeline.past,
+    currentLang === "es" ? "Sin competencias pasadas." : "No past competitions."
+  );
+  renderTimelineList(
+    competitionFutureList,
+    timeline.future,
+    currentLang === "es" ? "Sin competencias futuras." : "No future competitions."
+  );
+
+  if (!selectedCompetition) {
+    competitionDetailCard.innerHTML = `<h3>${currentLang === "es" ? "Atletas del torneo" : "Tournament athletes"}</h3><div class="competition-empty">${currentLang === "es" ? "Selecciona o crea una competencia para ver atletas registrados." : "Select or create a competition to view registered athletes."}</div>`;
+  } else {
+    const roster = getCompetitionAthleteRoster(selectedCompetition);
+    const rosterHtml = roster.length
+      ? roster.map((entry) => {
+        const isActiveAthlete = activeAthleteName && normalizeName(entry.athleteName) === normalizeName(activeAthleteName);
+        const metaParts = [entry.level, entry.availability].filter(Boolean).join(" • ");
+        return `
+          <div class="competition-athlete-row${isActiveAthlete ? " competition-athlete-row-athlete" : ""}">
+            <div>
+              <strong>${escapeHtml(entry.athleteName)}</strong>
+              <div class="small">${escapeHtml(metaParts || (currentLang === "es" ? "Registro activo" : "Registered"))}${isActiveAthlete ? ` • ${currentLang === "es" ? "tu" : "you"}` : ""}</div>
+            </div>
+            ${canEdit ? `<button type="button" class="ghost competition-remove-athlete-btn" data-athlete-id="${escapeHtml(entry.athleteId)}" data-athlete-uid="${escapeHtml(entry.athleteUid)}" data-athlete-name="${escapeHtml(entry.athleteName)}">${currentLang === "es" ? "Quitar" : "Remove"}</button>` : ""}
+          </div>
+        `;
+      }).join("")
+      : `<div class="competition-empty">${currentLang === "es" ? "Todavia no hay atletas registrados en esta competencia." : "No athletes registered in this competition yet."}</div>`;
+    const availableAthletes = getAthletesData().filter((athlete) => !competitionIncludesAthlete(selectedCompetition, athlete));
+    const selectedFromAthletesLabel = athleteFromRoster?.name
+      ? `${currentLang === "es" ? "Agregar seleccionado" : "Add selected"}: ${athleteFromRoster.name}`
+      : (currentLang === "es" ? "Agregar atleta seleccionado" : "Add selected athlete");
+    competitionDetailCard.innerHTML = `
+      <h3>${escapeHtml(selectedCompetition.name || (currentLang === "es" ? "Competencia" : "Competition"))}</h3>
+      <p class="small muted">${escapeHtml(getCompetitionDateRangeLabel(selectedCompetition))}${selectedCompetition.location ? ` • ${escapeHtml(selectedCompetition.location)}` : ""}</p>
+      <div class="competition-athlete-list">${rosterHtml}</div>
+      ${canEdit ? `
+        <div class="competition-roster-tools">
+          <select id="competitionAddAthleteSelect">
+            <option value="">${currentLang === "es" ? "Selecciona atleta" : "Select athlete"}</option>
+            ${availableAthletes.map((athlete) => `<option value="${escapeHtml(athlete.name)}">${escapeHtml(athlete.name)}</option>`).join("")}
+          </select>
+          <button type="button" class="primary" id="competitionAddAthleteBtn">${currentLang === "es" ? "Agregar" : "Add"}</button>
+          <button type="button" id="competitionAddSelectedBtn">${escapeHtml(selectedFromAthletesLabel)}</button>
+        </div>
+      ` : ""}
+    `;
+
+    if (canEdit) {
+      const addSelect = document.getElementById("competitionAddAthleteSelect");
+      const addBtn = document.getElementById("competitionAddAthleteBtn");
+      const addSelectedBtn = document.getElementById("competitionAddSelectedBtn");
+      addBtn?.addEventListener("click", async () => {
+        const selectedName = String(addSelect?.value || "").trim();
+        if (!selectedName) return;
+        const athlete = getCoachAthleteRecordByIdentity(selectedName) || getAthletesData().find((item) => item.name === selectedName) || null;
+        if (!athlete) return;
+        try {
+          await updateCoachCompetitionRoster(selectedCompetition, athlete, { remove: false });
+          toast(currentLang === "es" ? "Atleta agregado a la competencia." : "Athlete added to competition.");
+        } catch (err) {
+          console.warn("Competition roster add failed", err);
+          toast(currentLang === "es" ? "No se pudo agregar el atleta." : "Could not add athlete.");
+        }
+      });
+      addSelectedBtn?.addEventListener("click", async () => {
+        const athlete = athleteFromRoster || null;
+        if (!athlete) {
+          toast(currentLang === "es" ? "Selecciona un atleta en la ruta Athletes." : "Select an athlete in the Athletes route first.");
+          return;
+        }
+        try {
+          await updateCoachCompetitionRoster(selectedCompetition, athlete, { remove: false });
+          toast(currentLang === "es" ? "Atleta agregado a la competencia." : "Athlete added to competition.");
+        } catch (err) {
+          console.warn("Competition selected athlete add failed", err);
+          toast(currentLang === "es" ? "No se pudo agregar el atleta." : "Could not add athlete.");
+        }
+      });
+      competitionDetailCard.querySelectorAll(".competition-remove-athlete-btn").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const athleteId = String(button.dataset.athleteId || "").trim();
+          const athleteUid = String(button.dataset.athleteUid || "").trim();
+          const athleteName = String(button.dataset.athleteName || "").trim();
+          try {
+            await updateCoachCompetitionRoster(selectedCompetition, { athleteId, athleteUid, athleteName }, { remove: true });
+            toast(currentLang === "es" ? "Atleta removido de la competencia." : "Athlete removed from competition.");
+          } catch (err) {
+            console.warn("Competition roster remove failed", err);
+            toast(currentLang === "es" ? "No se pudo remover el atleta." : "Could not remove athlete.");
+          }
+        });
+      });
+    }
+  }
+
+  const toggleCreateBtn = document.getElementById("competitionToggleCreateBtn");
+  toggleCreateBtn?.addEventListener("click", () => {
+    competitionCreateOpen = !competitionCreateOpen;
+    renderCompetitionPreview(selectedProfile);
+  });
+  const createSaveBtn = document.getElementById("competitionCreateSaveBtn");
+  createSaveBtn?.addEventListener("click", async () => {
+    const name = String(document.getElementById("competitionCreateNameInput")?.value || "").trim();
+    const startDateKey = String(document.getElementById("competitionCreateStartInput")?.value || "").trim();
+    const endDateKey = String(document.getElementById("competitionCreateEndInput")?.value || "").trim();
+    const location = String(document.getElementById("competitionCreateLocationInput")?.value || "").trim();
+    if (!name || !isDateKey(startDateKey) || !isDateKey(endDateKey)) {
+      toast(currentLang === "es" ? "Completa nombre, fecha inicio y fecha fin." : "Provide competition name, start date, and end date.");
+      return;
+    }
+    try {
+      await createCoachCompetitionRecord({ name, startDateKey, endDateKey, location });
+      competitionCreateOpen = false;
+      toast(currentLang === "es" ? "Competencia guardada." : "Competition saved.");
+    } catch (err) {
+      console.warn("Competition create failed", err);
+      toast(currentLang === "es" ? "No se pudo guardar la competencia." : "Could not save competition.");
+    }
+  });
+}
+
 function buildCompetitionPreview(profile) {
   if (!profile) return [];
   const athleteIdentity = resolveAthleteIdentity(profile);
@@ -10980,17 +11552,23 @@ function buildCompetitionPreview(profile) {
 }
 
 function renderCompetitionPreview(profile) {
+  renderCompetitionManager(profile);
   if (!competitionPreview) return;
   competitionPreview.innerHTML = "";
   const sections = buildCompetitionPreview(profile);
   if (!sections.length) {
+    const isCoachContext = isCoachRouteContext();
     const card = document.createElement("div");
     card.className = "mini-card";
     card.innerHTML = `
       <h3>${currentLang === "es" ? "Competition / Corner View" : "Competition / Corner View"}</h3>
       <p class="small muted">${currentLang === "es"
-        ? "Selecciona un atleta en Athletes para ver su vista de competencia."
-        : "Select an athlete in Athletes to load the competition view."}</p>
+        ? (isCoachContext
+            ? "Selecciona un atleta en Athletes para ver su vista de competencia."
+            : "Completa el perfil del atleta para cargar la vista de competencia.")
+        : (isCoachContext
+            ? "Select an athlete in Athletes to load the competition view."
+            : "Complete the athlete profile to load the competition view.")}</p>
     `;
     competitionPreview.appendChild(card);
     return;
@@ -14134,6 +14712,17 @@ function getCoachCompletionRow(athlete) {
 }
 
 function getCoachUpcomingCompetitionRows(limit = 3) {
+  const competitionRecords = getCompetitionRecordsForContext();
+  if (competitionRecords.length) {
+    const timeline = getCompetitionTimeline(competitionRecords);
+    const upcoming = [...timeline.current, ...timeline.future].slice(0, limit);
+    if (upcoming.length) {
+      return upcoming.map((record) => ({
+        title: record.name || (currentLang === "es" ? "Competencia" : "Competition"),
+        detail: `${getCompetitionDateRangeLabel(record)}${record.location ? ` • ${record.location}` : ""}`
+      }));
+    }
+  }
   const todayKey = getCurrentAppDateKey();
   const keywords = ["competition", "tournament", "dual", "match", "meet", "weigh", "competencia", "torneo"];
   const entries = Object.entries(getStoredCalendarEvents())
@@ -15743,6 +16332,7 @@ function resetAthletePortalCaches() {
   athletePortalNotesCache = [];
   athletePortalCompletionCache = null;
   athletePortalMatchAnalysisCache = [];
+  athletePortalCompetitionsCache = [];
   athletePortalPlanFetchKey = "";
 }
 
@@ -15760,6 +16350,7 @@ function stopAthletePortalRealtimeSync() {
   renderToday(getCurrentAppDayIndex());
   renderJournalEntries();
   renderPlanGrid(getCurrentAppDayIndex());
+  renderCompetitionPreview(getProfile());
 }
 
 function getAthletePortalIdentity(profile = getProfile()) {
@@ -15931,6 +16522,7 @@ function refreshAthletePortalDataSync() {
     renderToday(getCurrentAppDayIndex());
     renderJournalEntries();
     renderPlanGrid(getCurrentAppDayIndex());
+    renderCompetitionPreview(getProfile());
     return;
   }
   const coachUid = getAthleteLinkedCoachUid(profile);
@@ -15942,10 +16534,12 @@ function refreshAthletePortalDataSync() {
   const journalRef = getCoachWorkspaceCollectionRef("journal_entries", coachUid);
   const completionRef = getCoachWorkspaceCollectionRef("completion_status", coachUid);
   const matchAnalysisRef = getCoachWorkspaceCollectionRef("match_analysis", coachUid);
-  if (!coachUid || !athleteId || !workspaceAthletesRef || !assignmentsRef || !notesRef || !journalRef || !completionRef || !matchAnalysisRef) {
+  const competitionsRef = getCoachWorkspaceCollectionRef("competitions", coachUid);
+  if (!coachUid || !athleteId || !workspaceAthletesRef || !assignmentsRef || !notesRef || !journalRef || !completionRef || !matchAnalysisRef || !competitionsRef) {
     renderToday(getCurrentAppDayIndex());
     renderJournalEntries();
     renderPlanGrid(getCurrentAppDayIndex());
+    renderCompetitionPreview(getProfile());
     return;
   }
 
@@ -15955,6 +16549,8 @@ function refreshAthletePortalDataSync() {
   let journalByName = [];
   let analysisById = [];
   let analysisByName = [];
+  let competitionsById = [];
+  let competitionsByName = [];
   const applyAssignments = () => {
     athletePortalAssignmentsCache = mergeCoachRecordsById(assignmentById, assignmentByName);
     refreshAthletePortalPlansFromAssignments().catch((err) => console.warn("Athlete plan refresh failed", err));
@@ -15971,6 +16567,10 @@ function refreshAthletePortalDataSync() {
   const applyAnalysis = () => {
     athletePortalMatchAnalysisCache = mergeCoachRecordsById(analysisById, analysisByName);
     renderToday(getCurrentAppDayIndex());
+    renderCompetitionPreview(getAthletePortalLinkedAthlete() || getProfile());
+  };
+  const applyCompetitions = () => {
+    athletePortalCompetitionsCache = mergeCoachRecordsById(competitionsById, competitionsByName);
     renderCompetitionPreview(getAthletePortalLinkedAthlete() || getProfile());
   };
 
@@ -16025,7 +16625,15 @@ function refreshAthletePortalDataSync() {
         snapshot.docs.map((doc) => normalizeCoachMatchAnalysisRecord(doc.id, doc.data() || {}))
       );
       applyAnalysis();
-    }, (err) => console.warn("Athlete analysis name fallback sync failed", err))
+    }, (err) => console.warn("Athlete analysis name fallback sync failed", err)),
+    competitionsRef.where("athleteIds", "array-contains", athleteId).onSnapshot((snapshot) => {
+      competitionsById = snapshot.docs.map((doc) => normalizeCoachCompetitionRecord(doc.id, doc.data() || {}));
+      applyCompetitions();
+    }, (err) => console.warn("Athlete competition sync failed", err)),
+    competitionsRef.where("athleteNames", "array-contains", athleteName).onSnapshot((snapshot) => {
+      competitionsByName = snapshot.docs.map((doc) => normalizeCoachCompetitionRecord(doc.id, doc.data() || {}));
+      applyCompetitions();
+    }, (err) => console.warn("Athlete competition name fallback sync failed", err))
   );
 
   renderToday(getCurrentAppDayIndex());

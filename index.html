@@ -143,6 +143,7 @@
         <button type="button" class="tab" data-tab="journal" data-role="athlete" data-views="athlete">Journal</button>
         <button type="button" class="tab" data-tab="favorites" data-role="athlete">Favorites</button>
         <button type="button" class="tab" data-tab="announcements" data-role="athlete coach" data-views="athlete">Announcements</button>
+        <button type="button" class="tab" data-tab="competition-preview" data-role="athlete" data-views="athlete">Competition</button>
 
         <button type="button" class="tab" data-tab="parent-home" data-role="parent" data-views="parent">Parent Home</button>
         <button type="button" class="tab" data-tab="parent-scouting" data-role="parent" data-views="parent">Scouting</button>
@@ -845,6 +846,20 @@
           <div class="card-header">
             <h2>Competition Summary Preview</h2>
             <div class="chip">Coach view</div>
+          </div>
+          <div class="competition-manager" id="competitionManager">
+            <div class="mini-card competition-current-card" id="competitionCurrentCard"></div>
+            <div class="competition-timeline-grid">
+              <div class="mini-card competition-timeline-card">
+                <h3 id="competitionPastHeading">Past Competitions</h3>
+                <div class="competition-timeline-list" id="competitionPastList"></div>
+              </div>
+              <div class="mini-card competition-timeline-card">
+                <h3 id="competitionFutureHeading">Future Competitions</h3>
+                <div class="competition-timeline-list" id="competitionFutureList"></div>
+              </div>
+            </div>
+            <div class="mini-card competition-detail-card" id="competitionDetailCard"></div>
           </div>
           <div class="section-grid" id="competitionPreview"></div>
           <div class="row">
