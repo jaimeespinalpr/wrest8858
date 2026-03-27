@@ -5288,7 +5288,7 @@ async function startCoachWorkspaceRealtimeSync() {
       renderCompletionTracking();
       renderDashboard();
       renderAthleteNotes();
-      renderCompetitionPreview(getAthletesData().find((item) => item.name === getSelectedCoachAthleteName()) || getAthletesData()[0] || null);
+      renderCompetitionPreview(getSelectedCoachAthleteRecord());
       scheduleCoachCompletionSync();
     }, (err) => console.warn("Plan sync failed", err)),
     templatesRef.onSnapshot((snapshot) => {
@@ -5308,7 +5308,7 @@ async function startCoachWorkspaceRealtimeSync() {
       renderDashboard();
       renderAthleteManagement();
       renderAthleteNotes();
-      renderCompetitionPreview(getAthletesData().find((item) => item.name === getSelectedCoachAthleteName()) || getAthletesData()[0] || null);
+      renderCompetitionPreview(getSelectedCoachAthleteRecord());
       scheduleCoachAssignmentStatusSync();
       scheduleCoachCompletionSync();
     }, (err) => console.warn("Assignment sync failed", err)),
@@ -5347,7 +5347,7 @@ async function startCoachWorkspaceRealtimeSync() {
       renderJournalMonitor();
       renderCompletionTracking();
       renderDashboard();
-      renderCompetitionPreview(getAthletesData().find((item) => item.name === getSelectedCoachAthleteName()) || getAthletesData()[0] || null);
+      renderCompetitionPreview(getSelectedCoachAthleteRecord());
       scheduleCoachCompletionSync();
     }, (err) => console.warn("Athlete sync failed", err)),
     notesRef.onSnapshot((snapshot) => {
@@ -5358,7 +5358,7 @@ async function startCoachWorkspaceRealtimeSync() {
       renderAthleteNotes();
       renderCoachAthleteProfile(getSelectedCoachAthleteName());
       renderCoachMatchView(getSelectedCoachAthleteName());
-      renderCompetitionPreview(getAthletesData().find((item) => item.name === getSelectedCoachAthleteName()) || getAthletesData()[0] || null);
+      renderCompetitionPreview(getSelectedCoachAthleteRecord());
     }, (err) => console.warn("Coach note sync failed", err)),
     journalRef.onSnapshot((snapshot) => {
       coachJournalEntriesCache = coachWorkspaceSortByUpdated(
@@ -5369,7 +5369,7 @@ async function startCoachWorkspaceRealtimeSync() {
       renderAthleteManagement();
       renderCoachAthleteProfile(getSelectedCoachAthleteName());
       renderCoachMatchView(getSelectedCoachAthleteName());
-      renderCompetitionPreview(getAthletesData().find((item) => item.name === getSelectedCoachAthleteName()) || getAthletesData()[0] || null);
+      renderCompetitionPreview(getSelectedCoachAthleteRecord());
       renderCompletionTracking();
       renderDashboard();
       scheduleCoachCompletionSync();
@@ -5390,7 +5390,7 @@ async function startCoachWorkspaceRealtimeSync() {
       scheduleCoachWorkspaceRelationshipSync();
       renderMedia();
       renderCoachMatchView(getSelectedCoachAthleteName());
-      renderCompetitionPreview(getAthletesData().find((item) => item.name === getSelectedCoachAthleteName()) || getAthletesData()[0] || null);
+      renderCompetitionPreview(getSelectedCoachAthleteRecord());
     }, (err) => console.warn("Match analysis sync failed", err)),
     parentScoutingRef.onSnapshot((snapshot) => {
       coachParentScoutingCache = coachWorkspaceSortByUpdated(
@@ -5414,7 +5414,7 @@ async function startCoachWorkspaceRealtimeSync() {
         renderJournalMonitor();
         renderCompletionTracking();
         renderDashboard();
-        renderCompetitionPreview(getAthletesData().find((item) => item.name === getSelectedCoachAthleteName()) || getAthletesData()[0] || null);
+        renderCompetitionPreview(getSelectedCoachAthleteRecord());
       }, (err) => console.warn("Athlete directory sync failed", err)),
       usersRef.where("role", "==", "parent").onSnapshot((snapshot) => {
         coachParentApprovalsCache = snapshot.docs.map((doc) => normalizeManagedUserRecord(doc.id, doc.data() || {}));
@@ -8151,10 +8151,7 @@ async function showTab(name) {
   }
 
   if (visiblePanels.includes("competition-preview")) {
-    const selectedAthlete = getAthletesData().find((athlete) => athlete.name === coachMatchSelect?.value) || getAthletesData()[0] || getProfile();
-    if (selectedAthlete) {
-      renderCompetitionPreview(selectedAthlete);
-    }
+    renderCompetitionPreview(getSelectedCoachAthleteRecord());
   }
 
   if (visiblePanels.includes("calendar-manager")) {
@@ -10986,6 +10983,18 @@ function renderCompetitionPreview(profile) {
   if (!competitionPreview) return;
   competitionPreview.innerHTML = "";
   const sections = buildCompetitionPreview(profile);
+  if (!sections.length) {
+    const card = document.createElement("div");
+    card.className = "mini-card";
+    card.innerHTML = `
+      <h3>${currentLang === "es" ? "Competition / Corner View" : "Competition / Corner View"}</h3>
+      <p class="small muted">${currentLang === "es"
+        ? "Selecciona un atleta en Athletes para ver su vista de competencia."
+        : "Select an athlete in Athletes to load the competition view."}</p>
+    `;
+    competitionPreview.appendChild(card);
+    return;
+  }
   sections.forEach((section) => {
     const card = document.createElement("div");
     card.className = "mini-card";
@@ -16643,6 +16652,14 @@ function getSelectedCoachAthleteName() {
   return String(coachMatchSelect?.value || "").trim();
 }
 
+function getSelectedCoachAthleteRecord() {
+  const selectedName = getSelectedCoachAthleteName();
+  if (!selectedName) return null;
+  return getCoachAthleteRecordByIdentity(selectedName)
+    || getAthletesData().find((item) => item.name === selectedName)
+    || null;
+}
+
 function renderCoachAthleteProfile(athleteName = getSelectedCoachAthleteName()) {
   if (!coachAthleteProfileName || !coachAthleteProfileMeta || !coachAthleteProfileContent) return;
 
@@ -17042,11 +17059,12 @@ function renderAthleteManagement() {
   renderCoachAthleteQuickActions(selectedName);
   renderCoachAthleteProfile(selectedName);
   const selectedAthlete = athletes.find((athlete) => athlete.name === selectedName);
-  if (selectedName) {
-    renderCoachMatchView(selectedName);
-  }
   if (selectedAthlete) {
+    renderCoachMatchView(selectedName);
     renderCompetitionPreview(selectedAthlete);
+  } else {
+    renderCoachMatchView("");
+    renderCompetitionPreview(null);
   }
 }
 
@@ -17071,8 +17089,23 @@ const coachAthleteNotesClearBtn = document.getElementById("coachAthleteNotesClea
 function renderAthleteNotes() {
   if (!athleteNotesFocus || !athleteNotesRecent) return;
   const athleteName = getSelectedCoachAthleteName();
-  const athlete = getAthletesData().find((item) => item.name === athleteName) || getAthletesData()[0];
-  const noteBoard = getCoachNoteRecord(athlete?.name) || getCoachNoteRecord("Jaime Espinal");
+  const athlete = getAthletesData().find((item) => item.name === athleteName) || null;
+  const noteBoard = athlete ? getCoachNoteRecord(athlete.name) : null;
+  if (!athlete) {
+    const selectHint = currentLang === "es"
+      ? "Selecciona un atleta en Athletes para ver y editar notas."
+      : "Select an athlete in Athletes to view and edit notes.";
+    athleteNotesFocus.innerHTML = `<li>${selectHint}</li>`;
+    athleteNotesRecent.innerHTML = `<li>${selectHint}</li>`;
+    if (athleteNotesSelectedAthlete) {
+      athleteNotesSelectedAthlete.textContent = currentLang === "es" ? "Selecciona un atleta." : "Select an athlete.";
+    }
+    if (coachAthleteFocus1) coachAthleteFocus1.value = "";
+    if (coachAthleteFocus2) coachAthleteFocus2.value = "";
+    if (coachAthleteFocus3) coachAthleteFocus3.value = "";
+    if (coachAthleteRecentNote) coachAthleteRecentNote.value = "";
+    return;
+  }
   const latestPlan = athlete ? getLatestCoachPlanForAthlete(athlete.name) : null;
   const openAssignments = athlete ? getPlanAssignmentsForAthlete(athlete.name).filter((item) => item.status !== "completed") : [];
 
@@ -17322,11 +17355,7 @@ async function saveCoachJournalEntry(event) {
     renderJournalMonitor();
     renderAthleteManagement();
     renderCoachMatchView(athleteName);
-    renderCompetitionPreview(
-      getCoachAthleteRecordByIdentity(athleteName)
-      || getAthletesData().find((item) => item.name === athleteName)
-      || getProfile()
-    );
+    renderCompetitionPreview(getCoachAthleteRecordByIdentity(athleteName) || getAthletesData().find((item) => item.name === athleteName) || null);
   } catch (err) {
     console.warn("Coach journal save failed", err);
     if (coachJournalStatus) {
@@ -18150,10 +18179,11 @@ function strategyToTendency(strategy) {
 }
 
 function buildCoachMatchData(athleteName) {
+  const safeAthleteName = String(athleteName || "").trim();
+  if (!safeAthleteName) return null;
   const athlete =
-    getAthletesData().find((a) => a.name === athleteName) ||
-    ATHLETES.find((a) => a.name === athleteName) ||
-    getProfile();
+    getAthletesData().find((a) => a.name === safeAthleteName) ||
+    ATHLETES.find((a) => a.name === safeAthleteName);
   if (!athlete) return null;
   const saved = getOnePagerData(athlete.name) || {};
   const taskBoard = getAthleteTaskBoard(athlete.name);
@@ -18198,7 +18228,32 @@ function buildCoachMatchData(athleteName) {
 function renderCoachMatchView(athleteName) {
   if (!coachMatchSelect) return;
   const data = buildCoachMatchData(athleteName);
-  if (!data) return;
+  if (!data) {
+    const selectPrompt = currentLang === "es"
+      ? "Selecciona un atleta desde Athletes para abrir esta vista."
+      : "Select an athlete from Athletes to open this view.";
+    if (coachMatchSelectLabel) coachMatchSelectLabel.textContent = matchCopy("selectAthlete");
+    if (coachMatchAvatar) coachMatchAvatar.textContent = "AT";
+    if (coachMatchName) coachMatchName.textContent = matchCopy("selectAthlete");
+    if (coachMatchMeta) coachMatchMeta.textContent = selectPrompt;
+    const placeholderSections = [
+      [coachMatchBasics, currentLang === "es" ? "Lectura rapida" : "Fast Read"],
+      [coachMatchPosition, currentLang === "es" ? "Seguimiento semanal" : "Weekly Snapshot"],
+      [coachMatchOffense, currentLang === "es" ? "Top 3 ataques" : "Top 3 Attacks"],
+      [coachMatchDefense, currentLang === "es" ? "Top 3 setups" : "Top 3 Setups"],
+      [coachMatchPsych, currentLang === "es" ? "Planes de competencia" : "Competition Plans"],
+      [coachMatchArchetype, currentLang === "es" ? "Cues rapidos del coach" : "Coach Quick Cues"],
+      [coachMatchCueWords, currentLang === "es" ? "Recordatorios mentales" : "Mental Reminders"],
+      [coachMatchBodyType, currentLang === "es" ? "Errores bajo presion" : "Pressure Errors"],
+      [coachMatchGoal, currentLang === "es" ? "Limitaciones y seguridad" : "Limitations and Safety"],
+      [coachMatchCue, currentLang === "es" ? "Llamado de competencia" : "Competition Call"]
+    ];
+    placeholderSections.forEach(([target, title]) => {
+      if (!target) return;
+      target.innerHTML = `<h3>${title}</h3><p class="small muted">${selectPrompt}</p>`;
+    });
+    return;
+  }
   const na = currentLang === "es" ? "N/D" : "N/A";
   const initials = data.name
     ? data.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
