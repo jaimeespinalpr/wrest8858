@@ -3633,6 +3633,168 @@ textarea:focus{
   gap: 12px;
 }
 
+.competition-manager{
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.competition-current-card{
+  display: grid;
+  gap: 10px;
+}
+
+.competition-current-top{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.competition-current-name{
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.competition-current-meta{
+  margin: 0;
+  color: rgba(255,255,255,0.76);
+}
+
+.competition-timeline-grid{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 12px;
+}
+
+.competition-timeline-card{
+  display: grid;
+  gap: 8px;
+}
+
+.competition-timeline-card h3{
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.competition-timeline-list{
+  display: grid;
+  gap: 8px;
+}
+
+.competition-row{
+  width: 100%;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  text-align: left;
+  padding: 10px;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+.competition-row:hover{
+  border-color: rgba(111, 182, 255, 0.5);
+  background: rgba(83, 136, 255, 0.14);
+  transform: translateY(-1px);
+}
+
+.competition-row.active{
+  border-color: rgba(97, 174, 255, 0.74);
+  background: linear-gradient(135deg, rgba(48, 85, 158, 0.52), rgba(26, 46, 89, 0.54));
+}
+
+.competition-row-name{
+  display: block;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.competition-row-meta{
+  display: block;
+  font-size: 0.84rem;
+  color: rgba(255,255,255,0.72);
+}
+
+.competition-detail-card{
+  display: grid;
+  gap: 10px;
+}
+
+.competition-athlete-list{
+  display: grid;
+  gap: 8px;
+}
+
+.competition-athlete-row{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.03);
+  padding: 8px 10px;
+}
+
+.competition-athlete-row strong{
+  font-size: 0.94rem;
+}
+
+.competition-athlete-row .small{
+  color: rgba(255,255,255,0.72);
+}
+
+.competition-athlete-row-athlete{
+  border-color: rgba(109, 205, 176, 0.46);
+  background: rgba(67, 156, 126, 0.2);
+}
+
+.competition-empty{
+  border-radius: 12px;
+  border: 1px dashed rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.03);
+  padding: 12px;
+  color: rgba(255,255,255,0.72);
+}
+
+.competition-create-grid{
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 8px;
+}
+
+.competition-create-grid input{
+  min-width: 0;
+}
+
+.competition-roster-tools{
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.competition-roster-tools select{
+  min-width: 0;
+}
+
+@media (max-width: 860px){
+  .competition-timeline-grid{
+    grid-template-columns: 1fr;
+  }
+
+  .competition-create-grid{
+    grid-template-columns: 1fr;
+  }
+
+  .competition-roster-tools{
+    grid-template-columns: 1fr;
+  }
+}
+
 .mini-card{
   padding: 12px;
   border-radius: 14px;
