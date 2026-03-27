@@ -11162,31 +11162,35 @@ async function updateCoachCompetitionRoster(competition, athleteIdentity, { remo
   if (!competitionsRef || !competition?.id) {
     throw new Error("competition_store_unavailable");
   }
-  const identity = resolveAthleteIdentity(athleteIdentity);
-  const hasIdentity = Boolean(identity.athleteId || identity.athleteUid || identity.athleteName);
-  if (!hasIdentity) {
+  const identityList = (Array.isArray(athleteIdentity) ? athleteIdentity : [athleteIdentity])
+    .map((entry) => resolveAthleteIdentity(entry))
+    .filter((entry) => entry.athleteId || entry.athleteUid || entry.athleteName);
+  if (!identityList.length) {
     throw new Error("competition_athlete_required");
   }
-  const existingIds = (competition.athleteIds || []).map((value) => String(value || "").trim()).filter(Boolean);
-  const existingUids = (competition.athleteUids || []).map((value) => String(value || "").trim()).filter(Boolean);
-  const existingNames = uniqueNames(competition.athleteNames || []);
-  const normalizedName = String(identity.athleteName || "").trim();
-  const normalizedId = String(identity.athleteId || "").trim();
-  const normalizedUid = String(identity.athleteUid || "").trim();
-  const rosterMatch = getCompetitionAthleteRoster(competition).find((entry) => athleteIdentityMatches(entry, identity)) || null;
-  const targetName = String(rosterMatch?.athleteName || normalizedName).trim();
-  const targetId = String(rosterMatch?.athleteId || normalizedId).trim();
-  const targetUid = String(rosterMatch?.athleteUid || normalizedUid).trim();
+  let nextIds = (competition.athleteIds || []).map((value) => String(value || "").trim()).filter(Boolean);
+  let nextUids = (competition.athleteUids || []).map((value) => String(value || "").trim()).filter(Boolean);
+  let nextNames = uniqueNames(competition.athleteNames || []);
 
-  const nextIds = remove
-    ? existingIds.filter((value) => value !== targetId && value !== normalizedId)
-    : uniqueNames([...existingIds, targetId || normalizedId]).filter(Boolean);
-  const nextUids = remove
-    ? existingUids.filter((value) => value !== targetUid && value !== normalizedUid)
-    : uniqueNames([...existingUids, targetUid || normalizedUid]).filter(Boolean);
-  const nextNames = remove
-    ? existingNames.filter((value) => normalizeName(value) !== normalizeName(targetName || normalizedName))
-    : uniqueNames([...existingNames, targetName || normalizedName]).filter(Boolean);
+  identityList.forEach((identity) => {
+    const normalizedName = String(identity.athleteName || "").trim();
+    const normalizedId = String(identity.athleteId || "").trim();
+    const normalizedUid = String(identity.athleteUid || "").trim();
+    const rosterMatch = getCompetitionAthleteRoster(competition).find((entry) => athleteIdentityMatches(entry, identity)) || null;
+    const targetName = String(rosterMatch?.athleteName || normalizedName).trim();
+    const targetId = String(rosterMatch?.athleteId || normalizedId).trim();
+    const targetUid = String(rosterMatch?.athleteUid || normalizedUid).trim();
+
+    if (remove) {
+      nextIds = nextIds.filter((value) => value !== targetId && value !== normalizedId);
+      nextUids = nextUids.filter((value) => value !== targetUid && value !== normalizedUid);
+      nextNames = nextNames.filter((value) => normalizeName(value) !== normalizeName(targetName || normalizedName));
+    } else {
+      nextIds = uniqueNames([...nextIds, targetId || normalizedId]).filter(Boolean);
+      nextUids = uniqueNames([...nextUids, targetUid || normalizedUid]).filter(Boolean);
+      nextNames = uniqueNames([...nextNames, targetName || normalizedName]).filter(Boolean);
+    }
+  });
 
   await withTimeout(
     competitionsRef.doc(competition.id).set(stripUndefinedDeep({
@@ -11309,43 +11313,135 @@ function renderCompetitionManager(selectedProfile = null) {
         `;
       }).join("")
       : `<div class="competition-empty">${currentLang === "es" ? "Todavia no hay atletas registrados en esta competencia." : "No athletes registered in this competition yet."}</div>`;
-    const availableAthletes = getAthletesData().filter((athlete) => !competitionIncludesAthlete(selectedCompetition, athlete));
+    const availableAthletes = getAthletesData()
+      .filter((athlete) => !competitionIncludesAthlete(selectedCompetition, athlete))
+      .sort((left, right) => String(left.name || "").localeCompare(String(right.name || ""), undefined, { sensitivity: "base" }));
     const selectedFromAthletesLabel = athleteFromRoster?.name
       ? `${currentLang === "es" ? "Agregar seleccionado" : "Add selected"}: ${athleteFromRoster.name}`
       : (currentLang === "es" ? "Agregar atleta seleccionado" : "Add selected athlete");
+    const pickerCards = availableAthletes.length
+      ? availableAthletes.map((athlete) => {
+        const meta = [
+          athlete.weightClass ? `${currentLang === "es" ? "Cat." : "Class"} ${athlete.weightClass}` : "",
+          athlete.level ? getLevelLabel(athlete.level) : "",
+          athlete.availability || ""
+        ].filter(Boolean).join(" • ");
+        return `
+          <label class="competition-picker-item" data-search="${escapeHtml(normalizeName(athlete.name))}">
+            <input type="checkbox" class="competition-picker-check" value="${escapeHtml(athlete.name)}">
+            <span class="competition-picker-copy">
+              <strong>${escapeHtml(athlete.name)}</strong>
+              <span class="small">${escapeHtml(meta || (currentLang === "es" ? "Disponible para registrar" : "Ready to register"))}</span>
+            </span>
+          </label>
+        `;
+      }).join("")
+      : `<div class="competition-empty">${currentLang === "es" ? "No hay atletas pendientes para agregar." : "No remaining athletes to add."}</div>`;
     competitionDetailCard.innerHTML = `
       <h3>${escapeHtml(selectedCompetition.name || (currentLang === "es" ? "Competencia" : "Competition"))}</h3>
       <p class="small muted">${escapeHtml(getCompetitionDateRangeLabel(selectedCompetition))}${selectedCompetition.location ? ` • ${escapeHtml(selectedCompetition.location)}` : ""}</p>
       <div class="competition-athlete-list">${rosterHtml}</div>
       ${canEdit ? `
-        <div class="competition-roster-tools">
-          <select id="competitionAddAthleteSelect">
-            <option value="">${currentLang === "es" ? "Selecciona atleta" : "Select athlete"}</option>
-            ${availableAthletes.map((athlete) => `<option value="${escapeHtml(athlete.name)}">${escapeHtml(athlete.name)}</option>`).join("")}
-          </select>
-          <button type="button" class="primary" id="competitionAddAthleteBtn">${currentLang === "es" ? "Agregar" : "Add"}</button>
-          <button type="button" id="competitionAddSelectedBtn">${escapeHtml(selectedFromAthletesLabel)}</button>
+        <div class="competition-picker-shell">
+          <div class="competition-picker-header">
+            <h4>${currentLang === "es" ? "Selecciona atletas para agregar" : "Select athletes to add"}</h4>
+            <div class="competition-picker-header-actions">
+              <button type="button" id="competitionSelectAllBtn">${currentLang === "es" ? "Seleccionar todos" : "Select all"}</button>
+              <button type="button" class="ghost" id="competitionClearSelectionBtn">${currentLang === "es" ? "Limpiar" : "Clear"}</button>
+            </div>
+          </div>
+          <input id="competitionAthleteSearchInput" type="text" placeholder="${currentLang === "es" ? "Buscar atleta..." : "Search athlete..."}">
+          <div class="competition-picker-grid" id="competitionAthletePickerGrid">${pickerCards}</div>
+          <div class="competition-roster-tools">
+            <button type="button" class="primary" id="competitionAddSelectedAthletesBtn">${currentLang === "es" ? "Agregar seleccionados (0)" : "Add selected (0)"}</button>
+            <button type="button" id="competitionAddSelectedBtn">${escapeHtml(selectedFromAthletesLabel)}</button>
+          </div>
         </div>
       ` : ""}
     `;
 
     if (canEdit) {
-      const addSelect = document.getElementById("competitionAddAthleteSelect");
-      const addBtn = document.getElementById("competitionAddAthleteBtn");
+      const searchInput = document.getElementById("competitionAthleteSearchInput");
+      const selectAllBtn = document.getElementById("competitionSelectAllBtn");
+      const clearSelectionBtn = document.getElementById("competitionClearSelectionBtn");
+      const addManyBtn = document.getElementById("competitionAddSelectedAthletesBtn");
       const addSelectedBtn = document.getElementById("competitionAddSelectedBtn");
-      addBtn?.addEventListener("click", async () => {
-        const selectedName = String(addSelect?.value || "").trim();
-        if (!selectedName) return;
-        const athlete = getCoachAthleteRecordByIdentity(selectedName) || getAthletesData().find((item) => item.name === selectedName) || null;
-        if (!athlete) return;
+      const pickerGrid = document.getElementById("competitionAthletePickerGrid");
+      const pickerItems = Array.from(pickerGrid?.querySelectorAll(".competition-picker-item") || []);
+      const pickerChecks = Array.from(pickerGrid?.querySelectorAll(".competition-picker-check") || []);
+
+      const getCheckedNames = () => pickerChecks
+        .filter((input) => input.checked)
+        .map((input) => String(input.value || "").trim())
+        .filter(Boolean);
+
+      const updateAddManyButtonLabel = () => {
+        if (!addManyBtn) return;
+        const count = getCheckedNames().length;
+        addManyBtn.textContent = currentLang === "es"
+          ? `Agregar seleccionados (${count})`
+          : `Add selected (${count})`;
+        addManyBtn.disabled = count === 0;
+      };
+
+      const applyPickerFilter = () => {
+        const query = normalizeName(searchInput?.value || "");
+        pickerItems.forEach((item) => {
+          const haystack = String(item.dataset.search || "").trim();
+          item.classList.toggle("hidden", Boolean(query) && !haystack.includes(query));
+        });
+      };
+
+      pickerChecks.forEach((input) => {
+        input.addEventListener("change", () => {
+          updateAddManyButtonLabel();
+        });
+      });
+
+      searchInput?.addEventListener("input", () => {
+        applyPickerFilter();
+      });
+
+      selectAllBtn?.addEventListener("click", () => {
+        const visibleChecks = pickerChecks.filter((input) => !input.closest(".hidden"));
+        const shouldSelectAll = visibleChecks.some((input) => !input.checked);
+        visibleChecks.forEach((input) => {
+          input.checked = shouldSelectAll;
+        });
+        updateAddManyButtonLabel();
+      });
+
+      clearSelectionBtn?.addEventListener("click", () => {
+        pickerChecks.forEach((input) => {
+          input.checked = false;
+        });
+        updateAddManyButtonLabel();
+      });
+
+      addManyBtn?.addEventListener("click", async () => {
+        const selectedNames = getCheckedNames();
+        if (!selectedNames.length) {
+          toast(currentLang === "es" ? "Selecciona al menos un atleta." : "Select at least one athlete.");
+          return;
+        }
+        const athletesToAdd = selectedNames
+          .map((name) => getCoachAthleteRecordByIdentity(name) || getAthletesData().find((item) => item.name === name) || null)
+          .filter(Boolean);
+        if (!athletesToAdd.length) return;
         try {
-          await updateCoachCompetitionRoster(selectedCompetition, athlete, { remove: false });
-          toast(currentLang === "es" ? "Atleta agregado a la competencia." : "Athlete added to competition.");
+          addManyBtn.disabled = true;
+          await updateCoachCompetitionRoster(selectedCompetition, athletesToAdd, { remove: false });
+          toast(currentLang === "es"
+            ? `${athletesToAdd.length} atleta(s) agregados a la competencia.`
+            : `${athletesToAdd.length} athlete(s) added to competition.`);
         } catch (err) {
-          console.warn("Competition roster add failed", err);
-          toast(currentLang === "es" ? "No se pudo agregar el atleta." : "Could not add athlete.");
+          console.warn("Competition multi-add failed", err);
+          toast(currentLang === "es" ? "No se pudieron agregar los atletas." : "Could not add selected athletes.");
+        } finally {
+          updateAddManyButtonLabel();
         }
       });
+
       addSelectedBtn?.addEventListener("click", async () => {
         const athlete = athleteFromRoster || null;
         if (!athlete) {
@@ -11374,6 +11470,9 @@ function renderCompetitionManager(selectedProfile = null) {
           }
         });
       });
+
+      applyPickerFilter();
+      updateAddManyButtonLabel();
     }
   }
 
