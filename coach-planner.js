@@ -226,6 +226,7 @@
     liftingDraft: "planner_lifting_draft",
     mentalDraft: "planner_mental_draft",
     mentalScores: "planner_mental_scores",
+    mentalAudioMuted: "planner_mental_audio_muted",
     liftingPlan: "planner_lifting_plan",
     liftingLibraryData: "planner_lifting_library_data",
     liftingActiveDay: "planner_lifting_active_day",
@@ -508,6 +509,7 @@
     mentalResult: null,
     mentalTimers: [],
     mentalAudioContext: null,
+    mentalAudioMuted: Boolean(readJson(STORAGE_KEYS.mentalAudioMuted, false)),
     liftingTab: normalizeLiftingTab(readJson(STORAGE_KEYS.liftingActiveTab, "editor") || "editor"),
     liftingActiveDay: Math.max(0, Math.min(6, parseInt(String(readJson(STORAGE_KEYS.liftingActiveDay, 0) || 0), 10) || 0)),
     liftingPlan: normalizeLiftingPlan(readJson(STORAGE_KEYS.liftingPlan, buildDefaultLiftingPlan()) || buildDefaultLiftingPlan()),
@@ -853,6 +855,7 @@
     });
     if (previousTrack === "mental" && activeTrack !== "mental" && state.mentalView === "game") {
       clearMentalTimers();
+      stopMentalNarration();
       state.mentalSession = null;
       state.mentalResult = null;
       state.mentalView = "home";
@@ -994,6 +997,69 @@
     return timerId;
   }
 
+  function supportsMentalNarration() {
+    return Boolean(
+      typeof window !== "undefined"
+      && window.speechSynthesis
+      && typeof window.speechSynthesis.speak === "function"
+      && typeof window.SpeechSynthesisUtterance !== "undefined"
+    );
+  }
+
+  function getMentalNarrationVoice() {
+    if (!supportsMentalNarration()) return null;
+    const synth = window.speechSynthesis;
+    const voices = typeof synth.getVoices === "function" ? synth.getVoices() : [];
+    if (!Array.isArray(voices) || !voices.length) return null;
+    const englishVoices = voices.filter((voice) => String(voice?.lang || "").toLowerCase().startsWith("en"));
+    const pool = englishVoices.length ? englishVoices : voices;
+    const preferredTokens = ["aria", "jenny", "samantha", "alex", "google us english", "david", "guy"];
+    for (let i = 0; i < preferredTokens.length; i += 1) {
+      const token = preferredTokens[i];
+      const match = pool.find((voice) => String(voice?.name || "").toLowerCase().includes(token));
+      if (match) return match;
+    }
+    return pool[0] || null;
+  }
+
+  function stopMentalNarration() {
+    if (!supportsMentalNarration()) return;
+    try {
+      window.speechSynthesis.cancel();
+    } catch {
+      // Speech cancellation is optional.
+    }
+  }
+
+  function speakMentalNarration(text, { interrupt = true } = {}) {
+    const script = String(text || "").replace(/\s+/g, " ").trim();
+    if (!script || state.mentalAudioMuted || !supportsMentalNarration()) return;
+    try {
+      if (interrupt) stopMentalNarration();
+      const utterance = new SpeechSynthesisUtterance(script);
+      const voice = getMentalNarrationVoice();
+      if (voice) utterance.voice = voice;
+      utterance.lang = voice?.lang || "en-US";
+      utterance.rate = 0.96;
+      utterance.pitch = 0.96;
+      utterance.volume = 1;
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      // Narration is optional.
+    }
+  }
+
+  function setMentalAudioMuted(nextValue) {
+    const muted = Boolean(nextValue);
+    state.mentalAudioMuted = muted;
+    writeJson(STORAGE_KEYS.mentalAudioMuted, muted);
+    if (muted) stopMentalNarration();
+  }
+
+  function getMentalAudioToggleLabel() {
+    return state.mentalAudioMuted ? "Unmute audio" : "Mute audio";
+  }
+
   function getMentalAudioContext() {
     if (state.mentalAudioContext) return state.mentalAudioContext;
     const Context = window.AudioContext || window.webkitAudioContext;
@@ -1007,6 +1073,7 @@
   }
 
   function playMentalTone(frequency = 440, duration = 0.12, gainValue = 0.045) {
+    if (state.mentalAudioMuted) return;
     const ctx = getMentalAudioContext();
     if (!ctx) return;
     try {
@@ -1256,6 +1323,9 @@
         <div>
           <span class="small muted">Starting in</span>
           <strong>${escapeHtml(session.countdown || 0)}</strong>
+          <div class="planner-mental-actions">
+            <button type="button" class="ghost" data-action="mental-toggle-audio">${escapeHtml(getMentalAudioToggleLabel())}</button>
+          </div>
         </div>
       </div>
     `;
@@ -1274,6 +1344,7 @@
             </div>
             <div class="planner-mental-actions">
               <span class="planner-mental-timer">${escapeHtml(session.timeLeft || 0)}s</span>
+              <button type="button" class="ghost" data-action="mental-toggle-audio">${escapeHtml(getMentalAudioToggleLabel())}</button>
               <button type="button" class="ghost" data-action="mental-exit-game">Exit</button>
             </div>
           </div>
@@ -1473,6 +1544,7 @@
 
   function openMentalHome() {
     clearMentalTimers();
+    stopMentalNarration();
     state.mentalSession = null;
     state.mentalResult = null;
     state.mentalView = "home";
@@ -1481,6 +1553,7 @@
 
   function openMentalProgress() {
     clearMentalTimers();
+    stopMentalNarration();
     state.mentalSession = null;
     state.mentalResult = null;
     state.mentalView = "progress";
@@ -1632,6 +1705,7 @@
     if (session.phase === "done") return;
     session.phase = "done";
     clearMentalTimers();
+    stopMentalNarration();
     const result = buildMentalResultFromSession(session);
     if (!result) {
       openMentalHome();
@@ -1670,6 +1744,7 @@
     session.misses = 0;
     session.falseTaps = 0;
     session.reactionTimes = [];
+    speakMentalNarration("Go No-Go. Tap green. Do not tap red. Stay calm and precise.");
 
     const spawnStimulus = () => {
       if (!isActiveMentalSession(session) || session.phase !== "playing") return;
@@ -1733,6 +1808,7 @@
     session.input = [];
     session.showIndex = -1;
     session.showingSequence = true;
+    speakMentalNarration("Memory Sequence. Memorize the color order, then repeat it exactly.");
     startMentalMemoryRound(session, 1);
   }
 
@@ -1741,6 +1817,7 @@
     const random = MENTAL_DECISION_SCENARIOS[Math.floor(Math.random() * MENTAL_DECISION_SCENARIOS.length)];
     session.currentQuestion = random;
     session.questionStartedAt = performance.now();
+    speakMentalNarration(`Quick Decision. ${random.prompt} Options: ${random.options.join(", ")}.`);
     renderMentalApp();
   }
 
@@ -1760,6 +1837,10 @@
     ));
     session.showingSequence = true;
     session.question = null;
+    if (session.sequence.length) {
+      const sequenceCall = session.sequence.map((item, index) => `${index + 1}. ${item.text}`).join(". ");
+      speakMentalNarration(`Score Awareness. Track this sequence: ${sequenceCall}.`);
+    }
     renderMentalApp();
     trackMentalTimer(setTimeout(() => {
       if (!isActiveMentalSession(session) || session.phase !== "playing") return;
@@ -1788,6 +1869,7 @@
       };
       session.showingSequence = false;
       session.questionStartedAt = performance.now();
+      speakMentalNarration(`Who is winning after that sequence? Options: ${options.join(", ")}.`);
       renderMentalApp();
     }, 2400));
   }
@@ -1808,16 +1890,22 @@
     let right = 1 + Math.floor(Math.random() * 9);
     while (right === left) right = 1 + Math.floor(Math.random() * 9);
     session.pair = [left, right];
+    let ruleChanged = false;
     if (force || Math.random() > 0.65) {
       const nextRule = MENTAL_SWITCH_RULES[Math.floor(Math.random() * MENTAL_SWITCH_RULES.length)];
       if (force) {
         session.rule = nextRule;
+        ruleChanged = true;
       } else {
         if (session.rule && nextRule.id !== session.rule.id) {
           session.switches += 1;
+          ruleChanged = true;
         }
         session.rule = nextRule;
       }
+    }
+    if (force || ruleChanged) {
+      speakMentalNarration(`Rule Switch. ${session.rule?.label || "Tap the higher number"}. Left ${left}. Right ${right}.`);
     }
     session.roundStartedAt = performance.now();
     renderMentalApp();
@@ -1873,10 +1961,12 @@
   function openMentalGame(gameKey) {
     const normalized = MENTAL_GAME_META[gameKey] ? gameKey : MENTAL_GAME_KEYS.GO_NO_GO;
     clearMentalTimers();
+    stopMentalNarration();
     state.mentalActiveGame = normalized;
     state.mentalResult = null;
     state.mentalView = "game";
     state.mentalSession = createMentalSession(normalized);
+    speakMentalNarration(`${MENTAL_GAME_META[normalized]?.title || "Mind game"}. ${MENTAL_GAME_META[normalized]?.cue || ""}`);
     renderMentalApp();
     startMentalCountdown(state.mentalSession);
     focusPlannerWindow(els.mentalShell || root, { smooth: true });
@@ -2003,6 +2093,12 @@
     }
     if (action === "mental-open-game") {
       openMentalGame(trigger?.dataset?.game);
+      return true;
+    }
+    if (action === "mental-toggle-audio") {
+      setMentalAudioMuted(!state.mentalAudioMuted);
+      triggerToast(state.mentalAudioMuted ? "Mental game audio muted." : "Mental game audio enabled.");
+      renderMentalApp();
       return true;
     }
     if (action === "mental-assign-game") {
