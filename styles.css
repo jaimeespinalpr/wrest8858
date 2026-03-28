@@ -10223,20 +10223,41 @@ body.viewport-mobile .app{
   html,
   body{
     background: #fff !important;
+    color: #111 !important;
+    overflow: visible !important;
   }
 
-  /* Print only the coach planner panel */
-  body *{
-    visibility: hidden !important;
+  body::before{
+    display: none !important;
   }
-  #panel-plans,
-  #panel-plans *{
-    visibility: visible !important;
+
+  #onboarding,
+  #registerModal,
+  #questionnaireReminderModal{
+    display: none !important;
   }
+
+  #appRoot{
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+  }
+
+  #appRoot > nav,
+  #appRoot > .app-header{
+    display: none !important;
+  }
+
+  #appRoot > .app-content > .panel{
+    display: none !important;
+  }
+
   #panel-plans{
     display: block !important;
-    position: absolute;
-    inset: 0 auto auto 0;
+    position: static !important;
+    inset: auto !important;
     width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -10249,10 +10270,25 @@ body.viewport-mobile .app{
     background: #fff !important;
   }
   #panel-plans .coach-planner-card,
-  #panel-plans .planner-sheet{
+  #panel-plans .planner-sheet,
+  #panel-plans .planner-lifting-shell,
+  #panel-plans .planner-mental-shell{
     display: block !important;
     width: 100% !important;
     max-width: 100% !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  #panel-plans .planner-track-switch{
+    display: none !important;
+  }
+  #panel-plans .planner-track-panel{
+    display: none !important;
+  }
+  #panel-plans .planner-track-panel:not(.hidden){
+    display: block !important;
   }
 
   .planner-toolbar,
@@ -10261,7 +10297,9 @@ body.viewport-mobile .app{
   .planner-items-list button,
   .planner-toast,
   .planner-alert,
-  .planner-modal{
+  .planner-modal,
+  .planner-lifting-header-actions,
+  .planner-lifting-sidebar{
     display: none !important;
   }
   .planner-sheet{
@@ -10286,6 +10324,24 @@ body.viewport-mobile .app{
   .planner-table td{
     border-color: #111 !important;
     color: #111 !important;
+  }
+  #panel-plans .planner-lifting-shell *,
+  #panel-plans .planner-mental-shell *{
+    color: #111 !important;
+  }
+  #panel-plans .planner-lifting-editor-card,
+  #panel-plans .planner-lifting-program-card,
+  #panel-plans .planner-lifting-program-panel,
+  #panel-plans .planner-lifting-kpi,
+  #panel-plans .planner-lifting-hero,
+  #panel-plans .planner-mental-card,
+  #panel-plans .planner-mental-game-card,
+  #panel-plans .planner-mental-chip,
+  #panel-plans .planner-mental-stage,
+  #panel-plans .planner-mental-side{
+    background: #fff !important;
+    border-color: #111 !important;
+    box-shadow: none !important;
   }
   .planner-items-list textarea{
     display: none !important;
