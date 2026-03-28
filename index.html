@@ -1377,7 +1377,119 @@
           </div>
           </section>
 
-          <section class="planner-track-panel hidden" data-planner-track-panel="lifting"></section>
+          <section class="planner-track-panel hidden" data-planner-track-panel="lifting">
+            <div class="planner-lifting-shell" id="plannerLiftingShell">
+              <header class="planner-lifting-header">
+                <div>
+                  <h3>Lifting &amp; Conditioning Lab</h3>
+                  <p class="small muted">Build 7-day strength and conditioning protocols with a live exercise library.</p>
+                </div>
+                <div class="planner-lifting-header-actions">
+                  <button type="button" class="ghost" id="plannerLiftingPrintBtn">Print</button>
+                  <button type="button" class="primary" id="plannerLiftingSaveProtocolBtn">Save Protocol</button>
+                </div>
+              </header>
+
+              <div class="planner-lifting-tabs" role="tablist" aria-label="Lifting tabs">
+                <button type="button" class="planner-lifting-tab active" data-lifting-tab="overview" aria-selected="true">Dashboard</button>
+                <button type="button" class="planner-lifting-tab" data-lifting-tab="editor" aria-selected="false">7-Day Editor</button>
+                <button type="button" class="planner-lifting-tab" data-lifting-tab="program" aria-selected="false">Master Blueprint</button>
+              </div>
+
+              <div class="planner-lifting-view hidden" data-lifting-view="overview">
+                <div class="planner-lifting-overview-grid">
+                  <article class="planner-lifting-kpi">
+                    <p class="small muted">Saved protocols</p>
+                    <strong id="plannerLiftingProtocolsCount">0</strong>
+                  </article>
+                  <article class="planner-lifting-kpi">
+                    <p class="small muted">Library exercises</p>
+                    <strong id="plannerLiftingExercisesCount">0</strong>
+                  </article>
+                  <article class="planner-lifting-kpi">
+                    <p class="small muted">Active day</p>
+                    <strong id="plannerLiftingActiveDayLabel">Day 1</strong>
+                  </article>
+                </div>
+                <div class="planner-lifting-hero">
+                  <h4>United Wrestling Lab</h4>
+                  <p class="small">Design and save full lifting cycles that match your wrestling season goals.</p>
+                </div>
+              </div>
+
+              <div class="planner-lifting-view" data-lifting-view="editor">
+                <div class="planner-lifting-editor-grid">
+                  <section class="planner-lifting-editor-card">
+                    <div class="planner-lifting-editor-top">
+                      <h4>Protocol Builder</h4>
+                      <p class="small muted" id="plannerLiftingStatus">Ready.</p>
+                    </div>
+                    <div class="planner-lifting-meta-grid">
+                      <label>
+                        <span>Cycle Name</span>
+                        <input type="text" id="plannerLiftingPlanNameInput" placeholder="New 7-Day Cycle">
+                      </label>
+                      <label>
+                        <span>Weeks Duration</span>
+                        <input type="text" id="plannerLiftingPlanWeeksInput" placeholder="1-4">
+                      </label>
+                      <label>
+                        <span>Purpose</span>
+                        <textarea id="plannerLiftingPlanPurposeInput" rows="2" placeholder="Full week metabolic conditioning and strength base."></textarea>
+                      </label>
+                      <label>
+                        <span>Benefits</span>
+                        <textarea id="plannerLiftingPlanBenefitsInput" rows="2" placeholder="Optimized recovery and specific wrestling movements."></textarea>
+                      </label>
+                    </div>
+                    <div class="planner-lifting-day-tabs" id="plannerLiftingDayTabs"></div>
+                    <div class="planner-lifting-day-header">
+                      <input type="text" id="plannerLiftingActiveDayNameInput" placeholder="Day Name">
+                    </div>
+                    <div class="planner-lifting-exercise-list" id="plannerLiftingExerciseList"></div>
+                  </section>
+
+                  <aside class="planner-lifting-sidebar">
+                    <section class="planner-lifting-sidebar-card">
+                      <h5>Add movement to library</h5>
+                      <label>
+                        <span>Category</span>
+                        <select id="plannerLiftingCategorySelect"></select>
+                      </label>
+                      <div class="planner-lifting-inline">
+                        <input type="text" id="plannerLiftingNewCategoryInput" placeholder="New category name">
+                        <button type="button" class="ghost" id="plannerLiftingAddCategoryBtn">+ Category</button>
+                      </div>
+                      <div class="planner-lifting-inline">
+                        <input type="text" id="plannerLiftingNewExerciseInput" placeholder="Exercise name">
+                        <button type="button" class="primary" id="plannerLiftingAddExerciseBtn">+ Exercise</button>
+                      </div>
+                    </section>
+
+                    <section class="planner-lifting-sidebar-card">
+                      <label>
+                        <span>Search library</span>
+                        <input type="text" id="plannerLiftingSearchInput" placeholder="Search movement">
+                      </label>
+                      <div class="planner-lifting-library-groups" id="plannerLiftingLibraryGroups"></div>
+                    </section>
+
+                    <section class="planner-lifting-sidebar-card">
+                      <h5>Saved protocols</h5>
+                      <div class="planner-lifting-saved-list" id="plannerLiftingSavedList"></div>
+                    </section>
+                  </aside>
+                </div>
+              </div>
+
+              <div class="planner-lifting-view hidden" data-lifting-view="program">
+                <div class="planner-lifting-program-card">
+                  <h4>Master Blueprint</h4>
+                  <p class="small muted">Use the 7-Day Editor to create and maintain your protocol library.</p>
+                </div>
+              </div>
+            </div>
+          </section>
 
           <section class="planner-track-panel hidden" data-planner-track-panel="mental"></section>
 
