@@ -10880,3 +10880,156 @@ body.viewport-mobile .app{
   opacity: 1 !important;
   cursor: default !important;
 }
+
+/* Athlete assignment game modal */
+.athlete-game-modal-overlay{
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(2, 8, 23, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.athlete-game-modal-card{
+  width: min(760px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  background: linear-gradient(165deg, #07132c 0%, #09193c 60%, #0a1f47 100%);
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  border-radius: 22px;
+  box-shadow: 0 26px 60px rgba(2, 8, 23, 0.55);
+  color: #e2e8f0;
+}
+.athlete-game-modal-head{
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 20px 8px;
+}
+.athlete-game-modal-head h3{
+  margin: 0;
+  font-size: clamp(1.2rem, 1rem + 0.8vw, 1.6rem);
+  font-weight: 900;
+}
+.athlete-game-modal-head p{
+  margin: 4px 0 0;
+  color: rgba(226, 232, 240, 0.72);
+  font-size: 0.92rem;
+}
+.athlete-game-close-btn{
+  border: 0;
+  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  background: rgba(15, 23, 42, 0.75);
+  color: #f8fafc;
+  font-size: 1.35rem;
+  cursor: pointer;
+}
+.athlete-game-modal-body{
+  padding: 8px 20px 16px;
+}
+.athlete-game-modal-meta{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.athlete-game-zone{
+  width: 100%;
+  min-height: clamp(200px, 38vh, 340px);
+  border-radius: 18px;
+  border: 1px solid rgba(100, 116, 139, 0.44);
+  background: linear-gradient(165deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.92));
+  color: #e2e8f0;
+  font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.2rem);
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+}
+.athlete-game-zone:active{
+  transform: scale(0.985);
+}
+.athlete-game-zone.idle{
+  background: linear-gradient(165deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.92));
+}
+.athlete-game-zone.green{
+  background: linear-gradient(165deg, rgba(16, 185, 129, 0.95), rgba(5, 150, 105, 0.9));
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.25) inset;
+}
+.athlete-game-zone.red{
+  background: linear-gradient(165deg, rgba(239, 68, 68, 0.95), rgba(220, 38, 38, 0.9));
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.25) inset;
+}
+.athlete-game-hint{
+  margin-top: 8px;
+}
+.athlete-game-stats{
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.athlete-game-stats > div{
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(15, 23, 42, 0.55);
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+}
+.athlete-game-stats span{
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: rgba(226, 232, 240, 0.66);
+}
+.athlete-game-stats strong{
+  font-size: 1.2rem;
+}
+.athlete-game-result{
+  margin-top: 14px;
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  background: rgba(15, 23, 42, 0.58);
+  border-radius: 14px;
+  padding: 12px;
+}
+.athlete-game-result h4{
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+.athlete-game-result p{
+  margin: 0 0 6px;
+}
+.athlete-game-modal-actions{
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 8px 20px 18px;
+}
+@media (max-width: 640px){
+  .athlete-game-modal-overlay{
+    padding: 8px;
+    align-items: stretch;
+  }
+  .athlete-game-modal-card{
+    max-height: 100%;
+    border-radius: 18px;
+  }
+  .athlete-game-modal-head,
+  .athlete-game-modal-body,
+  .athlete-game-modal-actions{
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .athlete-game-modal-actions{
+    justify-content: stretch;
+  }
+  .athlete-game-modal-actions button{
+    flex: 1;
+  }
+}
