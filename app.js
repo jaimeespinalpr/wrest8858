@@ -304,10 +304,20 @@ const createAccountBtn = document.getElementById("createAccountBtn");
 const registerModal = document.getElementById("registerModal");
 const registerCloseBtn = document.getElementById("registerCloseBtn");
 const registerSigninBtn = document.getElementById("registerSigninBtn");
+const questionnaireReminderModal = document.getElementById("questionnaireReminderModal");
+const questionnaireReminderTitle = document.getElementById("questionnaireReminderTitle");
+const questionnaireReminderSubtitle = document.getElementById("questionnaireReminderSubtitle");
+const questionnaireReminderMessage = document.getElementById("questionnaireReminderMessage");
+const questionnaireReminderMissingList = document.getElementById("questionnaireReminderMissingList");
+const questionnaireReminderContinueBtn = document.getElementById("questionnaireReminderContinueBtn");
+const questionnaireReminderLaterBtn = document.getElementById("questionnaireReminderLaterBtn");
 const adminUsersTitle = document.getElementById("adminUsersTitle");
 const adminUsersStatus = document.getElementById("adminUsersStatus");
 const adminUsersList = document.getElementById("adminUsersList");
 const adminUsersReloadBtn = document.getElementById("adminUsersReloadBtn");
+let questionnairePromptContext = null;
+let questionnairePromptShownForUserId = "";
+let questionnairePromptShownThisSession = false;
 let athleteProfileForm;
 let competitionPreview;
 const parentViewNotice = document.getElementById("parentViewNotice");
@@ -656,6 +666,25 @@ function resetViewportToTop() {
   window.requestAnimationFrame(applyTop);
 }
 
+function focusOpenedWindow(target = null, { smooth = false } = {}) {
+  resetViewportToTop();
+  const behavior = smooth ? "smooth" : "auto";
+  window.requestAnimationFrame(() => {
+    try {
+      const node = target instanceof Element
+        ? (target.querySelector(".register-card, .planner-modal-card, .card, .modal-card") || target)
+        : null;
+      node?.scrollIntoView({ behavior, block: "start", inline: "nearest" });
+    } catch {
+      // ignore scroll focus errors
+    }
+  });
+}
+
+if (typeof window !== "undefined") {
+  window.wplFocusOpenedWindow = focusOpenedWindow;
+}
+
 function updateResponsiveViewportState() {
   if (typeof window === "undefined" || typeof document === "undefined") return;
   const width = Number(window.innerWidth || document.documentElement.clientWidth || 0);
@@ -696,6 +725,11 @@ function setView(view) {
   updateViewMenuLabel(normalized);
   const roleName = VIEW_ROLE_MAP[normalized] || activeRole || "athlete";
   setRoleUI(roleName, normalized);
+  if (normalized === "athlete" && isAthleteRole(getProfile()?.role)) {
+    window.setTimeout(() => {
+      maybePromptAthleteQuestionnaireAfterLogin(getProfile(), { source: "view-switch" });
+    }, 220);
+  }
 }
 
 function toggleParentViewNotice(view) {
@@ -987,8 +1021,21 @@ function refreshLanguageUI() {
   enforceStrictAuthUI();
   applyStaticTranslations();
   if (profile?.role === "athlete") {
-    fillAthleteProfileForm(profile);
-    renderCompetitionPreview(getAthletePortalLinkedAthlete() || profile);
+    const linkedAthlete = getAthletePortalLinkedAthlete();
+    const profileForAthleteView = linkedAthlete
+      ? {
+          ...profile,
+          ...linkedAthlete,
+          role: profile.role,
+          view: profile.view,
+          lang: profile.lang,
+          email: profile.email,
+          user_id: profile.user_id,
+          name: linkedAthlete.name || profile.name
+        }
+      : profile;
+    fillAthleteProfileForm(profileForAthleteView);
+    renderCompetitionPreview(linkedAthlete || profile);
   }
   const role = (profile || {}).role || "athlete";
   const currentDayIndex = getCurrentAppDayIndex();
@@ -1285,6 +1332,7 @@ function hideRegisterModal() {
 
 function showRegisterModal() {
   registerModal?.classList.remove("hidden");
+  focusOpenedWindow(registerModal);
   loginFormWrap?.classList.add("hidden");
   const firstField = registerModal?.querySelector("input, select, textarea");
   firstField?.focus();
@@ -1298,6 +1346,7 @@ function showAuthChoice() {
 }
 
 function showOnboarding(prefillProfile = null) {
+  hideQuestionnaireReminderModal();
   onboarding.classList.remove("hidden");
   appRoot.classList.add("blurred", "hidden");
   enforceStrictAuthUI();
@@ -1305,6 +1354,7 @@ function showOnboarding(prefillProfile = null) {
 }
 
 function hideOnboarding() {
+  hideQuestionnaireReminderModal();
   hideRegisterModal();
   onboarding.classList.add("hidden");
   appRoot.classList.remove("blurred");
@@ -1401,6 +1451,23 @@ const FIELD_COPY = {
     placeholder: { en: "e.g., 157 lb", es: "ej., 157 lb" }
   },
   pLang: { label: { en: "Language", es: "Idioma" } },
+  pPreferredMoves: {
+    label: { en: "Preferred move(s)", es: "Movimientos preferidos" },
+    placeholder: { en: "e.g., Single leg finish", es: "ej., Finalizacion de pierna simple" }
+  },
+  pExperienceYears: {
+    label: { en: "Experience (years)", es: "Experiencia (anos)" },
+    placeholder: { en: "e.g., 5", es: "ej., 5" }
+  },
+  pStance: { label: { en: "Stance", es: "Postura" } },
+  pWeightClass: {
+    label: { en: "Weight class", es: "Categoria de peso" },
+    placeholder: { en: "e.g., 74 kg", es: "ej., 74 kg" }
+  },
+  pNotes: {
+    label: { en: "Notes", es: "Notas" },
+    placeholder: { en: "Tell us about your goals", es: "Cuentanos sobre tus metas" }
+  },
   pGoal: {
     label: { en: "Main goal", es: "Meta principal" },
     placeholder: { en: "e.g., Improve bottom escapes / get in shape", es: "ej., Mejorar escapes / estar en forma" }
@@ -1465,6 +1532,15 @@ const FIELD_COPY = {
   aTrainingFocus: {
     label: { en: "Technique worked most", es: "Tecnica mas trabajada" },
     placeholder: { en: "e.g., Single leg finish chain", es: "ej., Cadena de finalizacion de pierna simple" }
+  },
+  aPreferredMoves: {
+    label: { en: "Preferred move(s)", es: "Movimientos preferidos" },
+    placeholder: { en: "e.g., Single leg finish", es: "ej., Finalizacion de pierna simple" }
+  },
+  aStance: { label: { en: "Stance", es: "Postura" } },
+  aQuestionnaireNotes: {
+    label: { en: "Questionnaire notes / goals", es: "Notas / metas del cuestionario" },
+    placeholder: { en: "Tell your coach your goals and details", es: "Comparte metas y detalles para tu coach" }
   },
   aStyle: { label: { en: "Primary wrestling style", es: "Estilo principal de lucha" } },
   aWeight: {
@@ -1531,6 +1607,18 @@ const FIELD_COPY = {
     label: { en: "Coach key signal", es: "Senal clave del coach" },
     placeholder: { en: "If X happens -> do Y", es: "Si pasa X -> haz Y" }
   },
+  aChallengeOne: {
+    label: { en: "Challenge #1", es: "Reto #1" },
+    placeholder: { en: "First challenge", es: "Primer reto" }
+  },
+  aChallengeTwo: {
+    label: { en: "Challenge #2", es: "Reto #2" },
+    placeholder: { en: "Second challenge", es: "Segundo reto" }
+  },
+  aChallengeThree: {
+    label: { en: "Challenge #3", es: "Reto #3" },
+    placeholder: { en: "Third challenge", es: "Tercer reto" }
+  },
   aArchetype: { label: { en: "Archetype", es: "Arquetipo" } },
   aBodyType: { label: { en: "Body type", es: "Tipo de cuerpo" } }
 };
@@ -1585,6 +1673,14 @@ const SELECT_COPY = {
   aPosition: {
     en: { neutral: "Neutral", top: "Top", bottom: "Bottom" },
     es: { neutral: "Neutral", top: "Arriba", bottom: "Abajo" }
+  },
+  pStance: {
+    en: { "": "Select stance", left: "Left", right: "Right", switch: "Switch" },
+    es: { "": "Selecciona postura", left: "Izquierda", right: "Derecha", switch: "Cambio" }
+  },
+  aStance: {
+    en: { "": "Select stance", left: "Left", right: "Right", switch: "Switch" },
+    es: { "": "Selecciona postura", left: "Izquierda", right: "Derecha", switch: "Cambio" }
   },
   pStrategy: {
     en: { balanced: "Balanced", offensive: "Offensive", defensive: "Defensive", counter: "Counter-based" },
@@ -1932,6 +2028,18 @@ const PROFILE_SUBTAB_COPY = {
 };
 
 const PROFILE_SECTION_COPY = {
+  aQuestionnaireHeading: {
+    en: "Questionnaire follow-up",
+    es: "Seguimiento del cuestionario",
+    uz: "So'rovnoma davom ettirish",
+    ru: "Продолжение анкеты"
+  },
+  aQuestionnaireHint: {
+    en: "Complete these remaining questionnaire fields. It is very important to answer all of them.",
+    es: "Completa estas preguntas pendientes del cuestionario. Es muy importante responderlas todas.",
+    uz: "So'rovnomaning qolgan savollarini to'ldiring. Barchasiga javob berish juda muhim.",
+    ru: "Заполните оставшиеся поля анкеты. Очень важно ответить на все вопросы."
+  },
   aStrategyPlansHeading: {
     en: "Strategy A / B / C",
     es: "Estrategia A / B / C",
@@ -2604,6 +2712,24 @@ const BUTTON_COPY = {
     uz: "Musobaqa xulosasini ko‘rib chiqish",
     ru: "Просмотреть сводку соревнования"
   },
+  continueQuestionnaireLaterBtn: {
+    en: "Continue later",
+    es: "Seguir luego",
+    uz: "Keyin davom etish",
+    ru: "Продолжить позже"
+  },
+  questionnaireReminderContinueBtn: {
+    en: "Continue now",
+    es: "Continuar ahora",
+    uz: "Hozir davom etish",
+    ru: "Продолжить сейчас"
+  },
+  questionnaireReminderLaterBtn: {
+    en: "Continue later",
+    es: "Seguir luego",
+    uz: "Keyin davom etish",
+    ru: "Продолжить позже"
+  },
   openCoachMatchBtn: {
     en: "Open Athlete Summary",
     es: "Abrir resumen atleta",
@@ -2997,6 +3123,14 @@ function applyStaticTranslations() {
   Object.entries(BUTTON_COPY).forEach(([id, copy]) => {
     const btn = document.getElementById(id);
     if (btn) btn.textContent = pickCopy(copy);
+  });
+  setTextContent(questionnaireReminderTitle, {
+    en: "Complete your athlete questionnaire",
+    es: "Completa tu cuestionario de atleta"
+  });
+  setTextContent(questionnaireReminderSubtitle, {
+    en: "It is very important to complete all questions for accurate coaching.",
+    es: "Es muy importante completar todas las preguntas para que el coach tenga datos correctos."
   });
   setTextContent("#parentViewNoticeTitle", PARENT_VIEW_NOTICE_COPY.title);
   setTextContent("#parentViewNoticeSubtitle", PARENT_VIEW_NOTICE_COPY.message);
@@ -3686,6 +3820,7 @@ function normalizeCoachAthleteRecord(id, data = {}) {
     international: String(data.international || "None").trim(),
     history: String(data.history || "").trim(),
     notes: String(data.notes || "").trim(),
+    years: String(data.years || data.experienceYears || data.experience_years || "").trim(),
     experienceYears: data.experienceYears ?? data.years ?? "",
     level: String(data.level || "").trim(),
     position: String(data.position || "").trim(),
@@ -3693,6 +3828,12 @@ function normalizeCoachAthleteRecord(id, data = {}) {
     trainingRoutines: String(data.trainingRoutines || "").trim(),
     trainingVolume: String(data.trainingVolume || "").trim(),
     trainingFocus: String(data.trainingFocus || "").trim(),
+    preferredMoves: String(data.preferredMoves || data.preferred_moves || data.preferred || "").trim(),
+    stance: String(data.stance || "").trim(),
+    questionnaireNotes: String(data.questionnaireNotes || data.notes || "").trim(),
+    coachQuestionnaireNotes: String(data.coachQuestionnaireNotes || "").trim(),
+    questionnaireUpdatedBy: String(data.questionnaireUpdatedBy || "").trim(),
+    questionnaireUpdatedAt: normalizeFirestoreDateValue(data.questionnaireUpdatedAt),
     schoolName: String(data.schoolName || "").trim(),
     clubName: String(data.clubName || "").trim(),
     schoolGrade: String(data.schoolGrade || "").trim(),
@@ -3720,6 +3861,12 @@ function normalizeCoachAthleteRecord(id, data = {}) {
     strategyA: String(data.strategyA || "").trim(),
     strategyB: String(data.strategyB || "").trim(),
     strategyC: String(data.strategyC || "").trim(),
+    challenges: Array.isArray(data.challenges)
+      ? data.challenges.map((item) => String(item || "").trim()).filter(Boolean)
+      : [data.challengeOne, data.challengeTwo, data.challengeThree].map((item) => String(item || "").trim()).filter(Boolean),
+    challengeOne: String(data.challengeOne || data.challenges?.[0] || "").trim(),
+    challengeTwo: String(data.challengeTwo || data.challenges?.[1] || "").trim(),
+    challengeThree: String(data.challengeThree || data.challenges?.[2] || "").trim(),
     resultsHistory: String(data.resultsHistory || "").trim(),
     internationalEvents: String(data.internationalEvents || "").trim(),
     internationalYears: String(data.internationalYears || "").trim(),
@@ -5987,6 +6134,14 @@ async function handleSuccessfulAuth(result) {
     setView(targetView);
     refreshLanguageUI();
   }
+  questionnairePromptShownForUserId = authUser?.id || "";
+  questionnairePromptShownThisSession = false;
+  window.setTimeout(() => {
+    maybePromptAthleteQuestionnaireAfterLogin(getProfile() || profile, { source: "login" });
+  }, 260);
+  window.setTimeout(() => {
+    maybePromptAthleteQuestionnaireAfterLogin(getProfile() || profile, { source: "login-retry" });
+  }, 1300);
 }
 
 if (pRole) {
@@ -6024,6 +6179,27 @@ if (registerCloseBtn) {
 
 if (registerSigninBtn) {
   registerSigninBtn.addEventListener("click", showAuthChoice);
+}
+
+if (questionnaireReminderContinueBtn) {
+  questionnaireReminderContinueBtn.addEventListener("click", () => {
+    const nextFieldId = questionnairePromptContext?.missingFields?.[0]?.id || "";
+    hideQuestionnaireReminderModal();
+    if (nextFieldId) {
+      focusAthleteQuestionnaireField(nextFieldId);
+    } else {
+      showTab("athlete-profile");
+    }
+  });
+}
+
+if (questionnaireReminderLaterBtn) {
+  questionnaireReminderLaterBtn.addEventListener("click", () => {
+    hideQuestionnaireReminderModal();
+    toast(currentLang === "es"
+      ? "Puedes continuar el cuestionario luego desde Profile."
+      : "You can continue the questionnaire later from Profile.");
+  });
 }
 
 if (profileForm) {
@@ -10690,6 +10866,7 @@ if (printTemplatePlan) {
 // ---------- ATHLETE PROFILE ----------
 athleteProfileForm = document.getElementById("athleteProfileForm");
 const previewProfileBtn = document.getElementById("previewProfileBtn");
+const continueQuestionnaireLaterBtn = document.getElementById("continueQuestionnaireLaterBtn");
 const backToProfileBtn = document.getElementById("backToProfileBtn");
 competitionPreview = document.getElementById("competitionPreview");
 const competitionManager = document.getElementById("competitionManager");
@@ -10721,6 +10898,12 @@ const aSchoolGrade = document.getElementById("aSchoolGrade");
 const aTrainingRoutines = document.getElementById("aTrainingRoutines");
 const aTrainingVolume = document.getElementById("aTrainingVolume");
 const aTrainingFocus = document.getElementById("aTrainingFocus");
+const aPreferredMoves = document.getElementById("aPreferredMoves");
+const aStance = document.getElementById("aStance");
+const aQuestionnaireNotes = document.getElementById("aQuestionnaireNotes");
+const athleteQuestionnaireProgress = document.getElementById("athleteQuestionnaireProgress");
+const athleteCoachQuestionnaireTitle = document.getElementById("athleteCoachQuestionnaireTitle");
+const athleteCoachQuestionnaireText = document.getElementById("athleteCoachQuestionnaireText");
 const aStyle = document.getElementById("aStyle");
 const aWeight = document.getElementById("aWeight");
 const aWeightClass = document.getElementById("aWeightClass");
@@ -10753,6 +10936,9 @@ const aLeadLeg = document.getElementById("aLeadLeg");
 const aLeftAttack = document.getElementById("aLeftAttack");
 const aRightAttack = document.getElementById("aRightAttack");
 const aPreferredTies = document.getElementById("aPreferredTies");
+const aChallengeOne = document.getElementById("aChallengeOne");
+const aChallengeTwo = document.getElementById("aChallengeTwo");
+const aChallengeThree = document.getElementById("aChallengeThree");
 const aMiscNotes = document.getElementById("aMiscNotes");
 const aInternational = document.getElementById("aInternational");
 const aInternationalEvents = document.getElementById("aInternationalEvents");
@@ -10875,6 +11061,10 @@ function readAthleteProfileForm(existing = {}) {
     trainingRoutines: aTrainingRoutines?.value.trim() || "",
     trainingVolume: aTrainingVolume?.value.trim() || "",
     trainingFocus: aTrainingFocus?.value.trim() || "",
+    preferredMoves: aPreferredMoves?.value.trim() || "",
+    preferred_moves: aPreferredMoves?.value.trim() || "",
+    stance: aStance?.value || "",
+    questionnaireNotes: aQuestionnaireNotes?.value.trim() || "",
     style: aStyle?.value || "freestyle",
     currentWeight: aWeight?.value.trim() || "",
     weightClass: aWeightClass?.value.trim() || "",
@@ -10914,6 +11104,14 @@ function readAthleteProfileForm(existing = {}) {
     archetype: aArchetype?.value || "",
     bodyType: aBodyType?.value || "",
     cueWords: [aCueWord1?.value.trim(), aCueWord2?.value.trim(), aCueWord3?.value.trim()].filter(Boolean),
+    challenges: [
+      aChallengeOne?.value.trim() || "",
+      aChallengeTwo?.value.trim() || "",
+      aChallengeThree?.value.trim() || ""
+    ].filter(Boolean),
+    challengeOne: aChallengeOne?.value.trim() || "",
+    challengeTwo: aChallengeTwo?.value.trim() || "",
+    challengeThree: aChallengeThree?.value.trim() || "",
     defaultTechniques: {
       leadLeg: aLeadLeg?.value || "left",
       leftAttack: aLeftAttack?.value.trim() || "",
@@ -10928,6 +11126,313 @@ function readAthleteProfileForm(existing = {}) {
     physicalLimitations,
     competitionCue: aCompetitionCue?.value.trim() || ""
   };
+}
+
+const ATHLETE_QUESTIONNAIRE_FIELDS = [
+  // Training
+  { id: "aName", panel: "training", section: "training", label: { en: "Full name", es: "Nombre completo" } },
+  { id: "aAge", panel: "training", section: "training", label: { en: "Age", es: "Edad" } },
+  { id: "aWeight", panel: "training", section: "training", label: { en: "Current weight", es: "Peso actual" } },
+  { id: "aSchoolGrade", panel: "training", section: "training", label: { en: "School grade / level", es: "Grado escolar / nivel" } },
+  { id: "aTrainingRoutines", panel: "training", section: "training", label: { en: "Training routines", es: "Rutinas de entrenamiento" } },
+  { id: "aTrainingVolume", panel: "training", section: "training", label: { en: "Weekly volume", es: "Volumen semanal" } },
+  { id: "aTrainingFocus", panel: "training", section: "training", label: { en: "Technique worked most", es: "Tecnica mas trabajada" } },
+  { id: "aPreferredMoves", panel: "training", section: "training", label: { en: "Preferred move(s)", es: "Movimientos preferidos" } },
+  { id: "aStance", panel: "training", section: "training", label: { en: "Stance", es: "Postura" } },
+  { id: "aQuestionnaireNotes", panel: "training", section: "training", label: { en: "Questionnaire notes / goals", es: "Notas / metas del cuestionario" } },
+  { id: "aLeadLeg", panel: "training", section: "training", label: { en: "Lead leg", es: "Pierna de ataque" } },
+  { id: "aLeftAttack", panel: "training", section: "training", label: { en: "Left-side attack", es: "Ataque por izquierda" } },
+  { id: "aRightAttack", panel: "training", section: "training", label: { en: "Right-side attack", es: "Ataque por derecha" } },
+  { id: "aPreferredTies", panel: "training", section: "training", label: { en: "Preferred ties", es: "Agarres preferidos" } },
+  { id: "aChallengeOne", panel: "training", section: "training", label: { en: "Challenge #1", es: "Reto #1" } },
+  { id: "aChallengeTwo", panel: "training", section: "training", label: { en: "Challenge #2", es: "Reto #2" } },
+  { id: "aChallengeThree", panel: "training", section: "training", label: { en: "Challenge #3", es: "Reto #3" } },
+
+  // Competition
+  { id: "aStyle", panel: "competition", section: "competition", label: { en: "Primary wrestling style", es: "Estilo principal" } },
+  { id: "aWeightClass", panel: "competition", section: "competition", label: { en: "Weight class", es: "Categoria de peso" } },
+  { id: "aYears", panel: "competition", section: "competition", label: { en: "Years of experience", es: "Anos de experiencia" } },
+  { id: "aLevel", panel: "competition", section: "competition", label: { en: "Experience level", es: "Nivel de experiencia" } },
+  { id: "aPosition", panel: "competition", section: "competition", label: { en: "Preferred position", es: "Posicion preferida" } },
+  { id: "aArchetype", panel: "competition", section: "competition", label: { en: "Archetype", es: "Arquetipo" } },
+  { id: "aBodyType", panel: "competition", section: "competition", label: { en: "Body type", es: "Tipo de cuerpo" } },
+  { id: "aStrategy", panel: "competition", section: "competition", label: { en: "Match strategy preference", es: "Estrategia de combate" } },
+  { id: "aStrategyA", panel: "competition", section: "competition", label: { en: "Strategy A", es: "Estrategia A" } },
+  { id: "aStrategyB", panel: "competition", section: "competition", label: { en: "Strategy B", es: "Estrategia B" } },
+  { id: "aStrategyC", panel: "competition", section: "competition", label: { en: "Strategy C", es: "Estrategia C" } },
+  { id: "aSafeMoves", panel: "competition", section: "competition", label: { en: "Safe moves", es: "Movimientos seguros" } },
+  { id: "aRiskyMoves", panel: "competition", section: "competition", label: { en: "Risky moves", es: "Movimientos arriesgados" } },
+  { id: "aResultsHistory", panel: "competition", section: "competition", label: { en: "Recent results / key notes", es: "Resultados recientes / notas" } },
+
+  // Coaching Quick
+  { id: "aFavoritePosition", panel: "coaching", section: "coaching", label: { en: "Favorite competition position", es: "Posicion favorita en competencia" } },
+  { id: "aPsychTendency", panel: "coaching", section: "coaching", label: { en: "Psychological tendency", es: "Tendencia psicologica" } },
+  { id: "aPressureError", panel: "coaching", section: "coaching", label: { en: "Common error under pressure", es: "Error bajo presion" } },
+  { id: "aCoachSignal", panel: "coaching", section: "coaching", label: { en: "Coach key signal", es: "Senal clave del coach" } },
+  { id: "aCueWord1", panel: "coaching", section: "coaching", label: { en: "Cue word #1", es: "Palabra clave #1" } },
+  { id: "aCueWord2", panel: "coaching", section: "coaching", label: { en: "Cue word #2", es: "Palabra clave #2" } },
+  { id: "aCueWord3", panel: "coaching", section: "coaching", label: { en: "Cue word #3", es: "Palabra clave #3" } },
+  { id: "aSetup1", panel: "coaching", section: "coaching", label: { en: "Top setup #1", es: "Setup #1" } },
+  { id: "aSetup2", panel: "coaching", section: "coaching", label: { en: "Top setup #2", es: "Setup #2" } },
+  { id: "aSetup3", panel: "coaching", section: "coaching", label: { en: "Top setup #3", es: "Setup #3" } },
+  { id: "aCornerCue1", panel: "coaching", section: "coaching", label: { en: "Coach cue #1", es: "Cue del coach #1" } },
+  { id: "aCornerCue2", panel: "coaching", section: "coaching", label: { en: "Coach cue #2", es: "Cue del coach #2" } },
+  { id: "aCornerCue3", panel: "coaching", section: "coaching", label: { en: "Coach cue #3", es: "Cue del coach #3" } },
+  { id: "aMentalReminder1", panel: "coaching", section: "coaching", label: { en: "Mental reminder #1", es: "Recordatorio mental #1" } },
+  { id: "aMentalReminder2", panel: "coaching", section: "coaching", label: { en: "Mental reminder #2", es: "Recordatorio mental #2" } },
+  { id: "aMentalReminder3", panel: "coaching", section: "coaching", label: { en: "Mental reminder #3", es: "Recordatorio mental #3" } },
+  { id: "aSafetyWarning1", panel: "coaching", section: "coaching", label: { en: "Safety warning #1", es: "Advertencia de seguridad #1" } },
+  { id: "aPhysicalLimitation1", panel: "coaching", section: "coaching", label: { en: "Physical limitation #1", es: "Limitacion fisica #1" } },
+  { id: "aCompetitionCue", panel: "coaching", section: "coaching", label: { en: "Competition call", es: "Llamado de competencia" } },
+  { id: "aOffense1", panel: "coaching", section: "coaching", label: { en: "Offense 1", es: "Ofensiva 1" } },
+  { id: "aOffense2", panel: "coaching", section: "coaching", label: { en: "Offense 2", es: "Ofensiva 2" } },
+  { id: "aOffense3", panel: "coaching", section: "coaching", label: { en: "Offense 3", es: "Ofensiva 3" } },
+  { id: "aDefense1", panel: "coaching", section: "coaching", label: { en: "Defense 1", es: "Defensa 1" } },
+  { id: "aDefense2", panel: "coaching", section: "coaching", label: { en: "Defense 2", es: "Defensa 2" } },
+  { id: "aDefense3", panel: "coaching", section: "coaching", label: { en: "Defense 3", es: "Defensa 3" } }
+];
+
+function getProfileValueByAthleteFieldId(profile, fieldId) {
+  const safe = profile && typeof profile === "object" ? profile : {};
+  switch (fieldId) {
+    case "aWeight":
+      return safe.currentWeight || safe.weight || "";
+    case "aSchool":
+      return safe.schoolName || "";
+    case "aClub":
+      return safe.clubName || "";
+    case "aPreferredMoves":
+      return safe.preferredMoves || safe.preferred_moves || safe.preferred || "";
+    case "aQuestionnaireNotes":
+      return safe.questionnaireNotes || safe.notes || "";
+    case "aStance":
+      return safe.stance || "";
+    case "aYears":
+      return safe.years || safe.experienceYears || safe.experience_years || "";
+    case "aWeightClass":
+      return safe.weightClass || safe.weight_class || "";
+    case "aLeadLeg":
+      return safe.defaultTechniques?.leadLeg || "";
+    case "aLeftAttack":
+      return safe.defaultTechniques?.leftAttack || "";
+    case "aRightAttack":
+      return safe.defaultTechniques?.rightAttack || "";
+    case "aPreferredTies":
+      return safe.defaultTechniques?.preferredTies || "";
+    case "aChallengeOne":
+      return safe.challengeOne || safe.challenges?.[0] || "";
+    case "aChallengeTwo":
+      return safe.challengeTwo || safe.challenges?.[1] || "";
+    case "aChallengeThree":
+      return safe.challengeThree || safe.challenges?.[2] || "";
+    case "aCueWord1":
+      return safe.cueWords?.[0] || "";
+    case "aCueWord2":
+      return safe.cueWords?.[1] || "";
+    case "aCueWord3":
+      return safe.cueWords?.[2] || "";
+    case "aSetup1":
+      return safe.setupsTop3?.[0] || "";
+    case "aSetup2":
+      return safe.setupsTop3?.[1] || "";
+    case "aSetup3":
+      return safe.setupsTop3?.[2] || "";
+    case "aCornerCue1":
+      return safe.cornerCoachCues?.[0] || "";
+    case "aCornerCue2":
+      return safe.cornerCoachCues?.[1] || "";
+    case "aCornerCue3":
+      return safe.cornerCoachCues?.[2] || "";
+    case "aMentalReminder1":
+      return safe.mentalReminders?.[0] || "";
+    case "aMentalReminder2":
+      return safe.mentalReminders?.[1] || "";
+    case "aMentalReminder3":
+      return safe.mentalReminders?.[2] || "";
+    case "aSafetyWarning1":
+      return safe.safetyWarnings?.[0] || "";
+    case "aPhysicalLimitation1":
+      return safe.physicalLimitations?.[0] || "";
+    case "aOffense1":
+      return safe.offenseTop3?.[0] || "";
+    case "aOffense2":
+      return safe.offenseTop3?.[1] || "";
+    case "aOffense3":
+      return safe.offenseTop3?.[2] || "";
+    case "aDefense1":
+      return safe.defenseTop3?.[0] || "";
+    case "aDefense2":
+      return safe.defenseTop3?.[1] || "";
+    case "aDefense3":
+      return safe.defenseTop3?.[2] || "";
+    default: {
+      const rawKey = fieldId.startsWith("a") ? fieldId.slice(1) : fieldId;
+      const key = rawKey ? `${rawKey[0].toLowerCase()}${rawKey.slice(1)}` : "";
+      return key ? (safe[key] || "") : "";
+    }
+  }
+}
+
+function getAthleteQuestionnaireProgress(profile = getProfile(), { useDom = false } = {}) {
+  const safeProfile = profile && typeof profile === "object" ? profile : {};
+  const values = {};
+  const sectionCounts = {
+    training: { total: 0, missing: 0 },
+    competition: { total: 0, missing: 0 },
+    coaching: { total: 0, missing: 0 }
+  };
+  const missingFields = [];
+
+  ATHLETE_QUESTIONNAIRE_FIELDS.forEach((field) => {
+    const input = useDom ? document.getElementById(field.id) : null;
+    const fromDom = input && "value" in input ? String(input.value || "").trim() : "";
+    const fromProfile = String(getProfileValueByAthleteFieldId(safeProfile, field.id) || "").trim();
+    const rawValue = fromDom || fromProfile;
+    const isMissing = !rawValue;
+
+    values[field.id] = rawValue;
+    if (sectionCounts[field.section]) {
+      sectionCounts[field.section].total += 1;
+      if (isMissing) sectionCounts[field.section].missing += 1;
+    }
+    if (isMissing) {
+      missingFields.push(field);
+    }
+  });
+
+  return {
+    total: ATHLETE_QUESTIONNAIRE_FIELDS.length,
+    completed: ATHLETE_QUESTIONNAIRE_FIELDS.length - missingFields.length,
+    values,
+    sectionCounts,
+    missingFields
+  };
+}
+
+function getAthleteQuestionnaireMeta(profile = getProfile(), { useDom = false } = {}) {
+  const progress = getAthleteQuestionnaireProgress(profile, { useDom });
+  const missing = progress.missingFields.length;
+  const complete = missing === 0;
+  const lowGapThreshold = Math.max(1, Math.ceil(progress.total * 0.2));
+  const pillClass = complete
+    ? "status-pill-active"
+    : (missing <= lowGapThreshold ? "status-pill-journal" : "status-pill-pending");
+  const label = currentLang === "es"
+    ? `Cuestionario ${progress.completed}/${progress.total}`
+    : `Questionnaire ${progress.completed}/${progress.total}`;
+  const detail = complete
+    ? (currentLang === "es" ? "Completado" : "Completed")
+    : (currentLang === "es" ? `${missing} pendientes` : `${missing} missing`);
+  return { progress, missing, complete, pillClass, label, detail };
+}
+
+function renderAthleteQuestionnaireProgress(profile = getProfile(), { useDom = true } = {}) {
+  if (!athleteQuestionnaireProgress) return;
+  const meta = getAthleteQuestionnaireMeta(profile, { useDom });
+  const trainingMissing = meta.progress.sectionCounts?.training?.missing || 0;
+  const competitionMissing = meta.progress.sectionCounts?.competition?.missing || 0;
+  const coachingMissing = meta.progress.sectionCounts?.coaching?.missing || 0;
+  athleteQuestionnaireProgress.innerHTML = `
+    <span class="status-pill ${meta.pillClass}">${escapeHtml(meta.label)} - ${escapeHtml(meta.detail)}</span>
+    <span class="small muted">${currentLang === "es"
+      ? `Training ${trainingMissing} • Competencia ${competitionMissing} • Coaching Quick ${coachingMissing}`
+      : `Training ${trainingMissing} • Competition ${competitionMissing} • Coaching Quick ${coachingMissing}`}</span>
+  `;
+}
+
+function focusAthleteQuestionnaireField(fieldId = "") {
+  const field = ATHLETE_QUESTIONNAIRE_FIELDS.find((item) => item.id === fieldId) || null;
+  if (!field) return;
+  showTab("athlete-profile");
+  showProfileSubtab(field.panel || "training");
+  const input = document.getElementById(field.id);
+  if (!input) return;
+  window.setTimeout(() => {
+    input.focus?.();
+    if (typeof input.select === "function") input.select();
+  }, 90);
+}
+
+function hideQuestionnaireReminderModal() {
+  questionnaireReminderModal?.classList.add("hidden");
+  questionnairePromptContext = null;
+}
+
+function showQuestionnaireReminderModal(progress) {
+  if (!questionnaireReminderModal || !questionnaireReminderMessage || !questionnaireReminderMissingList) {
+    return false;
+  }
+  questionnairePromptContext = progress;
+  questionnaireReminderMissingList.innerHTML = "";
+  const labels = progress.missingFields
+    .slice(0, 6)
+    .map((field) => pickCopy(field.label))
+    .filter(Boolean);
+  if (questionnaireReminderMessage) {
+    const trainingMissing = progress.sectionCounts?.training?.missing || 0;
+    const competitionMissing = progress.sectionCounts?.competition?.missing || 0;
+    const coachingMissing = progress.sectionCounts?.coaching?.missing || 0;
+    questionnaireReminderMessage.textContent = currentLang === "es"
+      ? `Te faltan ${progress.missingFields.length} respuestas (${progress.completed}/${progress.total} completadas). Training: ${trainingMissing} • Competencia: ${competitionMissing} • Coaching Quick: ${coachingMissing}.`
+      : `You still have ${progress.missingFields.length} unanswered items (${progress.completed}/${progress.total} completed). Training: ${trainingMissing} • Competition: ${competitionMissing} • Coaching Quick: ${coachingMissing}.`;
+  }
+  labels.forEach((label) => {
+    const li = document.createElement("li");
+    li.textContent = label;
+    questionnaireReminderMissingList.appendChild(li);
+  });
+  if (progress.missingFields.length > labels.length) {
+    const li = document.createElement("li");
+    li.textContent = currentLang === "es"
+      ? `... y ${progress.missingFields.length - labels.length} mas`
+      : `... and ${progress.missingFields.length - labels.length} more`;
+    questionnaireReminderMissingList.appendChild(li);
+  }
+  questionnaireReminderModal.classList.remove("hidden");
+  focusOpenedWindow(questionnaireReminderModal);
+  return true;
+}
+
+function maybePromptAthleteQuestionnaire(profile = getProfile()) {
+  if (!isAthleteRole(profile?.role)) return;
+  const currentUserId = String(getAuthUser()?.id || profile?.user_id || "").trim();
+  if (questionnairePromptShownThisSession && currentUserId && questionnairePromptShownForUserId === currentUserId) {
+    return;
+  }
+  const progress = getAthleteQuestionnaireProgress(profile, { useDom: true });
+  if (!progress.missingFields.length) return;
+
+  if (showQuestionnaireReminderModal(progress)) {
+    questionnairePromptShownForUserId = currentUserId || questionnairePromptShownForUserId;
+    questionnairePromptShownThisSession = true;
+    return;
+  }
+
+  const missingLabels = progress.missingFields
+    .slice(0, 3)
+    .map((field) => pickCopy(field.label))
+    .filter(Boolean)
+    .join(", ");
+  const hasMore = progress.missingFields.length > 3;
+  const promptMessage = currentLang === "es"
+    ? `Tu cuestionario del atleta sigue incompleto (${progress.completed}/${progress.total}). Es MUY importante responder todas las preguntas para que tu coach tenga datos correctos.\n\nPendientes: ${missingLabels}${hasMore ? ", ..." : ""}\n\nQuieres continuar el cuestionario ahora?`
+    : `Your athlete questionnaire is still incomplete (${progress.completed}/${progress.total}). It is VERY important to answer every question so your coach has accurate data.\n\nMissing: ${missingLabels}${hasMore ? ", ..." : ""}\n\nDo you want to continue now?`;
+
+  questionnairePromptShownForUserId = currentUserId || questionnairePromptShownForUserId;
+  questionnairePromptShownThisSession = true;
+  if (window.confirm(promptMessage)) {
+    focusAthleteQuestionnaireField(progress.missingFields[0]?.id || "");
+  } else {
+    toast(currentLang === "es"
+      ? "Puedes continuar el cuestionario luego desde Profile."
+      : "You can continue the questionnaire later from Profile.");
+  }
+}
+
+function maybePromptAthleteQuestionnaireAfterLogin(profile = getProfile(), { source = "login" } = {}) {
+  if (!isAthleteRole(profile?.role)) return;
+  if (source === "view-switch" && questionnaireReminderModal && !questionnaireReminderModal.classList.contains("hidden")) return;
+  maybePromptAthleteQuestionnaire(profile);
 }
 
 function renderCoachQuickPreview(profile) {
@@ -10998,6 +11503,49 @@ function fillAthleteProfileForm(profile) {
   if (aTrainingRoutines) aTrainingRoutines.value = profile.trainingRoutines || "";
   if (aTrainingVolume) aTrainingVolume.value = profile.trainingVolume || "";
   if (aTrainingFocus) aTrainingFocus.value = profile.trainingFocus || "";
+  if (aPreferredMoves) aPreferredMoves.value = profile.preferredMoves || profile.preferred_moves || "";
+  if (aStance) {
+    const stanceValue = String(profile.stance || "").trim().toLowerCase();
+    aStance.value = ["left", "right", "switch"].includes(stanceValue) ? stanceValue : "";
+  }
+  if (aQuestionnaireNotes) {
+    aQuestionnaireNotes.value = profile.questionnaireNotes || profile.notes || "";
+  }
+  if (athleteCoachQuestionnaireTitle) {
+    athleteCoachQuestionnaireTitle.textContent = currentLang === "es" ? "Anotaciones del entrenador" : "Coach annotations";
+  }
+  if (athleteCoachQuestionnaireText) {
+    const coachNote = String(profile.coachQuestionnaireNotes || "").trim();
+    const updatedBy = String(profile.questionnaireUpdatedBy || "").trim();
+    const updatedAt = String(profile.questionnaireUpdatedAt || "").trim();
+    let updatedLabel = "";
+    if (updatedAt) {
+      const parsed = new Date(updatedAt);
+      if (!Number.isNaN(parsed.getTime())) {
+        const locale = currentLang === "es" ? "es-US" : "en-US";
+        updatedLabel = parsed.toLocaleString(locale, {
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+          timeZone: APP_TIMEZONE
+        });
+      }
+    }
+    if (coachNote) {
+      const metaParts = [updatedBy, updatedLabel].filter(Boolean);
+      athleteCoachQuestionnaireText.textContent = metaParts.length
+        ? `${coachNote} (${metaParts.join(" - ")})`
+        : coachNote;
+      athleteCoachQuestionnaireText.classList.remove("muted");
+    } else {
+      athleteCoachQuestionnaireText.textContent = currentLang === "es"
+        ? "Tu entrenador aun no ha agregado anotaciones."
+        : "Your coach has not added annotations yet.";
+      athleteCoachQuestionnaireText.classList.add("muted");
+    }
+  }
+  renderAthleteQuestionnaireProgress(profile, { useDom: true });
   aStyle.value = profile.style || "freestyle";
   aWeight.value = profile.currentWeight || "";
   aWeightClass.value = profile.weightClass || "";
@@ -11056,6 +11604,9 @@ function fillAthleteProfileForm(profile) {
   if (aLeftAttack) aLeftAttack.value = profile.defaultTechniques?.leftAttack || "";
   if (aRightAttack) aRightAttack.value = profile.defaultTechniques?.rightAttack || "";
   if (aPreferredTies) aPreferredTies.value = profile.defaultTechniques?.preferredTies || "";
+  if (aChallengeOne) aChallengeOne.value = profile.challengeOne || profile.challenges?.[0] || "";
+  if (aChallengeTwo) aChallengeTwo.value = profile.challengeTwo || profile.challenges?.[1] || "";
+  if (aChallengeThree) aChallengeThree.value = profile.challengeThree || profile.challenges?.[2] || "";
   if (aMiscNotes) aMiscNotes.value = profile.defaultTechniques?.miscNotes || "";
 
   fillTechniques(".a-tech-neutral", profile.techniques?.neutral || []);
@@ -11093,6 +11644,9 @@ async function syncAthleteProfileToCoachWorkspace(profile = getProfile(), authUs
     trainingRoutines: String(profile.trainingRoutines || "").trim(),
     trainingVolume: String(profile.trainingVolume || "").trim(),
     trainingFocus: String(profile.trainingFocus || "").trim(),
+    preferredMoves: String(profile.preferredMoves || profile.preferred_moves || "").trim(),
+    stance: String(profile.stance || "").trim(),
+    questionnaireNotes: String(profile.questionnaireNotes || profile.notes || "").trim(),
     schoolName: String(profile.schoolName || "").trim(),
     clubName: String(profile.clubName || "").trim(),
     schoolGrade: String(profile.schoolGrade || "").trim(),
@@ -11120,6 +11674,14 @@ async function syncAthleteProfileToCoachWorkspace(profile = getProfile(), authUs
     strategyA: String(profile.strategyA || "").trim(),
     strategyB: String(profile.strategyB || "").trim(),
     strategyC: String(profile.strategyC || "").trim(),
+    challenges: (Array.isArray(profile.challenges) ? profile.challenges : [
+      profile.challengeOne,
+      profile.challengeTwo,
+      profile.challengeThree
+    ]).map((item) => String(item || "").trim()).filter(Boolean),
+    challengeOne: String(profile.challengeOne || profile.challenges?.[0] || "").trim(),
+    challengeTwo: String(profile.challengeTwo || profile.challenges?.[1] || "").trim(),
+    challengeThree: String(profile.challengeThree || profile.challenges?.[2] || "").trim(),
     resultsHistory: String(profile.resultsHistory || "").trim(),
     international: String(profile.international || "").trim(),
     internationalEvents: String(profile.internationalEvents || "").trim(),
@@ -11964,29 +12526,69 @@ if (profileSubtabButtons.length) {
   showProfileSubtab(currentProfileSubtab);
 }
 
+async function saveAthleteProfileFromForm({
+  successToast = pickCopy({ en: "Profile saved.", es: "Perfil guardado." })
+} = {}) {
+  const existing = getProfile() || {};
+  const updated = readAthleteProfileForm(existing);
+  const nextRole = normalizeAuthRole(updated.role || existing.role);
+  updated.role = nextRole;
+  updated.view = resolveViewForRole(nextRole, updated.view);
+  const authUser = getAuthUser();
+  if (authUser && normalizeAuthRole(authUser.role) !== nextRole) {
+    setAuthUser({ ...authUser, role: nextRole });
+  }
+  setProfile(updated);
+  await applyProfile(updated);
+  if (isAthleteRole(nextRole)) {
+    try {
+      await syncAthleteProfileToCoachWorkspace(updated, getAuthUser());
+    } catch (err) {
+      console.warn("Athlete workspace profile sync failed", err);
+    }
+  }
+  renderCoachQuickPreview(updated);
+  if (successToast) toast(successToast);
+  return updated;
+}
+
 if (athleteProfileForm) {
   athleteProfileForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const existing = getProfile() || {};
-    const updated = readAthleteProfileForm(existing);
-    const nextRole = normalizeAuthRole(updated.role || existing.role);
-    updated.role = nextRole;
-    updated.view = resolveViewForRole(nextRole, updated.view);
-    const authUser = getAuthUser();
-    if (authUser && normalizeAuthRole(authUser.role) !== nextRole) {
-      setAuthUser({ ...authUser, role: nextRole });
+    try {
+      await saveAthleteProfileFromForm();
+    } catch (err) {
+      console.warn("Athlete profile save failed", err);
+      toast(pickCopy({
+        en: "Could not save profile. Please try again.",
+        es: "No se pudo guardar el perfil. Intenta de nuevo."
+      }));
     }
-    setProfile(updated);
-    await applyProfile(updated);
-    if (isAthleteRole(nextRole)) {
-      try {
-        await syncAthleteProfileToCoachWorkspace(updated, getAuthUser());
-      } catch (err) {
-        console.warn("Athlete workspace profile sync failed", err);
+  });
+}
+
+if (continueQuestionnaireLaterBtn) {
+  continueQuestionnaireLaterBtn.addEventListener("click", async () => {
+    try {
+      await saveAthleteProfileFromForm({ successToast: "" });
+      if (isAthleteRole(getProfile()?.role)) {
+        showTab("today");
+      } else if (isCoachRouteContext()) {
+        focusRoutePanel("coach-athletes");
+      } else {
+        showTab("athlete-profile");
       }
+      toast(pickCopy({
+        en: "Saved. You can continue the questionnaire later from Profile.",
+        es: "Guardado. Puedes seguir el cuestionario luego desde Perfil."
+      }));
+    } catch (err) {
+      console.warn("Questionnaire continue-later save failed", err);
+      toast(pickCopy({
+        en: "Could not save your progress. Please try again.",
+        es: "No se pudo guardar tu progreso. Intenta de nuevo."
+      }));
     }
-    renderCoachQuickPreview(updated);
-    toast(pickCopy({ en: "Profile saved.", es: "Perfil guardado." }));
   });
 }
 
@@ -12071,8 +12673,19 @@ coachQuickInputs.forEach((input) => {
   });
 });
 
+ATHLETE_QUESTIONNAIRE_FIELDS.forEach((field) => {
+  const input = document.getElementById(field.id);
+  if (!input) return;
+  const syncProgress = () => {
+    renderAthleteQuestionnaireProgress(readAthleteProfileForm(getProfile() || {}), { useDom: true });
+  };
+  input.addEventListener("input", syncProgress);
+  input.addEventListener("change", syncProgress);
+});
+
 renderProfileTagPicker(profileTagState);
 renderCoachQuickPreview(getProfile());
+renderAthleteQuestionnaireProgress(getProfile(), { useDom: true });
 
 // ---------- FAVORITES ----------
 const FAV_KEY = "wpl_favorites";
@@ -16310,6 +16923,9 @@ function renderParentHome() {
   const verified = isParentVerified(profile);
   const statusMeta = getParentVerificationMeta(profile.status);
   const athleteName = getParentLinkedAthleteName(profile);
+  const linkedAthlete = getParentPortalLinkedAthlete();
+  const rawLinkedAthlete = linkedAthlete ? (getRawAthleteRecord(linkedAthlete.name) || linkedAthlete) : null;
+  const questionnaireMeta = rawLinkedAthlete ? getAthleteQuestionnaireMeta(rawLinkedAthlete, { useDom: false }) : null;
   const coachRecord = getParentPortalCoachRecord();
   const primaryAssignment = getParentPortalPrimaryAssignment();
   const latestJournal = getParentPortalLatestJournal();
@@ -16324,6 +16940,7 @@ function renderParentHome() {
       <ul class="list tight">
         <li>${currentLang === "es" ? "Atleta solicitado" : "Requested athlete"}: ${escapeHtml(athleteName || "-")}</li>
         <li>${currentLang === "es" ? "Estado" : "Status"}: ${escapeHtml(statusMeta.label)}</li>
+        ${questionnaireMeta ? `<li>${currentLang === "es" ? "Cuestionario del atleta" : "Athlete questionnaire"}: ${escapeHtml(`${questionnaireMeta.progress.completed}/${questionnaireMeta.progress.total} (${questionnaireMeta.detail})`)}</li>` : ""}
       </ul>
     `;
     parentTrainingCard.innerHTML = `<p class="small muted">${currentLang === "es" ? "El plan de hoy aparecera aqui en cuanto el coach verifique el acceso." : "Today's training will appear here as soon as the coach verifies access."}</p>`;
@@ -16340,6 +16957,7 @@ function renderParentHome() {
     <ul class="list tight">
       <li>${currentLang === "es" ? "Coach vinculado" : "Linked coach"}: ${escapeHtml(coachRecord.name || "-")}</li>
       <li>${currentLang === "es" ? "Estado" : "Status"}: ${escapeHtml(statusMeta.label)}</li>
+      ${questionnaireMeta ? `<li>${currentLang === "es" ? "Cuestionario del atleta" : "Athlete questionnaire"}: ${escapeHtml(`${questionnaireMeta.progress.completed}/${questionnaireMeta.progress.total} (${questionnaireMeta.detail})`)}</li>` : ""}
     </ul>
   `;
   parentTrainingCard.innerHTML = renderParentAssignmentSummary(primaryAssignment);
@@ -16357,6 +16975,9 @@ function renderParentHome() {
   parentAssignmentsCard.innerHTML = openAssignments.length
     ? `<ul class="list tight">${openAssignments.map((item) => `<li><strong>${escapeHtml(item.title)}</strong> - ${escapeHtml(getAssignmentStatusMeta(item.status).label)}</li>`).join("")}</ul>`
     : `<p class="small muted">${currentLang === "es" ? "No hay tareas abiertas para este atleta." : "No open tasks for this athlete right now."}</p>`;
+  if (questionnaireMeta && !questionnaireMeta.complete) {
+    parentAssignmentsCard.innerHTML += `<p class="small muted">${currentLang === "es" ? "El cuestionario del atleta aun tiene respuestas pendientes. Recomienda completarlo para mejorar el seguimiento del coach." : "The athlete questionnaire still has missing answers. Encourage completion so the coach can track progress accurately."}</p>`;
+  }
   document.getElementById("parentCoachMessageBtn")?.addEventListener("click", async () => {
     showTab("messages");
     if (coachRecord.uid) {
@@ -16962,6 +17583,22 @@ function refreshAthletePortalDataSync() {
       athletePortalAthleteCache = snapshot.exists
         ? normalizeCoachAthleteRecord(snapshot.id, snapshot.data() || {})
         : null;
+      const baseProfile = getProfile();
+      if (isAthleteRole(baseProfile?.role)) {
+        const mergedProfile = athletePortalAthleteCache
+          ? {
+              ...baseProfile,
+              ...athletePortalAthleteCache,
+              role: baseProfile.role,
+              view: baseProfile.view,
+              lang: baseProfile.lang,
+              email: baseProfile.email,
+              user_id: baseProfile.user_id,
+              name: athletePortalAthleteCache.name || baseProfile.name
+            }
+          : baseProfile;
+        fillAthleteProfileForm(mergedProfile);
+      }
       renderToday(getCurrentAppDayIndex());
       renderPlanGrid(getCurrentAppDayIndex());
       renderCompetitionPreview(getAthletePortalLinkedAthlete() || getProfile());
@@ -17692,6 +18329,7 @@ function renderCoachAthleteProfile(athleteName = getSelectedCoachAthleteName()) 
   const alerts = getAthleteAlerts(athlete);
   const badges = buildAthleteIndicatorBadges(athlete, board, alerts);
   const rawAthlete = getRawAthleteRecord(athlete.name) || athlete;
+  const questionnaireMeta = getAthleteQuestionnaireMeta(rawAthlete, { useDom: false });
   const cornerPlan = getAthleteCornerPlan(rawAthlete);
   const noteBoard = getCoachNoteRecord(athlete.name);
   const latestAnalysis = getLatestCoachMatchAnalysisForAthlete(athlete.name);
@@ -17709,6 +18347,27 @@ function renderCoachAthleteProfile(athleteName = getSelectedCoachAthleteName()) 
   const defense = translateTechniqueList(rawAthlete.defenseTop3 || []).join(", ") || notSet;
   const tags = normalizeSmartTags(rawAthlete.tags).map((tag) => formatSmartTag(tag)).join(" • ") || notSet;
   const meta = [athlete.weight, `${currentLang === "es" ? "Cat." : "Class"} ${athlete.weightClass || notSet}`, athlete.style].filter(Boolean).join(" • ");
+  const questionnairePreferredMoves = String(rawAthlete.preferredMoves || rawAthlete.preferred || "").trim();
+  const questionnaireStance = String(rawAthlete.stance || rawAthlete.defaultTechniques?.leadLeg || "").trim().toLowerCase();
+  const questionnaireYears = String(rawAthlete.experienceYears || rawAthlete.years || "").trim();
+  const questionnaireWeightClass = String(rawAthlete.weightClass || "").trim();
+  const questionnaireAthleteNotes = String(rawAthlete.questionnaireNotes || rawAthlete.notes || "").trim();
+  const questionnaireCoachNotes = String(rawAthlete.coachQuestionnaireNotes || "").trim();
+  const questionnaireUpdatedBy = String(rawAthlete.questionnaireUpdatedBy || "").trim();
+  const questionnaireUpdatedAt = String(rawAthlete.questionnaireUpdatedAt || "").trim();
+  let questionnaireUpdatedLabel = "";
+  if (questionnaireUpdatedAt) {
+    const parsedUpdatedAt = new Date(questionnaireUpdatedAt);
+    if (!Number.isNaN(parsedUpdatedAt.getTime())) {
+      questionnaireUpdatedLabel = parsedUpdatedAt.toLocaleString(currentLang === "es" ? "es-US" : "en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: APP_TIMEZONE
+      });
+    }
+  }
   const taskListHtml = board.tasks.length
     ? `<ul class="list tight">${board.tasks.map((task) => `<li>${task}</li>`).join("")}</ul>`
     : `<p class="small muted">${currentLang === "es" ? "No hay tareas pendientes." : "No pending tasks."}</p>`;
@@ -17732,8 +18391,10 @@ function renderCoachAthleteProfile(athleteName = getSelectedCoachAthleteName()) 
   coachAthleteProfileMeta.textContent = meta || selectHint;
 
   if (coachAthleteProfileStatus) {
-    coachAthleteProfileStatus.innerHTML = badges
-      .map((badge) => `<span class="${badge.className}">${badge.label}</span>`)
+    coachAthleteProfileStatus.innerHTML = [
+      ...badges.map((badge) => `<span class="${badge.className}">${badge.label}</span>`),
+      `<span class="status-pill ${questionnaireMeta.pillClass}">${escapeHtml(currentLang === "es" ? `Cuestionario: ${questionnaireMeta.progress.completed}/${questionnaireMeta.progress.total}` : `Questionnaire: ${questionnaireMeta.progress.completed}/${questionnaireMeta.progress.total}`)}</span>`
+    ]
       .join("");
   }
 
@@ -17757,6 +18418,7 @@ function renderCoachAthleteProfile(athleteName = getSelectedCoachAthleteName()) 
             <li><strong>${currentLang === "es" ? "Tareas pendientes" : "Pending tasks"}:</strong> ${board.tasks.length}</li>
             <li><strong>${currentLang === "es" ? "Alertas activas" : "Active alerts"}:</strong> ${alerts.length}</li>
             <li><strong>${currentLang === "es" ? "Experiencia" : "Experience"}:</strong> ${experienceYears}</li>
+            <li><strong>${currentLang === "es" ? "Cuestionario" : "Questionnaire"}:</strong> ${questionnaireMeta.progress.completed}/${questionnaireMeta.progress.total} (${questionnaireMeta.detail})</li>
             <li><strong>${currentLang === "es" ? "Historial" : "History"}:</strong> ${athlete.history || notSet}</li>
           </ul>
         </div>
@@ -17821,6 +18483,47 @@ function renderCoachAthleteProfile(athleteName = getSelectedCoachAthleteName()) 
           <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Notas recientes" : "Recent notes"}</p>
           ${(noteBoard?.recentNotes || []).length ? `<ul class="list tight">${noteBoard.recentNotes.slice(0, 3).map((item) => `<li>${item}</li>`).join("")}</ul>` : `<p class="small muted">${currentLang === "es" ? "No hay notas recientes." : "No recent notes yet."}</p>`}
         </div>
+        <div class="mini-card">
+          <h3>${currentLang === "es" ? "Formulario del cuestionario (coach)" : "Questionnaire Form (Coach)"}</h3>
+          <p class="small muted">${currentLang === "es" ? "Edita respuestas clave del atleta y agrega anotaciones visibles para el atleta." : "Edit core athlete responses and add annotations visible to the athlete."}</p>
+          <form id="coachAthleteQuestionnaireForm" class="form compact-form">
+            <div class="grid">
+              <label>
+                <span>${currentLang === "es" ? "Movimientos preferidos" : "Preferred move(s)"}</span>
+                <input id="coachQuestionPreferredMoves" type="text" value="${escapeHtml(questionnairePreferredMoves)}" placeholder="${escapeHtml(currentLang === "es" ? "ej., Finalizacion de pierna simple" : "e.g., Single leg finish")}">
+              </label>
+              <label>
+                <span>${currentLang === "es" ? "Postura" : "Stance"}</span>
+                <select id="coachQuestionStance">
+                  <option value="" ${!questionnaireStance ? "selected" : ""}>${currentLang === "es" ? "Selecciona postura" : "Select stance"}</option>
+                  <option value="left" ${questionnaireStance === "left" ? "selected" : ""}>${currentLang === "es" ? "Izquierda" : "Left"}</option>
+                  <option value="right" ${questionnaireStance === "right" ? "selected" : ""}>${currentLang === "es" ? "Derecha" : "Right"}</option>
+                  <option value="switch" ${questionnaireStance === "switch" ? "selected" : ""}>${currentLang === "es" ? "Cambio" : "Switch"}</option>
+                </select>
+              </label>
+              <label>
+                <span>${currentLang === "es" ? "Anos de experiencia" : "Years of experience"}</span>
+                <input id="coachQuestionYears" type="number" min="0" max="40" value="${escapeHtml(questionnaireYears)}" placeholder="5">
+              </label>
+              <label>
+                <span>${currentLang === "es" ? "Categoria de peso" : "Weight class"}</span>
+                <input id="coachQuestionWeightClass" type="text" value="${escapeHtml(questionnaireWeightClass)}" placeholder="${escapeHtml(currentLang === "es" ? "ej., 74 kg" : "e.g., 74 kg")}">
+              </label>
+              <label>
+                <span>${currentLang === "es" ? "Notas / metas del atleta" : "Athlete notes / goals"}</span>
+                <textarea id="coachQuestionAthleteNotes" rows="3" placeholder="${escapeHtml(currentLang === "es" ? "Metas del atleta" : "Athlete goals")}">${escapeHtml(questionnaireAthleteNotes)}</textarea>
+              </label>
+              <label>
+                <span>${currentLang === "es" ? "Anotaciones del entrenador (visible al atleta)" : "Coach annotations (visible to athlete)"}</span>
+                <textarea id="coachQuestionCoachNotes" rows="3" placeholder="${escapeHtml(currentLang === "es" ? "Ej., Mantener postura baja al atacar." : "e.g., Stay low on entries.")}">${escapeHtml(questionnaireCoachNotes)}</textarea>
+              </label>
+            </div>
+            <div class="row">
+              <button type="submit" class="primary">${currentLang === "es" ? "Guardar cambios del cuestionario" : "Save questionnaire updates"}</button>
+            </div>
+            <p class="small" id="coachAthleteQuestionnaireStatus">${questionnaireUpdatedLabel || questionnaireUpdatedBy ? `${currentLang === "es" ? "Ultima actualizacion" : "Last update"}: ${escapeHtml([questionnaireUpdatedBy, questionnaireUpdatedLabel].filter(Boolean).join(" - "))}` : ""}</p>
+          </form>
+        </div>
       </div>
     `,
     corner: `
@@ -17866,6 +18569,13 @@ function renderCoachAthleteProfile(athleteName = getSelectedCoachAthleteName()) 
     coachProfileOpenCompetitionBtn.addEventListener("click", () => {
       selectCoachMatchAthlete(athlete.name);
       showTab("coach-competition");
+    });
+  }
+
+  const coachAthleteQuestionnaireForm = document.getElementById("coachAthleteQuestionnaireForm");
+  if (coachAthleteQuestionnaireForm) {
+    coachAthleteQuestionnaireForm.addEventListener("submit", (event) => {
+      saveCoachAthleteQuestionnaire(event, athlete.name);
     });
   }
 }
@@ -17972,6 +18682,8 @@ function renderCoachAthleteQuickActions(selectedAthleteName = "") {
   const board = getAthleteTaskBoard(athlete.name);
   const alerts = getAthleteAlerts(athlete);
   const badges = buildAthleteIndicatorBadges(athlete, board, alerts);
+  const rawAthlete = getRawAthleteRecord(athlete.name) || athlete;
+  const questionnaireMeta = getAthleteQuestionnaireMeta(rawAthlete, { useDom: false });
   const latestAssignment = getPlanAssignmentsForAthlete(athlete.name).find((item) => item.status !== "completed");
   const latestAnalysis = getLatestCoachMatchAnalysisForAthlete(athlete.name);
   const quickMeta = [athlete.weight, athlete.weightClass || "-", athlete.style].filter(Boolean).join(" • ");
@@ -17995,6 +18707,10 @@ function renderCoachAthleteQuickActions(selectedAthleteName = "") {
       <div class="coach-athlete-action-stat">
         <span>${currentLang === "es" ? "Match analysis" : "Match analysis"}</span>
         <strong>${latestAnalysis?.mediaTitle || (currentLang === "es" ? "Sin analisis" : "No analysis yet")}</strong>
+      </div>
+      <div class="coach-athlete-action-stat">
+        <span>${currentLang === "es" ? "Cuestionario" : "Questionnaire"}</span>
+        <strong>${questionnaireMeta.progress.completed}/${questionnaireMeta.progress.total} (${questionnaireMeta.detail})</strong>
       </div>
     </div>
     <div class="coach-athlete-action-buttons">
@@ -18068,6 +18784,8 @@ function renderAthleteManagement() {
     card.className = "athlete-roster-item coach-athlete-name-option";
     const isActive = athlete.name === selectedName;
     card.classList.toggle("active", isActive);
+    const rawAthlete = getRawAthleteRecord(athlete.name) || athlete;
+    const questionnaireMeta = getAthleteQuestionnaireMeta(rawAthlete, { useDom: false });
     const board = getAthleteTaskBoard(athlete.name);
     const alerts = getAthleteAlerts(athlete);
     const pendingCount = board.tasks.length;
@@ -18082,6 +18800,7 @@ function renderAthleteManagement() {
         <div class="coach-athlete-name-option-stats">
           <span class="status-pill status-pill-pending">${currentLang === "es" ? "Pendientes" : "Pending"}: ${pendingCount}</span>
           <span class="status-pill status-pill-alert">${currentLang === "es" ? "Alertas" : "Alerts"}: ${alertCount}</span>
+          <span class="status-pill ${questionnaireMeta.pillClass}">${escapeHtml(currentLang === "es" ? `Cuestionario: ${questionnaireMeta.progress.completed}/${questionnaireMeta.progress.total}` : `Questionnaire: ${questionnaireMeta.progress.completed}/${questionnaireMeta.progress.total}`)}</span>
         </div>
       </div>
       <div class="small muted">${currentLang === "es" ? "Toca para abrir este atleta." : "Tap to open this athlete."}</div>
@@ -18266,6 +18985,150 @@ function renderJournalMonitor() {
         coachJournalRecentList.appendChild(card);
       });
     }
+  }
+}
+
+function normalizeCoachQuestionnaireStance(value = "") {
+  const normalized = String(value || "").trim().toLowerCase();
+  return ["left", "right", "switch"].includes(normalized) ? normalized : "";
+}
+
+async function resolveAthleteUserUidFromRecord(athleteRecord) {
+  const directUid = normalizeUid(athleteRecord?.athleteUid);
+  if (directUid) return directUid;
+  const athleteEmail = normalizeEmail(athleteRecord?.athleteEmail || "");
+  if (!firebaseFirestoreInstance || !athleteEmail) return "";
+  try {
+    const usersRef = firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION);
+    const snapshot = await withTimeout(
+      usersRef.where("email", "==", athleteEmail).where("role", "==", "athlete").limit(1).get(),
+      FIREBASE_OP_TIMEOUT_MS * 2,
+      "firestore_athlete_user_lookup_timeout"
+    );
+    if (!snapshot.empty) return String(snapshot.docs[0].id || "").trim();
+  } catch (err) {
+    console.warn("Athlete user lookup by email failed", err);
+  }
+  return "";
+}
+
+async function saveCoachAthleteQuestionnaire(event, athleteName = getSelectedCoachAthleteName()) {
+  event?.preventDefault?.();
+  const statusEl = document.getElementById("coachAthleteQuestionnaireStatus");
+  const athletesRef = getCoachWorkspaceCollectionRef("athletes");
+  const athleteRecord = getCoachAthleteRecordByIdentity(athleteName) || getAthletesData().find((entry) => entry.name === athleteName) || null;
+  if (!athleteName || !athleteRecord) {
+    const message = currentLang === "es" ? "Selecciona un atleta antes de guardar." : "Select an athlete before saving.";
+    if (statusEl) statusEl.textContent = message;
+    toast(message);
+    return;
+  }
+  if (!athletesRef) {
+    const message = currentLang === "es" ? "No hay acceso al registro de atletas." : "Athlete store is not available.";
+    if (statusEl) statusEl.textContent = message;
+    toast(message);
+    return;
+  }
+
+  const preferredMoves = String(document.getElementById("coachQuestionPreferredMoves")?.value || "").trim();
+  const stance = normalizeCoachQuestionnaireStance(document.getElementById("coachQuestionStance")?.value || "");
+  const years = String(document.getElementById("coachQuestionYears")?.value || "").trim();
+  const weightClass = String(document.getElementById("coachQuestionWeightClass")?.value || "").trim();
+  const questionnaireNotes = String(document.getElementById("coachQuestionAthleteNotes")?.value || "").trim();
+  const coachQuestionnaireNotes = String(document.getElementById("coachQuestionCoachNotes")?.value || "").trim();
+  const coachName = String(getProfile()?.name || getAuthUser()?.email || "").trim();
+  const athleteId = normalizeAthleteId(athleteRecord.id, athleteRecord.name || athleteName);
+  const athleteUid = normalizeUid(athleteRecord.athleteUid);
+  const athleteEmail = normalizeEmail(athleteRecord.athleteEmail || athleteRecord.email || "");
+  const nowIso = new Date().toISOString();
+
+  const payload = stripUndefinedDeep({
+    name: athleteRecord.name || athleteName,
+    athleteUid,
+    athleteEmail,
+    preferredMoves,
+    preferred_moves: preferredMoves,
+    preferred: preferredMoves,
+    stance,
+    years,
+    experienceYears: years,
+    experience_years: years,
+    weightClass,
+    weight_class: weightClass,
+    questionnaireNotes,
+    notes: questionnaireNotes,
+    coachQuestionnaireNotes,
+    questionnaireUpdatedBy: coachName,
+    questionnaireUpdatedAt: getFirestoreServerTimestamp(),
+    updatedAt: getFirestoreServerTimestamp()
+  });
+
+  try {
+    await withTimeout(
+      athletesRef.doc(athleteId).set(payload, { merge: true }),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_coach_questionnaire_update_timeout"
+    );
+
+    const nextRecord = normalizeCoachAthleteRecord(athleteId, {
+      ...athleteRecord,
+      preferredMoves,
+      preferred_moves: preferredMoves,
+      preferred: preferredMoves,
+      stance,
+      years,
+      experienceYears: years,
+      experience_years: years,
+      weightClass,
+      weight_class: weightClass,
+      questionnaireNotes,
+      notes: questionnaireNotes,
+      coachQuestionnaireNotes,
+      questionnaireUpdatedBy: coachName,
+      questionnaireUpdatedAt: nowIso,
+      updatedAt: nowIso
+    });
+    coachAthletesCache = coachWorkspaceSortByUpdated([
+      nextRecord,
+      ...coachAthletesCache.filter((record) => record.id !== athleteId)
+    ]);
+
+    const athleteUserUid = athleteUid || await resolveAthleteUserUidFromRecord(athleteRecord);
+    if (athleteUserUid) {
+      await persistFirebaseProfile(athleteUserUid, {
+        preferredMoves,
+        preferred_moves: preferredMoves,
+        stance,
+        years,
+        experienceYears: years,
+        experience_years: years,
+        weightClass,
+        weight_class: weightClass,
+        questionnaireNotes,
+        coachQuestionnaireNotes,
+        questionnaireUpdatedBy: coachName,
+        questionnaireUpdatedAt: nowIso,
+        updatedAt: nowIso
+      }, { required: false });
+    }
+
+    if (statusEl) {
+      statusEl.textContent = currentLang === "es"
+        ? "Formulario actualizado. El atleta ya puede ver estos cambios."
+        : "Questionnaire updated. The athlete can now see these changes.";
+    }
+    toast(currentLang === "es" ? "Cuestionario guardado." : "Questionnaire saved.");
+    renderAthleteManagement();
+    renderCoachAthleteProfile(athleteName);
+    renderCoachMatchView(athleteName);
+    renderCompetitionPreview(getCoachAthleteRecordByIdentity(athleteName) || athleteRecord);
+  } catch (err) {
+    console.warn("Coach questionnaire save failed", err);
+    const message = currentLang === "es"
+      ? "No se pudo guardar el cuestionario del atleta."
+      : "Could not save athlete questionnaire.";
+    if (statusEl) statusEl.textContent = message;
+    toast(message);
   }
 }
 

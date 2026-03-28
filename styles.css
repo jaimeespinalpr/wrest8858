@@ -2447,6 +2447,29 @@ button:active{
   color: var(--muted);
 }
 
+.questionnaire-reminder-card{
+  width: min(560px, 100%);
+}
+
+.questionnaire-reminder-copy{
+  margin-top: 4px;
+}
+
+.questionnaire-reminder-copy .small{
+  margin-top: 0;
+}
+
+.questionnaire-reminder-copy ul{
+  margin: 8px 0 0;
+}
+
+#athleteQuestionnaireProgress{
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px;
+  flex-wrap: wrap;
+}
+
 .register-form input,
 .register-form textarea,
 .register-form select{
@@ -8102,6 +8125,35 @@ svg{
   backdrop-filter: blur(8px);
 }
 
+.planner-track-switch{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(104, 132, 177, 0.24);
+  border-radius: 12px;
+  background: rgba(8, 16, 30, 0.62);
+}
+
+.planner-track-btn{
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.05);
+  color: #d7e7ff;
+  font-weight: 700;
+  padding: 8px 14px;
+}
+
+.planner-track-btn.active{
+  border-color: rgba(45, 212, 191, 0.5);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.88), rgba(45, 212, 191, 0.78));
+  color: #f8fdff;
+}
+
+.planner-track-panel.hidden{
+  display: none !important;
+}
+
 .planner-brand{
   display: flex;
   align-items: center;
@@ -8167,6 +8219,39 @@ svg{
   background: rgba(6, 14, 27, 0.88);
   display: grid;
   gap: 14px;
+}
+
+.planner-alt-sheet{
+  border: 1px solid rgba(104, 132, 177, 0.22);
+  border-radius: 14px;
+  padding: 14px;
+  background: rgba(6, 14, 27, 0.88);
+  display: grid;
+  gap: 12px;
+}
+
+.planner-alt-sheet > header h3{
+  margin: 0;
+}
+
+.planner-alt-sheet textarea{
+  min-height: 92px;
+}
+
+.planner-alt-meta{
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.planner-alt-grid{
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.planner-alt-actions{
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .planner-sheet-header{
@@ -8416,6 +8501,9 @@ svg{
   position: fixed;
   inset: 0;
   z-index: 80;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px;
 }
 
 .planner-modal-backdrop{
@@ -8766,7 +8854,18 @@ svg{
 }
 
 @media (max-width: 860px){
+  .planner-track-switch{
+    flex-direction: column;
+  }
+  .planner-track-btn{
+    width: 100%;
+    text-align: left;
+  }
   .planner-sheet-header{
+    grid-template-columns: 1fr;
+  }
+  .planner-alt-meta,
+  .planner-alt-grid{
     grid-template-columns: 1fr;
   }
   .planner-meta-boxes{

@@ -37,8 +37,18 @@
     settings: "planner_template_settings",
     library: "archmere_exercise_library",
     daily: "planner_daily_state",
-    categoryNames: "planner_category_names"
+    categoryNames: "planner_category_names",
+    track: "planner_active_track",
+    liftingDraft: "planner_lifting_draft",
+    mentalDraft: "planner_mental_draft"
   };
+
+  const TRACKS = ["wrestling", "lifting", "mental"];
+
+  function normalizeTrack(value) {
+    const raw = String(value || "").trim().toLowerCase();
+    return TRACKS.includes(raw) ? raw : "wrestling";
+  }
 
   function readJson(key, fallback) {
     try {
@@ -167,6 +177,7 @@
   const dailyState = readJson(STORAGE_KEYS.daily, {});
 
   const state = {
+    activeTrack: normalizeTrack(readJson(STORAGE_KEYS.track, "wrestling")),
     docInfo: {
       date: String(dailyState.date || ""),
       totalTime: String(dailyState.totalTime || "90")
@@ -203,6 +214,8 @@
     assignSearch: "",
     assignDueDate: "",
     assignModalBusy: false,
+    liftingDraft: readJson(STORAGE_KEYS.liftingDraft, {}) || {},
+    mentalDraft: readJson(STORAGE_KEYS.mentalDraft, {}) || {},
     lastSavedTemplateId: "",
     lastSentPlanId: "",
     toastTimer: null,
@@ -219,6 +232,12 @@
   });
 
   const els = {
+    headerTitle: document.getElementById("plannerHeaderTitle"),
+    headerSubtitle: document.getElementById("plannerHeaderSubtitle"),
+    trackSwitch: document.getElementById("plannerTrackSwitch"),
+    trackButtons: Array.from(root.querySelectorAll("[data-planner-track]")),
+    trackPanels: Array.from(root.querySelectorAll("[data-planner-track-panel]")),
+    wrestlingOnly: Array.from(root.querySelectorAll(".planner-track-wrestling-only")),
     timeBadge: document.getElementById("plannerTimeBadge"),
     timeLabel: document.getElementById("plannerTimeLabel"),
     openSettingsBtn: document.getElementById("plannerOpenSettingsBtn"),
@@ -281,7 +300,29 @@
     assignSearchInput: document.getElementById("plannerAssignSearchInput"),
     assignSelectAllBtn: document.getElementById("plannerAssignSelectAllBtn"),
     assignClearBtn: document.getElementById("plannerAssignClearBtn"),
-    assignDueDateInput: document.getElementById("plannerAssignDueDateInput")
+    assignDueDateInput: document.getElementById("plannerAssignDueDateInput"),
+    liftingTitleInput: document.getElementById("plannerLiftingTitle"),
+    liftingDateInput: document.getElementById("plannerLiftingDate"),
+    liftingTotalTimeInput: document.getElementById("plannerLiftingTotalTime"),
+    liftingWarmupInput: document.getElementById("plannerLiftingWarmup"),
+    liftingMainLiftsInput: document.getElementById("plannerLiftingMainLifts"),
+    liftingAccessoryInput: document.getElementById("plannerLiftingAccessory"),
+    liftingConditioningInput: document.getElementById("plannerLiftingConditioning"),
+    liftingRecoveryInput: document.getElementById("plannerLiftingRecovery"),
+    liftingSaveBtn: document.getElementById("plannerLiftingSaveBtn"),
+    liftingClearBtn: document.getElementById("plannerLiftingClearBtn"),
+    liftingStatus: document.getElementById("plannerLiftingStatus"),
+    mentalTitleInput: document.getElementById("plannerMentalTitle"),
+    mentalDateInput: document.getElementById("plannerMentalDate"),
+    mentalTotalTimeInput: document.getElementById("plannerMentalTotalTime"),
+    mentalBreathingInput: document.getElementById("plannerMentalBreathing"),
+    mentalVisualizationInput: document.getElementById("plannerMentalVisualization"),
+    mentalIqInput: document.getElementById("plannerMentalIq"),
+    mentalConfidenceInput: document.getElementById("plannerMentalConfidence"),
+    mentalReflectionInput: document.getElementById("plannerMentalReflection"),
+    mentalSaveBtn: document.getElementById("plannerMentalSaveBtn"),
+    mentalClearBtn: document.getElementById("plannerMentalClearBtn"),
+    mentalStatus: document.getElementById("plannerMentalStatus")
   };
 
   function persistDaily() {
@@ -419,6 +460,157 @@
     if (els.footerClub) els.footerClub.textContent = state.settings.clubName || defaults.clubName;
     if (els.footerCoach) els.footerCoach.textContent = state.settings.coach || defaults.coach;
     if (els.footerSeason) els.footerSeason.textContent = state.settings.season || defaults.season;
+  }
+
+  function getTrackUiCopy(track) {
+    if (track === "lifting") {
+      return {
+        title: "Lifting & Conditioning Planner",
+        subtitle: "Plan strength, power, and conditioning sessions."
+      };
+    }
+    if (track === "mental") {
+      return {
+        title: "Mind & Focus Training Planner",
+        subtitle: "Build mental prep routines and brain-performance sessions."
+      };
+    }
+    return {
+      title: "Wrestling Training Planner",
+      subtitle: "Build and assign wrestling practice plans."
+    };
+  }
+
+  function focusPlannerWindow(target = null, { smooth = false } = {}) {
+    const focusFn = typeof window.wplFocusOpenedWindow === "function" ? window.wplFocusOpenedWindow : null;
+    if (focusFn) {
+      focusFn(target || root, { smooth });
+      window.setTimeout(() => focusFn(target || root, { smooth }), 120);
+      return;
+    }
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      const node = target instanceof Element ? target : root;
+      node?.scrollIntoView?.({ behavior: smooth ? "smooth" : "auto", block: "start", inline: "nearest" });
+    }
+  }
+
+  function renderTrackPanels() {
+    const activeTrack = normalizeTrack(state.activeTrack);
+    state.activeTrack = activeTrack;
+    writeJson(STORAGE_KEYS.track, activeTrack);
+    const copy = getTrackUiCopy(activeTrack);
+    if (els.headerTitle) els.headerTitle.textContent = copy.title;
+    if (els.headerSubtitle) els.headerSubtitle.textContent = copy.subtitle;
+    els.trackButtons.forEach((btn) => {
+      const track = normalizeTrack(btn.dataset.plannerTrack);
+      const isActive = track === activeTrack;
+      btn.classList.toggle("active", isActive);
+      btn.setAttribute("aria-selected", isActive ? "true" : "false");
+    });
+    els.trackPanels.forEach((panel) => {
+      const panelTrack = normalizeTrack(panel.dataset.plannerTrackPanel);
+      panel.classList.toggle("hidden", panelTrack !== activeTrack);
+    });
+    const wrestlingMode = activeTrack === "wrestling";
+    els.wrestlingOnly.forEach((node) => {
+      node.classList.toggle("hidden", !wrestlingMode);
+    });
+  }
+
+  function getTrackDraftElements(track) {
+    if (track === "lifting") {
+      return {
+        title: els.liftingTitleInput,
+        date: els.liftingDateInput,
+        totalTime: els.liftingTotalTimeInput,
+        block1: els.liftingWarmupInput,
+        block2: els.liftingMainLiftsInput,
+        block3: els.liftingAccessoryInput,
+        block4: els.liftingConditioningInput,
+        block5: els.liftingRecoveryInput,
+        status: els.liftingStatus
+      };
+    }
+    if (track === "mental") {
+      return {
+        title: els.mentalTitleInput,
+        date: els.mentalDateInput,
+        totalTime: els.mentalTotalTimeInput,
+        block1: els.mentalBreathingInput,
+        block2: els.mentalVisualizationInput,
+        block3: els.mentalIqInput,
+        block4: els.mentalConfidenceInput,
+        block5: els.mentalReflectionInput,
+        status: els.mentalStatus
+      };
+    }
+    return null;
+  }
+
+  function getTrackDraftState(track) {
+    if (track === "lifting") return state.liftingDraft || {};
+    if (track === "mental") return state.mentalDraft || {};
+    return {};
+  }
+
+  function setTrackDraftState(track, draft) {
+    if (track === "lifting") {
+      state.liftingDraft = draft;
+      writeJson(STORAGE_KEYS.liftingDraft, draft);
+      return;
+    }
+    if (track === "mental") {
+      state.mentalDraft = draft;
+      writeJson(STORAGE_KEYS.mentalDraft, draft);
+    }
+  }
+
+  function fillTrackDraftInputs(track) {
+    const elements = getTrackDraftElements(track);
+    if (!elements) return;
+    const draft = getTrackDraftState(track);
+    Object.entries(elements).forEach(([key, input]) => {
+      if (!input || key === "status") return;
+      input.value = String(draft?.[key] || "");
+    });
+  }
+
+  function collectTrackDraftInputs(track) {
+    const elements = getTrackDraftElements(track);
+    if (!elements) return {};
+    const draft = {};
+    Object.entries(elements).forEach(([key, input]) => {
+      if (!input || key === "status") return;
+      draft[key] = String(input.value || "").trim();
+    });
+    return draft;
+  }
+
+  function setTrackDraftStatus(track, message = "", { isError = false } = {}) {
+    const elements = getTrackDraftElements(track);
+    if (!elements?.status) return;
+    elements.status.textContent = message;
+    elements.status.classList.toggle("planner-status-error", Boolean(isError));
+  }
+
+  function saveTrackDraft(track) {
+    const draft = collectTrackDraftInputs(track);
+    setTrackDraftState(track, draft);
+    const message = track === "mental"
+      ? "Mind & focus draft saved."
+      : "Lifting & conditioning draft saved.";
+    setTrackDraftStatus(track, message);
+    triggerToast(message);
+  }
+
+  function clearTrackDraft(track) {
+    setTrackDraftState(track, {});
+    fillTrackDraftInputs(track);
+    const message = track === "mental"
+      ? "Mind & focus draft cleared."
+      : "Lifting & conditioning draft cleared.";
+    setTrackDraftStatus(track, message);
   }
 
   function updateLogos() {
@@ -759,6 +951,7 @@
 
   function openTemplatesModal() {
     els.templatesModal?.classList.remove("hidden");
+    focusPlannerWindow(els.templatesModal, { smooth: true });
     loadPlannerTemplates().catch(() => {});
   }
 
@@ -890,6 +1083,7 @@
     if (els.assignDueDateInput) els.assignDueDateInput.value = nextDue;
     if (els.assignSearchInput) els.assignSearchInput.value = "";
     els.assignModal?.classList.remove("hidden");
+    focusPlannerWindow(els.assignModal, { smooth: true });
     setAssignStatus("Choose athletes, then send.");
     loadPlannerAthletesForAssignment().catch(() => {});
   }
@@ -1327,6 +1521,7 @@
     if (els.settingsSeasonInput) els.settingsSeasonInput.value = state.tempSettings.season || "";
     renderSettingsLogoPreview();
     els.settingsModal?.classList.remove("hidden");
+    focusPlannerWindow(els.settingsModal, { smooth: true });
   }
 
   function closeSettingsModal() {
@@ -1356,6 +1551,7 @@
 
   function openLibraryModal() {
     els.libraryModal?.classList.remove("hidden");
+    focusPlannerWindow(els.libraryModal, { smooth: true });
     renderLibraryGroups();
     renderCoachLibraries();
     ensureCoachLibrariesSync();
@@ -1712,6 +1908,7 @@
     renderLibraryGroups();
     updateTimeStatus();
     setBottomStatus(getBottomStatusDefaultMessage());
+    renderTrackPanels();
   }
 
   function handleRootClick(event) {
@@ -1906,6 +2103,14 @@
     root.addEventListener("blur", handleRootBlur, true);
     root.addEventListener("keydown", handleRootKeydown);
 
+    els.trackButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.activeTrack = normalizeTrack(btn.dataset.plannerTrack);
+        renderTrackPanels();
+        focusPlannerWindow(root, { smooth: true });
+      });
+    });
+
     els.printBtn?.addEventListener("click", () => window.print());
 
     els.totalTimeDownBtn?.addEventListener("click", () => {
@@ -1976,6 +2181,10 @@
       state.selectedAthleteIds = [];
       renderAssignAthleteList();
     });
+    els.liftingSaveBtn?.addEventListener("click", () => saveTrackDraft("lifting"));
+    els.liftingClearBtn?.addEventListener("click", () => clearTrackDraft("lifting"));
+    els.mentalSaveBtn?.addEventListener("click", () => saveTrackDraft("mental"));
+    els.mentalClearBtn?.addEventListener("click", () => clearTrackDraft("mental"));
 
     root.querySelectorAll(".planner-modal-backdrop").forEach((backdrop) => {
       backdrop.addEventListener("click", () => {
@@ -1989,6 +2198,8 @@
   }
 
   bindStaticEvents();
+  fillTrackDraftInputs("lifting");
+  fillTrackDraftInputs("mental");
   render();
   persistSettings();
   hydratePlannerSettingsFromCloud().catch(() => {});
