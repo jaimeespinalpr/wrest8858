@@ -499,6 +499,28 @@
     return result;
   }
 
+  function mergeLiftingLibraryMaps(...sources) {
+    const merged = {};
+    sources.forEach((source) => {
+      const normalized = normalizeLiftingLibraryMap(source || {});
+      Object.entries(normalized).forEach(([category, values]) => {
+        const safeCategory = String(category || "").trim();
+        if (!safeCategory) return;
+        if (!Array.isArray(merged[safeCategory])) merged[safeCategory] = [];
+        const seen = new Set(merged[safeCategory].map((item) => String(item || "").trim().toLowerCase()));
+        (Array.isArray(values) ? values : []).forEach((item) => {
+          const safeItem = String(item || "").trim();
+          if (!safeItem) return;
+          const key = safeItem.toLowerCase();
+          if (seen.has(key)) return;
+          seen.add(key);
+          merged[safeCategory].push(safeItem);
+        });
+      });
+    });
+    return normalizeLiftingLibraryMap(merged);
+  }
+
   function normalizeLiftingExercise(raw = {}) {
     const source = raw && typeof raw === "object" ? raw : {};
     const name = String(source.name || "").trim();
@@ -2741,10 +2763,23 @@
     return getPlannerWorkspaceCollectionRef("lifting_protocols");
   }
 
-  function getLiftingLibraryDocRef() {
+  function getSharedLiftingLibraryDocRef() {
+    try {
+      if (typeof firebaseFirestoreInstance === "undefined" || !firebaseFirestoreInstance) return null;
+      return firebaseFirestoreInstance.collection("shared_app").doc("uwc_lifting_library");
+    } catch {
+      return null;
+    }
+  }
+
+  function getLegacyLiftingLibraryDocRef() {
     const settingsRef = getPlannerWorkspaceCollectionRef("lifting_settings");
     if (!settingsRef) return null;
     return settingsRef.doc("library");
+  }
+
+  function getLiftingLibraryDocRef() {
+    return getSharedLiftingLibraryDocRef() || getLegacyLiftingLibraryDocRef();
   }
 
   function renderLiftingTabs() {
@@ -3271,7 +3306,10 @@
     if (els.liftingNewCategoryInput) els.liftingNewCategoryInput.value = "";
     renderLiftingCategorySelect();
     renderLiftingLibraryGroups();
-    setLiftingStatus(tr({ en: `Category added: ${value}`, es: `Categoria agregada: ${value}` }));
+    setLiftingStatus(tr({
+      en: `Category added and shared with coaches: ${value}`,
+      es: `Categoria agregada y compartida con entrenadores: ${value}`
+    }));
   }
 
   function addLiftingExerciseToLibrary() {
@@ -3297,7 +3335,10 @@
     if (els.liftingNewExerciseInput) els.liftingNewExerciseInput.value = "";
     renderLiftingLibraryGroups();
     renderLiftingOverview();
-    setLiftingStatus(tr({ en: `Exercise added to ${category}.`, es: `Ejercicio agregado a ${category}.` }));
+    setLiftingStatus(tr({
+      en: `Exercise shared in ${category} for all coaches.`,
+      es: `Ejercicio compartido en ${category} para todos los entrenadores.`
+    }));
   }
 
   function loadLiftingPlanFromList(planId) {
@@ -3384,12 +3425,35 @@
     }
   }
 
-  async function syncLiftingLibraryToCloud() {
+  async function syncLiftingLibraryToCloud(nextLibrary = null) {
     const libraryDoc = getLiftingLibraryDocRef();
-    if (!libraryDoc) return;
+    if (!libraryDoc || !canWriteSharedLiftingLibrary()) return;
+    const safeLibrary = normalizeLiftingLibraryMap(nextLibrary || state.liftingLibrary || DEFAULT_LIFTING_LIBRARY);
+    const authUser = getPlannerAuthUser();
+    const profile = getPlannerProfile();
+    let mergedLibrary = safeLibrary;
+    try {
+      if (libraryDoc.get) {
+        const snapshot = await libraryDoc.get();
+        if (snapshot?.exists) {
+          mergedLibrary = mergeLiftingLibraryMaps(
+            DEFAULT_LIFTING_LIBRARY,
+            snapshot.data()?.data || {},
+            safeLibrary
+          );
+        }
+      }
+    } catch (err) {
+      console.warn("Lifting library pre-sync read failed", err);
+    }
+    state.liftingLibrary = mergedLibrary;
+    persistLiftingLibraryLocal();
     await libraryDoc.set({
-      data: state.liftingLibrary,
-      updatedAt: getPlannerTimestamp()
+      data: mergedLibrary,
+      updatedAt: getPlannerTimestamp(),
+      scope: "all_coaches",
+      updatedByUid: String(authUser?.id || "").trim(),
+      updatedByName: String(profile?.name || authUser?.email || "Coach").trim()
     }, { merge: true });
   }
 
@@ -3423,16 +3487,49 @@
 
     const libraryDoc = getLiftingLibraryDocRef();
     if (libraryDoc?.onSnapshot) {
-      state.liftingLibraryUnsub = libraryDoc.onSnapshot((docSnap) => {
+      state.liftingLibraryUnsub = libraryDoc.onSnapshot(async (docSnap) => {
         if (docSnap.exists()) {
-          state.liftingLibrary = normalizeLiftingLibraryMap(docSnap.data()?.data || DEFAULT_LIFTING_LIBRARY);
+          state.liftingLibrary = mergeLiftingLibraryMaps(
+            DEFAULT_LIFTING_LIBRARY,
+            docSnap.data()?.data || {}
+          );
           persistLiftingLibraryLocal();
           renderLiftingCategorySelect();
           renderLiftingLibraryGroups();
           renderLiftingOverview();
           return;
         }
-        syncLiftingLibraryToCloud().catch(() => {});
+
+        const mergedLocal = mergeLiftingLibraryMaps(
+          DEFAULT_LIFTING_LIBRARY,
+          state.liftingLibrary || {}
+        );
+        state.liftingLibrary = mergedLocal;
+        persistLiftingLibraryLocal();
+        renderLiftingCategorySelect();
+        renderLiftingLibraryGroups();
+        renderLiftingOverview();
+
+        const legacyDoc = getLegacyLiftingLibraryDocRef();
+        if (legacyDoc?.get) {
+          try {
+            const legacySnap = await legacyDoc.get();
+            if (legacySnap?.exists) {
+              state.liftingLibrary = mergeLiftingLibraryMaps(
+                DEFAULT_LIFTING_LIBRARY,
+                mergedLocal,
+                legacySnap.data()?.data || {}
+              );
+              persistLiftingLibraryLocal();
+              renderLiftingCategorySelect();
+              renderLiftingLibraryGroups();
+              renderLiftingOverview();
+            }
+          } catch (err) {
+            console.warn("Lifting legacy library read failed", err);
+          }
+        }
+        syncLiftingLibraryToCloud(state.liftingLibrary).catch(() => {});
       }, (err) => {
         console.warn("Lifting library snapshot failed", err);
       });
@@ -4604,6 +4701,13 @@
   function isCoachLikeRole(value) {
     const role = String(value || "").trim().toLowerCase();
     return role === "coach" || role === "admin" || role === "administrator" || role === "head_coach";
+  }
+
+  function canWriteSharedLiftingLibrary() {
+    if (state.readOnly) return false;
+    const authUser = getPlannerAuthUser();
+    if (!String(authUser?.id || "").trim()) return false;
+    return isCoachLikeRole(getPlannerProfile()?.role || authUser?.role || "");
   }
 
   function getPlannerCurrentView() {
