@@ -252,13 +252,19 @@ service cloud.firestore {
             "readAt",
             "serverReadAt"
           ]);
-        allow delete: if false;
+        allow delete: if isAdminEmail() || (
+          signedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/message_threads/$(threadId)).data.participantIds
+        );
       }
     }
 
     // Shared media tree is collaborative between authenticated users.
     match /shared_app/{docId} {
       allow read, write: if signedIn();
+      match /{document=**} {
+        allow read, write: if signedIn();
+      }
     }
 
     match /coach_workspaces/{coachUid} {
@@ -293,8 +299,20 @@ service cloud.firestore {
               "updatedAt",
               "startedAt",
               "completedAt",
+              "athleteChecklist",
               "athleteLogUid",
               "athleteLogName",
+              "completionResultType",
+              "completionResultLabel",
+              "completionResultSummary",
+              "completionResultScore",
+              "completionResultReactionMs",
+              "completionResultAccuracy",
+              "completionResultAt",
+              "notificationStatus",
+              "completionNotifiedAt",
+              "completionNotifiedByUid",
+              "completionNotifiedByName",
               "discussion",
               "lastCommentAt",
               "lastCommentAtIso",

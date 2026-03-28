@@ -4090,6 +4090,25 @@ function normalizeAssignmentDiscussion(raw = []) {
   return rows;
 }
 
+function normalizeAssignmentCompletionResult(raw = {}, assignment = null) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const type = String(source.type || source.resultType || "").trim().toLowerCase();
+  const label = String(source.label || source.title || "").trim()
+    || String(assignment?.mentalGameTitle || assignment?.title || "").trim();
+  const summary = String(source.summary || source.resultSummary || "").trim();
+  const scoreValue = Number(source.score);
+  const reactionValue = Number(source.reactionMs);
+  const accuracyValue = Number(source.accuracy);
+  return {
+    type: type || "task",
+    label,
+    summary,
+    score: Number.isFinite(scoreValue) ? Math.round(scoreValue) : null,
+    reactionMs: Number.isFinite(reactionValue) ? Math.max(0, Math.round(reactionValue)) : null,
+    accuracy: Number.isFinite(accuracyValue) ? Math.max(0, Math.min(100, Math.round(accuracyValue))) : null
+  };
+}
+
 function formatAssignmentDiscussionTime(value = "") {
   const ts = parseIsoTimestamp(value);
   if (!ts) return "";
@@ -4163,6 +4182,13 @@ function normalizeCoachAssignmentRecord(id, data = {}) {
     notifiedAt: normalizeFirestoreDateValue(data.notifiedAt),
     notificationStatus: String(data.notificationStatus || "").trim(),
     completionNotifiedAt: normalizeFirestoreDateValue(data.completionNotifiedAt),
+    completionResultType: String(data.completionResultType || "").trim().toLowerCase(),
+    completionResultLabel: String(data.completionResultLabel || "").trim(),
+    completionResultSummary: String(data.completionResultSummary || "").trim(),
+    completionResultScore: Number.isFinite(Number(data.completionResultScore)) ? Number(data.completionResultScore) : null,
+    completionResultReactionMs: Number.isFinite(Number(data.completionResultReactionMs)) ? Number(data.completionResultReactionMs) : null,
+    completionResultAccuracy: Number.isFinite(Number(data.completionResultAccuracy)) ? Number(data.completionResultAccuracy) : null,
+    completionResultAt: normalizeFirestoreDateValue(data.completionResultAt),
     createdAt: normalizeFirestoreDateValue(data.createdAt),
     updatedAt: normalizeFirestoreDateValue(data.updatedAt)
   };
@@ -8802,13 +8828,22 @@ function resolveRouteTabRequest(name) {
   return { tab: name, focusPanel: "" };
 }
 
+function resolveTabPanelForCurrentView(tabKey) {
+  const safeTabKey = String(tabKey || "").trim().toLowerCase();
+  if (safeTabKey === "plans" && currentView === "athlete") {
+    return "training";
+  }
+  return safeTabKey;
+}
+
 async function showTab(name) {
   const resolved = resolveRouteTabRequest(name);
   const targetBtn = tabBtns.find((btn) => btn.dataset.tab === resolved.tab && !btn.hidden);
   const fallbackTab = tabBtns.find((btn) => !btn.hidden)?.dataset.tab;
   const hasContent = Boolean(COACH_ROUTE_PANELS[resolved.tab] || panels[resolved.tab]);
   const safeTab = targetBtn ? resolved.tab : (hasContent ? resolved.tab : (fallbackTab || resolved.tab));
-  const visiblePanels = COACH_ROUTE_PANELS[safeTab] || [safeTab];
+  const primaryPanel = resolveTabPanelForCurrentView(safeTab);
+  const visiblePanels = COACH_ROUTE_PANELS[safeTab] || [primaryPanel];
   const focusPanel = visiblePanels.includes(resolved.focusPanel)
     ? resolved.focusPanel
     : (COACH_ROUTE_DEFAULT_PANEL[safeTab] || "");
@@ -13109,6 +13144,57 @@ function getTrainingTrackLabel(track = "wrestling") {
   return currentLang === "es" ? "Wrestling" : "Wrestling";
 }
 
+const MENTAL_ASSIGNMENT_GAME_KEYS = {
+  GO_NO_GO: "go_no_go"
+};
+
+function getAssignmentMentalGameKey(assignment = null) {
+  return String(assignment?.mentalGameKey || "").trim().toLowerCase();
+}
+
+function isPlayableAthleteMentalAssignment(assignment = null) {
+  return getAssignmentTrainingTrack(assignment) === "mental"
+    && getAssignmentMentalGameKey(assignment) === MENTAL_ASSIGNMENT_GAME_KEYS.GO_NO_GO;
+}
+
+function formatAssignmentResultReactionSeconds(reactionMs = 0) {
+  const safeReaction = Number.isFinite(Number(reactionMs)) ? Number(reactionMs) : 0;
+  return `${Math.max(0, safeReaction / 1000).toFixed(2)}s`;
+}
+
+function buildAssignmentCompletionResultSummary(assignment = null, result = null) {
+  const normalized = normalizeAssignmentCompletionResult(result, assignment);
+  if (normalized.summary) return normalized.summary;
+  const label = normalized.label || (currentLang === "es" ? "Tarea" : "Task");
+  if (normalized.type === "mental_game") {
+    const parts = [];
+    if (Number.isFinite(normalized.score)) {
+      parts.push(`${currentLang === "es" ? "Puntaje" : "Score"} ${normalized.score}`);
+    }
+    if (Number.isFinite(normalized.reactionMs)) {
+      parts.push(`${currentLang === "es" ? "Reaccion" : "Reaction"} ${formatAssignmentResultReactionSeconds(normalized.reactionMs)}`);
+    }
+    if (Number.isFinite(normalized.accuracy)) {
+      parts.push(`${currentLang === "es" ? "Precision" : "Accuracy"} ${normalized.accuracy}%`);
+    }
+    if (parts.length) {
+      return `${label}: ${parts.join(" • ")}`;
+    }
+  }
+  return "";
+}
+
+function getAssignmentCompletionResultSummary(assignment = null) {
+  return buildAssignmentCompletionResultSummary(assignment, {
+    type: assignment?.completionResultType || "",
+    label: assignment?.completionResultLabel || assignment?.mentalGameTitle || assignment?.title || "",
+    summary: assignment?.completionResultSummary || "",
+    score: assignment?.completionResultScore,
+    reactionMs: assignment?.completionResultReactionMs,
+    accuracy: assignment?.completionResultAccuracy
+  });
+}
+
 function extractChecklistLinesFromText(rawText = "") {
   const text = String(rawText || "").trim();
   if (!text) return [];
@@ -13186,7 +13272,7 @@ function getAssignmentChecklistProgress(assignment = null, steps = null, checkli
   return { total, done, checklist };
 }
 
-async function updateAthleteAssignmentChecklistStep(assignment, stepId, checked) {
+async function updateAthleteAssignmentChecklistStep(assignment, stepId, checked, { completionResult = null } = {}) {
   const coachUid = getAthleteLinkedCoachUid();
   const assignmentsRef = getCoachWorkspaceCollectionRef("assignments", coachUid);
   const authUser = getAuthUser();
@@ -13211,6 +13297,9 @@ async function updateAthleteAssignmentChecklistStep(assignment, stepId, checked)
   } else if (assignment.dueDateKey && assignment.dueDateKey < getCurrentAppDateKey()) {
     nextStatus = "overdue";
   }
+  const completionPayload = nextStatus === "completed"
+    ? normalizeAssignmentCompletionResult(completionResult, assignment)
+    : null;
   await withTimeout(
     assignmentsRef.doc(assignment.id).set(stripUndefinedDeep({
       athleteChecklist: nextChecklist,
@@ -13218,6 +13307,13 @@ async function updateAthleteAssignmentChecklistStep(assignment, stepId, checked)
       updatedAt: getFirestoreServerTimestamp(),
       startedAt: nextStatus === "in_progress" || nextStatus === "completed" ? getFirestoreServerTimestamp() : null,
       completedAt: nextStatus === "completed" ? getFirestoreServerTimestamp() : null,
+      completionResultType: completionPayload?.type || undefined,
+      completionResultLabel: completionPayload?.label || undefined,
+      completionResultSummary: completionPayload?.summary || undefined,
+      completionResultScore: completionPayload?.score,
+      completionResultReactionMs: completionPayload?.reactionMs,
+      completionResultAccuracy: completionPayload?.accuracy,
+      completionResultAt: completionPayload ? getFirestoreServerTimestamp() : undefined,
       athleteLogUid: authUser.id,
       athleteLogName: String(profile?.name || authUser.email || "").trim()
     }), { merge: true }),
@@ -13232,7 +13328,8 @@ async function updateAthleteAssignmentChecklistStep(assignment, stepId, checked)
     try {
       await notifyCoachAssignmentCompletedViaMessages(assignment, {
         athleteUid: authUser.id,
-        athleteName: String(profile?.name || authUser.email || "").trim()
+        athleteName: String(profile?.name || authUser.email || "").trim(),
+        completionResultSummary: completionPayload?.summary || ""
       });
     } catch (err) {
       console.warn("Assignment checklist completion notify failed", err);
@@ -13240,7 +13337,7 @@ async function updateAthleteAssignmentChecklistStep(assignment, stepId, checked)
   }
 }
 
-async function updateAthleteAssignmentStatus(assignment, status) {
+async function updateAthleteAssignmentStatus(assignment, status, { completionResult = null } = {}) {
   const coachUid = getAthleteLinkedCoachUid();
   const assignmentsRef = getCoachWorkspaceCollectionRef("assignments", coachUid);
   const authUser = getAuthUser();
@@ -13252,12 +13349,22 @@ async function updateAthleteAssignmentStatus(assignment, status) {
     throw new Error("athlete_assignment_locked_until_due_date");
   }
   const normalizedStatus = normalizeAssignmentStatus(status);
+  const completionPayload = normalizedStatus === "completed"
+    ? normalizeAssignmentCompletionResult(completionResult, assignment)
+    : null;
   await withTimeout(
     assignmentsRef.doc(assignment.id).set(stripUndefinedDeep({
       status: normalizedStatus,
       updatedAt: getFirestoreServerTimestamp(),
       startedAt: normalizedStatus === "in_progress" ? getFirestoreServerTimestamp() : undefined,
       completedAt: normalizedStatus === "completed" ? getFirestoreServerTimestamp() : undefined,
+      completionResultType: completionPayload?.type || undefined,
+      completionResultLabel: completionPayload?.label || undefined,
+      completionResultSummary: completionPayload?.summary || undefined,
+      completionResultScore: completionPayload?.score,
+      completionResultReactionMs: completionPayload?.reactionMs,
+      completionResultAccuracy: completionPayload?.accuracy,
+      completionResultAt: completionPayload ? getFirestoreServerTimestamp() : undefined,
       athleteLogUid: authUser.id,
       athleteLogName: String(profile?.name || authUser.email || "").trim()
     }), { merge: true }),
@@ -13272,7 +13379,8 @@ async function updateAthleteAssignmentStatus(assignment, status) {
     try {
       await notifyCoachAssignmentCompletedViaMessages(assignment, {
         athleteUid: authUser.id,
-        athleteName: String(profile?.name || authUser.email || "").trim()
+        athleteName: String(profile?.name || authUser.email || "").trim(),
+        completionResultSummary: completionPayload?.summary || ""
       });
     } catch (err) {
       console.warn("Assignment completion notify failed", err);
@@ -13339,19 +13447,21 @@ async function notifyAssignmentDiscussionViaMessages(assignment, comment) {
   });
 }
 
-function buildAssignmentCompletionNoticeText(assignment, athleteName = "") {
+function buildAssignmentCompletionNoticeText(assignment, athleteName = "", completionResultSummary = "") {
   const safeAthleteName = String(athleteName || "").trim() || "Athlete";
   const assignmentTitle = String(assignment?.title || "").trim() || (currentLang === "es" ? "asignacion" : "assignment");
   const dueLabel = String(assignment?.dueLabel || formatPlanDateLabel(assignment?.dueDateKey || getCurrentAppDateKey()) || "").trim();
+  const resultSummary = String(completionResultSummary || assignment?.completionResultSummary || "").trim();
   if (currentLang === "es") {
-    return `Tarea completada: ${assignmentTitle}\nAtleta: ${safeAthleteName}${dueLabel ? `\nEntrega: ${dueLabel}` : ""}`;
+    return `Tarea completada: ${assignmentTitle}\nAtleta: ${safeAthleteName}${dueLabel ? `\nEntrega: ${dueLabel}` : ""}${resultSummary ? `\nResultado: ${resultSummary}` : ""}`;
   }
-  return `Assignment completed: ${assignmentTitle}\nAthlete: ${safeAthleteName}${dueLabel ? `\nDue: ${dueLabel}` : ""}`;
+  return `Assignment completed: ${assignmentTitle}\nAthlete: ${safeAthleteName}${dueLabel ? `\nDue: ${dueLabel}` : ""}${resultSummary ? `\nResult: ${resultSummary}` : ""}`;
 }
 
 async function notifyCoachAssignmentCompletedViaMessages(assignment, {
   athleteUid = "",
-  athleteName = ""
+  athleteName = "",
+  completionResultSummary = ""
 } = {}) {
   const coachUid = getAssignmentOwnerCoachUid(assignment);
   const current = getMessagesCurrentUser();
@@ -13386,7 +13496,11 @@ async function notifyCoachAssignmentCompletedViaMessages(assignment, {
     threadId,
     participants: [current, coachContact],
     sender: current,
-    text: buildAssignmentCompletionNoticeText(existing, athleteName || current.name || athleteUid)
+    text: buildAssignmentCompletionNoticeText(
+      existing,
+      athleteName || current.name || athleteUid,
+      String(completionResultSummary || existing.completionResultSummary || "").trim()
+    )
   });
   await withTimeout(
     assignmentRef.set(stripUndefinedDeep({
@@ -13468,6 +13582,286 @@ async function postAssignmentDiscussionComment(assignment, {
   return comment;
 }
 
+function clampNumber(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function buildGoNoGoMentalAssignmentResult(session = {}) {
+  const hits = Number.isFinite(Number(session.hits)) ? Number(session.hits) : 0;
+  const misses = Number.isFinite(Number(session.misses)) ? Number(session.misses) : 0;
+  const falseTaps = Number.isFinite(Number(session.falseTaps)) ? Number(session.falseTaps) : 0;
+  const reactionTimes = Array.isArray(session.reactionTimes) ? session.reactionTimes.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0) : [];
+  const attempts = hits + misses + falseTaps;
+  const accuracy = attempts ? Math.round((hits / attempts) * 100) : 0;
+  const avgReactionMs = reactionTimes.length
+    ? Math.round(reactionTimes.reduce((sum, value) => sum + value, 0) / reactionTimes.length)
+    : 0;
+  const speedScore = clampNumber(Math.round(100 - ((avgReactionMs - 250) / 7)), 10, 100);
+  const controlScore = clampNumber(100 - falseTaps * 12, 0, 100);
+  const mentalScore = Math.round((accuracy * 0.45) + (speedScore * 0.35) + (controlScore * 0.2));
+  return {
+    type: "mental_game",
+    score: mentalScore,
+    reactionMs: avgReactionMs,
+    accuracy,
+    hits,
+    misses,
+    falseTaps,
+    speedScore,
+    controlScore,
+    summary: buildAssignmentCompletionResultSummary(null, {
+      type: "mental_game",
+      label: "Go / No-Go",
+      score: mentalScore,
+      reactionMs: avgReactionMs,
+      accuracy
+    })
+  };
+}
+
+function openAthleteGoNoGoAssignmentGame(assignment = null) {
+  return new Promise((resolve) => {
+    const safeDuration = Math.max(12, Number.isFinite(Number(assignment?.mentalGameDuration)) ? Number(assignment.mentalGameDuration) : 30);
+    const gameLabel = String(assignment?.mentalGameTitle || "Go / No-Go").trim() || "Go / No-Go";
+    const overlay = document.createElement("div");
+    overlay.className = "athlete-game-modal-overlay";
+    overlay.innerHTML = `
+      <div class="athlete-game-modal-card" role="dialog" aria-modal="true" aria-label="${escapeHtml(gameLabel)}">
+        <div class="athlete-game-modal-head">
+          <div>
+            <h3>${escapeHtml(gameLabel)}</h3>
+            <p>${escapeHtml(currentLang === "es" ? "Toca VERDE. Ignora ROJO." : "Tap GREEN. Ignore RED.")}</p>
+          </div>
+          <button type="button" class="athlete-game-close-btn" data-action="close" aria-label="${escapeHtml(currentLang === "es" ? "Cerrar" : "Close")}">×</button>
+        </div>
+        <div class="athlete-game-modal-body">
+          <div class="athlete-game-modal-meta">
+            <span class="chip">${escapeHtml(currentLang === "es" ? `Tiempo ${safeDuration}s` : `${safeDuration}s session`)}</span>
+            <span class="chip" id="athleteGameTimeChip">${escapeHtml(currentLang === "es" ? "Listo" : "Ready")}</span>
+          </div>
+          <button type="button" class="athlete-game-zone idle" id="athleteGameZone">
+            ${escapeHtml(currentLang === "es" ? "Toca para empezar" : "Tap to start")}
+          </button>
+          <p class="small muted athlete-game-hint">${escapeHtml(currentLang === "es" ? "Puedes tocar cualquier parte del area de color." : "You can tap anywhere inside the color area.")}</p>
+          <div class="athlete-game-stats">
+            <div><span>${escapeHtml(currentLang === "es" ? "Correctos" : "Correct")}</span><strong id="athleteGameHits">0</strong></div>
+            <div><span>${escapeHtml(currentLang === "es" ? "Fallos" : "Misses")}</span><strong id="athleteGameMisses">0</strong></div>
+            <div><span>${escapeHtml(currentLang === "es" ? "Falsos" : "False taps")}</span><strong id="athleteGameFalse">0</strong></div>
+            <div><span>${escapeHtml(currentLang === "es" ? "Reaccion prom." : "Avg reaction")}</span><strong id="athleteGameReaction">-</strong></div>
+          </div>
+          <div class="athlete-game-result hidden" id="athleteGameResult"></div>
+        </div>
+        <div class="athlete-game-modal-actions">
+          <button type="button" class="ghost" data-action="cancel">${escapeHtml(currentLang === "es" ? "Cancelar" : "Cancel")}</button>
+          <button type="button" class="primary hidden" id="athleteGameSubmitBtn">${escapeHtml(currentLang === "es" ? "Guardar resultado" : "Submit result")}</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    window.scrollTo({ top: 0, behavior: "auto" });
+
+    const zoneBtn = overlay.querySelector("#athleteGameZone");
+    const timeChip = overlay.querySelector("#athleteGameTimeChip");
+    const hitsEl = overlay.querySelector("#athleteGameHits");
+    const missesEl = overlay.querySelector("#athleteGameMisses");
+    const falseEl = overlay.querySelector("#athleteGameFalse");
+    const reactionEl = overlay.querySelector("#athleteGameReaction");
+    const resultEl = overlay.querySelector("#athleteGameResult");
+    const submitBtn = overlay.querySelector("#athleteGameSubmitBtn");
+    const closeBtn = overlay.querySelector("[data-action='close']");
+    const cancelBtn = overlay.querySelector("[data-action='cancel']");
+    let settled = false;
+    let timerId = null;
+    let spawnTimerId = null;
+    let stimulusTimeoutId = null;
+
+    const session = {
+      started: false,
+      finished: false,
+      timeLeft: safeDuration,
+      hits: 0,
+      misses: 0,
+      falseTaps: 0,
+      reactionTimes: [],
+      waitingForTap: false,
+      stimulus: "",
+      stimulusStartAt: 0
+    };
+
+    const clearTimers = () => {
+      if (timerId) clearInterval(timerId);
+      if (spawnTimerId) clearTimeout(spawnTimerId);
+      if (stimulusTimeoutId) clearTimeout(stimulusTimeoutId);
+      timerId = null;
+      spawnTimerId = null;
+      stimulusTimeoutId = null;
+    };
+
+    const settle = (value) => {
+      if (settled) return;
+      settled = true;
+      clearTimers();
+      overlay.remove();
+      resolve(value);
+    };
+
+    const updateStats = () => {
+      if (hitsEl) hitsEl.textContent = String(session.hits);
+      if (missesEl) missesEl.textContent = String(session.misses);
+      if (falseEl) falseEl.textContent = String(session.falseTaps);
+      const avgReaction = session.reactionTimes.length
+        ? Math.round(session.reactionTimes.reduce((sum, value) => sum + value, 0) / session.reactionTimes.length)
+        : 0;
+      if (reactionEl) {
+        reactionEl.textContent = avgReaction ? formatAssignmentResultReactionSeconds(avgReaction) : "-";
+      }
+    };
+
+    const renderStimulus = () => {
+      if (!zoneBtn) return;
+      zoneBtn.classList.remove("green", "red", "idle");
+      if (!session.started) {
+        zoneBtn.classList.add("idle");
+        zoneBtn.textContent = currentLang === "es" ? "Toca para empezar" : "Tap to start";
+        return;
+      }
+      if (!session.stimulus) {
+        zoneBtn.classList.add("idle");
+        zoneBtn.textContent = currentLang === "es" ? "Espera..." : "Wait...";
+        return;
+      }
+      if (session.stimulus === "green") {
+        zoneBtn.classList.add("green");
+        zoneBtn.textContent = currentLang === "es" ? "VERDE" : "GREEN";
+        return;
+      }
+      zoneBtn.classList.add("red");
+      zoneBtn.textContent = currentLang === "es" ? "ROJO" : "RED";
+    };
+
+    const scheduleStimulus = () => {
+      if (session.finished) return;
+      spawnTimerId = setTimeout(() => {
+        if (session.finished) return;
+        const isGo = Math.random() > 0.35;
+        session.stimulus = isGo ? "green" : "red";
+        session.waitingForTap = true;
+        session.stimulusStartAt = performance.now();
+        renderStimulus();
+        stimulusTimeoutId = setTimeout(() => {
+          if (session.finished) return;
+          if (session.waitingForTap && session.stimulus === "green") {
+            session.misses += 1;
+          }
+          session.waitingForTap = false;
+          session.stimulus = "";
+          renderStimulus();
+          updateStats();
+          scheduleStimulus();
+        }, 650);
+      }, 320 + Math.random() * 600);
+    };
+
+    const finishSession = () => {
+      if (session.finished) return;
+      session.finished = true;
+      clearTimers();
+      session.stimulus = "";
+      session.waitingForTap = false;
+      renderStimulus();
+      const result = buildGoNoGoMentalAssignmentResult(session);
+      if (resultEl) {
+        resultEl.classList.remove("hidden");
+        resultEl.innerHTML = `
+          <h4>${escapeHtml(currentLang === "es" ? "Resultado del juego" : "Game result")}</h4>
+          <p>${escapeHtml(currentLang === "es" ? "Puntaje mental" : "Mental score")}: <strong>${escapeHtml(result.score)}</strong></p>
+          <p>${escapeHtml(currentLang === "es" ? "Precision" : "Accuracy")}: <strong>${escapeHtml(result.accuracy)}%</strong></p>
+          <p>${escapeHtml(currentLang === "es" ? "Reaccion promedio" : "Average reaction")}: <strong>${escapeHtml(result.reactionMs ? formatAssignmentResultReactionSeconds(result.reactionMs) : "-")}</strong></p>
+        `;
+      }
+      if (timeChip) {
+        timeChip.textContent = currentLang === "es" ? "Completado" : "Completed";
+      }
+      if (submitBtn) submitBtn.classList.remove("hidden");
+      if (cancelBtn) cancelBtn.textContent = currentLang === "es" ? "Cerrar" : "Close";
+      submitBtn?.addEventListener("click", () => settle(result), { once: true });
+    };
+
+    const startSession = () => {
+      if (session.started || session.finished) return;
+      session.started = true;
+      if (timeChip) timeChip.textContent = `${session.timeLeft}s`;
+      renderStimulus();
+      updateStats();
+      scheduleStimulus();
+      timerId = setInterval(() => {
+        if (session.finished) return;
+        session.timeLeft -= 1;
+        if (timeChip) timeChip.textContent = `${Math.max(0, session.timeLeft)}s`;
+        if (session.timeLeft <= 0) {
+          finishSession();
+        }
+      }, 1000);
+    };
+
+    zoneBtn?.addEventListener("click", () => {
+      if (!session.started) {
+        startSession();
+        return;
+      }
+      if (session.finished || !session.waitingForTap || !session.stimulus) return;
+      if (session.stimulus === "green") {
+        session.hits += 1;
+        const reaction = Math.round(performance.now() - session.stimulusStartAt);
+        if (Number.isFinite(reaction) && reaction > 0) {
+          session.reactionTimes.push(reaction);
+        }
+      } else {
+        session.falseTaps += 1;
+      }
+      session.waitingForTap = false;
+      session.stimulus = "";
+      renderStimulus();
+      updateStats();
+    });
+
+    closeBtn?.addEventListener("click", () => settle(null));
+    cancelBtn?.addEventListener("click", () => settle(null));
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) {
+        settle(null);
+      }
+    });
+  });
+}
+
+async function runAthleteMentalAssignmentTask(assignment = null) {
+  if (!assignment) return false;
+  const normalizedStatus = normalizeAssignmentStatus(assignment.status);
+  if (normalizedStatus === "completed") return true;
+
+  if (normalizedStatus === "not_started") {
+    await updateAthleteAssignmentStatus(assignment, "in_progress");
+  }
+
+  const gameKey = getAssignmentMentalGameKey(assignment);
+  if (gameKey !== MENTAL_ASSIGNMENT_GAME_KEYS.GO_NO_GO) {
+    await updateAthleteAssignmentStatus(assignment, "completed");
+    return true;
+  }
+
+  const rawResult = await openAthleteGoNoGoAssignmentGame(assignment);
+  if (!rawResult) return false;
+  const completionResult = normalizeAssignmentCompletionResult({
+    ...rawResult,
+    type: "mental_game",
+    label: assignment.mentalGameTitle || assignment.title || "Go / No-Go",
+    summary: buildAssignmentCompletionResultSummary(assignment, rawResult)
+  }, assignment);
+  await updateAthleteAssignmentStatus(assignment, "completed", { completionResult });
+  return true;
+}
+
 async function saveAthleteQuickCheckIn(score) {
   const profile = getProfile();
   const authUser = getAuthUser();
@@ -13536,6 +13930,8 @@ function renderAthleteTrackTaskList(container, records = [], { track = "wrestlin
     `;
     const actions = document.createElement("div");
     actions.className = "assignment-card-actions";
+    const normalizedStatus = normalizeAssignmentStatus(record.status);
+    const isPlayableMental = isPlayableAthleteMentalAssignment(record);
     if (isLocked && availability.startLabel) {
       const lockNote = document.createElement("div");
       lockNote.className = "completion-card-meta completion-card-lock";
@@ -13571,39 +13967,64 @@ function renderAthleteTrackTaskList(container, records = [], { track = "wrestlin
       }
     });
     actions.appendChild(askCoachBtn);
-    if (!isLocked && normalizeAssignmentStatus(record.status) === "not_started") {
-      const startBtn = document.createElement("button");
-      startBtn.type = "button";
-      startBtn.className = "ghost";
-      startBtn.textContent = currentLang === "es" ? "Iniciar" : "Start";
-      startBtn.addEventListener("click", async () => {
+    if (!isLocked && isPlayableMental && normalizedStatus !== "completed") {
+      const playBtn = document.createElement("button");
+      playBtn.type = "button";
+      playBtn.className = "primary";
+      playBtn.textContent = currentLang === "es" ? "Jugar y enviar" : "Play and submit";
+      playBtn.addEventListener("click", async () => {
+        playBtn.disabled = true;
         try {
-          await updateAthleteAssignmentStatus(record, "in_progress");
-          toast(currentLang === "es" ? "Tarea iniciada." : "Task started.");
+          const completed = await runAthleteMentalAssignmentTask(record);
+          if (!completed) {
+            toast(currentLang === "es" ? "Juego cancelado." : "Game canceled.");
+            return;
+          }
+          toast(currentLang === "es" ? "Juego completado y enviado al coach." : "Game completed and sent to coach.");
           renderToday(getCurrentAppDayIndex());
         } catch (err) {
-          console.warn("Athlete track task start failed", err);
-          toast(currentLang === "es" ? "No se pudo iniciar la tarea." : "Could not start task.");
+          console.warn("Athlete mental task play failed", err);
+          toast(currentLang === "es" ? "No se pudo completar el juego." : "Could not complete the game.");
+        } finally {
+          playBtn.disabled = false;
         }
       });
-      actions.appendChild(startBtn);
-    }
-    if (!isLocked && normalizeAssignmentStatus(record.status) !== "completed") {
-      const completeBtn = document.createElement("button");
-      completeBtn.type = "button";
-      completeBtn.className = "primary";
-      completeBtn.textContent = currentLang === "es" ? "Completar" : "Complete";
-      completeBtn.addEventListener("click", async () => {
-        try {
-          await updateAthleteAssignmentStatus(record, "completed");
-          toast(currentLang === "es" ? "Tarea completada." : "Task completed.");
-          renderToday(getCurrentAppDayIndex());
-        } catch (err) {
-          console.warn("Athlete track task complete failed", err);
-          toast(currentLang === "es" ? "No se pudo completar la tarea." : "Could not complete task.");
-        }
-      });
-      actions.appendChild(completeBtn);
+      actions.appendChild(playBtn);
+    } else {
+      if (!isLocked && normalizedStatus === "not_started") {
+        const startBtn = document.createElement("button");
+        startBtn.type = "button";
+        startBtn.className = "ghost";
+        startBtn.textContent = currentLang === "es" ? "Iniciar" : "Start";
+        startBtn.addEventListener("click", async () => {
+          try {
+            await updateAthleteAssignmentStatus(record, "in_progress");
+            toast(currentLang === "es" ? "Tarea iniciada." : "Task started.");
+            renderToday(getCurrentAppDayIndex());
+          } catch (err) {
+            console.warn("Athlete track task start failed", err);
+            toast(currentLang === "es" ? "No se pudo iniciar la tarea." : "Could not start task.");
+          }
+        });
+        actions.appendChild(startBtn);
+      }
+      if (!isLocked && normalizedStatus !== "completed") {
+        const completeBtn = document.createElement("button");
+        completeBtn.type = "button";
+        completeBtn.className = "primary";
+        completeBtn.textContent = currentLang === "es" ? "Completar" : "Complete";
+        completeBtn.addEventListener("click", async () => {
+          try {
+            await updateAthleteAssignmentStatus(record, "completed");
+            toast(currentLang === "es" ? "Tarea completada." : "Task completed.");
+            renderToday(getCurrentAppDayIndex());
+          } catch (err) {
+            console.warn("Athlete track task complete failed", err);
+            toast(currentLang === "es" ? "No se pudo completar la tarea." : "Could not complete task.");
+          }
+        });
+        actions.appendChild(completeBtn);
+      }
     }
     if (actions.children.length) card.appendChild(actions);
     container.appendChild(card);
@@ -13683,6 +14104,7 @@ function renderTodayActionQueue() {
   pendingAssignments.slice(0, 8).forEach((assignment) => {
     const statusMeta = getAssignmentStatusMeta(assignment.status);
     const normalizedStatus = normalizeAssignmentStatus(assignment.status);
+    const isPlayableMental = isPlayableAthleteMentalAssignment(assignment);
     const card = document.createElement("article");
     card.className = "completion-card";
     const dueLabel = assignment.dueLabel || formatPlanDateLabel(assignment.dueDateKey || getCurrentAppDateKey());
@@ -13697,45 +14119,70 @@ function renderTodayActionQueue() {
     `;
     const actions = document.createElement("div");
     actions.className = "assignment-card-actions";
-    if (normalizedStatus === "not_started") {
-      const startBtn = document.createElement("button");
-      startBtn.type = "button";
-      startBtn.className = "ghost";
-      startBtn.textContent = currentLang === "es" ? "Iniciar" : "Start";
-      startBtn.addEventListener("click", async () => {
-        startBtn.disabled = true;
+    if (isPlayableMental && normalizedStatus !== "completed") {
+      const playBtn = document.createElement("button");
+      playBtn.type = "button";
+      playBtn.className = "primary";
+      playBtn.textContent = currentLang === "es" ? "Jugar y enviar" : "Play and submit";
+      playBtn.addEventListener("click", async () => {
+        playBtn.disabled = true;
         try {
-          await updateAthleteAssignmentStatus(assignment, "in_progress");
-          toast(currentLang === "es" ? "Tarea iniciada." : "Task started.");
+          const completed = await runAthleteMentalAssignmentTask(assignment);
+          if (!completed) {
+            toast(currentLang === "es" ? "Juego cancelado." : "Game canceled.");
+            return;
+          }
+          toast(currentLang === "es" ? "Juego completado y enviado al coach." : "Game completed and sent to coach.");
           renderToday(getCurrentAppDayIndex());
         } catch (err) {
-          console.warn("Today queue start failed", err);
-          toast(currentLang === "es" ? "No se pudo iniciar la tarea." : "Could not start task.");
+          console.warn("Today queue mental task failed", err);
+          toast(currentLang === "es" ? "No se pudo completar el juego." : "Could not complete the game.");
         } finally {
-          startBtn.disabled = false;
+          playBtn.disabled = false;
         }
       });
-      actions.appendChild(startBtn);
-    }
-    if (normalizedStatus !== "completed") {
-      const completeBtn = document.createElement("button");
-      completeBtn.type = "button";
-      completeBtn.className = "primary";
-      completeBtn.textContent = currentLang === "es" ? "Completar" : "Complete";
-      completeBtn.addEventListener("click", async () => {
-        completeBtn.disabled = true;
-        try {
-          await updateAthleteAssignmentStatus(assignment, "completed");
-          toast(currentLang === "es" ? "Tarea completada." : "Task completed.");
-          renderToday(getCurrentAppDayIndex());
-        } catch (err) {
-          console.warn("Today queue complete failed", err);
-          toast(currentLang === "es" ? "No se pudo completar la tarea." : "Could not complete task.");
-        } finally {
-          completeBtn.disabled = false;
-        }
-      });
-      actions.appendChild(completeBtn);
+      actions.appendChild(playBtn);
+    } else {
+      if (normalizedStatus === "not_started") {
+        const startBtn = document.createElement("button");
+        startBtn.type = "button";
+        startBtn.className = "ghost";
+        startBtn.textContent = currentLang === "es" ? "Iniciar" : "Start";
+        startBtn.addEventListener("click", async () => {
+          startBtn.disabled = true;
+          try {
+            await updateAthleteAssignmentStatus(assignment, "in_progress");
+            toast(currentLang === "es" ? "Tarea iniciada." : "Task started.");
+            renderToday(getCurrentAppDayIndex());
+          } catch (err) {
+            console.warn("Today queue start failed", err);
+            toast(currentLang === "es" ? "No se pudo iniciar la tarea." : "Could not start task.");
+          } finally {
+            startBtn.disabled = false;
+          }
+        });
+        actions.appendChild(startBtn);
+      }
+      if (normalizedStatus !== "completed") {
+        const completeBtn = document.createElement("button");
+        completeBtn.type = "button";
+        completeBtn.className = "primary";
+        completeBtn.textContent = currentLang === "es" ? "Completar" : "Complete";
+        completeBtn.addEventListener("click", async () => {
+          completeBtn.disabled = true;
+          try {
+            await updateAthleteAssignmentStatus(assignment, "completed");
+            toast(currentLang === "es" ? "Tarea completada." : "Task completed.");
+            renderToday(getCurrentAppDayIndex());
+          } catch (err) {
+            console.warn("Today queue complete failed", err);
+            toast(currentLang === "es" ? "No se pudo completar la tarea." : "Could not complete task.");
+          } finally {
+            completeBtn.disabled = false;
+          }
+        });
+        actions.appendChild(completeBtn);
+      }
     }
     if (assignment.mediaAssetPath) {
       const mediaBtn = document.createElement("button");
@@ -13933,8 +14380,17 @@ logCompletionBtn.addEventListener("click", async () => {
       return;
     }
     try {
-      await updateAthleteAssignmentStatus(assignment, "completed");
-      toast(currentLang === "es" ? "Assignment completado." : "Assignment completed.");
+      if (isPlayableAthleteMentalAssignment(assignment)) {
+        const completed = await runAthleteMentalAssignmentTask(assignment);
+        if (!completed) {
+          toast(currentLang === "es" ? "Juego cancelado." : "Game canceled.");
+          return;
+        }
+        toast(currentLang === "es" ? "Juego completado y enviado al coach." : "Game completed and sent to coach.");
+      } else {
+        await updateAthleteAssignmentStatus(assignment, "completed");
+        toast(currentLang === "es" ? "Assignment completado." : "Assignment completed.");
+      }
     } catch (err) {
       console.warn("Athlete completion update failed", err);
       toast(currentLang === "es" ? "No se pudo registrar la completacion." : "Could not log completion.");
@@ -14097,9 +14553,12 @@ function renderPlanDetails(dayIndex) {
       const progress = getAssignmentChecklistProgress(selectedAssignment, steps);
       const summary = document.createElement("li");
       summary.className = "assignment-step-summary";
+      const completionSummary = normalizeAssignmentStatus(selectedAssignment.status) === "completed"
+        ? getAssignmentCompletionResultSummary(selectedAssignment)
+        : "";
       summary.textContent = currentLang === "es"
-        ? `${statusMeta.label} • Entrega: ${dueLabel} • Completado: ${progress.done}/${progress.total || 1}`
-        : `${statusMeta.label} • Due: ${dueLabel} • Completed: ${progress.done}/${progress.total || 1}`;
+        ? `${statusMeta.label} • Entrega: ${dueLabel} • Completado: ${progress.done}/${progress.total || 1}${completionSummary ? ` • Resultado: ${completionSummary}` : ""}`
+        : `${statusMeta.label} • Due: ${dueLabel} • Completed: ${progress.done}/${progress.total || 1}${completionSummary ? ` • Result: ${completionSummary}` : ""}`;
       planDayDetail.appendChild(summary);
 
       if (availability.locked && availability.startLabel) {
@@ -14109,6 +14568,78 @@ function renderPlanDetails(dayIndex) {
           ? `Esta tarea ya esta asignada, pero no se puede iniciar hasta el ${availability.startLabel}.`
           : `This task is already assigned, but it cannot be started until ${availability.startLabel}.`;
         planDayDetail.appendChild(lockNotice);
+      }
+
+      if (!availability.locked && normalizeAssignmentStatus(selectedAssignment.status) !== "completed") {
+        const actionRow = document.createElement("li");
+        actionRow.className = "assignment-step-summary";
+        const actions = document.createElement("div");
+        actions.className = "assignment-card-actions";
+        if (isPlayableAthleteMentalAssignment(selectedAssignment)) {
+          const playBtn = document.createElement("button");
+          playBtn.type = "button";
+          playBtn.className = "primary";
+          playBtn.textContent = currentLang === "es" ? "Jugar y enviar" : "Play and submit";
+          playBtn.addEventListener("click", async () => {
+            playBtn.disabled = true;
+            try {
+              const completed = await runAthleteMentalAssignmentTask(selectedAssignment);
+              if (!completed) {
+                toast(currentLang === "es" ? "Juego cancelado." : "Game canceled.");
+                return;
+              }
+              toast(currentLang === "es" ? "Juego completado y enviado al coach." : "Game completed and sent to coach.");
+              renderToday(getCurrentAppDayIndex());
+            } catch (err) {
+              console.warn("Plan details mental task failed", err);
+              toast(currentLang === "es" ? "No se pudo completar el juego." : "Could not complete the game.");
+            } finally {
+              playBtn.disabled = false;
+            }
+          });
+          actions.appendChild(playBtn);
+        } else {
+          if (normalizeAssignmentStatus(selectedAssignment.status) === "not_started") {
+            const startBtn = document.createElement("button");
+            startBtn.type = "button";
+            startBtn.className = "ghost";
+            startBtn.textContent = currentLang === "es" ? "Iniciar" : "Start";
+            startBtn.addEventListener("click", async () => {
+              startBtn.disabled = true;
+              try {
+                await updateAthleteAssignmentStatus(selectedAssignment, "in_progress");
+                toast(currentLang === "es" ? "Tarea iniciada." : "Task started.");
+                renderToday(getCurrentAppDayIndex());
+              } catch (err) {
+                console.warn("Plan details assignment start failed", err);
+                toast(currentLang === "es" ? "No se pudo iniciar la tarea." : "Could not start task.");
+              } finally {
+                startBtn.disabled = false;
+              }
+            });
+            actions.appendChild(startBtn);
+          }
+          const completeBtn = document.createElement("button");
+          completeBtn.type = "button";
+          completeBtn.className = "primary";
+          completeBtn.textContent = currentLang === "es" ? "Completar" : "Complete";
+          completeBtn.addEventListener("click", async () => {
+            completeBtn.disabled = true;
+            try {
+              await updateAthleteAssignmentStatus(selectedAssignment, "completed");
+              toast(currentLang === "es" ? "Tarea completada." : "Task completed.");
+              renderToday(getCurrentAppDayIndex());
+            } catch (err) {
+              console.warn("Plan details assignment complete failed", err);
+              toast(currentLang === "es" ? "No se pudo completar la tarea." : "Could not complete task.");
+            } finally {
+              completeBtn.disabled = false;
+            }
+          });
+          actions.appendChild(completeBtn);
+        }
+        actionRow.appendChild(actions);
+        planDayDetail.appendChild(actionRow);
       }
 
       steps.forEach((step) => {
@@ -19530,6 +20061,44 @@ function getAthleteCornerPlan(athlete) {
   };
 }
 
+function getLatestCompletedAssignmentForAthlete(name, { maxAgeMs = 1000 * 60 * 60 * 72 } = {}) {
+  const rows = getPlanAssignmentsForAthlete(name)
+    .filter((assignment) => normalizeAssignmentStatus(assignment.status) === "completed")
+    .map((assignment) => {
+      const timestamp = parseIsoTimestamp(
+        assignment.completedAt
+        || assignment.completionResultAt
+        || assignment.updatedAt
+        || assignment.createdAt
+      );
+      return { assignment, timestamp };
+    })
+    .filter((row) => row.timestamp > 0)
+    .sort((left, right) => right.timestamp - left.timestamp);
+  if (!rows.length) return null;
+  const latest = rows[0];
+  if (maxAgeMs > 0 && Date.now() - latest.timestamp > maxAgeMs) return null;
+  return latest.assignment;
+}
+
+function buildCoachAthleteCompletionAlert(assignment = null) {
+  if (!assignment) return "";
+  const label = String(assignment.title || assignment.type || "").trim() || (currentLang === "es" ? "Tarea" : "Task");
+  const resultSummary = getAssignmentCompletionResultSummary(assignment);
+  const normalizedSummary = String(resultSummary || "").trim();
+  const summaryWithoutDuplicateLabel = normalizedSummary.toLowerCase().startsWith(`${label.toLowerCase()}:`)
+    ? normalizedSummary.slice(label.length + 1).trim()
+    : normalizedSummary;
+  if (currentLang === "es") {
+    return summaryWithoutDuplicateLabel
+      ? `Completado: ${label} • ${summaryWithoutDuplicateLabel}`
+      : `Completado: ${label}`;
+  }
+  return summaryWithoutDuplicateLabel
+    ? `Completed: ${label} • ${summaryWithoutDuplicateLabel}`
+    : `Completed: ${label}`;
+}
+
 function getAthleteAlerts(athlete) {
   const rawAthlete = getRawAthleteRecord(athlete.name) || athlete;
   const rawJournal = getRawJournalEntry(athlete.name);
@@ -19554,6 +20123,12 @@ function getAthleteAlerts(athlete) {
   }
   if (weightTrend.includes("cut") || weightTrend.includes("down")) {
     alerts.push(currentLang === "es" ? "Seguimiento de peso requerido" : "Weight management follow-up");
+  }
+
+  const latestCompleted = getLatestCompletedAssignmentForAthlete(athlete.name);
+  const completionAlert = buildCoachAthleteCompletionAlert(latestCompleted);
+  if (completionAlert) {
+    alerts.unshift(completionAlert);
   }
 
   return Array.from(new Set(alerts)).slice(0, 3);
