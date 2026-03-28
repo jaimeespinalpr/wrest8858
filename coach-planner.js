@@ -67,6 +67,7 @@
     [MENTAL_GAME_KEYS.GO_NO_GO]: {
       title: "Go / No-Go",
       subtitle: "Reflejos + control de impulsos",
+      ruleBrief: "Tap GREEN only. Ignore RED.",
       duration: 30,
       gradient: "linear-gradient(135deg, rgba(16, 185, 129, 0.95), rgba(20, 184, 166, 0.92))",
       cue: "Tap GREEN. Do not tap RED."
@@ -74,6 +75,7 @@
     [MENTAL_GAME_KEYS.MEMORY]: {
       title: "Memory Sequence",
       subtitle: "Memoria de trabajo y enfoque",
+      ruleBrief: "Watch the sequence, then repeat in exact order.",
       duration: 45,
       gradient: "linear-gradient(135deg, rgba(139, 92, 246, 0.95), rgba(217, 70, 239, 0.92))",
       cue: "Memorize, then repeat in order."
@@ -81,6 +83,7 @@
     [MENTAL_GAME_KEYS.DECISION]: {
       title: "Quick Decision",
       subtitle: "Decisiones tacticas bajo presion",
+      ruleBrief: "Read fast and choose the best tactical option.",
       duration: 45,
       gradient: "linear-gradient(135deg, rgba(245, 158, 11, 0.95), rgba(249, 115, 22, 0.92))",
       cue: "Choose the best option quickly."
@@ -88,6 +91,7 @@
     [MENTAL_GAME_KEYS.SCORE]: {
       title: "Score Awareness",
       subtitle: "Lectura de score en tiempo real",
+      ruleBrief: "Track each scoring action and identify who leads.",
       duration: 45,
       gradient: "linear-gradient(135deg, rgba(14, 165, 233, 0.95), rgba(59, 130, 246, 0.92))",
       cue: "Track every point sequence."
@@ -95,6 +99,7 @@
     [MENTAL_GAME_KEYS.SWITCH]: {
       title: "Rule Switch",
       subtitle: "Adaptacion mental instantanea",
+      ruleBrief: "Follow the active rule and adapt on every switch.",
       duration: 40,
       gradient: "linear-gradient(135deg, rgba(244, 63, 94, 0.95), rgba(236, 72, 153, 0.92))",
       cue: "Read the rule before tapping."
@@ -1185,6 +1190,7 @@
           </span>
           <h5>${escapeHtml(meta.title)}</h5>
           <p class="small muted">${escapeHtml(meta.subtitle)}</p>
+          <p class="small planner-mental-rule">${escapeHtml(meta.ruleBrief || meta.cue || "")}</p>
           <div class="planner-mental-game-meta">
             <div class="planner-mental-chip"><span>Best</span><strong>${escapeHtml(stats.bestScore || 0)}</strong></div>
             <div class="planner-mental-chip"><span>Last</span><strong>${escapeHtml(stats.lastScore || 0)}</strong></div>
