@@ -608,6 +608,42 @@ button:active{
   font-size: 13px;
 }
 
+.athlete-track-task-grid{
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.athlete-track-task-card{
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(0,0,0,0.20);
+}
+
+.athlete-track-task-card .card-header{
+  margin-bottom: 8px;
+}
+
+.athlete-track-task-card .completion-list{
+  gap: 8px;
+}
+
+.athlete-track-task-card .completion-card{
+  padding: 10px;
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.12);
+}
+
+.athlete-track-task-card .assignment-card-actions{
+  margin-top: 8px;
+}
+
+.athlete-track-task-card .assignment-card-actions button{
+  min-height: 30px;
+  font-size: 12px;
+  padding: 0 10px;
+}
+
 /* Button row */
 .row{
   display: flex;
@@ -4687,6 +4723,7 @@ textarea:focus{
   .onepager-grid,
   .coach-match-shell,
   .coach-match-grid,
+  .athlete-track-task-grid,
   .selection-block,
   .template-help-grid,
   .assignment-type-grid,
