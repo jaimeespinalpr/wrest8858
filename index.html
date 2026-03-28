@@ -1309,7 +1309,7 @@
               <button type="button" class="ghost" id="plannerOpenLibraryBtn">Library</button>
               <button type="button" class="ghost" id="plannerLoadTemplateBtn">Load template</button>
               <button type="button" class="ghost" id="plannerSaveTemplateTopBtn">Save template</button>
-              <button type="button" class="primary" id="plannerSendAthletesTopBtn">Send to athletes</button>
+              <button type="button" class="primary" id="plannerSendAthletesTopBtn">Share plan</button>
               <button type="button" class="primary" id="plannerPrintBtn">Print</button>
             </div>
           </nav>
@@ -1360,9 +1360,9 @@
             <div class="planner-bottom-actions">
               <div class="planner-bottom-actions-row">
                 <button type="button" class="ghost" id="plannerSaveTemplateBtn">Save as template</button>
-                <button type="button" class="primary" id="plannerSendAthletesBtn">Send training to athletes</button>
+                <button type="button" class="primary" id="plannerSendAthletesBtn">Share plan</button>
               </div>
-              <p class="small muted" id="plannerBottomStatus">Save as template or send this training to athletes.</p>
+              <p class="small muted" id="plannerBottomStatus">Save as template or share this plan with athletes and coaches.</p>
             </div>
 
             <footer class="planner-footer">
@@ -1597,18 +1597,18 @@
             </div>
           </div>
 
-          <div class="planner-modal hidden" id="plannerAssignModal" role="dialog" aria-modal="true" aria-label="Send training to athletes">
+          <div class="planner-modal hidden" id="plannerAssignModal" role="dialog" aria-modal="true" aria-label="Share plan">
             <div class="planner-modal-backdrop" data-dismiss="assign"></div>
             <div class="planner-modal-card planner-modal-wide">
               <header>
-                <h3>Send training to athletes</h3>
+                <h3>Share plan</h3>
                 <button type="button" class="ghost" id="plannerAssignCloseBtn">Close</button>
               </header>
               <div class="planner-modal-body">
                 <div class="planner-assign-toolbar">
                   <label>
-                    <span>Search athlete</span>
-                    <input type="text" id="plannerAssignSearchInput" placeholder="Type athlete name">
+                    <span>Search recipients</span>
+                    <input type="text" id="plannerAssignSearchInput" placeholder="Type athlete or coach name">
                   </label>
                   <label>
                     <span>Due date</span>
@@ -1620,11 +1620,11 @@
                   <button type="button" class="ghost" id="plannerAssignClearBtn">Clear</button>
                 </div>
                 <div id="plannerAssignList" class="planner-assign-list"></div>
-                <p class="small muted" id="plannerAssignStatus">Choose athletes, then send.</p>
+                <p class="small muted" id="plannerAssignStatus">Choose recipients, then share.</p>
               </div>
               <footer>
                 <button type="button" class="ghost" id="plannerAssignCancelBtn">Cancel</button>
-                <button type="button" class="primary" id="plannerAssignSendBtn">Send training</button>
+                <button type="button" class="primary" id="plannerAssignSendBtn">Share plan</button>
               </footer>
             </div>
           </div>
