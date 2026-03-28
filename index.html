@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Teko:wght@500;600;700&display=swap"
     rel="stylesheet"
   >
-  <link rel="stylesheet" href="styles.css?v=20260327e" >
+  <link rel="stylesheet" href="styles.css?v=20260328-athleteplans1" >
 </head>
 
 <body>
@@ -156,7 +156,7 @@
       <nav class="tabs" aria-label="Main tabs">
         <button type="button" class="tab active" data-tab="today" data-role="athlete" data-views="athlete">Today</button>
         <button type="button" class="tab tab-profile-hidden" data-tab="athlete-profile" data-role="athlete" data-views="athlete">Profile</button>
-        <button type="button" class="tab" data-tab="training" data-role="athlete" data-views="athlete">Training &amp; Assignments</button>
+        <button type="button" class="tab" data-tab="plans" data-role="athlete" data-views="athlete">Plans &amp; Assignments</button>
         <button type="button" class="tab" data-tab="calendar" data-role="athlete coach" data-views="athlete">Calendar</button>
         <button type="button" class="tab" data-tab="media" data-role="athlete coach" data-views="athlete">Media</button>
         <button type="button" class="tab" data-tab="journal" data-role="athlete" data-views="athlete">Journal</button>
@@ -361,6 +361,15 @@
             </article>
           </div>
 
+          <article class="mini-card athlete-track-task-card" id="todayActionQueueCard">
+            <div class="card-header">
+              <h3 id="todayActionQueueTitle">Pending now</h3>
+              <div class="chip" id="todayActionQueueCount">0</div>
+            </div>
+            <p class="small muted" id="todayActionQueueHint">Resolve training, games, and unread messages from this section.</p>
+            <div class="completion-list" id="todayActionQueueList"></div>
+          </article>
+
           <div class="checkin">
             <p class="small">How do you feel today?</p>
             <div class="row" id="feelingScale"></div>
@@ -377,6 +386,12 @@
             <h2>Training &amp; Assignments</h2>
             <div class="chip">Coach shared tasks</div>
           </div>
+          <div class="athlete-training-track-switch" id="athleteTrainingTrackSwitch" role="tablist" aria-label="Training sections">
+            <button type="button" class="athlete-training-track-btn active" data-athlete-training-track="wrestling" aria-selected="true">Wrestling Training</button>
+            <button type="button" class="athlete-training-track-btn" data-athlete-training-track="lifting" aria-selected="false">Lifting &amp; Conditioning</button>
+            <button type="button" class="athlete-training-track-btn" data-athlete-training-track="mental" aria-selected="false">Mind &amp; Focus Training</button>
+          </div>
+          <p class="small muted" id="athleteTrainingTrackHint">Read-only view. Coach controls edits and assignments.</p>
           <div class="plan-grid" id="planGrid"></div>
           <div class="plan-detail">
             <h3 id="planDayTitle">Select a day</h3>
@@ -1653,10 +1668,30 @@
                     <input type="text" id="plannerAssignSearchInput" placeholder="Type athlete or coach name">
                   </label>
                   <label>
-                    <span>Due date</span>
+                    <span id="plannerAssignDueDateLabel">Due date</span>
                     <input type="date" id="plannerAssignDueDateInput">
                   </label>
+                  <label id="plannerAssignScheduleModeWrapper">
+                    <span>Schedule mode</span>
+                    <select id="plannerAssignScheduleModeInput">
+                      <option value="day">Single day</option>
+                      <option value="week">Weekly (Sun-Sat)</option>
+                    </select>
+                  </label>
+                  <label id="plannerAssignWeekCountWrapper" class="hidden">
+                    <span>Weeks</span>
+                    <select id="plannerAssignWeekCountInput">
+                      <option value="1">1 week</option>
+                      <option value="2">2 weeks</option>
+                      <option value="3">3 weeks</option>
+                      <option value="4">4 weeks</option>
+                      <option value="5">5 weeks</option>
+                      <option value="6">6 weeks</option>
+                      <option value="8">8 weeks</option>
+                    </select>
+                  </label>
                 </div>
+                <p class="small muted" id="plannerAssignWeekHint">Choose recipients, then share.</p>
                 <div class="planner-assign-actions">
                   <button type="button" class="ghost" id="plannerAssignSelectAllBtn">Select all</button>
                   <button type="button" class="ghost" id="plannerAssignClearBtn">Clear</button>
@@ -2312,7 +2347,7 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260327e"></script>
-  <script src="coach-planner.js?v=20260327e"></script>
+  <script src="app.js?v=20260328-athleteplans1"></script>
+  <script src="coach-planner.js?v=20260328-athleteplans1"></script>
 </body>
 </html>
