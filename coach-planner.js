@@ -3705,6 +3705,7 @@
       selected.forEach((athlete) => {
         const assignmentRef = assignmentsRef.doc();
         const isCoach = athlete.recipientType === "coach";
+        const initialStatus = isCoach ? "shared" : "not_started";
         const assignmentPayload = {
           title: assignmentTitle,
           assigneeType: isCoach ? "coach" : "athlete",
@@ -3720,7 +3721,7 @@
           type: assignmentType,
           dueDateKey,
           dueLabel,
-          status: "not_started",
+          status: initialStatus,
           note: assignmentNote,
           source: assignmentSource,
           planId,

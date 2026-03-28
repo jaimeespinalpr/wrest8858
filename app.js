@@ -3999,6 +3999,7 @@ function normalizeParentScoutingRecord(id, data = {}) {
 
 function normalizeAssignmentStatus(status) {
   const raw = String(status || "").trim().toLowerCase();
+  if (raw === "shared" || raw === "share" || raw === "shared_with_coach") return "shared";
   if (raw === "review" || raw === "in_progress" || raw === "in-progress" || raw === "progress") return "in_progress";
   if (raw === "complete" || raw === "completed") return "completed";
   if (raw === "overdue") return "overdue";
@@ -4017,14 +4018,16 @@ function normalizeAssignmentChecklist(raw = {}) {
 
 function normalizeCoachAssignmentRecord(id, data = {}) {
   const dueDateKey = isDateKey(data.dueDateKey) ? data.dueDateKey : "";
+  const assigneeType = String(data.assigneeType || "athlete").trim().toLowerCase();
   const normalizedStatus = normalizeAssignmentStatus(data.status);
-  const derivedStatus = dueDateKey && dueDateKey < getCurrentAppDateKey() && normalizedStatus !== "completed"
+  const effectiveStatus = assigneeType === "coach" ? "shared" : normalizedStatus;
+  const derivedStatus = dueDateKey && dueDateKey < getCurrentAppDateKey() && effectiveStatus !== "completed" && effectiveStatus !== "shared"
     ? "overdue"
-    : normalizedStatus;
+    : effectiveStatus;
   return {
     id,
     title: String(data.title || "").trim(),
-    assigneeType: String(data.assigneeType || "athlete").trim(),
+    assigneeType,
     assigneeName: String(data.assigneeName || "").trim(),
     assigneeNames: uniqueNames(data.assigneeNames || []),
     assigneeId: String(data.assigneeId || "").trim(),
@@ -4844,7 +4847,8 @@ function getAssignmentStatusCounts(records = getCoachAssignmentRecords()) {
     not_started: 0,
     in_progress: 0,
     completed: 0,
-    overdue: 0
+    overdue: 0,
+    shared: 0
   };
   records.forEach((record) => {
     const key = normalizeAssignmentStatus(record.status);
@@ -4972,6 +4976,7 @@ async function syncDerivedAssignmentStatuses() {
   const todayKey = getCurrentAppDateKey();
   const stale = coachAssignmentsCache.filter((assignment) => (
     assignment.status !== "completed"
+      && assignment.status !== "shared"
       && assignment.status !== "overdue"
       && assignment.dueDateKey
       && assignment.dueDateKey < todayKey
@@ -16012,13 +16017,15 @@ function getAssignmentStatusMeta(status) {
     not_started: { en: "Not started", es: "Sin empezar" },
     in_progress: { en: "In progress", es: "En progreso" },
     overdue: { en: "Overdue", es: "Atrasado" },
-    completed: { en: "Completed", es: "Completado" }
+    completed: { en: "Completed", es: "Completado" },
+    shared: { en: "Shared", es: "Compartido" }
   };
   const classes = {
     not_started: "status-pill-pending",
     in_progress: "status-pill-journal",
     overdue: "status-pill-alert",
-    completed: "status-pill-active"
+    completed: "status-pill-active",
+    shared: "status-pill-active"
   };
   const key = normalizeAssignmentStatus(status);
   return {
@@ -16424,6 +16431,7 @@ function renderCoachAssignments() {
   }
   visibleAssignments.forEach((item) => {
     const status = getAssignmentStatusMeta(item.status);
+    const isCoachShare = String(item.assigneeType || "").trim().toLowerCase() === "coach";
     const assignedLabel = currentLang === "es" ? "Asignado a" : "Assigned to";
     const typeLabel = currentLang === "es" ? "Tipo" : "Type";
     const dueLabel = currentLang === "es" ? "Entrega" : "Due";
@@ -16431,7 +16439,7 @@ function renderCoachAssignments() {
     const notifyLabel = currentLang === "es" ? "Notificar atleta" : "Notify athlete";
     const updateLabel = currentLang === "es" ? "Actualizar estado" : "Update status";
     const mediaLabel = currentLang === "es" ? "Abrir media" : "Open media";
-    const statusOptions = ["not_started", "in_progress", "completed", "overdue"]
+    const statusOptions = ["not_started", "in_progress", "completed", "overdue", "shared"]
       .map((option) => {
         const meta = getAssignmentStatusMeta(option);
         const selected = normalizeAssignmentStatus(item.status) === option ? " selected" : "";
@@ -16464,31 +16472,36 @@ function renderCoachAssignments() {
       </div>
       <div class="assignment-card-meta">${sourceLabel}: ${item.source || getPlanAssignmentTypeLabel(item.planType)}</div>
       <p class="small">${item.note || (currentLang === "es" ? "Sin nota adicional." : "No additional note.")}</p>
+      ${isCoachShare ? `<div class="assignment-card-meta">${currentLang === "es" ? "Modo" : "Mode"}: ${currentLang === "es" ? "Solo compartir entre entrenadores" : "Coach-to-coach share only"}</div>` : ""}
       <div class="assignment-card-meta">${notificationText}</div>
     `;
     const actions = document.createElement("div");
     actions.className = "assignment-card-actions";
-    const statusSelect = document.createElement("select");
-    statusSelect.className = "assignment-status-select";
-    statusSelect.innerHTML = statusOptions;
-    actions.appendChild(statusSelect);
-    const updateBtn = document.createElement("button");
-    updateBtn.type = "button";
-    updateBtn.className = "ghost";
-    updateBtn.textContent = updateLabel;
-    updateBtn.addEventListener("click", async () => {
-      try {
-        await updateCoachAssignmentStatus(item.id, statusSelect.value);
-        toast(currentLang === "es" ? "Estado actualizado." : "Status updated.");
-      } catch (err) {
-        console.warn("Assignment status update failed", err);
-        toast(currentLang === "es" ? "No se pudo actualizar el estado." : "Could not update the status.");
-      }
-    });
-    actions.appendChild(updateBtn);
+    if (!isCoachShare) {
+      const statusSelect = document.createElement("select");
+      statusSelect.className = "assignment-status-select";
+      statusSelect.innerHTML = statusOptions;
+      actions.appendChild(statusSelect);
+      const updateBtn = document.createElement("button");
+      updateBtn.type = "button";
+      updateBtn.className = "ghost";
+      updateBtn.textContent = updateLabel;
+      updateBtn.addEventListener("click", async () => {
+        try {
+          await updateCoachAssignmentStatus(item.id, statusSelect.value);
+          toast(currentLang === "es" ? "Estado actualizado." : "Status updated.");
+        } catch (err) {
+          console.warn("Assignment status update failed", err);
+          toast(currentLang === "es" ? "No se pudo actualizar el estado." : "Could not update the status.");
+        }
+      });
+      actions.appendChild(updateBtn);
+    }
     const notifyBtn = document.createElement("button");
     notifyBtn.type = "button";
-    notifyBtn.textContent = notifyLabel;
+    notifyBtn.textContent = isCoachShare
+      ? (currentLang === "es" ? "Notificar coach" : "Notify coach")
+      : notifyLabel;
     notifyBtn.addEventListener("click", async () => {
       try {
         await sendCoachAssignmentNotification(item);
