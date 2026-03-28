@@ -8882,6 +8882,347 @@ svg{
   border-radius: 10px;
 }
 
+.planner-mental-shell{
+  border: 1px solid rgba(104, 132, 177, 0.22);
+  border-radius: 14px;
+  padding: 14px;
+  background: rgba(6, 14, 27, 0.88);
+}
+
+.planner-mental-grid{
+  display: grid;
+  gap: 12px;
+}
+
+.planner-mental-home-grid{
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 1fr);
+}
+
+.planner-mental-card{
+  border: 1px solid rgba(112, 141, 190, 0.3);
+  border-radius: 14px;
+  background: rgba(11, 23, 42, 0.86);
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.planner-mental-hero{
+  border: 1px solid rgba(112, 141, 190, 0.3);
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.94), rgba(30, 41, 59, 0.9));
+  padding: 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.planner-mental-hero h4,
+.planner-mental-card h4{
+  margin: 0;
+}
+
+.planner-mental-actions{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.planner-mental-snapshot{
+  display: grid;
+  gap: 8px;
+}
+
+.planner-mental-stat{
+  border: 1px solid rgba(126, 156, 207, 0.32);
+  border-radius: 10px;
+  background: rgba(18, 33, 59, 0.82);
+  padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.planner-mental-stat span{
+  font-size: 0.78rem;
+  color: #a9bfdf;
+}
+
+.planner-mental-stat strong{
+  font-size: 1.15rem;
+  color: #f5f9ff;
+}
+
+.planner-mental-games{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.planner-mental-game-card{
+  border: 1px solid rgba(112, 141, 190, 0.28);
+  border-radius: 12px;
+  background: rgba(11, 23, 42, 0.86);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.planner-mental-game-badge{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.42);
+  background: rgba(15, 23, 42, 0.72);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.planner-mental-game-card h5{
+  margin: 0;
+  font-size: 1rem;
+}
+
+.planner-mental-game-meta{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.planner-mental-chip{
+  border: 1px solid rgba(126, 156, 207, 0.32);
+  border-radius: 8px;
+  background: rgba(18, 33, 59, 0.82);
+  padding: 6px;
+  display: grid;
+  gap: 1px;
+}
+
+.planner-mental-chip span{
+  font-size: 0.68rem;
+  color: #a9bfdf;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.planner-mental-chip strong{
+  font-size: 0.9rem;
+}
+
+.planner-mental-progress-wrap{
+  display: grid;
+  gap: 6px;
+}
+
+.planner-mental-progress{
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(51, 65, 85, 0.72);
+  overflow: hidden;
+}
+
+.planner-mental-progress-fill{
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.92), rgba(45, 212, 191, 0.9));
+}
+
+.planner-mental-game-header{
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.planner-mental-timer{
+  border-radius: 999px;
+  border: 1px solid rgba(126, 156, 207, 0.42);
+  background: rgba(18, 33, 59, 0.82);
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.planner-mental-countdown{
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+
+.planner-mental-countdown strong{
+  font-size: clamp(2.4rem, 6vw, 4.4rem);
+  color: #f5f9ff;
+}
+
+.planner-mental-play-grid{
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(220px, 1fr);
+}
+
+.planner-mental-stage{
+  border: 1px solid rgba(112, 141, 190, 0.28);
+  border-radius: 12px;
+  background: rgba(10, 20, 36, 0.9);
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.planner-mental-side{
+  border: 1px solid rgba(112, 141, 190, 0.28);
+  border-radius: 12px;
+  background: rgba(10, 20, 36, 0.9);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.planner-mental-stimulus{
+  min-height: 210px;
+  border-radius: 14px;
+  border: 1px solid rgba(126, 156, 207, 0.3);
+  display: grid;
+  place-items: center;
+  font-size: clamp(1.4rem, 3vw, 2.3rem);
+  font-weight: 800;
+  color: #f8fafc;
+  transition: transform 180ms ease, filter 180ms ease;
+}
+
+.planner-mental-stimulus.go{
+  background: linear-gradient(145deg, rgba(16, 185, 129, 0.9), rgba(13, 148, 136, 0.9));
+}
+
+.planner-mental-stimulus.no{
+  background: linear-gradient(145deg, rgba(239, 68, 68, 0.9), rgba(185, 28, 28, 0.9));
+}
+
+.planner-mental-stimulus.wait{
+  background: linear-gradient(145deg, rgba(30, 41, 59, 0.95), rgba(51, 65, 85, 0.9));
+}
+
+.planner-mental-tap-btn{
+  min-height: 48px;
+  border-radius: 12px;
+  font-weight: 800;
+}
+
+.planner-mental-options{
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.planner-mental-options button{
+  min-height: 64px;
+  border-radius: 12px;
+  white-space: normal;
+  text-align: left;
+}
+
+.planner-mental-color-grid{
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.planner-mental-color-btn{
+  min-height: 78px;
+  border-radius: 12px;
+  border: 1px solid rgba(126, 156, 207, 0.32);
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.planner-mental-color-btn.red{ background: #ef4444; }
+.planner-mental-color-btn.blue{ background: #3b82f6; }
+.planner-mental-color-btn.green{ background: #22c55e; }
+.planner-mental-color-btn.yellow{ background: #facc15; color: #1e293b; }
+
+.planner-mental-seq{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.planner-mental-seq-item{
+  border: 1px solid rgba(126, 156, 207, 0.32);
+  border-radius: 8px;
+  background: rgba(18, 33, 59, 0.82);
+  padding: 6px 8px;
+  font-size: 0.78rem;
+}
+
+.planner-mental-seq-item.active{
+  border-color: rgba(45, 212, 191, 0.68);
+  background: rgba(13, 148, 136, 0.28);
+}
+
+.planner-mental-switch-grid{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.planner-mental-switch-btn{
+  min-height: 170px;
+  border-radius: 14px;
+  font-size: clamp(2rem, 6vw, 3.2rem);
+  font-weight: 900;
+}
+
+.planner-mental-result{
+  border: 1px solid rgba(112, 141, 190, 0.3);
+  border-radius: 14px;
+  background: rgba(11, 23, 42, 0.86);
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.planner-mental-breakdown{
+  display: grid;
+  gap: 8px;
+}
+
+.planner-mental-break-row{
+  display: grid;
+  gap: 4px;
+}
+
+.planner-mental-break-row-head{
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.78rem;
+}
+
+.planner-mental-empty{
+  text-align: center;
+  color: #94a3b8;
+  border: 1px dashed rgba(148, 163, 184, 0.42);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+@keyframes mentalPulse {
+  0% { transform: scale(1); filter: saturate(1); }
+  50% { transform: scale(1.02); filter: saturate(1.2); }
+  100% { transform: scale(1); filter: saturate(1); }
+}
+
+.planner-mental-stimulus.go,
+.planner-mental-stimulus.no{
+  animation: mentalPulse 340ms ease;
+}
+
 @media (max-width: 1024px){
   .planner-lifting-overview-grid{
     grid-template-columns: 1fr;
@@ -8890,6 +9231,15 @@ svg{
     grid-template-columns: 1fr;
   }
   .planner-lifting-program-grid{
+    grid-template-columns: 1fr;
+  }
+  .planner-mental-home-grid{
+    grid-template-columns: 1fr;
+  }
+  .planner-mental-games{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .planner-mental-play-grid{
     grid-template-columns: 1fr;
   }
 }
@@ -8901,6 +9251,16 @@ svg{
   }
   .planner-lifting-program-kpis{
     grid-template-columns: 1fr;
+  }
+  .planner-mental-games,
+  .planner-mental-options{
+    grid-template-columns: 1fr;
+  }
+  .planner-mental-color-grid{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .planner-mental-switch-btn{
+    min-height: 130px;
   }
 }
 

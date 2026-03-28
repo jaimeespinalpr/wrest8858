@@ -55,6 +55,148 @@
     ]
   };
 
+  const MENTAL_GAME_KEYS = {
+    GO_NO_GO: "go_no_go",
+    MEMORY: "memory_sequence",
+    DECISION: "quick_decision",
+    SCORE: "score_awareness",
+    SWITCH: "rule_switch"
+  };
+
+  const MENTAL_GAME_META = {
+    [MENTAL_GAME_KEYS.GO_NO_GO]: {
+      title: "Go / No-Go",
+      subtitle: "Reflejos + control de impulsos",
+      duration: 30,
+      gradient: "linear-gradient(135deg, rgba(16, 185, 129, 0.95), rgba(20, 184, 166, 0.92))",
+      cue: "Tap GREEN. Do not tap RED."
+    },
+    [MENTAL_GAME_KEYS.MEMORY]: {
+      title: "Memory Sequence",
+      subtitle: "Memoria de trabajo y enfoque",
+      duration: 45,
+      gradient: "linear-gradient(135deg, rgba(139, 92, 246, 0.95), rgba(217, 70, 239, 0.92))",
+      cue: "Memorize, then repeat in order."
+    },
+    [MENTAL_GAME_KEYS.DECISION]: {
+      title: "Quick Decision",
+      subtitle: "Decisiones tacticas bajo presion",
+      duration: 45,
+      gradient: "linear-gradient(135deg, rgba(245, 158, 11, 0.95), rgba(249, 115, 22, 0.92))",
+      cue: "Choose the best option quickly."
+    },
+    [MENTAL_GAME_KEYS.SCORE]: {
+      title: "Score Awareness",
+      subtitle: "Lectura de score en tiempo real",
+      duration: 45,
+      gradient: "linear-gradient(135deg, rgba(14, 165, 233, 0.95), rgba(59, 130, 246, 0.92))",
+      cue: "Track every point sequence."
+    },
+    [MENTAL_GAME_KEYS.SWITCH]: {
+      title: "Rule Switch",
+      subtitle: "Adaptacion mental instantanea",
+      duration: 40,
+      gradient: "linear-gradient(135deg, rgba(244, 63, 94, 0.95), rgba(236, 72, 153, 0.92))",
+      cue: "Read the rule before tapping."
+    }
+  };
+
+  const MENTAL_COLORS = [
+    { key: "red", name: "Red" },
+    { key: "blue", name: "Blue" },
+    { key: "green", name: "Green" },
+    { key: "yellow", name: "Yellow" }
+  ];
+
+  const MENTAL_DECISION_SCENARIOS = [
+    {
+      prompt: "You are losing by 1 with 15 seconds left in neutral.",
+      options: ["Attack a clean single", "Back away", "Hold center only", "Force a big throw"],
+      answer: "Attack a clean single"
+    },
+    {
+      prompt: "You are up by 2 with 12 seconds left and your opponent is pressing.",
+      options: ["Take a risky shot", "Control position and circle", "Jump to upper body", "Stay flat-footed"],
+      answer: "Control position and circle"
+    },
+    {
+      prompt: "Opponent is heavy on the head and leaning forward.",
+      options: ["Snap and go behind", "Stand straight up", "Reach from too far", "Pause and wait"],
+      answer: "Snap and go behind"
+    },
+    {
+      prompt: "Bottom position, tied late in the match.",
+      options: ["Secure a fast stand-up", "Lay flat", "Try a slow roll", "Look at the clock only"],
+      answer: "Secure a fast stand-up"
+    }
+  ];
+
+  const MENTAL_SCORE_EVENTS = [
+    { text: "Red takedown", delta: { red: 3, green: 0 } },
+    { text: "Green escape", delta: { red: 0, green: 1 } },
+    { text: "Red stall point", delta: { red: 1, green: 0 } },
+    { text: "Green reversal", delta: { red: 0, green: 2 } },
+    { text: "Red escape", delta: { red: 1, green: 0 } },
+    { text: "Green takedown", delta: { red: 0, green: 3 } },
+    { text: "Red reversal", delta: { red: 2, green: 0 } }
+  ];
+
+  const MENTAL_SWITCH_RULES = [
+    {
+      id: "higher",
+      label: "Tap the higher number",
+      evaluate: (a, b) => (a > b ? "left" : "right")
+    },
+    {
+      id: "lower",
+      label: "Tap the lower number",
+      evaluate: (a, b) => (a < b ? "left" : "right")
+    },
+    {
+      id: "even",
+      label: "Tap the even number",
+      evaluate: (a, b) => (a % 2 === 0 ? "left" : "right")
+    }
+  ];
+
+  function buildDefaultMentalScores() {
+    return {
+      totalSessions: 0,
+      totalMentalScore: 0,
+      bestMentalScore: 0,
+      lastPlayed: null,
+      gameStats: {}
+    };
+  }
+
+  function normalizeMentalScoreValue(raw = {}) {
+    const defaults = buildDefaultMentalScores();
+    const source = raw && typeof raw === "object" ? raw : {};
+    const gameStatsRaw = source.gameStats && typeof source.gameStats === "object" ? source.gameStats : {};
+    const gameStats = {};
+    Object.keys(MENTAL_GAME_META).forEach((key) => {
+      const item = gameStatsRaw[key] && typeof gameStatsRaw[key] === "object" ? gameStatsRaw[key] : {};
+      const plays = Math.max(0, parseInt(String(item.plays || 0), 10) || 0);
+      const bestScore = Math.max(0, parseInt(String(item.bestScore || 0), 10) || 0);
+      const averageScore = Math.max(0, parseInt(String(item.averageScore || 0), 10) || 0);
+      const lastScore = Math.max(0, parseInt(String(item.lastScore || 0), 10) || 0);
+      gameStats[key] = {
+        plays,
+        bestScore,
+        averageScore,
+        lastScore,
+        details: item.details && typeof item.details === "object" ? item.details : {}
+      };
+    });
+    return {
+      totalSessions: Math.max(0, parseInt(String(source.totalSessions || defaults.totalSessions), 10) || defaults.totalSessions),
+      totalMentalScore: Math.max(0, parseInt(String(source.totalMentalScore || defaults.totalMentalScore), 10) || defaults.totalMentalScore),
+      bestMentalScore: Math.max(0, parseInt(String(source.bestMentalScore || defaults.bestMentalScore), 10) || defaults.bestMentalScore),
+      lastPlayed: source.lastPlayed ? String(source.lastPlayed) : null,
+      gameStats
+    };
+  }
+
   function buildDefaultLiftingPlan() {
     return {
       id: "",
@@ -83,6 +225,7 @@
     track: "planner_active_track",
     liftingDraft: "planner_lifting_draft",
     mentalDraft: "planner_mental_draft",
+    mentalScores: "planner_mental_scores",
     liftingPlan: "planner_lifting_plan",
     liftingLibraryData: "planner_lifting_library_data",
     liftingActiveDay: "planner_lifting_active_day",
@@ -131,6 +274,21 @@
 
   function makeId() {
     return `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function shuffleList(list = []) {
+    const copy = Array.isArray(list) ? [...list] : [];
+    for (let i = copy.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = copy[i];
+      copy[i] = copy[j];
+      copy[j] = tmp;
+    }
+    return copy;
   }
 
   function getDefaultCategoryNames() {
@@ -300,6 +458,7 @@
 
   const state = {
     activeTrack: normalizeTrack(readJson(STORAGE_KEYS.track, "wrestling")),
+    lastRenderedTrack: normalizeTrack(readJson(STORAGE_KEYS.track, "wrestling")),
     docInfo: {
       date: String(dailyState.date || ""),
       totalTime: String(dailyState.totalTime || "90")
@@ -338,6 +497,13 @@
     assignModalBusy: false,
     liftingDraft: readJson(STORAGE_KEYS.liftingDraft, {}) || {},
     mentalDraft: readJson(STORAGE_KEYS.mentalDraft, {}) || {},
+    mentalScores: normalizeMentalScoreValue(readJson(STORAGE_KEYS.mentalScores, buildDefaultMentalScores()) || buildDefaultMentalScores()),
+    mentalView: "home",
+    mentalActiveGame: "",
+    mentalSession: null,
+    mentalResult: null,
+    mentalTimers: [],
+    mentalAudioContext: null,
     liftingTab: normalizeLiftingTab(readJson(STORAGE_KEYS.liftingActiveTab, "editor") || "editor"),
     liftingActiveDay: Math.max(0, Math.min(6, parseInt(String(readJson(STORAGE_KEYS.liftingActiveDay, 0) || 0), 10) || 0)),
     liftingPlan: normalizeLiftingPlan(readJson(STORAGE_KEYS.liftingPlan, buildDefaultLiftingPlan()) || buildDefaultLiftingPlan()),
@@ -454,6 +620,8 @@
     mentalSaveBtn: document.getElementById("plannerMentalSaveBtn"),
     mentalClearBtn: document.getElementById("plannerMentalClearBtn"),
     mentalStatus: document.getElementById("plannerMentalStatus"),
+    mentalShell: document.getElementById("plannerMentalShell"),
+    mentalContent: document.getElementById("plannerMentalContent"),
     liftingShell: document.getElementById("plannerLiftingShell"),
     liftingTabs: Array.from(root.querySelectorAll("[data-lifting-tab]")),
     liftingViews: Array.from(root.querySelectorAll("[data-lifting-view]")),
@@ -631,8 +799,8 @@
     }
     if (track === "mental") {
       return {
-        title: "",
-        subtitle: ""
+        title: "Mind & Focus Lab",
+        subtitle: "Visual games for reaction, tactical decisions, and competitive focus."
       };
     }
     return {
@@ -656,6 +824,7 @@
   }
 
   function renderTrackPanels() {
+    const previousTrack = normalizeTrack(state.lastRenderedTrack || state.activeTrack);
     const activeTrack = normalizeTrack(state.activeTrack);
     state.activeTrack = activeTrack;
     writeJson(STORAGE_KEYS.track, activeTrack);
@@ -676,6 +845,16 @@
     els.wrestlingOnly.forEach((node) => {
       node.classList.toggle("hidden", !wrestlingMode);
     });
+    if (previousTrack === "mental" && activeTrack !== "mental" && state.mentalView === "game") {
+      clearMentalTimers();
+      state.mentalSession = null;
+      state.mentalResult = null;
+      state.mentalView = "home";
+    }
+    if (activeTrack === "mental") {
+      renderMentalApp();
+    }
+    state.lastRenderedTrack = activeTrack;
   }
 
   function getTrackDraftElements(track) {
@@ -771,6 +950,1083 @@
       ? "Mind & focus draft cleared."
       : "Lifting & conditioning draft cleared.";
     setTrackDraftStatus(track, message);
+  }
+
+  function persistMentalScores() {
+    state.mentalScores = normalizeMentalScoreValue(state.mentalScores || buildDefaultMentalScores());
+    writeJson(STORAGE_KEYS.mentalScores, state.mentalScores);
+  }
+
+  function getMentalGameStats(gameKey) {
+    return state.mentalScores?.gameStats?.[gameKey] || {
+      plays: 0,
+      bestScore: 0,
+      averageScore: 0,
+      lastScore: 0,
+      details: {}
+    };
+  }
+
+  function getMentalAverageScore() {
+    const sessions = Math.max(0, parseInt(String(state.mentalScores?.totalSessions || 0), 10) || 0);
+    if (!sessions) return 0;
+    return Math.round((parseInt(String(state.mentalScores?.totalMentalScore || 0), 10) || 0) / sessions);
+  }
+
+  function clearMentalTimers() {
+    (state.mentalTimers || []).forEach((timerId) => {
+      clearTimeout(timerId);
+      clearInterval(timerId);
+    });
+    state.mentalTimers = [];
+  }
+
+  function trackMentalTimer(timerId) {
+    if (!timerId && timerId !== 0) return timerId;
+    if (!Array.isArray(state.mentalTimers)) state.mentalTimers = [];
+    state.mentalTimers.push(timerId);
+    return timerId;
+  }
+
+  function getMentalAudioContext() {
+    if (state.mentalAudioContext) return state.mentalAudioContext;
+    const Context = window.AudioContext || window.webkitAudioContext;
+    if (!Context) return null;
+    try {
+      state.mentalAudioContext = new Context();
+      return state.mentalAudioContext;
+    } catch {
+      return null;
+    }
+  }
+
+  function playMentalTone(frequency = 440, duration = 0.12, gainValue = 0.045) {
+    const ctx = getMentalAudioContext();
+    if (!ctx) return;
+    try {
+      if (ctx.state === "suspended" && typeof ctx.resume === "function") {
+        ctx.resume().catch(() => {});
+      }
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const now = ctx.currentTime;
+      osc.type = "sine";
+      osc.frequency.value = frequency;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(Math.max(0.004, gainValue), now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + duration + 0.03);
+    } catch {
+      // Audio is optional.
+    }
+  }
+
+  function playMentalCue(type = "ok") {
+    if (type === "correct") {
+      playMentalTone(780, 0.09, 0.05);
+      trackMentalTimer(setTimeout(() => playMentalTone(980, 0.09, 0.04), 80));
+      return;
+    }
+    if (type === "wrong") {
+      playMentalTone(240, 0.14, 0.05);
+      return;
+    }
+    if (type === "complete") {
+      playMentalTone(660, 0.1, 0.05);
+      trackMentalTimer(setTimeout(() => playMentalTone(880, 0.12, 0.05), 95));
+      trackMentalTimer(setTimeout(() => playMentalTone(1100, 0.15, 0.045), 190));
+      return;
+    }
+    playMentalTone(520, 0.07, 0.03);
+  }
+
+  function createMentalSession(gameKey) {
+    return {
+      id: makeId(),
+      gameKey,
+      phase: "countdown",
+      countdown: 3,
+      timeLeft: MENTAL_GAME_META[gameKey]?.duration || 30
+    };
+  }
+
+  function isActiveMentalSession(session) {
+    return Boolean(
+      session
+      && state.mentalView === "game"
+      && state.mentalSession
+      && session.id
+      && state.mentalSession.id === session.id
+      && state.mentalActiveGame === session.gameKey
+    );
+  }
+
+  function saveMentalGameResult(gameKey, result) {
+    if (!gameKey || !result || typeof result !== "object") return;
+    const current = normalizeMentalScoreValue(state.mentalScores || buildDefaultMentalScores());
+    const previous = current.gameStats?.[gameKey] || {
+      plays: 0,
+      bestScore: 0,
+      averageScore: 0,
+      lastScore: 0
+    };
+    const score = Math.max(0, parseInt(String(result.mentalScore || 0), 10) || 0);
+    const plays = previous.plays + 1;
+    const averageScore = Math.round(((previous.averageScore * previous.plays) + score) / plays);
+    current.totalSessions += 1;
+    current.totalMentalScore += score;
+    current.bestMentalScore = Math.max(current.bestMentalScore, score);
+    current.lastPlayed = new Date().toISOString();
+    current.gameStats[gameKey] = {
+      plays,
+      bestScore: Math.max(previous.bestScore, score),
+      averageScore,
+      lastScore: score,
+      details: {
+        ...result,
+        updatedAt: current.lastPlayed
+      }
+    };
+    state.mentalScores = current;
+    persistMentalScores();
+  }
+
+  function resetMentalScores() {
+    state.mentalScores = buildDefaultMentalScores();
+    persistMentalScores();
+    triggerToast("Mind & Focus progress reset.");
+    renderMentalApp();
+  }
+
+  function renderMentalHome() {
+    const average = getMentalAverageScore();
+    const cards = Object.entries(MENTAL_GAME_META).map(([gameKey, meta]) => {
+      const stats = getMentalGameStats(gameKey);
+      return `
+        <article class="planner-mental-game-card">
+          <span class="planner-mental-game-badge" style="background:${meta.gradient};color:#f8fafc;border-color:rgba(248,250,252,0.35);">
+            ${escapeHtml(meta.duration)}s
+          </span>
+          <h5>${escapeHtml(meta.title)}</h5>
+          <p class="small muted">${escapeHtml(meta.subtitle)}</p>
+          <div class="planner-mental-game-meta">
+            <div class="planner-mental-chip"><span>Best</span><strong>${escapeHtml(stats.bestScore || 0)}</strong></div>
+            <div class="planner-mental-chip"><span>Last</span><strong>${escapeHtml(stats.lastScore || 0)}</strong></div>
+            <div class="planner-mental-chip"><span>Average</span><strong>${escapeHtml(stats.averageScore || 0)}</strong></div>
+            <div class="planner-mental-chip"><span>Plays</span><strong>${escapeHtml(stats.plays || 0)}</strong></div>
+          </div>
+          <button type="button" class="primary" data-action="mental-open-game" data-game="${escapeHtml(gameKey)}">Play now</button>
+        </article>
+      `;
+    }).join("");
+
+    return `
+      <div class="planner-mental-grid">
+        <div class="planner-mental-home-grid">
+          <section class="planner-mental-hero">
+            <span class="planner-mental-game-badge">Coach + Athlete Mode</span>
+            <h4>Train the mind like you train on the mat.</h4>
+            <p class="small muted">Reaction speed, tactical reads, score memory, and adaptability. Fast rounds built for wrestling performance.</p>
+            <div class="planner-mental-actions">
+              <button type="button" class="primary" data-action="mental-open-game" data-game="${escapeHtml(MENTAL_GAME_KEYS.GO_NO_GO)}">Start training</button>
+              <button type="button" class="ghost" data-action="mental-open-progress">View progress</button>
+            </div>
+          </section>
+          <section class="planner-mental-card">
+            <h4>Athlete Snapshot</h4>
+            <div class="planner-mental-snapshot">
+              <div class="planner-mental-stat"><span>Sessions completed</span><strong>${escapeHtml(state.mentalScores.totalSessions || 0)}</strong></div>
+              <div class="planner-mental-stat"><span>Best mental score</span><strong>${escapeHtml(state.mentalScores.bestMentalScore || 0)}</strong></div>
+              <div class="planner-mental-stat"><span>Average mental score</span><strong>${escapeHtml(average)}</strong></div>
+              <div class="planner-mental-stat"><span>Games active</span><strong>${escapeHtml(Object.keys(MENTAL_GAME_META).length)}</strong></div>
+            </div>
+          </section>
+        </div>
+        <div class="planner-mental-games">${cards}</div>
+      </div>
+    `;
+  }
+
+  function renderMentalProgress() {
+    const average = getMentalAverageScore();
+    const rows = Object.entries(MENTAL_GAME_META).map(([gameKey, meta]) => {
+      const stats = getMentalGameStats(gameKey);
+      return `
+        <article class="planner-mental-card">
+          <div class="planner-mental-game-header">
+            <div>
+              <h4>${escapeHtml(meta.title)}</h4>
+              <p class="small muted">${escapeHtml(meta.subtitle)}</p>
+            </div>
+            <span class="planner-mental-game-badge">${escapeHtml(stats.plays || 0)} plays</span>
+          </div>
+          <div class="planner-mental-game-meta">
+            <div class="planner-mental-chip"><span>Best</span><strong>${escapeHtml(stats.bestScore || 0)}</strong></div>
+            <div class="planner-mental-chip"><span>Average</span><strong>${escapeHtml(stats.averageScore || 0)}</strong></div>
+            <div class="planner-mental-chip"><span>Last</span><strong>${escapeHtml(stats.lastScore || 0)}</strong></div>
+            <div class="planner-mental-chip"><span>Duration</span><strong>${escapeHtml(meta.duration)}s</strong></div>
+          </div>
+        </article>
+      `;
+    }).join("");
+
+    return `
+      <div class="planner-mental-grid">
+        <section class="planner-mental-card">
+          <div class="planner-mental-game-header">
+            <div>
+              <h4>Performance Overview</h4>
+              <p class="small muted">Track reaction, memory, tactical awareness, and adaptability progress.</p>
+            </div>
+            <div class="planner-mental-actions">
+              <button type="button" class="ghost" data-action="mental-open-home">Home</button>
+              <button type="button" class="ghost" data-action="mental-reset-progress">Reset data</button>
+            </div>
+          </div>
+          <div class="planner-mental-game-meta">
+            <div class="planner-mental-chip"><span>Total sessions</span><strong>${escapeHtml(state.mentalScores.totalSessions || 0)}</strong></div>
+            <div class="planner-mental-chip"><span>Best mental score</span><strong>${escapeHtml(state.mentalScores.bestMentalScore || 0)}</strong></div>
+            <div class="planner-mental-chip"><span>Average score</span><strong>${escapeHtml(average)}</strong></div>
+            <div class="planner-mental-chip"><span>Games tracked</span><strong>${escapeHtml(Object.keys(MENTAL_GAME_META).length)}</strong></div>
+          </div>
+        </section>
+        ${rows}
+      </div>
+    `;
+  }
+
+  function renderMentalResult() {
+    const gameKey = state.mentalActiveGame;
+    const meta = MENTAL_GAME_META[gameKey];
+    const result = state.mentalResult;
+    if (!meta || !result) {
+      return `<div class="planner-mental-empty">No result available yet.</div>`;
+    }
+    const breakdownRows = Array.isArray(result.breakdown) ? result.breakdown : [];
+    const breakdownHtml = breakdownRows.map((item) => {
+      const value = clamp(parseInt(String(item?.value || 0), 10) || 0, 0, 100);
+      return `
+        <div class="planner-mental-break-row">
+          <div class="planner-mental-break-row-head">
+            <span>${escapeHtml(item?.label || "Metric")}</span>
+            <span>${escapeHtml(value)}%</span>
+          </div>
+          <div class="planner-mental-progress">
+            <div class="planner-mental-progress-fill" style="width:${value}%;"></div>
+          </div>
+        </div>
+      `;
+    }).join("");
+    return `
+      <div class="planner-mental-result">
+        <span class="planner-mental-game-badge" style="background:${meta.gradient};color:#f8fafc;border-color:rgba(248,250,252,0.35);">Session complete</span>
+        <h4>${escapeHtml(meta.title)}</h4>
+        <p class="small muted">${escapeHtml(result.feedback || "Solid round. Keep building consistency.")}</p>
+        <div class="planner-mental-game-meta">
+          <div class="planner-mental-chip"><span>Mental score</span><strong>${escapeHtml(result.mentalScore || 0)}</strong></div>
+          <div class="planner-mental-chip"><span>Accuracy</span><strong>${escapeHtml(result.accuracy || 0)}%</strong></div>
+          <div class="planner-mental-chip"><span>Speed</span><strong>${escapeHtml(result.speedScore || 0)}</strong></div>
+          <div class="planner-mental-chip"><span>Control</span><strong>${escapeHtml(result.controlScore ?? result.consistencyScore ?? 0)}</strong></div>
+        </div>
+        <div class="planner-mental-breakdown">${breakdownHtml}</div>
+        <div class="planner-mental-actions">
+          <button type="button" class="primary" data-action="mental-retry-game">Play again</button>
+          <button type="button" class="ghost" data-action="mental-open-home">Back home</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderMentalCountdown(session) {
+    return `
+      <div class="planner-mental-countdown">
+        <div>
+          <span class="small muted">Starting in</span>
+          <strong>${escapeHtml(session.countdown || 0)}</strong>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderMentalGameShell(meta, session, content, sidebar = "") {
+    const duration = meta?.duration || 1;
+    const progress = clamp(Math.round(((duration - (session.timeLeft || 0)) / duration) * 100), 0, 100);
+    return `
+      <div class="planner-mental-grid">
+        <section class="planner-mental-card">
+          <div class="planner-mental-game-header">
+            <div>
+              <h4>${escapeHtml(meta.title)}</h4>
+              <p class="small muted">${escapeHtml(meta.cue || meta.subtitle || "")}</p>
+            </div>
+            <div class="planner-mental-actions">
+              <span class="planner-mental-timer">${escapeHtml(session.timeLeft || 0)}s</span>
+              <button type="button" class="ghost" data-action="mental-exit-game">Exit</button>
+            </div>
+          </div>
+          <div class="planner-mental-progress-wrap">
+            <div class="planner-mental-progress">
+              <div class="planner-mental-progress-fill" style="width:${progress}%;"></div>
+            </div>
+          </div>
+          <div class="planner-mental-play-grid">
+            <div class="planner-mental-stage">${content}</div>
+            <aside class="planner-mental-side">${sidebar}</aside>
+          </div>
+        </section>
+      </div>
+    `;
+  }
+
+  function renderGoNoGoGame(meta, session) {
+    const stimulusClass = session.stimulusType === "go"
+      ? "go"
+      : session.stimulusType === "no"
+        ? "no"
+        : "wait";
+    const label = session.stimulusType === "go"
+      ? "GREEN"
+      : session.stimulusType === "no"
+        ? "RED"
+        : "WAIT";
+    const avgReaction = session.reactionTimes?.length
+      ? Math.round(session.reactionTimes.reduce((sum, value) => sum + value, 0) / session.reactionTimes.length)
+      : 0;
+    const content = `
+      <div class="planner-mental-stimulus ${stimulusClass}">${escapeHtml(label)}</div>
+      <button type="button" class="primary planner-mental-tap-btn" data-action="mental-go-tap">Tap</button>
+    `;
+    const sidebar = `
+      <div class="planner-mental-chip"><span>Correct taps</span><strong>${escapeHtml(session.hits || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>Missed greens</span><strong>${escapeHtml(session.misses || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>False taps</span><strong>${escapeHtml(session.falseTaps || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>Avg reaction</span><strong>${avgReaction ? `${escapeHtml(avgReaction)} ms` : "-"}</strong></div>
+    `;
+    return renderMentalGameShell(meta, session, content, sidebar);
+  }
+
+  function renderMemoryGame(meta, session) {
+    const sequenceHtml = (session.sequence || []).map((name, index) => {
+      const active = session.showingSequence && index === session.showIndex;
+      return `<span class="planner-mental-seq-item${active ? " active" : ""}">${escapeHtml(name)}</span>`;
+    }).join("");
+    const colorButtons = MENTAL_COLORS.map((color) => `
+      <button
+        type="button"
+        class="planner-mental-color-btn ${escapeHtml(color.key)}"
+        data-action="mental-memory-tap"
+        data-color="${escapeHtml(color.name)}"
+        ${session.showingSequence ? "disabled" : ""}
+      >${escapeHtml(color.name)}</button>
+    `).join("");
+    const content = `
+      <div class="planner-mental-actions">
+        <span class="planner-mental-game-badge">Level ${escapeHtml(session.level || 1)}</span>
+        <span class="small muted">${session.showingSequence ? "Memorize" : "Repeat"}</span>
+      </div>
+      <div class="planner-mental-seq">${sequenceHtml || '<span class="small muted">Preparing sequence...</span>'}</div>
+      <div class="planner-mental-color-grid">${colorButtons}</div>
+      <div class="planner-mental-chip"><span>Current input</span><strong>${escapeHtml((session.input || []).join(" • ") || "Waiting...")}</strong></div>
+    `;
+    const sidebar = `
+      <div class="planner-mental-chip"><span>Correct rounds</span><strong>${escapeHtml(session.correctRounds || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>Wrong rounds</span><strong>${escapeHtml(session.wrongRounds || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>Max level</span><strong>${escapeHtml(session.maxLevel || 1)}</strong></div>
+    `;
+    return renderMentalGameShell(meta, session, content, sidebar);
+  }
+
+  function renderDecisionGame(meta, session) {
+    const current = session.currentQuestion;
+    const options = (current?.options || []).map((option, index) => `
+      <button type="button" class="ghost" data-action="mental-decision-answer" data-option-index="${index}">${escapeHtml(option)}</button>
+    `).join("");
+    const averageTime = session.times?.length
+      ? Math.round(session.times.reduce((sum, value) => sum + value, 0) / session.times.length)
+      : 0;
+    const content = current ? `
+      <div class="planner-mental-card">
+        <span class="small muted">Scenario</span>
+        <h4>${escapeHtml(current.prompt)}</h4>
+      </div>
+      <div class="planner-mental-options">${options}</div>
+    ` : `<div class="planner-mental-empty">Loading scenario...</div>`;
+    const sidebar = `
+      <div class="planner-mental-chip"><span>Questions</span><strong>${escapeHtml(session.questions || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>Correct</span><strong>${escapeHtml(session.correct || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>Avg time</span><strong>${averageTime ? `${escapeHtml(averageTime)} ms` : "-"}</strong></div>
+    `;
+    return renderMentalGameShell(meta, session, content, sidebar);
+  }
+
+  function renderScoreGame(meta, session) {
+    const averageTime = session.times?.length
+      ? Math.round(session.times.reduce((sum, value) => sum + value, 0) / session.times.length)
+      : 0;
+    let content = "";
+    if (session.showingSequence) {
+      const sequenceHtml = (session.sequence || []).map((item, index) => `
+        <div class="planner-mental-seq-item active">${escapeHtml(index + 1)}. ${escapeHtml(item.text)}</div>
+      `).join("");
+      content = `
+        <div class="planner-mental-card">
+          <span class="small muted">Memorize sequence</span>
+          <div class="planner-mental-grid">${sequenceHtml}</div>
+        </div>
+      `;
+    } else if (session.question) {
+      const options = (session.question.options || []).map((option, index) => `
+        <button type="button" class="ghost" data-action="mental-score-answer" data-option-index="${index}">${escapeHtml(option)}</button>
+      `).join("");
+      content = `
+        <div class="planner-mental-card">
+          <span class="small muted">Question</span>
+          <h4>Who is winning after that sequence?</h4>
+        </div>
+        <div class="planner-mental-options">${options}</div>
+      `;
+    } else {
+      content = `<div class="planner-mental-empty">Preparing sequence...</div>`;
+    }
+    const sidebar = `
+      <div class="planner-mental-chip"><span>Questions</span><strong>${escapeHtml(session.questions || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>Correct</span><strong>${escapeHtml(session.correct || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>Avg time</span><strong>${averageTime ? `${escapeHtml(averageTime)} ms` : "-"}</strong></div>
+    `;
+    return renderMentalGameShell(meta, session, content, sidebar);
+  }
+
+  function renderSwitchGame(meta, session) {
+    const pair = Array.isArray(session.pair) ? session.pair : [0, 0];
+    const averageTime = session.times?.length
+      ? Math.round(session.times.reduce((sum, value) => sum + value, 0) / session.times.length)
+      : 0;
+    const content = `
+      <div class="planner-mental-card">
+        <span class="small muted">Active rule</span>
+        <h4>${escapeHtml(session.rule?.label || "Tap the higher number")}</h4>
+      </div>
+      <div class="planner-mental-switch-grid">
+        <button type="button" class="primary planner-mental-switch-btn" data-action="mental-switch-choice" data-choice="left">${escapeHtml(pair[0])}</button>
+        <button type="button" class="ghost planner-mental-switch-btn" data-action="mental-switch-choice" data-choice="right">${escapeHtml(pair[1])}</button>
+      </div>
+    `;
+    const sidebar = `
+      <div class="planner-mental-chip"><span>Correct</span><strong>${escapeHtml(session.correct || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>Wrong</span><strong>${escapeHtml(session.wrong || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>Rule changes</span><strong>${escapeHtml(session.switches || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>Avg time</span><strong>${averageTime ? `${escapeHtml(averageTime)} ms` : "-"}</strong></div>
+    `;
+    return renderMentalGameShell(meta, session, content, sidebar);
+  }
+
+  function renderMentalGame() {
+    const session = state.mentalSession;
+    const gameKey = state.mentalActiveGame;
+    const meta = MENTAL_GAME_META[gameKey];
+    if (!session || !meta) {
+      return `<div class="planner-mental-empty">No game selected.</div>`;
+    }
+    if (session.phase === "countdown") {
+      return renderMentalCountdown(session);
+    }
+    if (gameKey === MENTAL_GAME_KEYS.GO_NO_GO) return renderGoNoGoGame(meta, session);
+    if (gameKey === MENTAL_GAME_KEYS.MEMORY) return renderMemoryGame(meta, session);
+    if (gameKey === MENTAL_GAME_KEYS.DECISION) return renderDecisionGame(meta, session);
+    if (gameKey === MENTAL_GAME_KEYS.SCORE) return renderScoreGame(meta, session);
+    if (gameKey === MENTAL_GAME_KEYS.SWITCH) return renderSwitchGame(meta, session);
+    return `<div class="planner-mental-empty">Game unavailable.</div>`;
+  }
+
+  function renderMentalApp() {
+    if (!els.mentalContent) return;
+    if (!MENTAL_GAME_META[state.mentalActiveGame]) {
+      state.mentalActiveGame = MENTAL_GAME_KEYS.GO_NO_GO;
+    }
+    let html = "";
+    if (state.mentalView === "progress") {
+      html = renderMentalProgress();
+    } else if (state.mentalView === "game") {
+      html = renderMentalGame();
+    } else if (state.mentalView === "result") {
+      html = renderMentalResult();
+    } else {
+      html = renderMentalHome();
+    }
+    els.mentalContent.innerHTML = html;
+  }
+
+  function openMentalHome() {
+    clearMentalTimers();
+    state.mentalSession = null;
+    state.mentalResult = null;
+    state.mentalView = "home";
+    renderMentalApp();
+  }
+
+  function openMentalProgress() {
+    clearMentalTimers();
+    state.mentalSession = null;
+    state.mentalResult = null;
+    state.mentalView = "progress";
+    renderMentalApp();
+  }
+
+  function buildGoNoGoResult(session) {
+    const attempts = (session.hits || 0) + (session.misses || 0) + (session.falseTaps || 0);
+    const accuracy = attempts ? Math.round(((session.hits || 0) / attempts) * 100) : 0;
+    const avgReaction = session.reactionTimes?.length
+      ? Math.round(session.reactionTimes.reduce((sum, value) => sum + value, 0) / session.reactionTimes.length)
+      : 1000;
+    const speedScore = clamp(Math.round(100 - ((avgReaction - 250) / 7)), 10, 100);
+    const controlScore = clamp(100 - (session.falseTaps || 0) * 12, 0, 100);
+    const mentalScore = Math.round((accuracy * 0.45) + (speedScore * 0.35) + (controlScore * 0.2));
+    return {
+      mentalScore,
+      accuracy,
+      speedScore,
+      controlScore,
+      feedback: (session.falseTaps || 0) > 3
+        ? "Fast hands, but too impulsive. Slow down just enough to read the cue."
+        : accuracy > 80
+          ? "Strong control and sharp reactions."
+          : "Good speed, now improve visual control under pressure.",
+      breakdown: [
+        { label: "Accuracy", value: accuracy },
+        { label: "Speed", value: speedScore },
+        { label: "Impulse Control", value: controlScore }
+      ]
+    };
+  }
+
+  function buildMemoryResult(session) {
+    const totalRounds = (session.correctRounds || 0) + (session.wrongRounds || 0);
+    const accuracy = totalRounds ? Math.round(((session.correctRounds || 0) / totalRounds) * 100) : 0;
+    const speedScore = clamp(40 + ((session.maxLevel || 1) * 10), 0, 100);
+    const consistencyScore = clamp(accuracy + ((session.maxLevel || 1) * 4), 0, 100);
+    const mentalScore = Math.round((accuracy * 0.4) + (speedScore * 0.25) + (consistencyScore * 0.35));
+    return {
+      mentalScore,
+      accuracy,
+      speedScore,
+      consistencyScore,
+      controlScore: consistencyScore,
+      feedback: (session.maxLevel || 1) >= 5
+        ? "Excellent memory depth under time pressure."
+        : (session.wrongRounds || 0) > (session.correctRounds || 0)
+          ? "Good effort, reduce rushing and lock the order first."
+          : "Solid memory work. Keep pushing one level higher.",
+      breakdown: [
+        { label: "Accuracy", value: accuracy },
+        { label: "Memory Depth", value: clamp((session.maxLevel || 1) * 16, 0, 100) },
+        { label: "Consistency", value: consistencyScore }
+      ]
+    };
+  }
+
+  function buildDecisionResult(session) {
+    const accuracy = session.questions ? Math.round(((session.correct || 0) / session.questions) * 100) : 0;
+    const avgTime = session.times?.length
+      ? Math.round(session.times.reduce((sum, value) => sum + value, 0) / session.times.length)
+      : 3000;
+    const speedScore = clamp(Math.round(100 - ((avgTime - 900) / 20)), 10, 100);
+    const controlScore = clamp(accuracy + 10, 0, 100);
+    const mentalScore = Math.round((accuracy * 0.5) + (speedScore * 0.3) + (controlScore * 0.2));
+    return {
+      mentalScore,
+      accuracy,
+      speedScore,
+      controlScore,
+      feedback: accuracy >= 80
+        ? "Strong tactical reading under pressure."
+        : avgTime < 1200
+          ? "You are deciding fast, now improve option quality."
+          : "You see the position well; commit faster to the best option.",
+      breakdown: [
+        { label: "Decision Accuracy", value: accuracy },
+        { label: "Decision Speed", value: speedScore },
+        { label: "Control", value: controlScore }
+      ]
+    };
+  }
+
+  function buildScoreResult(session) {
+    const accuracy = session.questions ? Math.round(((session.correct || 0) / session.questions) * 100) : 0;
+    const avgTime = session.times?.length
+      ? Math.round(session.times.reduce((sum, value) => sum + value, 0) / session.times.length)
+      : 3000;
+    const speedScore = clamp(Math.round(100 - ((avgTime - 800) / 18)), 10, 100);
+    const consistencyScore = clamp(accuracy + ((session.correct || 0) * 5), 0, 100);
+    const mentalScore = Math.round((accuracy * 0.45) + (speedScore * 0.25) + (consistencyScore * 0.3));
+    return {
+      mentalScore,
+      accuracy,
+      speedScore,
+      consistencyScore,
+      controlScore: consistencyScore,
+      feedback: accuracy >= 75
+        ? "Excellent tactical memory. You tracked the sequence well."
+        : "Good start, track each score event with more focus.",
+      breakdown: [
+        { label: "Score Accuracy", value: accuracy },
+        { label: "Recall Speed", value: speedScore },
+        { label: "Consistency", value: consistencyScore }
+      ]
+    };
+  }
+
+  function buildSwitchResult(session) {
+    const total = (session.correct || 0) + (session.wrong || 0);
+    const accuracy = total ? Math.round(((session.correct || 0) / total) * 100) : 0;
+    const avgTime = session.times?.length
+      ? Math.round(session.times.reduce((sum, value) => sum + value, 0) / session.times.length)
+      : 3000;
+    const speedScore = clamp(Math.round(100 - ((avgTime - 700) / 18)), 10, 100);
+    const controlScore = clamp(accuracy + Math.min((session.switches || 0) * 4, 20), 0, 100);
+    const mentalScore = Math.round((accuracy * 0.45) + (speedScore * 0.25) + (controlScore * 0.3));
+    return {
+      mentalScore,
+      accuracy,
+      speedScore,
+      controlScore,
+      feedback: accuracy >= 80
+        ? "Excellent adaptation between changing rules."
+        : (session.wrong || 0) > (session.correct || 0) / 2
+          ? "Read the rule before reacting to improve control."
+          : "Good adaptability. Keep pushing cleaner transitions.",
+      breakdown: [
+        { label: "Accuracy", value: accuracy },
+        { label: "Adapt Speed", value: speedScore },
+        { label: "Rule Control", value: controlScore }
+      ]
+    };
+  }
+
+  function buildMentalResultFromSession(session) {
+    if (!session) return null;
+    if (session.gameKey === MENTAL_GAME_KEYS.GO_NO_GO) return buildGoNoGoResult(session);
+    if (session.gameKey === MENTAL_GAME_KEYS.MEMORY) return buildMemoryResult(session);
+    if (session.gameKey === MENTAL_GAME_KEYS.DECISION) return buildDecisionResult(session);
+    if (session.gameKey === MENTAL_GAME_KEYS.SCORE) return buildScoreResult(session);
+    if (session.gameKey === MENTAL_GAME_KEYS.SWITCH) return buildSwitchResult(session);
+    return null;
+  }
+
+  function finishMentalGame(session) {
+    if (!isActiveMentalSession(session)) return;
+    if (session.phase === "done") return;
+    session.phase = "done";
+    clearMentalTimers();
+    const result = buildMentalResultFromSession(session);
+    if (!result) {
+      openMentalHome();
+      return;
+    }
+    saveMentalGameResult(session.gameKey, result);
+    state.mentalResult = result;
+    state.mentalView = "result";
+    playMentalCue("complete");
+    renderMentalApp();
+  }
+
+  function beginMentalGameClock(session) {
+    if (!isActiveMentalSession(session)) return;
+    const meta = MENTAL_GAME_META[session.gameKey] || { duration: 30 };
+    session.phase = "playing";
+    session.timeLeft = meta.duration;
+    const intervalId = setInterval(() => {
+      if (!isActiveMentalSession(session)) return;
+      session.timeLeft = Math.max(0, (session.timeLeft || 0) - 1);
+      if (session.timeLeft <= 0) {
+        finishMentalGame(session);
+        return;
+      }
+      renderMentalApp();
+    }, 1000);
+    trackMentalTimer(intervalId);
+  }
+
+  function initGoNoGoSession(session) {
+    session.stimulusType = "wait";
+    session.expectedGo = false;
+    session.waiting = false;
+    session.rounds = 0;
+    session.hits = 0;
+    session.misses = 0;
+    session.falseTaps = 0;
+    session.reactionTimes = [];
+
+    const spawnStimulus = () => {
+      if (!isActiveMentalSession(session) || session.phase !== "playing") return;
+      const isGo = Math.random() > 0.35;
+      session.expectedGo = isGo;
+      session.stimulusType = isGo ? "go" : "no";
+      session.waiting = true;
+      session.stimulusStartedAt = performance.now();
+      session.rounds += 1;
+      renderMentalApp();
+      trackMentalTimer(setTimeout(() => {
+        if (!isActiveMentalSession(session) || session.phase !== "playing") return;
+        if (session.waiting && session.expectedGo) {
+          session.misses += 1;
+          playMentalCue("wrong");
+        }
+        session.waiting = false;
+        session.stimulusType = "wait";
+        renderMentalApp();
+        trackMentalTimer(setTimeout(spawnStimulus, 350 + Math.random() * 550));
+      }, 650));
+    };
+
+    trackMentalTimer(setTimeout(spawnStimulus, 520));
+  }
+
+  function startMentalMemoryRound(session, roundLevel) {
+    if (!isActiveMentalSession(session) || session.phase !== "playing") return;
+    const safeLevel = Math.max(1, parseInt(String(roundLevel || 1), 10) || 1);
+    session.level = safeLevel;
+    session.sequence = Array.from({ length: safeLevel + 2 }, () => {
+      const color = MENTAL_COLORS[Math.floor(Math.random() * MENTAL_COLORS.length)];
+      return color.name;
+    });
+    session.input = [];
+    session.showIndex = 0;
+    session.showingSequence = true;
+    renderMentalApp();
+
+    const step = () => {
+      if (!isActiveMentalSession(session) || session.phase !== "playing") return;
+      if (session.showIndex < session.sequence.length - 1) {
+        session.showIndex += 1;
+        renderMentalApp();
+        trackMentalTimer(setTimeout(step, 650));
+        return;
+      }
+      session.showIndex = session.sequence.length;
+      session.showingSequence = false;
+      renderMentalApp();
+    };
+    trackMentalTimer(setTimeout(step, 650));
+  }
+
+  function initMemorySession(session) {
+    session.level = 1;
+    session.correctRounds = 0;
+    session.wrongRounds = 0;
+    session.maxLevel = 1;
+    session.sequence = [];
+    session.input = [];
+    session.showIndex = -1;
+    session.showingSequence = true;
+    startMentalMemoryRound(session, 1);
+  }
+
+  function startMentalDecisionQuestion(session) {
+    if (!isActiveMentalSession(session) || session.phase !== "playing") return;
+    const random = MENTAL_DECISION_SCENARIOS[Math.floor(Math.random() * MENTAL_DECISION_SCENARIOS.length)];
+    session.currentQuestion = random;
+    session.questionStartedAt = performance.now();
+    renderMentalApp();
+  }
+
+  function initDecisionSession(session) {
+    session.questions = 0;
+    session.correct = 0;
+    session.times = [];
+    session.currentQuestion = null;
+    startMentalDecisionQuestion(session);
+  }
+
+  function startMentalScoreRound(session) {
+    if (!isActiveMentalSession(session) || session.phase !== "playing") return;
+    const sequenceLength = 3 + Math.floor(Math.random() * 2);
+    session.sequence = Array.from({ length: sequenceLength }, () => (
+      MENTAL_SCORE_EVENTS[Math.floor(Math.random() * MENTAL_SCORE_EVENTS.length)]
+    ));
+    session.showingSequence = true;
+    session.question = null;
+    renderMentalApp();
+    trackMentalTimer(setTimeout(() => {
+      if (!isActiveMentalSession(session) || session.phase !== "playing") return;
+      let red = 0;
+      let green = 0;
+      session.sequence.forEach((item) => {
+        red += item.delta.red;
+        green += item.delta.green;
+      });
+      const answer = red === green ? "Tied" : (red > green ? `Red by ${red - green}` : `Green by ${green - red}`);
+      const optionsPool = [
+        answer,
+        red === green ? "Red by 1" : "Tied",
+        red > green ? `Green by ${red - green}` : `Red by ${Math.max(1, green - red)}`,
+        `Red ${red} - Green ${green}`
+      ];
+      const uniqueOptions = Array.from(new Set(optionsPool));
+      while (uniqueOptions.length < 4) {
+        uniqueOptions.push(`Red by ${Math.max(1, uniqueOptions.length)}`);
+      }
+      const options = shuffleList(uniqueOptions).slice(0, 4);
+      if (!options.includes(answer)) options[0] = answer;
+      session.question = {
+        answer,
+        options
+      };
+      session.showingSequence = false;
+      session.questionStartedAt = performance.now();
+      renderMentalApp();
+    }, 2400));
+  }
+
+  function initScoreSession(session) {
+    session.questions = 0;
+    session.correct = 0;
+    session.times = [];
+    session.sequence = [];
+    session.showingSequence = true;
+    session.question = null;
+    startMentalScoreRound(session);
+  }
+
+  function startMentalSwitchRound(session, force = false) {
+    if (!isActiveMentalSession(session) || session.phase !== "playing") return;
+    const left = 1 + Math.floor(Math.random() * 9);
+    let right = 1 + Math.floor(Math.random() * 9);
+    while (right === left) right = 1 + Math.floor(Math.random() * 9);
+    session.pair = [left, right];
+    if (force || Math.random() > 0.65) {
+      const nextRule = MENTAL_SWITCH_RULES[Math.floor(Math.random() * MENTAL_SWITCH_RULES.length)];
+      if (force) {
+        session.rule = nextRule;
+      } else {
+        if (session.rule && nextRule.id !== session.rule.id) {
+          session.switches += 1;
+        }
+        session.rule = nextRule;
+      }
+    }
+    session.roundStartedAt = performance.now();
+    renderMentalApp();
+  }
+
+  function initSwitchSession(session) {
+    session.correct = 0;
+    session.wrong = 0;
+    session.switches = 0;
+    session.times = [];
+    session.rule = MENTAL_SWITCH_RULES[0];
+    session.pair = [2, 7];
+    startMentalSwitchRound(session, true);
+  }
+
+  function startMentalGameplay(session) {
+    if (!isActiveMentalSession(session)) return;
+    beginMentalGameClock(session);
+    if (session.gameKey === MENTAL_GAME_KEYS.GO_NO_GO) {
+      initGoNoGoSession(session);
+    } else if (session.gameKey === MENTAL_GAME_KEYS.MEMORY) {
+      initMemorySession(session);
+    } else if (session.gameKey === MENTAL_GAME_KEYS.DECISION) {
+      initDecisionSession(session);
+    } else if (session.gameKey === MENTAL_GAME_KEYS.SCORE) {
+      initScoreSession(session);
+    } else if (session.gameKey === MENTAL_GAME_KEYS.SWITCH) {
+      initSwitchSession(session);
+    }
+    renderMentalApp();
+  }
+
+  function startMentalCountdown(session) {
+    if (!isActiveMentalSession(session)) return;
+    session.phase = "countdown";
+    session.countdown = 3;
+    renderMentalApp();
+    const tick = () => {
+      if (!isActiveMentalSession(session)) return;
+      session.countdown = Math.max(0, (session.countdown || 0) - 1);
+      if (session.countdown <= 0) {
+        playMentalCue("ok");
+        startMentalGameplay(session);
+        return;
+      }
+      playMentalCue("ok");
+      renderMentalApp();
+      trackMentalTimer(setTimeout(tick, 1000));
+    };
+    trackMentalTimer(setTimeout(tick, 1000));
+  }
+
+  function openMentalGame(gameKey) {
+    const normalized = MENTAL_GAME_META[gameKey] ? gameKey : MENTAL_GAME_KEYS.GO_NO_GO;
+    clearMentalTimers();
+    state.mentalActiveGame = normalized;
+    state.mentalResult = null;
+    state.mentalView = "game";
+    state.mentalSession = createMentalSession(normalized);
+    renderMentalApp();
+    startMentalCountdown(state.mentalSession);
+    focusPlannerWindow(els.mentalShell || root, { smooth: true });
+  }
+
+  function handleMentalGoNoGoTap() {
+    const session = state.mentalSession;
+    if (!isActiveMentalSession(session) || session.gameKey !== MENTAL_GAME_KEYS.GO_NO_GO || session.phase !== "playing") return;
+    if (!session.waiting || session.stimulusType === "wait") return;
+    const reaction = Math.round(performance.now() - (session.stimulusStartedAt || performance.now()));
+    if (session.expectedGo) {
+      session.hits += 1;
+      if (Number.isFinite(reaction) && reaction > 0) {
+        session.reactionTimes.push(reaction);
+      }
+      playMentalCue("correct");
+    } else {
+      session.falseTaps += 1;
+      playMentalCue("wrong");
+    }
+    session.waiting = false;
+    session.stimulusType = "wait";
+    renderMentalApp();
+  }
+
+  function handleMentalMemoryTap(colorName) {
+    const session = state.mentalSession;
+    if (!isActiveMentalSession(session) || session.gameKey !== MENTAL_GAME_KEYS.MEMORY || session.phase !== "playing") return;
+    if (session.showingSequence) return;
+    const selected = String(colorName || "").trim();
+    if (!selected) return;
+    const nextInput = [...(session.input || []), selected];
+    session.input = nextInput;
+    const index = nextInput.length - 1;
+    if (session.sequence[index] !== selected) {
+      session.wrongRounds += 1;
+      session.level = Math.max(1, (session.level || 1) - 1);
+      session.maxLevel = Math.max(session.maxLevel || 1, session.level || 1);
+      playMentalCue("wrong");
+      renderMentalApp();
+      trackMentalTimer(setTimeout(() => startMentalMemoryRound(session, session.level || 1), 420));
+      return;
+    }
+    if (nextInput.length === session.sequence.length) {
+      session.correctRounds += 1;
+      session.level = (session.level || 1) + 1;
+      session.maxLevel = Math.max(session.maxLevel || 1, session.level || 1);
+      playMentalCue("correct");
+      renderMentalApp();
+      trackMentalTimer(setTimeout(() => startMentalMemoryRound(session, session.level || 1), 480));
+      return;
+    }
+    renderMentalApp();
+  }
+
+  function handleMentalDecisionAnswer(optionIndex) {
+    const session = state.mentalSession;
+    if (!isActiveMentalSession(session) || session.gameKey !== MENTAL_GAME_KEYS.DECISION || session.phase !== "playing") return;
+    const index = parseInt(String(optionIndex || ""), 10);
+    if (!Number.isFinite(index) || index < 0 || !session.currentQuestion?.options?.[index]) return;
+    const selectedOption = session.currentQuestion.options[index];
+    const elapsed = Math.round(performance.now() - (session.questionStartedAt || performance.now()));
+    session.times.push(Math.max(0, elapsed));
+    session.questions += 1;
+    if (selectedOption === session.currentQuestion.answer) {
+      session.correct += 1;
+      playMentalCue("correct");
+    } else {
+      playMentalCue("wrong");
+    }
+    session.currentQuestion = null;
+    renderMentalApp();
+    trackMentalTimer(setTimeout(() => startMentalDecisionQuestion(session), 240));
+  }
+
+  function handleMentalScoreAnswer(optionIndex) {
+    const session = state.mentalSession;
+    if (!isActiveMentalSession(session) || session.gameKey !== MENTAL_GAME_KEYS.SCORE || session.phase !== "playing") return;
+    const index = parseInt(String(optionIndex || ""), 10);
+    if (!Number.isFinite(index) || index < 0 || !session.question?.options?.[index]) return;
+    const selectedOption = session.question.options[index];
+    const elapsed = Math.round(performance.now() - (session.questionStartedAt || performance.now()));
+    session.times.push(Math.max(0, elapsed));
+    session.questions += 1;
+    if (selectedOption === session.question.answer) {
+      session.correct += 1;
+      playMentalCue("correct");
+    } else {
+      playMentalCue("wrong");
+    }
+    session.question = null;
+    session.sequence = [];
+    renderMentalApp();
+    trackMentalTimer(setTimeout(() => startMentalScoreRound(session), 280));
+  }
+
+  function handleMentalSwitchChoice(choice) {
+    const session = state.mentalSession;
+    if (!isActiveMentalSession(session) || session.gameKey !== MENTAL_GAME_KEYS.SWITCH || session.phase !== "playing") return;
+    const selected = String(choice || "").trim();
+    if (!selected || !session.rule?.evaluate || !Array.isArray(session.pair)) return;
+    const elapsed = Math.round(performance.now() - (session.roundStartedAt || performance.now()));
+    session.times.push(Math.max(0, elapsed));
+    const expected = session.rule.evaluate(session.pair[0], session.pair[1]);
+    if (selected === expected) {
+      session.correct += 1;
+      playMentalCue("correct");
+    } else {
+      session.wrong += 1;
+      playMentalCue("wrong");
+    }
+    startMentalSwitchRound(session);
+  }
+
+  function handleMentalAction(action, trigger) {
+    if (!String(action || "").startsWith("mental-")) return false;
+    if (action === "mental-open-home") {
+      openMentalHome();
+      return true;
+    }
+    if (action === "mental-open-progress") {
+      openMentalProgress();
+      return true;
+    }
+    if (action === "mental-open-game") {
+      openMentalGame(trigger?.dataset?.game);
+      return true;
+    }
+    if (action === "mental-retry-game") {
+      openMentalGame(state.mentalActiveGame || MENTAL_GAME_KEYS.GO_NO_GO);
+      return true;
+    }
+    if (action === "mental-exit-game") {
+      openMentalHome();
+      return true;
+    }
+    if (action === "mental-reset-progress") {
+      const shouldReset = window.confirm("Reset all Mind & Focus progress data?");
+      if (shouldReset) resetMentalScores();
+      return true;
+    }
+    if (action === "mental-go-tap") {
+      handleMentalGoNoGoTap();
+      return true;
+    }
+    if (action === "mental-memory-tap") {
+      handleMentalMemoryTap(trigger?.dataset?.color);
+      return true;
+    }
+    if (action === "mental-decision-answer") {
+      handleMentalDecisionAnswer(trigger?.dataset?.optionIndex);
+      return true;
+    }
+    if (action === "mental-score-answer") {
+      handleMentalScoreAnswer(trigger?.dataset?.optionIndex);
+      return true;
+    }
+    if (action === "mental-switch-choice") {
+      handleMentalSwitchChoice(trigger?.dataset?.choice);
+      return true;
+    }
+    return false;
   }
 
   function persistLiftingPlanLocal() {
@@ -2836,12 +4092,16 @@
     setBottomStatus(getBottomStatusDefaultMessage());
     renderTrackPanels();
     renderLiftingLab();
+    renderMentalApp();
   }
 
   function handleRootClick(event) {
     const trigger = event.target.closest("[data-action]");
     if (!trigger) return;
     const action = trigger.dataset.action;
+    if (handleMentalAction(action, trigger)) {
+      return;
+    }
     if (action === "add-manual") {
       addToSchedule(trigger.dataset.category, "");
       return;
@@ -3218,5 +4478,6 @@
   fillTrackDraftInputs("mental");
   render();
   persistSettings();
+  persistMentalScores();
   hydratePlannerSettingsFromCloud().catch(() => {});
 })();
