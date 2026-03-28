@@ -9099,6 +9099,12 @@ svg{
   font-size: 1rem;
 }
 
+.planner-mental-rule{
+  margin: 0;
+  color: #c6d6f2;
+  line-height: 1.35;
+}
+
 .planner-mental-game-meta{
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
