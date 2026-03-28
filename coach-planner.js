@@ -465,14 +465,14 @@
   function getTrackUiCopy(track) {
     if (track === "lifting") {
       return {
-        title: "Lifting & Conditioning Planner",
-        subtitle: "Plan strength, power, and conditioning sessions."
+        title: "",
+        subtitle: ""
       };
     }
     if (track === "mental") {
       return {
-        title: "Mind & Focus Training Planner",
-        subtitle: "Build mental prep routines and brain-performance sessions."
+        title: "",
+        subtitle: ""
       };
     }
     return {
