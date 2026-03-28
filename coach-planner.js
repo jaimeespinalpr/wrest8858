@@ -28,6 +28,48 @@
     announcements: "5"
   };
 
+  const DEFAULT_LIFTING_LIBRARY = {
+    "Explosives / Power": [
+      "Clean Pull", "Power Clean", "Hang Clean", "Power Pull", "Snatch",
+      "Clean Pull Jumps", "Push Jerk", "Push Press", "Split Jerk"
+    ],
+    Legs: [
+      "Barbell Squat", "Front Squat", "Pause Squat", "RDL (Romanian Deadlift)",
+      "Dumbbell Lunges", "Dumbbell Step-ups", "Bulgarian Split Squat"
+    ],
+    "Push (Upper Body)": [
+      "Bench Press", "Pause Bench Press", "Dumbbell Bench Press",
+      "Incline Dumbbell Bench Press", "Shoulder Press", "Dumbbell Shoulder Press"
+    ],
+    "Pull (Upper Body)": [
+      "Wide Grip Pull-ups", "Chin-ups", "Explosive Pull-ups",
+      "Barbell Bent Over Rows", "Reverse Grip BB Row", "Dumbbell Rows"
+    ],
+    "Plyometrics / Bodyweight": [
+      "Squat Jumps", "Split Squat Jumps", "Clap Push-ups", "Explosive Push-ups",
+      "Burpees", "Knee Tucks", "Lateral Skater Hops", "Med Ball Slams", "Box Jumps"
+    ],
+    Accessories: [
+      "Calf Raises", "Glute Bridge Holds", "Bicep Curls", "Hammer Curls",
+      "Bench Dips", "Tricep Extensions", "Forearm Curls", "Shrugs"
+    ]
+  };
+
+  function buildDefaultLiftingPlan() {
+    return {
+      id: "",
+      name: "New 7-Day Cycle",
+      weeks: "1-4",
+      purpose: "Full week metabolic conditioning and strength base.",
+      benefits: "Optimized recovery and specific wrestling movements.",
+      days: Array.from({ length: 7 }, (_, index) => ({
+        id: index + 1,
+        name: `Day ${index + 1}`,
+        exercises: []
+      }))
+    };
+  }
+
   const DEFAULT_PLANNER_LOGO_URL = "https://united-wc.com/assets/uwc-logo.png";
   const LEGACY_PLANNER_CLUB_NAME = "ARCHMERE AUKS";
   const LEGACY_PLANNER_COACH_NAME = "Coach Espinal";
@@ -40,14 +82,24 @@
     categoryNames: "planner_category_names",
     track: "planner_active_track",
     liftingDraft: "planner_lifting_draft",
-    mentalDraft: "planner_mental_draft"
+    mentalDraft: "planner_mental_draft",
+    liftingPlan: "planner_lifting_plan",
+    liftingLibraryData: "planner_lifting_library_data",
+    liftingActiveDay: "planner_lifting_active_day",
+    liftingActiveTab: "planner_lifting_active_tab"
   };
 
   const TRACKS = ["wrestling", "lifting", "mental"];
+  const LIFTING_TABS = ["overview", "editor", "program"];
 
   function normalizeTrack(value) {
     const raw = String(value || "").trim().toLowerCase();
     return TRACKS.includes(raw) ? raw : "wrestling";
+  }
+
+  function normalizeLiftingTab(value) {
+    const raw = String(value || "").trim().toLowerCase();
+    return LIFTING_TABS.includes(raw) ? raw : "editor";
   }
 
   function readJson(key, fallback) {
@@ -107,6 +159,76 @@
         };
       })
       .filter(Boolean);
+  }
+
+  function normalizeLiftingLibraryMap(raw = {}) {
+    const source = raw && typeof raw === "object" ? raw : {};
+    const result = {};
+    Object.entries(source).forEach(([key, value]) => {
+      const category = String(key || "").trim();
+      if (!category) return;
+      const list = Array.isArray(value) ? value : [];
+      const normalized = Array.from(new Set(
+        list
+          .map((item) => String(item || "").trim())
+          .filter(Boolean)
+      ));
+      result[category] = normalized;
+    });
+    if (!Object.keys(result).length) {
+      return JSON.parse(JSON.stringify(DEFAULT_LIFTING_LIBRARY));
+    }
+    return result;
+  }
+
+  function normalizeLiftingExercise(raw = {}) {
+    const source = raw && typeof raw === "object" ? raw : {};
+    const name = String(source.name || "").trim();
+    if (!name) return null;
+    return {
+      id: String(source.id || makeId()),
+      name,
+      sets: String(source.sets || "3").trim() || "3",
+      reps: String(source.reps || "10").trim() || "10",
+      intensity: String(source.intensity || "70%").trim() || "70%"
+    };
+  }
+
+  function normalizeLiftingPlan(raw = {}) {
+    const fallback = buildDefaultLiftingPlan();
+    const source = raw && typeof raw === "object" ? raw : {};
+    const baseDays = Array.isArray(source.days) && source.days.length ? source.days : fallback.days;
+    const days = baseDays.slice(0, 7).map((day, index) => {
+      const daySource = day && typeof day === "object" ? day : {};
+      const exercises = Array.isArray(daySource.exercises) ? daySource.exercises : [];
+      return {
+        id: index + 1,
+        name: String(daySource.name || `Day ${index + 1}`).trim() || `Day ${index + 1}`,
+        exercises: exercises.map(normalizeLiftingExercise).filter(Boolean)
+      };
+    });
+    while (days.length < 7) {
+      days.push({ id: days.length + 1, name: `Day ${days.length + 1}`, exercises: [] });
+    }
+    return {
+      id: String(source.id || "").trim(),
+      name: String(source.name || fallback.name).trim() || fallback.name,
+      weeks: String(source.weeks || fallback.weeks).trim() || fallback.weeks,
+      purpose: String(source.purpose || fallback.purpose).trim() || fallback.purpose,
+      benefits: String(source.benefits || fallback.benefits).trim() || fallback.benefits,
+      updatedAt: String(source.updatedAt || "").trim(),
+      days
+    };
+  }
+
+  function normalizeLiftingPlanSummary(id, raw = {}) {
+    const source = raw && typeof raw === "object" ? raw : {};
+    return {
+      id: String(id || source.id || "").trim(),
+      name: String(source.name || "Untitled Protocol").trim() || "Untitled Protocol",
+      weeks: String(source.weeks || "").trim(),
+      updatedAt: String(source.updatedAt || source.createdAt || "").trim()
+    };
   }
 
   function getDefaultPlannerCoachName() {
@@ -216,6 +338,15 @@
     assignModalBusy: false,
     liftingDraft: readJson(STORAGE_KEYS.liftingDraft, {}) || {},
     mentalDraft: readJson(STORAGE_KEYS.mentalDraft, {}) || {},
+    liftingTab: normalizeLiftingTab(readJson(STORAGE_KEYS.liftingActiveTab, "editor") || "editor"),
+    liftingActiveDay: Math.max(0, Math.min(6, parseInt(String(readJson(STORAGE_KEYS.liftingActiveDay, 0) || 0), 10) || 0)),
+    liftingPlan: normalizeLiftingPlan(readJson(STORAGE_KEYS.liftingPlan, buildDefaultLiftingPlan()) || buildDefaultLiftingPlan()),
+    liftingLibrary: normalizeLiftingLibraryMap(readJson(STORAGE_KEYS.liftingLibraryData, DEFAULT_LIFTING_LIBRARY) || DEFAULT_LIFTING_LIBRARY),
+    liftingSearch: "",
+    liftingPlans: [],
+    liftingPlansUnsub: null,
+    liftingLibraryUnsub: null,
+    liftingBusy: false,
     lastSavedTemplateId: "",
     lastSentPlanId: "",
     toastTimer: null,
@@ -322,7 +453,31 @@
     mentalReflectionInput: document.getElementById("plannerMentalReflection"),
     mentalSaveBtn: document.getElementById("plannerMentalSaveBtn"),
     mentalClearBtn: document.getElementById("plannerMentalClearBtn"),
-    mentalStatus: document.getElementById("plannerMentalStatus")
+    mentalStatus: document.getElementById("plannerMentalStatus"),
+    liftingShell: document.getElementById("plannerLiftingShell"),
+    liftingTabs: Array.from(root.querySelectorAll("[data-lifting-tab]")),
+    liftingViews: Array.from(root.querySelectorAll("[data-lifting-view]")),
+    liftingPrintBtn: document.getElementById("plannerLiftingPrintBtn"),
+    liftingSaveProtocolBtn: document.getElementById("plannerLiftingSaveProtocolBtn"),
+    liftingStatus: document.getElementById("plannerLiftingStatus"),
+    liftingPlanNameInput: document.getElementById("plannerLiftingPlanNameInput"),
+    liftingPlanWeeksInput: document.getElementById("plannerLiftingPlanWeeksInput"),
+    liftingPlanPurposeInput: document.getElementById("plannerLiftingPlanPurposeInput"),
+    liftingPlanBenefitsInput: document.getElementById("plannerLiftingPlanBenefitsInput"),
+    liftingDayTabs: document.getElementById("plannerLiftingDayTabs"),
+    liftingActiveDayNameInput: document.getElementById("plannerLiftingActiveDayNameInput"),
+    liftingExerciseList: document.getElementById("plannerLiftingExerciseList"),
+    liftingCategorySelect: document.getElementById("plannerLiftingCategorySelect"),
+    liftingNewCategoryInput: document.getElementById("plannerLiftingNewCategoryInput"),
+    liftingAddCategoryBtn: document.getElementById("plannerLiftingAddCategoryBtn"),
+    liftingNewExerciseInput: document.getElementById("plannerLiftingNewExerciseInput"),
+    liftingAddExerciseBtn: document.getElementById("plannerLiftingAddExerciseBtn"),
+    liftingSearchInput: document.getElementById("plannerLiftingSearchInput"),
+    liftingLibraryGroups: document.getElementById("plannerLiftingLibraryGroups"),
+    liftingSavedList: document.getElementById("plannerLiftingSavedList"),
+    liftingProtocolsCount: document.getElementById("plannerLiftingProtocolsCount"),
+    liftingExercisesCount: document.getElementById("plannerLiftingExercisesCount"),
+    liftingActiveDayLabel: document.getElementById("plannerLiftingActiveDayLabel")
   };
 
   function persistDaily() {
@@ -465,8 +620,8 @@
   function getTrackUiCopy(track) {
     if (track === "lifting") {
       return {
-        title: "",
-        subtitle: ""
+        title: "Lifting & Conditioning Lab",
+        subtitle: "Build 7-day strength protocols with a live exercise library."
       };
     }
     if (track === "mental") {
@@ -611,6 +766,512 @@
       ? "Mind & focus draft cleared."
       : "Lifting & conditioning draft cleared.";
     setTrackDraftStatus(track, message);
+  }
+
+  function persistLiftingPlanLocal() {
+    writeJson(STORAGE_KEYS.liftingPlan, state.liftingPlan);
+  }
+
+  function persistLiftingLibraryLocal() {
+    writeJson(STORAGE_KEYS.liftingLibraryData, state.liftingLibrary);
+  }
+
+  function persistLiftingUiLocal() {
+    writeJson(STORAGE_KEYS.liftingActiveDay, state.liftingActiveDay);
+    writeJson(STORAGE_KEYS.liftingActiveTab, state.liftingTab);
+  }
+
+  function setLiftingStatus(message, isError = false) {
+    if (!els.liftingStatus) return;
+    els.liftingStatus.textContent = String(message || "");
+    els.liftingStatus.classList.toggle("planner-status-error", Boolean(isError));
+  }
+
+  function getLiftingProtocolsRef() {
+    return getPlannerWorkspaceCollectionRef("lifting_protocols");
+  }
+
+  function getLiftingLibraryDocRef() {
+    const settingsRef = getPlannerWorkspaceCollectionRef("lifting_settings");
+    if (!settingsRef) return null;
+    return settingsRef.doc("library");
+  }
+
+  function renderLiftingTabs() {
+    state.liftingTab = normalizeLiftingTab(state.liftingTab);
+    persistLiftingUiLocal();
+    els.liftingTabs.forEach((button) => {
+      const tab = normalizeLiftingTab(button.dataset.liftingTab);
+      const isActive = tab === state.liftingTab;
+      button.classList.toggle("active", isActive);
+      button.setAttribute("aria-selected", isActive ? "true" : "false");
+    });
+    els.liftingViews.forEach((view) => {
+      const viewTab = normalizeLiftingTab(view.dataset.liftingView);
+      view.classList.toggle("hidden", viewTab !== state.liftingTab);
+    });
+  }
+
+  function getActiveLiftingDay() {
+    const index = Math.max(0, Math.min(6, state.liftingActiveDay));
+    state.liftingActiveDay = index;
+    return state.liftingPlan.days[index];
+  }
+
+  function renderLiftingDayTabs() {
+    if (!els.liftingDayTabs) return;
+    const html = state.liftingPlan.days.map((day, index) => {
+      const isActive = index === state.liftingActiveDay;
+      const count = Array.isArray(day.exercises) ? day.exercises.length : 0;
+      return `
+        <button
+          type="button"
+          class="planner-lifting-day-tab${isActive ? " active" : ""}"
+          data-action="lifting-switch-day"
+          data-day-index="${index}"
+        >
+          ${escapeHtml(day.name || `Day ${index + 1}`)}${count ? ` (${count})` : ""}
+        </button>
+      `;
+    }).join("");
+    els.liftingDayTabs.innerHTML = html;
+  }
+
+  function renderLiftingExerciseList() {
+    if (!els.liftingExerciseList) return;
+    const day = getActiveLiftingDay();
+    if (!day || !Array.isArray(day.exercises) || !day.exercises.length) {
+      els.liftingExerciseList.innerHTML = `<p class="planner-lifting-empty">No exercises yet. Add movements from the library.</p>`;
+      return;
+    }
+    const html = day.exercises.map((exercise) => {
+      return `
+        <article class="planner-lifting-exercise-row">
+          <div class="planner-lifting-exercise-row-main">
+            <strong>${escapeHtml(exercise.name)}</strong>
+            <button
+              type="button"
+              class="ghost"
+              data-action="lifting-remove-exercise"
+              data-exercise-id="${escapeHtml(exercise.id)}"
+            >Delete</button>
+          </div>
+          <div class="planner-lifting-exercise-fields">
+            <label>
+              <span>Sets</span>
+              <input
+                type="text"
+                value="${escapeHtml(exercise.sets)}"
+                data-action="lifting-update-exercise-field"
+                data-exercise-id="${escapeHtml(exercise.id)}"
+                data-field="sets"
+              >
+            </label>
+            <label>
+              <span>Reps</span>
+              <input
+                type="text"
+                value="${escapeHtml(exercise.reps)}"
+                data-action="lifting-update-exercise-field"
+                data-exercise-id="${escapeHtml(exercise.id)}"
+                data-field="reps"
+              >
+            </label>
+            <label>
+              <span>% RM</span>
+              <input
+                type="text"
+                value="${escapeHtml(exercise.intensity)}"
+                data-action="lifting-update-exercise-field"
+                data-exercise-id="${escapeHtml(exercise.id)}"
+                data-field="intensity"
+              >
+            </label>
+          </div>
+        </article>
+      `;
+    }).join("");
+    els.liftingExerciseList.innerHTML = html;
+  }
+
+  function renderLiftingCategorySelect() {
+    if (!els.liftingCategorySelect) return;
+    const categories = Object.keys(state.liftingLibrary || {});
+    if (!categories.length) {
+      state.liftingLibrary = normalizeLiftingLibraryMap(DEFAULT_LIFTING_LIBRARY);
+    }
+    const safeCategories = Object.keys(state.liftingLibrary || {});
+    const selected = String(els.liftingCategorySelect.value || safeCategories[0] || "").trim();
+    els.liftingCategorySelect.innerHTML = safeCategories.map((category) => {
+      return `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`;
+    }).join("");
+    if (safeCategories.includes(selected)) {
+      els.liftingCategorySelect.value = selected;
+    } else if (safeCategories.length) {
+      els.liftingCategorySelect.value = safeCategories[0];
+    }
+  }
+
+  function getFilteredLiftingLibrary() {
+    const filter = String(state.liftingSearch || "").trim().toLowerCase();
+    if (!filter) return state.liftingLibrary;
+    const output = {};
+    Object.entries(state.liftingLibrary || {}).forEach(([category, items]) => {
+      const matches = (Array.isArray(items) ? items : []).filter((entry) => String(entry || "").toLowerCase().includes(filter));
+      if (matches.length) output[category] = matches;
+    });
+    return output;
+  }
+
+  function renderLiftingLibraryGroups() {
+    if (!els.liftingLibraryGroups) return;
+    const filtered = getFilteredLiftingLibrary();
+    const categories = Object.keys(filtered);
+    if (!categories.length) {
+      els.liftingLibraryGroups.innerHTML = `<p class="small muted">No matches in library.</p>`;
+      return;
+    }
+    els.liftingLibraryGroups.innerHTML = categories.map((category) => {
+      const items = filtered[category] || [];
+      return `
+        <article class="planner-lifting-library-group">
+          <h6>${escapeHtml(category)}</h6>
+          <div class="planner-lifting-library-items">
+            ${items.map((exercise) => `
+              <button
+                type="button"
+                class="planner-lifting-library-item"
+                data-action="lifting-add-exercise-to-day"
+                data-exercise-name="${escapeHtml(exercise)}"
+              >+ ${escapeHtml(exercise)}</button>
+            `).join("")}
+          </div>
+        </article>
+      `;
+    }).join("");
+  }
+
+  function formatLiftingUpdatedAt(value) {
+    const date = new Date(String(value || ""));
+    if (Number.isNaN(date.getTime())) return "No date";
+    return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  }
+
+  function renderLiftingSavedList() {
+    if (!els.liftingSavedList) return;
+    if (!state.liftingPlans.length) {
+      els.liftingSavedList.innerHTML = `<p class="small muted">No saved protocols yet.</p>`;
+      return;
+    }
+    els.liftingSavedList.innerHTML = state.liftingPlans.map((plan) => {
+      const isActive = plan.id && plan.id === state.liftingPlan.id;
+      return `
+        <article class="planner-lifting-saved-item${isActive ? " active" : ""}">
+          <div>
+            <strong>${escapeHtml(plan.name)}</strong>
+            <p class="small muted">${escapeHtml(formatLiftingUpdatedAt(plan.updatedAt))}</p>
+          </div>
+          <div class="planner-inline-buttons">
+            <button type="button" class="ghost" data-action="lifting-load-plan" data-plan-id="${escapeHtml(plan.id)}">Load</button>
+            <button type="button" class="ghost" data-action="lifting-delete-plan" data-plan-id="${escapeHtml(plan.id)}">Delete</button>
+          </div>
+        </article>
+      `;
+    }).join("");
+  }
+
+  function renderLiftingOverview() {
+    if (els.liftingProtocolsCount) {
+      els.liftingProtocolsCount.textContent = String(state.liftingPlans.length);
+    }
+    if (els.liftingExercisesCount) {
+      const total = Object.values(state.liftingLibrary || {}).reduce((sum, list) => {
+        return sum + (Array.isArray(list) ? list.length : 0);
+      }, 0);
+      els.liftingExercisesCount.textContent = String(total);
+    }
+    if (els.liftingActiveDayLabel) {
+      const day = getActiveLiftingDay();
+      els.liftingActiveDayLabel.textContent = day?.name || `Day ${state.liftingActiveDay + 1}`;
+    }
+  }
+
+  function renderLiftingPlanFields() {
+    if (els.liftingPlanNameInput) els.liftingPlanNameInput.value = state.liftingPlan.name || "";
+    if (els.liftingPlanWeeksInput) els.liftingPlanWeeksInput.value = state.liftingPlan.weeks || "";
+    if (els.liftingPlanPurposeInput) els.liftingPlanPurposeInput.value = state.liftingPlan.purpose || "";
+    if (els.liftingPlanBenefitsInput) els.liftingPlanBenefitsInput.value = state.liftingPlan.benefits || "";
+    const day = getActiveLiftingDay();
+    if (els.liftingActiveDayNameInput) {
+      els.liftingActiveDayNameInput.value = day?.name || "";
+    }
+  }
+
+  function renderLiftingLab() {
+    if (!els.liftingShell) return;
+    state.liftingTab = normalizeLiftingTab(state.liftingTab);
+    if (els.liftingSearchInput && els.liftingSearchInput.value !== state.liftingSearch) {
+      els.liftingSearchInput.value = state.liftingSearch;
+    }
+    renderLiftingTabs();
+    renderLiftingPlanFields();
+    renderLiftingDayTabs();
+    renderLiftingExerciseList();
+    renderLiftingCategorySelect();
+    renderLiftingLibraryGroups();
+    renderLiftingSavedList();
+    renderLiftingOverview();
+  }
+
+  function setLiftingTab(tab) {
+    state.liftingTab = normalizeLiftingTab(tab);
+    persistLiftingUiLocal();
+    renderLiftingLab();
+  }
+
+  function setLiftingActiveDay(index) {
+    const safeIndex = Math.max(0, Math.min(6, parseInt(String(index || 0), 10) || 0));
+    state.liftingActiveDay = safeIndex;
+    persistLiftingUiLocal();
+    renderLiftingLab();
+  }
+
+  function updateLiftingPlanMetaField(field, value) {
+    if (!["name", "weeks", "purpose", "benefits"].includes(field)) return;
+    state.liftingPlan[field] = String(value || "");
+    persistLiftingPlanLocal();
+    renderLiftingOverview();
+  }
+
+  function updateLiftingDayName(value) {
+    const day = getActiveLiftingDay();
+    if (!day) return;
+    day.name = String(value || "").trim() || `Day ${state.liftingActiveDay + 1}`;
+    persistLiftingPlanLocal();
+    renderLiftingDayTabs();
+    renderLiftingOverview();
+  }
+
+  function addLiftingExerciseToActiveDay(name) {
+    const cleanName = String(name || "").trim();
+    if (!cleanName) return;
+    const day = getActiveLiftingDay();
+    if (!day) return;
+    day.exercises.push({
+      id: makeId(),
+      name: cleanName,
+      sets: "3",
+      reps: "10",
+      intensity: "70%"
+    });
+    persistLiftingPlanLocal();
+    renderLiftingExerciseList();
+    renderLiftingDayTabs();
+    renderLiftingOverview();
+  }
+
+  function updateLiftingExerciseField(exerciseId, field, value) {
+    const safeId = String(exerciseId || "").trim();
+    if (!safeId || !["sets", "reps", "intensity"].includes(field)) return;
+    const day = getActiveLiftingDay();
+    if (!day) return;
+    day.exercises = day.exercises.map((exercise) => {
+      if (exercise.id !== safeId) return exercise;
+      return { ...exercise, [field]: String(value || "").trim() };
+    });
+    persistLiftingPlanLocal();
+  }
+
+  function removeLiftingExercise(exerciseId) {
+    const safeId = String(exerciseId || "").trim();
+    if (!safeId) return;
+    const day = getActiveLiftingDay();
+    if (!day) return;
+    day.exercises = day.exercises.filter((exercise) => exercise.id !== safeId);
+    persistLiftingPlanLocal();
+    renderLiftingExerciseList();
+    renderLiftingDayTabs();
+    renderLiftingOverview();
+  }
+
+  function addLiftingCategory() {
+    const value = String(els.liftingNewCategoryInput?.value || "").trim();
+    if (!value) {
+      setLiftingStatus("Enter a category name first.", true);
+      return;
+    }
+    if (!state.liftingLibrary[value]) {
+      state.liftingLibrary[value] = [];
+    }
+    persistLiftingLibraryLocal();
+    syncLiftingLibraryToCloud().catch(() => {});
+    if (els.liftingNewCategoryInput) els.liftingNewCategoryInput.value = "";
+    renderLiftingCategorySelect();
+    renderLiftingLibraryGroups();
+    setLiftingStatus(`Category added: ${value}`);
+  }
+
+  function addLiftingExerciseToLibrary() {
+    const exercise = String(els.liftingNewExerciseInput?.value || "").trim();
+    const category = String(els.liftingCategorySelect?.value || "").trim();
+    if (!exercise) {
+      setLiftingStatus("Enter an exercise name first.", true);
+      return;
+    }
+    if (!category) {
+      setLiftingStatus("Select a category first.", true);
+      return;
+    }
+    if (!state.liftingLibrary[category]) {
+      state.liftingLibrary[category] = [];
+    }
+    const exists = state.liftingLibrary[category].some((item) => item.toLowerCase() === exercise.toLowerCase());
+    if (!exists) {
+      state.liftingLibrary[category].push(exercise);
+    }
+    persistLiftingLibraryLocal();
+    syncLiftingLibraryToCloud().catch(() => {});
+    if (els.liftingNewExerciseInput) els.liftingNewExerciseInput.value = "";
+    renderLiftingLibraryGroups();
+    renderLiftingOverview();
+    setLiftingStatus(`Exercise added to ${category}.`);
+  }
+
+  function loadLiftingPlanFromList(planId) {
+    const safeId = String(planId || "").trim();
+    if (!safeId) return;
+    const record = state.liftingPlans.find((entry) => entry.id === safeId);
+    if (!record) {
+      setLiftingStatus("Protocol not found.", true);
+      return;
+    }
+    const normalized = normalizeLiftingPlan(record);
+    normalized.id = safeId;
+    state.liftingPlan = normalized;
+    state.liftingActiveDay = 0;
+    persistLiftingPlanLocal();
+    persistLiftingUiLocal();
+    renderLiftingLab();
+    setLiftingStatus(`Loaded protocol: ${normalized.name}`);
+  }
+
+  async function saveLiftingProtocol() {
+    const name = String(state.liftingPlan.name || "").trim();
+    if (!name) {
+      setLiftingStatus("Protocol name is required.", true);
+      return;
+    }
+    if (state.liftingBusy) return;
+    state.liftingBusy = true;
+    if (els.liftingSaveProtocolBtn) els.liftingSaveProtocolBtn.disabled = true;
+    const safeId = String(state.liftingPlan.id || "").trim() || `lifting_${Date.now()}`;
+    const payload = normalizeLiftingPlan({
+      ...state.liftingPlan,
+      id: safeId,
+      updatedAt: new Date().toISOString()
+    });
+    state.liftingPlan = payload;
+    persistLiftingPlanLocal();
+    try {
+      const protocolsRef = getLiftingProtocolsRef();
+      if (protocolsRef) {
+        await protocolsRef.doc(safeId).set(payload, { merge: true });
+      }
+      const existingIndex = state.liftingPlans.findIndex((item) => item.id === safeId);
+      if (existingIndex >= 0) {
+        state.liftingPlans[existingIndex] = normalizeLiftingPlan(payload);
+      } else {
+        state.liftingPlans.unshift(normalizeLiftingPlan(payload));
+      }
+      state.liftingPlans.sort((left, right) => Number(new Date(right.updatedAt || 0)) - Number(new Date(left.updatedAt || 0)));
+      renderLiftingSavedList();
+      renderLiftingOverview();
+      setLiftingStatus(`Saved protocol: ${payload.name}`);
+      triggerToast("Lifting protocol saved.");
+    } catch (err) {
+      console.warn("Failed to save lifting protocol", err);
+      setLiftingStatus("Could not save protocol right now.", true);
+    } finally {
+      state.liftingBusy = false;
+      if (els.liftingSaveProtocolBtn) els.liftingSaveProtocolBtn.disabled = false;
+    }
+  }
+
+  async function deleteLiftingPlan(planId) {
+    const safeId = String(planId || "").trim();
+    if (!safeId) return;
+    try {
+      const protocolsRef = getLiftingProtocolsRef();
+      if (protocolsRef) {
+        await protocolsRef.doc(safeId).delete();
+      }
+      state.liftingPlans = state.liftingPlans.filter((entry) => entry.id !== safeId);
+      if (state.liftingPlan.id === safeId) {
+        state.liftingPlan = normalizeLiftingPlan(buildDefaultLiftingPlan());
+        state.liftingActiveDay = 0;
+        persistLiftingPlanLocal();
+      }
+      renderLiftingLab();
+      setLiftingStatus("Protocol deleted.");
+    } catch (err) {
+      console.warn("Failed to delete lifting protocol", err);
+      setLiftingStatus("Could not delete protocol right now.", true);
+    }
+  }
+
+  async function syncLiftingLibraryToCloud() {
+    const libraryDoc = getLiftingLibraryDocRef();
+    if (!libraryDoc) return;
+    await libraryDoc.set({
+      data: state.liftingLibrary,
+      updatedAt: getPlannerTimestamp()
+    }, { merge: true });
+  }
+
+  function syncLiftingPlansFromSnapshot(snapshot) {
+    state.liftingPlans = snapshot.docs
+      .map((recordDoc) => normalizeLiftingPlan({ ...(recordDoc.data() || {}), id: recordDoc.id }))
+      .filter((entry) => entry.id)
+      .sort((left, right) => Number(new Date(right.updatedAt || 0)) - Number(new Date(left.updatedAt || 0)));
+    renderLiftingSavedList();
+    renderLiftingOverview();
+  }
+
+  function setupLiftingRealtimeSync() {
+    if (state.liftingPlansUnsub) {
+      try { state.liftingPlansUnsub(); } catch {}
+      state.liftingPlansUnsub = null;
+    }
+    if (state.liftingLibraryUnsub) {
+      try { state.liftingLibraryUnsub(); } catch {}
+      state.liftingLibraryUnsub = null;
+    }
+
+    const protocolsRef = getLiftingProtocolsRef();
+    if (protocolsRef?.onSnapshot) {
+      state.liftingPlansUnsub = protocolsRef.onSnapshot((snapshot) => {
+        syncLiftingPlansFromSnapshot(snapshot);
+      }, (err) => {
+        console.warn("Lifting protocol snapshot failed", err);
+      });
+    }
+
+    const libraryDoc = getLiftingLibraryDocRef();
+    if (libraryDoc?.onSnapshot) {
+      state.liftingLibraryUnsub = libraryDoc.onSnapshot((docSnap) => {
+        if (docSnap.exists()) {
+          state.liftingLibrary = normalizeLiftingLibraryMap(docSnap.data()?.data || DEFAULT_LIFTING_LIBRARY);
+          persistLiftingLibraryLocal();
+          renderLiftingCategorySelect();
+          renderLiftingLibraryGroups();
+          renderLiftingOverview();
+          return;
+        }
+        syncLiftingLibraryToCloud().catch(() => {});
+      }, (err) => {
+        console.warn("Lifting library snapshot failed", err);
+      });
+    }
   }
 
   function updateLogos() {
@@ -1909,6 +2570,7 @@
     updateTimeStatus();
     setBottomStatus(getBottomStatusDefaultMessage());
     renderTrackPanels();
+    renderLiftingLab();
   }
 
   function handleRootClick(event) {
@@ -1959,6 +2621,26 @@
       quickAddLibraryItem(trigger.dataset.category);
       return;
     }
+    if (action === "lifting-switch-day") {
+      setLiftingActiveDay(trigger.dataset.dayIndex);
+      return;
+    }
+    if (action === "lifting-add-exercise-to-day") {
+      addLiftingExerciseToActiveDay(trigger.dataset.exerciseName);
+      return;
+    }
+    if (action === "lifting-remove-exercise") {
+      removeLiftingExercise(trigger.dataset.exerciseId);
+      return;
+    }
+    if (action === "lifting-load-plan") {
+      loadLiftingPlanFromList(trigger.dataset.planId);
+      return;
+    }
+    if (action === "lifting-delete-plan") {
+      deleteLiftingPlan(trigger.dataset.planId).catch(() => {});
+      return;
+    }
     if (action === "load-template-record") {
       applyTemplateToPlanner(trigger.dataset.templateId);
     }
@@ -2005,6 +2687,42 @@
   function handleRootInput(event) {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
+
+    if (target.matches("input[data-action='lifting-update-exercise-field']")) {
+      updateLiftingExerciseField(target.dataset.exerciseId, target.dataset.field, target.value);
+      return;
+    }
+
+    if (target === els.liftingPlanNameInput) {
+      updateLiftingPlanMetaField("name", els.liftingPlanNameInput.value || "");
+      return;
+    }
+
+    if (target === els.liftingPlanWeeksInput) {
+      updateLiftingPlanMetaField("weeks", els.liftingPlanWeeksInput.value || "");
+      return;
+    }
+
+    if (target === els.liftingPlanPurposeInput) {
+      updateLiftingPlanMetaField("purpose", els.liftingPlanPurposeInput.value || "");
+      return;
+    }
+
+    if (target === els.liftingPlanBenefitsInput) {
+      updateLiftingPlanMetaField("benefits", els.liftingPlanBenefitsInput.value || "");
+      return;
+    }
+
+    if (target === els.liftingActiveDayNameInput) {
+      updateLiftingDayName(els.liftingActiveDayNameInput.value || "");
+      return;
+    }
+
+    if (target === els.liftingSearchInput) {
+      state.liftingSearch = String(els.liftingSearchInput.value || "");
+      renderLiftingLibraryGroups();
+      return;
+    }
 
     if (target.matches("textarea[data-action='item-input']")) {
       const categoryId = target.dataset.category;
@@ -2111,6 +2829,33 @@
       });
     });
 
+    els.liftingTabs.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        setLiftingTab(btn.dataset.liftingTab);
+      });
+    });
+
+    els.liftingPrintBtn?.addEventListener("click", () => window.print());
+    els.liftingSaveProtocolBtn?.addEventListener("click", () => {
+      saveLiftingProtocol().catch(() => {});
+    });
+    els.liftingAddCategoryBtn?.addEventListener("click", () => {
+      addLiftingCategory();
+    });
+    els.liftingAddExerciseBtn?.addEventListener("click", () => {
+      addLiftingExerciseToLibrary();
+    });
+    els.liftingNewCategoryInput?.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      addLiftingCategory();
+    });
+    els.liftingNewExerciseInput?.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      addLiftingExerciseToLibrary();
+    });
+
     els.printBtn?.addEventListener("click", () => window.print());
 
     els.totalTimeDownBtn?.addEventListener("click", () => {
@@ -2198,6 +2943,12 @@
   }
 
   bindStaticEvents();
+  state.liftingPlan = normalizeLiftingPlan(state.liftingPlan || buildDefaultLiftingPlan());
+  state.liftingLibrary = normalizeLiftingLibraryMap(state.liftingLibrary || DEFAULT_LIFTING_LIBRARY);
+  persistLiftingPlanLocal();
+  persistLiftingLibraryLocal();
+  persistLiftingUiLocal();
+  setupLiftingRealtimeSync();
   fillTrackDraftInputs("lifting");
   fillTrackDraftInputs("mental");
   render();
