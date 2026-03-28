@@ -9191,6 +9191,113 @@ svg{
   font-size: 0.9rem;
 }
 
+.planner-mental-leaderboard-card{
+  gap: 12px;
+}
+
+.planner-mental-leader-status{
+  margin: 0;
+  color: #9db5d9;
+}
+
+.planner-mental-leader-grid{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.planner-mental-leader-game{
+  border: 1px solid rgba(126, 156, 207, 0.28);
+  border-radius: 12px;
+  background: rgba(10, 20, 36, 0.9);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.planner-mental-leader-game header{
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.planner-mental-leader-game h5{
+  margin: 0;
+  font-size: 0.94rem;
+}
+
+.planner-mental-leader-game header span{
+  font-size: 0.72rem;
+  color: #9db5d9;
+}
+
+.planner-mental-leader-list{
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.planner-mental-leader-row{
+  border: 1px solid rgba(126, 156, 207, 0.24);
+  border-radius: 10px;
+  background: rgba(18, 33, 59, 0.78);
+  padding: 6px 8px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.planner-mental-leader-rank{
+  min-width: 36px;
+  text-align: center;
+  border-radius: 999px;
+  border: 1px solid rgba(126, 156, 207, 0.4);
+  background: rgba(15, 23, 42, 0.8);
+  color: #dbe9ff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 0;
+}
+
+.planner-mental-leader-user{
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.planner-mental-leader-user strong{
+  font-size: 0.82rem;
+  color: #f8fbff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.planner-mental-leader-user span{
+  font-size: 0.68rem;
+  color: #9db5d9;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.planner-mental-leader-score{
+  font-size: 1rem;
+  color: #8bc8ff;
+}
+
+.planner-mental-leader-empty{
+  border: 1px dashed rgba(148, 163, 184, 0.42);
+  border-radius: 10px;
+  color: #94a3b8;
+  font-size: 0.78rem;
+  text-align: center;
+  padding: 10px;
+}
+
 .planner-mental-progress-wrap{
   display: grid;
   gap: 6px;
@@ -9417,6 +9524,9 @@ svg{
   .planner-mental-games{
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .planner-mental-leader-grid{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .planner-mental-play-grid{
     grid-template-columns: 1fr;
   }
@@ -9432,6 +9542,9 @@ svg{
   }
   .planner-mental-games,
   .planner-mental-options{
+    grid-template-columns: 1fr;
+  }
+  .planner-mental-leader-grid{
     grid-template-columns: 1fr;
   }
   .planner-mental-color-grid{
