@@ -4760,6 +4760,13 @@
         if (dismiss === "assign") closeAssignModal();
       });
     });
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("beforeprint", () => {
+        updatePrintMetaValues();
+        renderRows();
+      });
+    }
   }
 
   bindStaticEvents();
