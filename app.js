@@ -23540,6 +23540,10 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
   const isVideo = typeLower.includes("video");
   const isPhoto = typeLower.includes("photo") || typeLower.includes("image");
   const isVoice = typeLower.includes("voice") || typeLower.includes("audio");
+  card.classList.add(allowReceiverActions ? "incoming" : "outgoing");
+  if (isVideo) card.classList.add("is-video");
+  if (isPhoto) card.classList.add("is-photo");
+  if (isVoice) card.classList.add("is-voice");
   const previewUrl = resolveMediaLocation(attachment.thumbnailPath || attachment.assetPath || "");
   const litePreview = shouldUseLiteVideoMessagePreview();
   const canInlineVideo = isVideo ? canInlinePlayMessageVideo(attachment, assetUrl) : false;
@@ -23558,6 +23562,7 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
   card.appendChild(head);
 
   const appendVideoFallback = (statusText = "") => {
+    card.classList.add("is-fallback-video");
     const safeStatus = String(statusText || "").trim();
     const fallbackPreview = previewUrl || "";
     const previousWrap = card.querySelector(".message-media-video-wrap");
@@ -23612,6 +23617,7 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
     } else {
       const videoWrap = document.createElement("div");
       videoWrap.className = "message-media-video-wrap";
+      videoWrap.classList.add("is-inline");
       const video = document.createElement("video");
       video.className = "message-media-preview video";
       video.src = assetUrl;
@@ -23676,6 +23682,15 @@ function buildMessageAttachmentCard(attachment = {}, { allowReceiverActions = tr
             // ignore playback start errors; user can still open externally.
           }
         });
+        const hideOverlay = () => {
+          overlayBtn.classList.add("hidden");
+        };
+        const showOverlay = () => {
+          overlayBtn.classList.remove("hidden");
+        };
+        video.addEventListener("play", hideOverlay);
+        video.addEventListener("pause", showOverlay);
+        video.addEventListener("ended", showOverlay);
         videoWrap.appendChild(overlayBtn);
       }
       videoWrap.appendChild(video);
