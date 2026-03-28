@@ -330,6 +330,13 @@ const sessionBlocks = document.getElementById("sessionBlocks");
 const startSessionBtn = document.getElementById("startSessionBtn");
 const watchFilmBtn = document.getElementById("watchFilmBtn");
 const logCompletionBtn = document.getElementById("logCompletionBtn");
+const athleteTrackTaskGrid = document.getElementById("athleteTrackTaskGrid");
+const athleteLiftingTasksTitle = document.getElementById("athleteLiftingTasksTitle");
+const athleteLiftingTasksCount = document.getElementById("athleteLiftingTasksCount");
+const athleteLiftingTasksList = document.getElementById("athleteLiftingTasksList");
+const athleteMindTasksTitle = document.getElementById("athleteMindTasksTitle");
+const athleteMindTasksCount = document.getElementById("athleteMindTasksCount");
+const athleteMindTasksList = document.getElementById("athleteMindTasksList");
 const feelingScale = document.getElementById("feelingScale");
 const dailyStatus = document.getElementById("dailyStatus");
 const planGrid = document.getElementById("planGrid");
@@ -4026,6 +4033,13 @@ function normalizeCoachAssignmentRecord(id, data = {}) {
     mediaThumbnailPath: String(data.mediaThumbnailPath || "").trim(),
     mediaThumbnailStoragePath: String(data.mediaThumbnailStoragePath || "").trim(),
     mediaType: String(data.mediaType || "").trim(),
+    trainingTrack: String(data.trainingTrack || "").trim().toLowerCase(),
+    liftingProtocolId: String(data.liftingProtocolId || "").trim(),
+    liftingProtocolName: String(data.liftingProtocolName || "").trim(),
+    liftingDayName: String(data.liftingDayName || "").trim(),
+    mentalGameKey: String(data.mentalGameKey || "").trim().toLowerCase(),
+    mentalGameTitle: String(data.mentalGameTitle || "").trim(),
+    mentalGameDuration: Number.isFinite(Number(data.mentalGameDuration)) ? Number(data.mentalGameDuration) : 0,
     notifiedAt: normalizeFirestoreDateValue(data.notifiedAt),
     notificationStatus: String(data.notificationStatus || "").trim(),
     createdAt: normalizeFirestoreDateValue(data.createdAt),
@@ -12886,6 +12900,102 @@ async function saveAthleteQuickCheckIn(score) {
   );
 }
 
+function renderAthleteTrackTaskList(container, records = [], { track = "wrestling" } = {}) {
+  if (!container) return;
+  container.innerHTML = "";
+  const list = Array.isArray(records) ? records : [];
+  if (!list.length) {
+    const empty = document.createElement("div");
+    empty.className = "small muted";
+    empty.textContent = track === "mental"
+      ? (currentLang === "es" ? "No hay tareas de mind & focus pendientes." : "No pending mind & focus tasks.")
+      : (currentLang === "es" ? "No hay tareas de lifting pendientes." : "No pending lifting tasks.");
+    container.appendChild(empty);
+    return;
+  }
+  list.slice(0, 6).forEach((record) => {
+    const card = document.createElement("div");
+    card.className = "completion-card";
+    const statusMeta = getAssignmentStatusMeta(record.status);
+    const dueLabel = record.dueLabel || formatPlanDateLabel(record.dueDateKey || getCurrentAppDateKey());
+    const noteText = String(record.note || "").trim();
+    const trackLabel = track === "mental"
+      ? (record.mentalGameTitle || record.title || (currentLang === "es" ? "Mind & Focus" : "Mind & Focus"))
+      : (record.liftingDayName || record.title || (currentLang === "es" ? "Lifting Plan" : "Lifting Plan"));
+    const typeLabel = track === "mental"
+      ? (currentLang === "es" ? "Tarea mental" : "Mind task")
+      : (currentLang === "es" ? "Tarea de lifting" : "Lifting task");
+    card.innerHTML = `
+      <div class="completion-card-top">
+        <div>
+          <h3>${escapeHtml(trackLabel)}</h3>
+          <div class="small">${escapeHtml(typeLabel)} - ${escapeHtml(dueLabel)}</div>
+        </div>
+        <span class="status-pill ${statusMeta.className}">${statusMeta.label}</span>
+      </div>
+      ${noteText ? `<div class="completion-card-meta">${escapeHtml(noteText)}</div>` : ""}
+    `;
+    const actions = document.createElement("div");
+    actions.className = "assignment-card-actions";
+    if (normalizeAssignmentStatus(record.status) === "not_started") {
+      const startBtn = document.createElement("button");
+      startBtn.type = "button";
+      startBtn.className = "ghost";
+      startBtn.textContent = currentLang === "es" ? "Iniciar" : "Start";
+      startBtn.addEventListener("click", async () => {
+        try {
+          await updateAthleteAssignmentStatus(record, "in_progress");
+          toast(currentLang === "es" ? "Tarea iniciada." : "Task started.");
+          renderToday(getCurrentAppDayIndex());
+        } catch (err) {
+          console.warn("Athlete track task start failed", err);
+          toast(currentLang === "es" ? "No se pudo iniciar la tarea." : "Could not start task.");
+        }
+      });
+      actions.appendChild(startBtn);
+    }
+    if (normalizeAssignmentStatus(record.status) !== "completed") {
+      const completeBtn = document.createElement("button");
+      completeBtn.type = "button";
+      completeBtn.className = "primary";
+      completeBtn.textContent = currentLang === "es" ? "Completar" : "Complete";
+      completeBtn.addEventListener("click", async () => {
+        try {
+          await updateAthleteAssignmentStatus(record, "completed");
+          toast(currentLang === "es" ? "Tarea completada." : "Task completed.");
+          renderToday(getCurrentAppDayIndex());
+        } catch (err) {
+          console.warn("Athlete track task complete failed", err);
+          toast(currentLang === "es" ? "No se pudo completar la tarea." : "Could not complete task.");
+        }
+      });
+      actions.appendChild(completeBtn);
+    }
+    if (actions.children.length) card.appendChild(actions);
+    container.appendChild(card);
+  });
+}
+
+function renderAthleteTrackTaskAreas() {
+  if (!athleteTrackTaskGrid) return;
+  const profile = getProfile();
+  const isPortalAthlete = isAthleteRole(profile?.role) && Boolean(getAthleteLinkedCoachUid(profile));
+  athleteTrackTaskGrid.classList.toggle("hidden", !isPortalAthlete);
+  if (!isPortalAthlete) {
+    if (athleteLiftingTasksList) athleteLiftingTasksList.innerHTML = "";
+    if (athleteMindTasksList) athleteMindTasksList.innerHTML = "";
+    return;
+  }
+  if (athleteLiftingTasksTitle) athleteLiftingTasksTitle.textContent = currentLang === "es" ? "Tareas de Lifting" : "Lifting Tasks";
+  if (athleteMindTasksTitle) athleteMindTasksTitle.textContent = currentLang === "es" ? "Tareas de Mind & Focus" : "Mind & Focus Tasks";
+  const liftingTasks = getAthletePortalTrackAssignments("lifting", { onlyOpen: true });
+  const mentalTasks = getAthletePortalTrackAssignments("mental", { onlyOpen: true });
+  if (athleteLiftingTasksCount) athleteLiftingTasksCount.textContent = String(liftingTasks.length);
+  if (athleteMindTasksCount) athleteMindTasksCount.textContent = String(mentalTasks.length);
+  renderAthleteTrackTaskList(athleteLiftingTasksList, liftingTasks, { track: "lifting" });
+  renderAthleteTrackTaskList(athleteMindTasksList, mentalTasks, { track: "mental" });
+}
+
 function renderToday(dayIndex = getCurrentAppDayIndex()) {
   if (isAthleteRole(getProfile()?.role) && getAthleteLinkedCoachUid()) {
     const live = buildAthletePortalTodayPlan();
@@ -12914,6 +13024,7 @@ function renderToday(dayIndex = getCurrentAppDayIndex()) {
     if (startSessionBtn) startSessionBtn.disabled = !primaryAssignment;
     if (watchFilmBtn) watchFilmBtn.disabled = !mediaContext?.assetPath;
     if (logCompletionBtn) logCompletionBtn.disabled = !primaryAssignment;
+    renderAthleteTrackTaskAreas();
     return;
   }
 
@@ -12939,6 +13050,7 @@ function renderToday(dayIndex = getCurrentAppDayIndex()) {
     row.innerHTML = `<strong>${block.label}</strong><span>${block.detail}</span>`;
     sessionBlocks.appendChild(row);
   });
+  renderAthleteTrackTaskAreas();
 }
 
 function renderFeelingScale() {
@@ -17380,6 +17492,24 @@ function getAthletePortalLinkedAthlete() {
   return getCoachAthleteRecordByIdentity(identity) || null;
 }
 
+function getAssignmentTrainingTrack(record = {}) {
+  const explicit = String(record.trainingTrack || "").trim().toLowerCase();
+  if (explicit === "wrestling" || explicit === "lifting" || explicit === "mental") return explicit;
+  const source = `${record.source || ""} ${record.type || ""} ${record.title || ""}`.toLowerCase();
+  if (source.includes("lifting") || source.includes("strength") || source.includes("conditioning")) return "lifting";
+  if (source.includes("mind") || source.includes("focus") || source.includes("mental")) return "mental";
+  return "wrestling";
+}
+
+function getAthletePortalTrackAssignments(track = "wrestling", { onlyOpen = true } = {}) {
+  const normalizedTrack = String(track || "wrestling").trim().toLowerCase();
+  const records = coachWorkspaceSortByUpdated(athletePortalAssignmentsCache).filter((item) => (
+    getAssignmentTrainingTrack(item) === normalizedTrack
+  ));
+  if (!onlyOpen) return records;
+  return records.filter((item) => normalizeAssignmentStatus(item.status) !== "completed");
+}
+
 function getAthletePortalActiveAssignments() {
   return coachWorkspaceSortByUpdated(athletePortalAssignmentsCache).filter((item) => item.status !== "completed");
 }
@@ -17387,12 +17517,14 @@ function getAthletePortalActiveAssignments() {
 function getAthletePortalPrimaryAssignment() {
   const todayKey = getCurrentAppDateKey();
   const assignments = getAthletePortalActiveAssignments();
-  const dueNow = assignments.filter((item) => !item.dueDateKey || item.dueDateKey <= todayKey);
+  const wrestlingAssignments = assignments.filter((item) => getAssignmentTrainingTrack(item) === "wrestling");
+  const pool = wrestlingAssignments.length ? wrestlingAssignments : assignments;
+  const dueNow = pool.filter((item) => !item.dueDateKey || item.dueDateKey <= todayKey);
   return dueNow.find((item) => normalizeAssignmentStatus(item.status) === "in_progress")
     || dueNow[0]
-    || assignments.find((item) => normalizeAssignmentStatus(item.status) === "in_progress")
-    || assignments.find((item) => item.planId)
-    || assignments[0]
+    || pool.find((item) => normalizeAssignmentStatus(item.status) === "in_progress")
+    || pool.find((item) => item.planId)
+    || pool[0]
     || coachWorkspaceSortByUpdated(athletePortalAssignmentsCache)[0]
     || null;
 }

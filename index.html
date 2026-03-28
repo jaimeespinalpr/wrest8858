@@ -344,6 +344,23 @@
             <button type="button" id="logCompletionBtn">Log Completion</button>
           </div>
 
+          <div class="athlete-track-task-grid" id="athleteTrackTaskGrid">
+            <article class="mini-card athlete-track-task-card">
+              <div class="card-header">
+                <h3 id="athleteLiftingTasksTitle">Lifting Tasks</h3>
+                <div class="chip" id="athleteLiftingTasksCount">0</div>
+              </div>
+              <div class="completion-list" id="athleteLiftingTasksList"></div>
+            </article>
+            <article class="mini-card athlete-track-task-card">
+              <div class="card-header">
+                <h3 id="athleteMindTasksTitle">Mind &amp; Focus Tasks</h3>
+                <div class="chip" id="athleteMindTasksCount">0</div>
+              </div>
+              <div class="completion-list" id="athleteMindTasksList"></div>
+            </article>
+          </div>
+
           <div class="checkin">
             <p class="small">How do you feel today?</p>
             <div class="row" id="feelingScale"></div>
@@ -1385,6 +1402,7 @@
                   <p class="small muted">Build 7-day strength and conditioning protocols with a live exercise library.</p>
                 </div>
                 <div class="planner-lifting-header-actions">
+                  <button type="button" class="primary" id="plannerLiftingShareBtn">Share plan</button>
                   <button type="button" class="ghost" id="plannerLiftingPrintBtn">Print</button>
                   <button type="button" class="primary" id="plannerLiftingSaveProtocolBtn">Save Protocol</button>
                 </div>
@@ -1625,7 +1643,7 @@
             <div class="planner-modal-backdrop" data-dismiss="assign"></div>
             <div class="planner-modal-card planner-modal-wide">
               <header>
-                <h3>Share plan</h3>
+                <h3 id="plannerAssignTitle">Share plan</h3>
                 <button type="button" class="ghost" id="plannerAssignCloseBtn">Close</button>
               </header>
               <div class="planner-modal-body">

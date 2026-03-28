@@ -495,6 +495,10 @@
     assignSearch: "",
     assignDueDate: "",
     assignModalBusy: false,
+    assignContext: {
+      track: "wrestling",
+      mentalGameKey: ""
+    },
     liftingDraft: readJson(STORAGE_KEYS.liftingDraft, {}) || {},
     mentalDraft: readJson(STORAGE_KEYS.mentalDraft, {}) || {},
     mentalScores: normalizeMentalScoreValue(readJson(STORAGE_KEYS.mentalScores, buildDefaultMentalScores()) || buildDefaultMentalScores()),
@@ -589,6 +593,7 @@
     templatesStatus: document.getElementById("plannerTemplatesStatus"),
     templatesList: document.getElementById("plannerTemplatesList"),
     assignModal: document.getElementById("plannerAssignModal"),
+    assignTitle: document.getElementById("plannerAssignTitle"),
     assignCloseBtn: document.getElementById("plannerAssignCloseBtn"),
     assignCancelBtn: document.getElementById("plannerAssignCancelBtn"),
     assignSendBtn: document.getElementById("plannerAssignSendBtn"),
@@ -625,6 +630,7 @@
     liftingShell: document.getElementById("plannerLiftingShell"),
     liftingTabs: Array.from(root.querySelectorAll("[data-lifting-tab]")),
     liftingViews: Array.from(root.querySelectorAll("[data-lifting-view]")),
+    liftingShareBtn: document.getElementById("plannerLiftingShareBtn"),
     liftingPrintBtn: document.getElementById("plannerLiftingPrintBtn"),
     liftingSaveProtocolBtn: document.getElementById("plannerLiftingSaveProtocolBtn"),
     liftingStatus: document.getElementById("plannerLiftingStatus"),
@@ -1118,7 +1124,10 @@
             <div class="planner-mental-chip"><span>Average</span><strong>${escapeHtml(stats.averageScore || 0)}</strong></div>
             <div class="planner-mental-chip"><span>Plays</span><strong>${escapeHtml(stats.plays || 0)}</strong></div>
           </div>
-          <button type="button" class="primary" data-action="mental-open-game" data-game="${escapeHtml(gameKey)}">Play now</button>
+          <div class="planner-mental-actions">
+            <button type="button" class="primary" data-action="mental-open-game" data-game="${escapeHtml(gameKey)}">Play now</button>
+            <button type="button" class="ghost" data-action="mental-assign-game" data-game="${escapeHtml(gameKey)}">Assign game</button>
+          </div>
         </article>
       `;
     }).join("");
@@ -1234,6 +1243,7 @@
         <div class="planner-mental-breakdown">${breakdownHtml}</div>
         <div class="planner-mental-actions">
           <button type="button" class="primary" data-action="mental-retry-game">Play again</button>
+          <button type="button" class="ghost" data-action="mental-assign-game" data-game="${escapeHtml(gameKey)}">Assign game</button>
           <button type="button" class="ghost" data-action="mental-open-home">Back home</button>
         </div>
       </div>
@@ -1991,6 +2001,14 @@
     }
     if (action === "mental-open-game") {
       openMentalGame(trigger?.dataset?.game);
+      return true;
+    }
+    if (action === "mental-assign-game") {
+      const gameKey = String(trigger?.dataset?.game || state.mentalActiveGame || MENTAL_GAME_KEYS.GO_NO_GO).trim().toLowerCase();
+      openAssignModal({
+        track: "mental",
+        mentalGameKey: gameKey
+      });
       return true;
     }
     if (action === "mental-retry-game") {
@@ -3121,6 +3139,81 @@
     return `Daily Training Plan - ${formatDateLabel(dateKey)}`;
   }
 
+  function getAssignContextTrack() {
+    const rawTrack = String(state.assignContext?.track || state.activeTrack || "wrestling").trim().toLowerCase();
+    return normalizeTrack(rawTrack);
+  }
+
+  function getAssignContextMeta(track = getAssignContextTrack(), mentalGameKey = state.assignContext?.mentalGameKey || "") {
+    if (track === "lifting") {
+      return {
+        modalTitle: "Share lifting plan",
+        sendLabel: "Share lifting",
+        sendingLabel: "Sharing lifting...",
+        statusHint: "Choose recipients for the lifting plan.",
+        successNoun: "Lifting plan"
+      };
+    }
+    if (track === "mental") {
+      const key = String(mentalGameKey || "").trim().toLowerCase();
+      const gameMeta = MENTAL_GAME_META[key] || MENTAL_GAME_META[MENTAL_GAME_KEYS.GO_NO_GO];
+      return {
+        modalTitle: `Assign mind task: ${gameMeta.title}`,
+        sendLabel: "Assign game",
+        sendingLabel: "Assigning game...",
+        statusHint: "Choose recipients for this mind & focus game.",
+        successNoun: "Mind task"
+      };
+    }
+    return {
+      modalTitle: "Share wrestling plan",
+      sendLabel: "Share plan",
+      sendingLabel: "Sharing...",
+      statusHint: "Choose recipients, then share.",
+      successNoun: "Wrestling plan"
+    };
+  }
+
+  function applyAssignContextUi() {
+    const meta = getAssignContextMeta();
+    if (els.assignTitle) els.assignTitle.textContent = meta.modalTitle;
+    if (els.assignSendBtn && !state.assignModalBusy) {
+      els.assignSendBtn.textContent = meta.sendLabel;
+    }
+  }
+
+  function getLiftingDayExerciseLines(day = null) {
+    const safeDay = day || getActiveLiftingDay();
+    const exercises = Array.isArray(safeDay?.exercises) ? safeDay.exercises : [];
+    return exercises
+      .map((exercise) => {
+        const name = String(exercise?.name || "").trim();
+        if (!name) return "";
+        const sets = String(exercise?.sets || "").trim();
+        const reps = String(exercise?.reps || "").trim();
+        const intensity = String(exercise?.intensity || "").trim();
+        const volume = [sets, reps].filter(Boolean).join("x");
+        const pieces = [name];
+        if (volume) pieces.push(volume);
+        if (intensity) pieces.push(intensity);
+        return pieces.join(" ");
+      })
+      .filter(Boolean);
+  }
+
+  function buildLiftingPlanItemsForShare(day = null) {
+    const safeDay = day || getActiveLiftingDay();
+    const exerciseLines = getLiftingDayExerciseLines(safeDay);
+    return {
+      intro: [`Cycle: ${state.liftingPlan.name || "Lifting cycle"}`],
+      warmup: [String(state.liftingPlan.purpose || "").trim()].filter(Boolean),
+      drills: exerciseLines.length ? exerciseLines : ["Coach will update exercise blocks."],
+      live: [],
+      cooldown: [String(state.liftingPlan.benefits || "").trim()].filter(Boolean),
+      announcements: [`Assigned day: ${safeDay?.name || `Day ${state.liftingActiveDay + 1}`}`]
+    };
+  }
+
   function normalizeRecipientRecord(id, data = {}, fallbackType = "athlete") {
     const name = String(data?.name || "").trim();
     if (!name) return null;
@@ -3242,15 +3335,27 @@
     }
   }
 
-  function openAssignModal() {
-    const nextDue = normalizeDateKeyValue(state.docInfo.date || getTodayDateKey());
+  function openAssignModal(options = {}) {
+    const nextTrack = normalizeTrack(options.track || state.activeTrack || "wrestling");
+    const nextMentalGameKey = String(options.mentalGameKey || "").trim().toLowerCase();
+    state.assignContext = {
+      track: nextTrack,
+      mentalGameKey: nextTrack === "mental"
+        ? (nextMentalGameKey || state.mentalActiveGame || MENTAL_GAME_KEYS.GO_NO_GO)
+        : ""
+    };
+    const dueSeed = nextTrack === "wrestling"
+      ? (state.docInfo.date || getTodayDateKey())
+      : getTodayDateKey();
+    const nextDue = normalizeDateKeyValue(dueSeed);
     state.assignDueDate = nextDue;
     state.assignSearch = "";
     if (els.assignDueDateInput) els.assignDueDateInput.value = nextDue;
     if (els.assignSearchInput) els.assignSearchInput.value = "";
+    applyAssignContextUi();
     els.assignModal?.classList.remove("hidden");
     focusPlannerWindow(els.assignModal, { smooth: true });
-    setAssignStatus("Choose recipients, then share.");
+    setAssignStatus(getAssignContextMeta().statusHint);
     loadPlannerAthletesForAssignment().catch(() => {});
   }
 
@@ -3342,9 +3447,12 @@
       return;
     }
 
+    const contextTrack = getAssignContextTrack();
+    const contextMeta = getAssignContextMeta(contextTrack, state.assignContext?.mentalGameKey);
     const plansRef = getPlannerWorkspaceCollectionRef("plans");
     const assignmentsRef = getPlannerWorkspaceCollectionRef("assignments");
-    if (!plansRef || !assignmentsRef || typeof firebaseFirestoreInstance === "undefined" || !firebaseFirestoreInstance) {
+    const needsPlanDoc = contextTrack !== "mental";
+    if ((!plansRef && needsPlanDoc) || !assignmentsRef || typeof firebaseFirestoreInstance === "undefined" || !firebaseFirestoreInstance) {
       setAssignStatus("Plan/assignment storage is not available.", true);
       return;
     }
@@ -3352,16 +3460,15 @@
     state.assignModalBusy = true;
     if (els.assignSendBtn) {
       els.assignSendBtn.disabled = true;
-      els.assignSendBtn.textContent = "Sharing...";
+      els.assignSendBtn.textContent = contextMeta.sendingLabel;
     }
-    setAssignStatus("Saving plan and assignments...");
+    setAssignStatus("Saving assignments...");
 
-    const dueDateKey = normalizeDateKeyValue(state.assignDueDate || state.docInfo.date || getTodayDateKey());
+    const dueDateKey = normalizeDateKeyValue(state.assignDueDate || getTodayDateKey());
     const timestamp = getPlannerTimestamp();
     const authUser = getPlannerAuthUser();
     const profile = getPlannerProfile();
     const createdBy = String(profile?.name || authUser?.email || "Coach").trim();
-    const planTitle = getPlannerTitle();
     const athleteRecipients = selected.filter((athlete) => athlete.recipientType !== "coach");
     const coachRecipients = selected.filter((athlete) => athlete.recipientType === "coach");
     const athleteNames = athleteRecipients.map((athlete) => athlete.name);
@@ -3371,55 +3478,131 @@
     const coachIds = coachRecipients.map((coach) => coach.id);
     const coachUids = coachRecipients.map((coach) => coach.recipientUid).filter(Boolean);
     const audienceMode = selected.length > 1 ? "multi" : "single";
-    const note = `Coach planner session (${Math.max(1, parseTimeValue(state.docInfo.totalTime || "90"))} min total).`;
+    const dueLabel = formatDateLabel(dueDateKey);
 
     try {
-      const planRef = plansRef.doc();
-      const planPayload = {
-        title: planTitle,
-        type: "day",
-        focus: note,
-        coachNotes: note,
-        sourceMode: "scratch",
-        sourceRefId: "",
-        sourceLabel: "Coach Planner",
-        range: {
-          startKey: dueDateKey,
-          endKey: dueDateKey
-        },
-        items: buildPlanItemsFromPlanner(),
-        monthlyNotes: "",
-        seasonYear: String(state.settings?.season || "").trim(),
-        audience: {
-          mode: audienceMode,
-          recipientNames: selected.map((item) => item.name),
-          recipientIds: selected.map((item) => item.id),
-          recipientUids: selected.map((item) => item.recipientUid).filter(Boolean),
-          athleteNames,
-          athleteIds,
-          athleteUids,
-          coachNames,
-          coachIds,
-          coachUids,
-          groupId: "",
-          groupName: ""
-        },
-        createdBy,
-        updatedBy: createdBy,
-        createdAt: timestamp,
-        updatedAt: timestamp
-      };
+      let planId = "";
+      let assignmentTitle = getPlannerTitle();
+      let assignmentType = "Daily Plan";
+      let assignmentNote = `Coach planner session (${Math.max(1, parseTimeValue(state.docInfo.totalTime || "90"))} min total).`;
+      let assignmentSource = "Coach Planner";
+      let assignmentPlanType = "day";
+      let trackPayload = { trainingTrack: "wrestling" };
 
-      await planRef.set(planPayload, { merge: true });
+      if (contextTrack === "lifting") {
+        const activeDay = getActiveLiftingDay();
+        const dayLines = getLiftingDayExerciseLines(activeDay);
+        assignmentTitle = `${state.liftingPlan.name || "Lifting Cycle"} - ${activeDay?.name || `Day ${state.liftingActiveDay + 1}`}`;
+        assignmentType = "Lifting Plan";
+        assignmentNote = dayLines.length
+          ? `Complete ${activeDay?.name || "today's lifting"}: ${dayLines.join(" - ")}`
+          : `Complete ${activeDay?.name || "today's lifting"} and log completion.`;
+        assignmentSource = "Lifting & Conditioning";
+        assignmentPlanType = "week";
+        trackPayload = {
+          trainingTrack: "lifting",
+          liftingProtocolId: String(state.liftingPlan.id || "").trim(),
+          liftingProtocolName: String(state.liftingPlan.name || "").trim(),
+          liftingDayName: String(activeDay?.name || "").trim()
+        };
+        const planPayload = {
+          title: assignmentTitle,
+          type: "week",
+          focus: String(state.liftingPlan.purpose || assignmentNote).trim(),
+          coachNotes: String(state.liftingPlan.benefits || "").trim(),
+          sourceMode: "lifting",
+          sourceRefId: String(state.liftingPlan.id || "").trim(),
+          sourceLabel: "Lifting & Conditioning",
+          range: {
+            startKey: dueDateKey,
+            endKey: dueDateKey
+          },
+          items: buildLiftingPlanItemsForShare(activeDay),
+          monthlyNotes: "",
+          seasonYear: String(state.settings?.season || "").trim(),
+          audience: {
+            mode: audienceMode,
+            recipientNames: selected.map((item) => item.name),
+            recipientIds: selected.map((item) => item.id),
+            recipientUids: selected.map((item) => item.recipientUid).filter(Boolean),
+            athleteNames,
+            athleteIds,
+            athleteUids,
+            coachNames,
+            coachIds,
+            coachUids,
+            groupId: "",
+            groupName: ""
+          },
+          createdBy,
+          updatedBy: createdBy,
+          createdAt: timestamp,
+          updatedAt: timestamp
+        };
+        const planRef = plansRef.doc();
+        await planRef.set(planPayload, { merge: true });
+        planId = planRef.id;
+      } else if (contextTrack === "mental") {
+        const mentalKey = String(state.assignContext?.mentalGameKey || state.mentalActiveGame || MENTAL_GAME_KEYS.GO_NO_GO).trim().toLowerCase();
+        const gameMeta = MENTAL_GAME_META[mentalKey] || MENTAL_GAME_META[MENTAL_GAME_KEYS.GO_NO_GO];
+        assignmentTitle = `Mind & Focus - ${gameMeta.title}`;
+        assignmentType = "Mind Game";
+        assignmentNote = `${gameMeta.cue} (${gameMeta.duration}s).`;
+        assignmentSource = "Mind & Focus";
+        assignmentPlanType = "day";
+        trackPayload = {
+          trainingTrack: "mental",
+          mentalGameKey: mentalKey,
+          mentalGameTitle: gameMeta.title,
+          mentalGameDuration: gameMeta.duration
+        };
+      } else {
+        const planRef = plansRef.doc();
+        const planPayload = {
+          title: assignmentTitle,
+          type: "day",
+          focus: assignmentNote,
+          coachNotes: assignmentNote,
+          sourceMode: "scratch",
+          sourceRefId: "",
+          sourceLabel: "Coach Planner",
+          range: {
+            startKey: dueDateKey,
+            endKey: dueDateKey
+          },
+          items: buildPlanItemsFromPlanner(),
+          monthlyNotes: "",
+          seasonYear: String(state.settings?.season || "").trim(),
+          audience: {
+            mode: audienceMode,
+            recipientNames: selected.map((item) => item.name),
+            recipientIds: selected.map((item) => item.id),
+            recipientUids: selected.map((item) => item.recipientUid).filter(Boolean),
+            athleteNames,
+            athleteIds,
+            athleteUids,
+            coachNames,
+            coachIds,
+            coachUids,
+            groupId: "",
+            groupName: ""
+          },
+          createdBy,
+          updatedBy: createdBy,
+          createdAt: timestamp,
+          updatedAt: timestamp
+        };
+        await planRef.set(planPayload, { merge: true });
+        planId = planRef.id;
+      }
 
-      const dueLabel = formatDateLabel(dueDateKey);
       const batch = firebaseFirestoreInstance.batch();
       const createdAssignments = [];
       selected.forEach((athlete) => {
         const assignmentRef = assignmentsRef.doc();
         const isCoach = athlete.recipientType === "coach";
         const assignmentPayload = {
-          title: planTitle,
+          title: assignmentTitle,
           assigneeType: isCoach ? "coach" : "athlete",
           assigneeId: athlete.id,
           assigneeName: athlete.name,
@@ -3430,14 +3613,15 @@
           athleteUids: isCoach ? [] : (athlete.recipientUid ? [athlete.recipientUid] : []),
           coachIds: isCoach ? [athlete.id] : [],
           coachUids: isCoach ? (athlete.recipientUid ? [athlete.recipientUid] : []) : [],
-          type: "Daily Plan",
+          type: assignmentType,
           dueDateKey,
           dueLabel,
           status: "not_started",
-          note,
-          source: "Coach Planner",
-          planId: planRef.id,
-          planType: "day",
+          note: assignmentNote,
+          source: assignmentSource,
+          planId,
+          planType: assignmentPlanType,
+          ...trackPayload,
           notificationStatus: "pending",
           createdAt: timestamp,
           updatedAt: timestamp
@@ -3452,7 +3636,7 @@
       });
 
       await batch.commit();
-      state.lastSentPlanId = planRef.id;
+      if (planId) state.lastSentPlanId = planId;
 
       if (typeof sendCoachAssignmentNotification === "function") {
         Promise.all(createdAssignments.map((assignment) => sendCoachAssignmentNotification(assignment))).catch((err) => {
@@ -3460,7 +3644,7 @@
         });
       }
 
-      const successMessage = `Plan shared with ${selected.length} recipient${selected.length === 1 ? "" : "s"}.`;
+      const successMessage = `${contextMeta.successNoun} shared with ${selected.length} recipient${selected.length === 1 ? "" : "s"}.`;
       setAssignStatus(successMessage);
       setBottomStatus(successMessage);
       triggerToast(successMessage);
@@ -3472,7 +3656,7 @@
       state.assignModalBusy = false;
       if (els.assignSendBtn) {
         els.assignSendBtn.disabled = false;
-        els.assignSendBtn.textContent = "Share plan";
+        els.assignSendBtn.textContent = getAssignContextMeta().sendLabel;
       }
     }
   }
@@ -4433,11 +4617,18 @@
     els.saveTemplateBtn?.addEventListener("click", () => {
       savePlannerAsTemplate().catch(() => {});
     });
-    els.sendAthletesBtn?.addEventListener("click", openAssignModal);
+    els.sendAthletesBtn?.addEventListener("click", () => {
+      openAssignModal({ track: "wrestling" });
+    });
     els.saveTemplateTopBtn?.addEventListener("click", () => {
       savePlannerAsTemplate().catch(() => {});
     });
-    els.sendAthletesTopBtn?.addEventListener("click", openAssignModal);
+    els.sendAthletesTopBtn?.addEventListener("click", () => {
+      openAssignModal({ track: "wrestling" });
+    });
+    els.liftingShareBtn?.addEventListener("click", () => {
+      openAssignModal({ track: "lifting" });
+    });
     els.assignCloseBtn?.addEventListener("click", closeAssignModal);
     els.assignCancelBtn?.addEventListener("click", closeAssignModal);
     els.assignSendBtn?.addEventListener("click", () => {
