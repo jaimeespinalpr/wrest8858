@@ -174,6 +174,14 @@
     };
   }
 
+  function buildDefaultMentalLeaderboard() {
+    const entries = {};
+    Object.keys(MENTAL_GAME_META).forEach((gameKey) => {
+      entries[gameKey] = [];
+    });
+    return entries;
+  }
+
   function normalizeMentalScoreValue(raw = {}) {
     const defaults = buildDefaultMentalScores();
     const source = raw && typeof raw === "object" ? raw : {};
@@ -508,6 +516,11 @@
     liftingDraft: readJson(STORAGE_KEYS.liftingDraft, {}) || {},
     mentalDraft: readJson(STORAGE_KEYS.mentalDraft, {}) || {},
     mentalScores: normalizeMentalScoreValue(readJson(STORAGE_KEYS.mentalScores, buildDefaultMentalScores()) || buildDefaultMentalScores()),
+    mentalLeaderboard: buildDefaultMentalLeaderboard(),
+    mentalLeaderboardStatus: "Loading global leaderboard...",
+    mentalLeaderboardReady: false,
+    mentalLeaderboardLoadedKeys: {},
+    mentalLeaderboardUnsubs: [],
     mentalView: "home",
     mentalActiveGame: "",
     mentalSession: null,
@@ -971,6 +984,251 @@
     writeJson(STORAGE_KEYS.mentalScores, state.mentalScores);
   }
 
+  function normalizeMentalLeaderboardRole(role) {
+    const raw = String(role || "").trim().toLowerCase();
+    if (!raw) return "athlete";
+    if (raw === "administrator" || raw === "head_coach") return "coach";
+    if (raw === "coach" || raw === "admin" || raw === "athlete" || raw === "parent") return raw;
+    return "athlete";
+  }
+
+  function getMentalLeaderboardRoleLabel(role) {
+    const safeRole = normalizeMentalLeaderboardRole(role);
+    if (safeRole === "coach" || safeRole === "admin") return "Coach";
+    if (safeRole === "parent") return "Parent";
+    return "Athlete";
+  }
+
+  function getPlannerSharedCollectionName() {
+    const value = typeof FIREBASE_SHARED_COLLECTION === "string" ? FIREBASE_SHARED_COLLECTION : "";
+    return value || "shared_app";
+  }
+
+  function getMentalLeaderboardEntriesRef(gameKey) {
+    const safeKey = String(gameKey || "").trim().toLowerCase();
+    if (!safeKey) return null;
+    if (typeof firebaseFirestoreInstance === "undefined" || !firebaseFirestoreInstance) return null;
+    try {
+      const docId = `mental_game_leaderboard_${safeKey}`;
+      return firebaseFirestoreInstance
+        .collection(getPlannerSharedCollectionName())
+        .doc(docId)
+        .collection("entries");
+    } catch {
+      return null;
+    }
+  }
+
+  function normalizeMentalLeaderboardEntry(raw = {}) {
+    const source = raw && typeof raw === "object" ? raw : {};
+    const uid = String(source.uid || source.id || "").trim();
+    const score = Math.max(0, parseInt(String(source.bestScore ?? source.mentalScore ?? 0), 10) || 0);
+    const plays = Math.max(0, parseInt(String(source.plays || 0), 10) || 0);
+    const name = String(source.name || source.email || "").trim() || (uid ? `User ${uid.slice(0, 6)}` : "User");
+    return {
+      uid,
+      name,
+      role: normalizeMentalLeaderboardRole(source.role),
+      bestScore: score,
+      plays,
+      updatedAtIso: String(source.updatedAtIso || "").trim()
+    };
+  }
+
+  function getMentalLeaderboardRows(gameKey) {
+    const safeKey = String(gameKey || "").trim().toLowerCase();
+    const rows = Array.isArray(state.mentalLeaderboard?.[safeKey]) ? state.mentalLeaderboard[safeKey] : [];
+    return rows
+      .map((item) => normalizeMentalLeaderboardEntry(item))
+      .filter(Boolean)
+      .sort((left, right) => right.bestScore - left.bestScore)
+      .slice(0, 3);
+  }
+
+  function renderMentalLeaderboardRows(gameKey) {
+    const rows = getMentalLeaderboardRows(gameKey);
+    if (!rows.length) {
+      return `<li class="planner-mental-leader-empty">No scores yet.</li>`;
+    }
+    return rows.map((entry, index) => `
+      <li class="planner-mental-leader-row">
+        <span class="planner-mental-leader-rank">#${index + 1}</span>
+        <div class="planner-mental-leader-user">
+          <strong>${escapeHtml(entry.name)}</strong>
+          <span>${escapeHtml(getMentalLeaderboardRoleLabel(entry.role))}</span>
+        </div>
+        <strong class="planner-mental-leader-score">${escapeHtml(entry.bestScore)}</strong>
+      </li>
+    `).join("");
+  }
+
+  function renderMentalLeaderboardSection() {
+    const cards = Object.entries(MENTAL_GAME_META).map(([gameKey, meta]) => `
+      <article class="planner-mental-leader-game">
+        <header>
+          <h5>${escapeHtml(meta.title)}</h5>
+          <span>${escapeHtml(meta.duration)}s</span>
+        </header>
+        <ol class="planner-mental-leader-list">${renderMentalLeaderboardRows(gameKey)}</ol>
+      </article>
+    `).join("");
+    const status = String(state.mentalLeaderboardStatus || "").trim() || "Loading global leaderboard...";
+    return `
+      <section class="planner-mental-card planner-mental-leaderboard-card">
+        <div class="planner-mental-game-header">
+          <div>
+            <h4>Global Leaderboard</h4>
+            <p class="small muted">Top 3 records per game across all users.</p>
+          </div>
+          <span class="planner-mental-game-badge">Top 3</span>
+        </div>
+        <p class="small muted planner-mental-leader-status">${escapeHtml(status)}</p>
+        <div class="planner-mental-leader-grid">${cards}</div>
+      </section>
+    `;
+  }
+
+  function stopMentalLeaderboardSync() {
+    const unsubs = Array.isArray(state.mentalLeaderboardUnsubs) ? state.mentalLeaderboardUnsubs : [];
+    unsubs.forEach((unsub) => {
+      if (typeof unsub !== "function") return;
+      try {
+        unsub();
+      } catch {
+        // ignore unsubscribe errors
+      }
+    });
+    state.mentalLeaderboardUnsubs = [];
+    state.mentalLeaderboardLoadedKeys = {};
+  }
+
+  function startMentalLeaderboardSync() {
+    stopMentalLeaderboardSync();
+    state.mentalLeaderboard = buildDefaultMentalLeaderboard();
+    state.mentalLeaderboardReady = false;
+    state.mentalLeaderboardStatus = "Loading global leaderboard...";
+    const gameKeys = Object.keys(MENTAL_GAME_META);
+    if (!gameKeys.length) {
+      state.mentalLeaderboardReady = true;
+      state.mentalLeaderboardStatus = "No games available.";
+      return;
+    }
+    if (typeof firebaseFirestoreInstance === "undefined" || !firebaseFirestoreInstance) {
+      state.mentalLeaderboardReady = true;
+      state.mentalLeaderboardStatus = "Leaderboard unavailable while Firebase is offline.";
+      renderMentalApp();
+      return;
+    }
+    if (!getPlannerAuthUser()?.id) {
+      state.mentalLeaderboardReady = true;
+      state.mentalLeaderboardStatus = "Sign in to load leaderboard data.";
+      renderMentalApp();
+      return;
+    }
+    let loadedCount = 0;
+    const markLoaded = (gameKey) => {
+      if (state.mentalLeaderboardLoadedKeys[gameKey]) return;
+      state.mentalLeaderboardLoadedKeys[gameKey] = true;
+      loadedCount += 1;
+    };
+    gameKeys.forEach((gameKey) => {
+      const entriesRef = getMentalLeaderboardEntriesRef(gameKey);
+      if (!entriesRef) {
+        state.mentalLeaderboard[gameKey] = [];
+        markLoaded(gameKey);
+        return;
+      }
+      const unsub = entriesRef
+        .orderBy("bestScore", "desc")
+        .limit(3)
+        .onSnapshot((snapshot) => {
+          const rows = snapshot.docs
+            .map((doc) => normalizeMentalLeaderboardEntry({ id: doc.id, ...(doc.data() || {}) }))
+            .filter(Boolean)
+            .sort((left, right) => right.bestScore - left.bestScore)
+            .slice(0, 3);
+          state.mentalLeaderboard[gameKey] = rows;
+          markLoaded(gameKey);
+          const totalRows = gameKeys.reduce((sum, key) => sum + getMentalLeaderboardRows(key).length, 0);
+          state.mentalLeaderboardReady = loadedCount >= gameKeys.length;
+          if (state.mentalLeaderboardReady) {
+            state.mentalLeaderboardStatus = totalRows
+              ? "Live leaderboard synced across all users."
+              : "No scores yet. Complete a game to set the first records.";
+          } else {
+            state.mentalLeaderboardStatus = `Loading global leaderboard (${loadedCount}/${gameKeys.length})...`;
+          }
+          renderMentalApp();
+        }, (err) => {
+          console.warn("Mental leaderboard sync failed", err);
+          state.mentalLeaderboard[gameKey] = [];
+          markLoaded(gameKey);
+          state.mentalLeaderboardReady = loadedCount >= gameKeys.length;
+          state.mentalLeaderboardStatus = "Could not sync leaderboard right now.";
+          renderMentalApp();
+        });
+      state.mentalLeaderboardUnsubs.push(unsub);
+    });
+  }
+
+  async function publishMentalLeaderboardResult(gameKey, result) {
+    const safeGameKey = String(gameKey || "").trim().toLowerCase();
+    if (!safeGameKey || !MENTAL_GAME_META[safeGameKey]) return;
+    const entriesRef = getMentalLeaderboardEntriesRef(safeGameKey);
+    const authUser = getPlannerAuthUser();
+    if (!entriesRef || !authUser?.id) return;
+    const uid = String(authUser.id || "").trim();
+    if (!uid) return;
+    const profile = getPlannerProfile() || {};
+    const name = String(profile?.name || authUser?.email || "").trim() || `User ${uid.slice(0, 6)}`;
+    const role = normalizeMentalLeaderboardRole(profile?.role || authUser?.role);
+    const score = Math.max(0, parseInt(String(result?.mentalScore || 0), 10) || 0);
+    const accuracy = Math.max(0, parseInt(String(result?.accuracy || 0), 10) || 0);
+    const speedScore = Math.max(0, parseInt(String(result?.speedScore || 0), 10) || 0);
+    const controlScore = Math.max(
+      0,
+      parseInt(String(result?.controlScore ?? result?.consistencyScore ?? 0), 10) || 0
+    );
+    const entryRef = entriesRef.doc(uid);
+    try {
+      const existingSnap = await entryRef.get();
+      const existing = existingSnap.exists ? (existingSnap.data() || {}) : {};
+      const previousBest = Math.max(0, parseInt(String(existing.bestScore ?? existing.mentalScore ?? 0), 10) || 0);
+      const previousPlays = Math.max(0, parseInt(String(existing.plays || 0), 10) || 0);
+      const bestScore = Math.max(previousBest, score);
+      const isNewBest = score >= previousBest;
+      const payload = {
+        uid,
+        gameKey: safeGameKey,
+        name,
+        email: String(profile?.email || authUser?.email || existing.email || "").trim(),
+        role,
+        bestScore,
+        lastScore: score,
+        plays: previousPlays + 1,
+        updatedAt: getPlannerTimestamp(),
+        updatedAtIso: new Date().toISOString()
+      };
+      if (isNewBest) {
+        payload.bestAt = getPlannerTimestamp();
+        payload.bestAccuracy = accuracy;
+        payload.bestSpeedScore = speedScore;
+        payload.bestControlScore = controlScore;
+      } else {
+        payload.bestAt = existing.bestAt || existing.updatedAt || getPlannerTimestamp();
+        payload.bestAccuracy = Math.max(0, parseInt(String(existing.bestAccuracy || 0), 10) || 0);
+        payload.bestSpeedScore = Math.max(0, parseInt(String(existing.bestSpeedScore || 0), 10) || 0);
+        payload.bestControlScore = Math.max(0, parseInt(String(existing.bestControlScore || 0), 10) || 0);
+      }
+      if (!existingSnap.exists) {
+        payload.createdAt = getPlannerTimestamp();
+      }
+      await entryRef.set(payload, { merge: true });
+    } catch (err) {
+      console.warn("Failed to publish mental leaderboard result", err);
+    }
+  }
+
   function getMentalGameStats(gameKey) {
     return state.mentalScores?.gameStats?.[gameKey] || {
       plays: 0,
@@ -1228,6 +1486,7 @@
           </section>
         </div>
         <div class="planner-mental-games">${cards}</div>
+        ${renderMentalLeaderboardSection()}
       </div>
     `;
   }
@@ -1275,6 +1534,7 @@
             <div class="planner-mental-chip"><span>Games tracked</span><strong>${escapeHtml(Object.keys(MENTAL_GAME_META).length)}</strong></div>
           </div>
         </section>
+        ${renderMentalLeaderboardSection()}
         ${rows}
       </div>
     `;
@@ -1532,6 +1792,12 @@
 
   function renderMentalApp() {
     if (!els.mentalContent) return;
+    if (!state.mentalLeaderboardUnsubs.length
+      && typeof firebaseFirestoreInstance !== "undefined"
+      && firebaseFirestoreInstance
+      && getPlannerAuthUser()?.id) {
+      startMentalLeaderboardSync();
+    }
     if (!MENTAL_GAME_META[state.mentalActiveGame]) {
       state.mentalActiveGame = MENTAL_GAME_KEYS.GO_NO_GO;
     }
@@ -1718,6 +1984,9 @@
       return;
     }
     saveMentalGameResult(session.gameKey, result);
+    publishMentalLeaderboardResult(session.gameKey, result).catch((err) => {
+      console.warn("Mental leaderboard publish failed", err);
+    });
     state.mentalResult = result;
     state.mentalView = "result";
     playMentalCue("complete");
@@ -4777,10 +5046,14 @@
   persistLiftingLibraryLocal();
   persistLiftingUiLocal();
   setupLiftingRealtimeSync();
+  startMentalLeaderboardSync();
   fillTrackDraftInputs("lifting");
   fillTrackDraftInputs("mental");
   render();
   persistSettings();
   persistMentalScores();
+  if (typeof window !== "undefined") {
+    window.addEventListener("beforeunload", stopMentalLeaderboardSync);
+  }
   hydratePlannerSettingsFromCloud().catch(() => {});
 })();
