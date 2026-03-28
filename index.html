@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Teko:wght@500;600;700&display=swap"
     rel="stylesheet"
   >
-  <link rel="stylesheet" href="styles.css?v=20260326h" >
+  <link rel="stylesheet" href="styles.css?v=20260327e" >
 </head>
 
 <body>
@@ -129,6 +129,25 @@
         <button type="button" id="registerSigninBtn" class="ghost full">Back to Sign in</button>
         <p class="small muted">You can edit this info in the app later.</p>
       </form>
+    </div>
+  </div>
+
+  <div id="questionnaireReminderModal" class="register-modal hidden" role="dialog" aria-modal="true" aria-labelledby="questionnaireReminderTitle">
+    <div class="register-card questionnaire-reminder-card">
+      <div class="register-header">
+        <div>
+          <h3 id="questionnaireReminderTitle">Complete your athlete questionnaire</h3>
+          <p class="small muted" id="questionnaireReminderSubtitle">It is very important to complete all questions for accurate coaching.</p>
+        </div>
+      </div>
+      <div class="mini-card questionnaire-reminder-copy">
+        <p class="small" id="questionnaireReminderMessage"></p>
+        <ul class="list tight" id="questionnaireReminderMissingList"></ul>
+      </div>
+      <div class="row">
+        <button type="button" class="primary" id="questionnaireReminderContinueBtn">Continue now</button>
+        <button type="button" class="ghost" id="questionnaireReminderLaterBtn">Continue later</button>
+      </div>
     </div>
   </div>
 
@@ -421,6 +440,37 @@
                   <span>Technique worked most</span>
                   <input id="aTrainingFocus" type="text" placeholder="e.g., Single leg finish chain" >
                 </label>
+              </div>
+
+              <div class="form-section">
+                <h3 id="aQuestionnaireHeading">Questionnaire follow-up</h3>
+                <p class="small muted" id="aQuestionnaireHint">
+                  Complete these remaining questionnaire fields. It is very important to answer all of them.
+                </p>
+                <div id="athleteQuestionnaireProgress" class="row"></div>
+                <div class="grid">
+                  <label>
+                    <span>Preferred move(s)</span>
+                    <input id="aPreferredMoves" type="text" placeholder="e.g., Single leg finish" >
+                  </label>
+                  <label>
+                    <span>Stance</span>
+                    <select id="aStance">
+                      <option value="">Select stance</option>
+                      <option value="left">Left</option>
+                      <option value="right">Right</option>
+                      <option value="switch">Switch</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Questionnaire notes / goals</span>
+                    <textarea id="aQuestionnaireNotes" rows="3" placeholder="Tell your coach your goals and details"></textarea>
+                  </label>
+                </div>
+                <div class="mini-card">
+                  <h4 id="athleteCoachQuestionnaireTitle">Coach annotations</h4>
+                  <p class="small muted" id="athleteCoachQuestionnaireText">No coach annotations yet.</p>
+                </div>
               </div>
 
               <div class="form-section default-tech-questions">
@@ -811,6 +861,7 @@
 
             <div class="row">
               <button type="submit" class="primary">Save Profile</button>
+              <button type="button" id="continueQuestionnaireLaterBtn" class="ghost">Continue later</button>
               <button type="button" id="previewProfileBtn">Preview Competition Summary</button>
             </div>
 
@@ -1245,11 +1296,11 @@
             <div class="planner-brand">
               <div class="planner-brand-badge">WPL</div>
               <div>
-                <h2>Daily Schedule Planner</h2>
-                <p class="small muted">Coach planner with exact categories from your PDF format.</p>
+                <h2 id="plannerHeaderTitle">Wrestling Training Planner</h2>
+                <p class="small muted" id="plannerHeaderSubtitle">Build and assign wrestling practice plans.</p>
               </div>
             </div>
-            <div class="planner-toolbar-actions">
+            <div class="planner-toolbar-actions planner-track-wrestling-only">
               <div class="planner-time-badge" id="plannerTimeBadge">
                 <span class="small">Used / Total</span>
                 <strong id="plannerTimeLabel">0/90 min</strong>
@@ -1263,6 +1314,13 @@
             </div>
           </nav>
 
+          <div class="planner-track-switch" id="plannerTrackSwitch" role="tablist" aria-label="Planner track">
+            <button type="button" class="planner-track-btn active" data-planner-track="wrestling" aria-selected="true">Wrestling Training</button>
+            <button type="button" class="planner-track-btn" data-planner-track="lifting" aria-selected="false">Lifting &amp; Conditioning</button>
+            <button type="button" class="planner-track-btn" data-planner-track="mental" aria-selected="false">Mind &amp; Focus Training</button>
+          </div>
+
+          <section class="planner-track-panel" data-planner-track-panel="wrestling">
           <div class="planner-sheet">
             <header class="planner-sheet-header">
               <div class="planner-logo-box" id="plannerLogoBox">
@@ -1317,6 +1375,107 @@
               </div>
             </footer>
           </div>
+          </section>
+
+          <section class="planner-track-panel hidden" data-planner-track-panel="lifting">
+            <div class="planner-alt-sheet">
+              <header>
+                <h3>Lifting &amp; Conditioning</h3>
+                <p class="small muted">Create strength and conditioning sessions with clear blocks and timing.</p>
+              </header>
+              <div class="grid planner-alt-meta">
+                <label>
+                  <span>Session title</span>
+                  <input type="text" id="plannerLiftingTitle" placeholder="e.g. Lower Body Power Day">
+                </label>
+                <label>
+                  <span>Date</span>
+                  <input type="date" id="plannerLiftingDate">
+                </label>
+                <label>
+                  <span>Total time (min)</span>
+                  <input type="number" id="plannerLiftingTotalTime" min="1" value="60">
+                </label>
+              </div>
+              <div class="grid planner-alt-grid">
+                <label>
+                  <span>Activation / warm-up</span>
+                  <textarea id="plannerLiftingWarmup" rows="3" placeholder="Mobility, activation, prep sets"></textarea>
+                </label>
+                <label>
+                  <span>Main lifts</span>
+                  <textarea id="plannerLiftingMainLifts" rows="3" placeholder="Primary lifts and loading"></textarea>
+                </label>
+                <label>
+                  <span>Accessory work</span>
+                  <textarea id="plannerLiftingAccessory" rows="3" placeholder="Accessory strength and stability"></textarea>
+                </label>
+                <label>
+                  <span>Conditioning finisher</span>
+                  <textarea id="plannerLiftingConditioning" rows="3" placeholder="Intervals, circuits, sled work"></textarea>
+                </label>
+                <label>
+                  <span>Recovery and coach notes</span>
+                  <textarea id="plannerLiftingRecovery" rows="3" placeholder="Cooldown, breath work, recovery notes"></textarea>
+                </label>
+              </div>
+              <div class="planner-alt-actions">
+                <button type="button" class="ghost" id="plannerLiftingClearBtn">Clear</button>
+                <button type="button" class="primary" id="plannerLiftingSaveBtn">Save draft</button>
+              </div>
+              <p class="small muted" id="plannerLiftingStatus">Save your lifting and conditioning draft to keep it ready for assignment.</p>
+            </div>
+          </section>
+
+          <section class="planner-track-panel hidden" data-planner-track-panel="mental">
+            <div class="planner-alt-sheet">
+              <header>
+                <h3>Mind &amp; Brain Training</h3>
+                <p class="small muted">Plan focused mental sessions athletes can execute before practice or competition.</p>
+              </header>
+              <div class="grid planner-alt-meta">
+                <label>
+                  <span>Session title</span>
+                  <input type="text" id="plannerMentalTitle" placeholder="e.g. Pre-Match Focus Routine">
+                </label>
+                <label>
+                  <span>Date</span>
+                  <input type="date" id="plannerMentalDate">
+                </label>
+                <label>
+                  <span>Total time (min)</span>
+                  <input type="number" id="plannerMentalTotalTime" min="1" value="30">
+                </label>
+              </div>
+              <div class="grid planner-alt-grid">
+                <label>
+                  <span>Breathing / reset protocol</span>
+                  <textarea id="plannerMentalBreathing" rows="3" placeholder="Box breathing, reset cues"></textarea>
+                </label>
+                <label>
+                  <span>Visualization</span>
+                  <textarea id="plannerMentalVisualization" rows="3" placeholder="Tactical imagery and success reps"></textarea>
+                </label>
+                <label>
+                  <span>Match IQ review</span>
+                  <textarea id="plannerMentalIq" rows="3" placeholder="Opponent tendencies, scoring windows"></textarea>
+                </label>
+                <label>
+                  <span>Confidence and cue words</span>
+                  <textarea id="plannerMentalConfidence" rows="3" placeholder="Key phrases and mental anchors"></textarea>
+                </label>
+                <label>
+                  <span>Reflection prompt</span>
+                  <textarea id="plannerMentalReflection" rows="3" placeholder="Post-session reflection questions"></textarea>
+                </label>
+              </div>
+              <div class="planner-alt-actions">
+                <button type="button" class="ghost" id="plannerMentalClearBtn">Clear</button>
+                <button type="button" class="primary" id="plannerMentalSaveBtn">Save draft</button>
+              </div>
+              <p class="small muted" id="plannerMentalStatus">Save your mental training draft so you can refine and assign it later.</p>
+            </div>
+          </section>
 
           <div class="planner-toast hidden" id="plannerToast"></div>
           <div class="planner-alert hidden" id="plannerOvertimeAlert"></div>
@@ -2095,7 +2254,7 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260326h"></script>
-  <script src="coach-planner.js?v=20260326h"></script>
+  <script src="app.js?v=20260327e"></script>
+  <script src="coach-planner.js?v=20260327e"></script>
 </body>
 </html>
