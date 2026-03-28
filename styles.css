@@ -2989,6 +2989,46 @@ textarea:focus{
   gap: 12px;
 }
 
+.athlete-training-track-switch{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+
+.athlete-training-track-btn{
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(9, 23, 44, 0.58);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 180ms ease, background 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.athlete-training-track-btn:hover{
+  border-color: rgba(110, 170, 255, 0.6);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+
+.athlete-training-track-btn.active{
+  border-color: rgba(110, 170, 255, 0.78);
+  color: #f3f8ff;
+  background: linear-gradient(135deg, rgba(34, 95, 188, 0.86), rgba(43, 167, 163, 0.82));
+}
+
+#athleteTrainingTrackHint{
+  margin-top: -2px;
+  margin-bottom: 12px;
+}
+
+#todayActionQueueCard{
+  margin-top: 14px;
+}
+
 .plan-range-wrapper{
   margin: 18px 0;
 }
@@ -3414,6 +3454,11 @@ textarea:focus{
   background: rgba(239, 68, 68, 0.14);
 }
 
+.plan-card.plan-card-scheduled{
+  border-color: rgba(94, 234, 212, 0.34);
+  background: rgba(45, 212, 191, 0.1);
+}
+
 .plan-detail{
   margin-top: 16px;
   padding: 12px;
@@ -3446,6 +3491,26 @@ textarea:focus{
   border-radius: 12px;
   padding: 8px 10px;
   background: rgba(0,0,0,0.16);
+}
+
+.assignment-step-row-readonly{
+  cursor: default;
+}
+
+.assignment-step-readonly-indicator{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.06);
+  color: rgba(227, 239, 255, 0.9);
+  font-size: 0.78rem;
+  line-height: 1;
+  margin-top: 1px;
 }
 
 .assignment-step-row input[type="checkbox"]{
@@ -3657,6 +3722,11 @@ textarea:focus{
   margin: 10px 0 0;
   color: var(--muted);
   font-size: 13px;
+}
+
+.completion-card-lock{
+  margin-top: 10px;
+  color: #8fe6d6;
 }
 
 .assignment-card-fields{
@@ -7633,6 +7703,37 @@ svg{
   color: #3b82f6;
 }
 
+.message-bubble-delete-btn{
+  border: none;
+  background: transparent;
+  color: #90a1c1;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease;
+}
+
+.message-bubble-delete-btn:hover{
+  color: #ef4444;
+  background: rgba(254, 226, 226, 0.7);
+}
+
+.message-bubble-delete-btn:disabled{
+  opacity: 0.45;
+  cursor: wait;
+}
+
+.message-bubble.own .message-bubble-delete-btn{
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.message-bubble.own .message-bubble-delete-btn:hover{
+  color: #fee2e2;
+  background: rgba(239, 68, 68, 0.28);
+}
+
 .messages-whatsapp-card .message-composer-sendrow{
   display: grid;
   grid-template-columns: auto 1fr;
@@ -9526,6 +9627,43 @@ svg{
   transition: transform 180ms ease, filter 180ms ease;
 }
 
+.planner-mental-stimulus-hitbox{
+  width: 100%;
+  padding: 0;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  touch-action: manipulation;
+}
+
+.planner-mental-stimulus-hitbox:focus-visible{
+  outline: 2px solid rgba(147, 197, 253, 0.9);
+  outline-offset: 2px;
+}
+
+.planner-mental-go-zone{
+  min-height: clamp(240px, 48vh, 520px);
+  height: 100%;
+  user-select: none;
+  -webkit-user-select: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.planner-mental-go-zone strong{
+  font-size: clamp(1.7rem, 4vw, 2.8rem);
+  letter-spacing: 0.02em;
+}
+
+.planner-mental-go-helper{
+  font-size: 0.82rem;
+  font-weight: 700;
+  opacity: 0.88;
+}
+
 .planner-mental-stimulus.go{
   background: linear-gradient(145deg, rgba(16, 185, 129, 0.9), rgba(13, 148, 136, 0.9));
 }
@@ -10247,8 +10385,17 @@ svg{
 
 .planner-assign-toolbar{
   display: grid;
-  grid-template-columns: 1fr 180px;
+  grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(150px, 190px));
   gap: 8px;
+  align-items: end;
+}
+
+.planner-assign-toolbar label{
+  min-width: 0;
+}
+
+#plannerAssignWeekHint{
+  margin: 6px 2px 0;
 }
 
 .planner-assign-actions{
@@ -10700,10 +10847,36 @@ body.viewport-mobile .app{
     line-height: 1.35;
     font-size: 11pt;
   }
-  .planner-time-print-text{
-    text-align: center;
-    font-weight: 800;
-    font-size: 12pt;
-    padding-top: 8px;
-  }
+.planner-time-print-text{
+  text-align: center;
+  font-weight: 800;
+  font-size: 12pt;
+  padding-top: 8px;
+}
+}
+
+/* Athlete read-only planner view */
+.coach-planner-card.planner-readonly .planner-toolbar-actions button,
+.coach-planner-card.planner-readonly .planner-row-controls,
+.coach-planner-card.planner-readonly .planner-bottom-actions,
+.coach-planner-card.planner-readonly #plannerLiftingSaveProtocolBtn,
+.coach-planner-card.planner-readonly #plannerLiftingShareBtn,
+.coach-planner-card.planner-readonly #plannerLiftingAddCategoryBtn,
+.coach-planner-card.planner-readonly #plannerLiftingAddExerciseBtn,
+.coach-planner-card.planner-readonly .planner-lifting-sidebar,
+.coach-planner-card.planner-readonly .planner-modal{
+  display: none !important;
+}
+
+.coach-planner-card.planner-readonly textarea[data-action="item-input"]{
+  border-bottom-color: transparent !important;
+  pointer-events: none !important;
+}
+
+.coach-planner-card.planner-readonly input:disabled,
+.coach-planner-card.planner-readonly select:disabled,
+.coach-planner-card.planner-readonly textarea:disabled,
+.coach-planner-card.planner-readonly button:disabled{
+  opacity: 1 !important;
+  cursor: default !important;
 }

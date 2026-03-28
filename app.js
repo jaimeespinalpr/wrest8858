@@ -117,6 +117,7 @@ let athletePortalMatchAnalysisCache = [];
 let athletePortalCompetitionsCache = [];
 let athletePortalPlanFetchKey = "";
 let athleteTrainingSelectedAssignmentId = "";
+let athleteTrainingSelectedTrack = "wrestling";
 let coachRelationshipSyncTimeout = null;
 let coachRelationshipSyncInFlight = false;
 let parentScoutingRecorder = null;
@@ -338,12 +339,19 @@ const athleteLiftingTasksList = document.getElementById("athleteLiftingTasksList
 const athleteMindTasksTitle = document.getElementById("athleteMindTasksTitle");
 const athleteMindTasksCount = document.getElementById("athleteMindTasksCount");
 const athleteMindTasksList = document.getElementById("athleteMindTasksList");
+const todayActionQueueCard = document.getElementById("todayActionQueueCard");
+const todayActionQueueTitle = document.getElementById("todayActionQueueTitle");
+const todayActionQueueCount = document.getElementById("todayActionQueueCount");
+const todayActionQueueHint = document.getElementById("todayActionQueueHint");
+const todayActionQueueList = document.getElementById("todayActionQueueList");
 const feelingScale = document.getElementById("feelingScale");
 const dailyStatus = document.getElementById("dailyStatus");
 const planGrid = document.getElementById("planGrid");
 const planDayTitle = document.getElementById("planDayTitle");
 const planDayDetail = document.getElementById("planDayDetail");
 const trainingPanelChip = document.querySelector("#panel-training .card-header .chip");
+const athleteTrainingTrackSwitch = document.getElementById("athleteTrainingTrackSwitch");
+const athleteTrainingTrackHint = document.getElementById("athleteTrainingTrackHint");
 const calendarGrid = document.getElementById("calendarMonthGrid");
 const calendarMonthLabel = document.getElementById("calendarMonthLabel");
 const calendarPrevBtn = document.getElementById("calendarPrevBtn");
@@ -692,6 +700,7 @@ function focusOpenedWindow(target = null, { smooth = false } = {}) {
 
 if (typeof window !== "undefined") {
   window.wplFocusOpenedWindow = focusOpenedWindow;
+  window.wplGetCurrentView = () => currentView;
 }
 
 function updateResponsiveViewportState() {
@@ -734,6 +743,18 @@ function setView(view) {
   updateViewMenuLabel(normalized);
   const roleName = VIEW_ROLE_MAP[normalized] || activeRole || "athlete";
   setRoleUI(roleName, normalized);
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    try {
+      window.dispatchEvent(new CustomEvent("wpl:view-changed", {
+        detail: {
+          view: normalized,
+          role: roleName
+        }
+      }));
+    } catch {
+      // ignore cross-context dispatch issues
+    }
+  }
   if (normalized === "athlete" && isAthleteRole(getProfile()?.role)) {
     window.setTimeout(() => {
       maybePromptAthleteQuestionnaireAfterLogin(getProfile(), { source: "view-switch" });
@@ -1105,6 +1126,16 @@ function setLanguage(lang, { source = "system", skipConfirm = false, refresh = t
   if (profile) {
     profile.lang = nextLang;
     setProfile(profile);
+  }
+
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    try {
+      window.dispatchEvent(new CustomEvent("wpl:language-changed", {
+        detail: { lang: nextLang, source }
+      }));
+    } catch {
+      // ignore cross-browser custom event issues
+    }
   }
 
   if (refresh) refreshLanguageUI();
@@ -1828,6 +1859,12 @@ const TAB_COPY = {
     es: "Entrenamiento y tareas",
     uz: "Trening va topshiriqlar",
     ru: "Тренировки и задания"
+  },
+  plans: {
+    en: "Plans & Assignments",
+    es: "Planes y asignaciones",
+    uz: "Rejalar va topshiriqlar",
+    ru: "Планы и назначения"
   },
   calendar: {
     en: "Calendar",
@@ -3813,12 +3850,12 @@ function normalizeCoachCompetitionRecord(id, data = {}) {
 function normalizeCoachAthleteRecord(id, data = {}) {
   return {
     id,
-    name: String(data.name || "").trim(),
+    name: stripUserDisplayNumber(data.name || ""),
     age: String(data.age || "").trim(),
     athleteUid: String(data.athleteUid || "").trim(),
     athleteEmail: normalizeEmail(data.athleteEmail || data.email || ""),
     coachUid: String(data.coachUid || "").trim(),
-    coachName: String(data.coachName || "").trim(),
+    coachName: stripUserDisplayNumber(data.coachName || ""),
     coachEmail: normalizeEmail(data.coachEmail || ""),
     weight: String(data.weight || data.currentWeight || "").trim(),
     currentWeight: String(data.currentWeight || data.weight || "").trim(),
@@ -4068,6 +4105,12 @@ function formatAssignmentDiscussionTime(value = "") {
 
 function normalizeCoachAssignmentRecord(id, data = {}) {
   const dueDateKey = isDateKey(data.dueDateKey) ? data.dueDateKey : "";
+  const startDateKey = isDateKey(data.startDateKey)
+    ? data.startDateKey
+    : (isDateKey(data.weekStartKey) ? data.weekStartKey : dueDateKey);
+  const endDateKey = isDateKey(data.endDateKey)
+    ? data.endDateKey
+    : (isDateKey(data.weekEndKey) ? data.weekEndKey : dueDateKey);
   const assigneeType = String(data.assigneeType || "athlete").trim().toLowerCase();
   const normalizedStatus = normalizeAssignmentStatus(data.status);
   const effectiveStatus = assigneeType === "coach" ? "shared" : normalizedStatus;
@@ -4086,6 +4129,8 @@ function normalizeCoachAssignmentRecord(id, data = {}) {
     athleteIds: uniqueNames((data.athleteIds || []).map((value) => String(value || "").trim())).map((value) => String(value || "").trim()),
     athleteUids: uniqueNames((data.athleteUids || []).map((value) => String(value || "").trim())).map((value) => String(value || "").trim()),
     type: String(data.type || "Training Plan").trim(),
+    startDateKey,
+    endDateKey,
     dueDateKey,
     dueLabel: String(data.dueLabel || "").trim(),
     status: derivedStatus,
@@ -4093,6 +4138,10 @@ function normalizeCoachAssignmentRecord(id, data = {}) {
     source: String(data.source || "").trim(),
     planId: String(data.planId || "").trim(),
     planType: normalizePlanType(data.planType || "day"),
+    scheduleMode: String(data.scheduleMode || "").trim().toLowerCase(),
+    weekCount: Number.isFinite(Number(data.weekCount)) ? Number(data.weekCount) : 0,
+    weekStartKey: isDateKey(data.weekStartKey) ? data.weekStartKey : startDateKey,
+    weekEndKey: isDateKey(data.weekEndKey) ? data.weekEndKey : endDateKey,
     athleteChecklist: normalizeAssignmentChecklist(data.athleteChecklist),
     mediaId: String(data.mediaId || "").trim(),
     mediaTitle: String(data.mediaTitle || "").trim(),
@@ -4113,6 +4162,7 @@ function normalizeCoachAssignmentRecord(id, data = {}) {
     latestDiscussion,
     notifiedAt: normalizeFirestoreDateValue(data.notifiedAt),
     notificationStatus: String(data.notificationStatus || "").trim(),
+    completionNotifiedAt: normalizeFirestoreDateValue(data.completionNotifiedAt),
     createdAt: normalizeFirestoreDateValue(data.createdAt),
     updatedAt: normalizeFirestoreDateValue(data.updatedAt)
   };
@@ -6055,7 +6105,7 @@ async function buildAuthResultFromFirebaseUser(user, { fallbackEmail = "" } = {}
     ...remoteProfile,
     user_id: user.uid,
     email,
-    name: remoteProfile?.name || user.displayName || defaults?.name || "",
+    name: stripUserDisplayNumber(remoteProfile?.name || user.displayName || defaults?.name || ""),
     role: resolvedRole,
     view: resolvedView,
     lang: resolveLang(remoteProfile?.lang || currentLang),
@@ -6270,7 +6320,9 @@ if (registerSigninBtn) {
 
 if (questionnaireReminderContinueBtn) {
   questionnaireReminderContinueBtn.addEventListener("click", () => {
-    const nextFieldId = questionnairePromptContext?.missingFields?.[0]?.id || "";
+    const latestNextFieldId = getNextUnansweredAthleteQuestionnaireFieldId(getProfile(), { useDom: true });
+    const fallbackFieldId = questionnairePromptContext?.missingFields?.find((field) => !!document.getElementById(field.id))?.id || "";
+    const nextFieldId = latestNextFieldId || fallbackFieldId;
     hideQuestionnaireReminderModal();
     if (nextFieldId) {
       focusAthleteQuestionnaireField(nextFieldId);
@@ -6348,32 +6400,84 @@ if (profileForm) {
 // ---------- AUDIO ----------
 let muted = false;
 let voices = [];
+const audioSynth = (typeof window !== "undefined" && "speechSynthesis" in window)
+  ? window.speechSynthesis
+  : null;
+
+const PROFESSIONAL_VOICE_HINTS = {
+  en: ["aria", "jenny", "samantha", "allison", "ava", "emma", "davis", "guy", "david", "alex", "google us english", "google uk english"],
+  es: ["helena", "elvira", "paulina", "monica", "marta", "sabina", "google español", "google spanish"],
+  any: ["microsoft", "google", "premium", "neural", "natural"]
+};
+
+const VOICE_AVOID_TOKENS = ["whisper", "novelty", "child", "kid", "junior", "robot"];
 
 function loadVoices() {
-  voices = speechSynthesis.getVoices();
+  if (!audioSynth || typeof audioSynth.getVoices !== "function") {
+    voices = [];
+    return;
+  }
+  voices = audioSynth.getVoices();
 }
-speechSynthesis.onvoiceschanged = loadVoices;
+if (audioSynth && "onvoiceschanged" in audioSynth) {
+  audioSynth.onvoiceschanged = loadVoices;
+}
 loadVoices();
 
+function scoreProfessionalVoice(voice, langPref = "en") {
+  if (!voice) return -1;
+  const name = String(voice.name || "").toLowerCase();
+  const lang = String(voice.lang || "").toLowerCase();
+  let score = 0;
+  if (lang.startsWith(langPref)) score += 120;
+  if (langPref === "es" && lang.startsWith("es")) score += 30;
+  if (langPref === "en" && lang.startsWith("en")) score += 30;
+  if (voice.localService === true) score += 12;
+  if (voice.default === true) score += 8;
+  if (PROFESSIONAL_VOICE_HINTS.any.some((token) => name.includes(token))) score += 24;
+  const languageHints = langPref === "es" ? PROFESSIONAL_VOICE_HINTS.es : PROFESSIONAL_VOICE_HINTS.en;
+  languageHints.forEach((token, index) => {
+    if (name.includes(token)) score += 70 - (index * 2);
+  });
+  if (VOICE_AVOID_TOKENS.some((token) => name.includes(token))) score -= 80;
+  return score;
+}
+
 function pickVoice() {
-  const profile = getProfile();
-  const langPref = profile?.lang || "en";
-  const langMatch = voices.find(v => v.lang && v.lang.toLowerCase().startsWith(langPref));
-  return langMatch || voices[0];
+  if (!Array.isArray(voices) || !voices.length) loadVoices();
+  if (!Array.isArray(voices) || !voices.length) return null;
+  const profile = getProfile() || {};
+  const globalLang = typeof currentLang === "string" ? currentLang : "";
+  const langSource = String(globalLang || profile?.lang || "en").toLowerCase();
+  const langPref = langSource.startsWith("es") ? "es" : "en";
+  const sorted = [...voices].sort((left, right) => (
+    scoreProfessionalVoice(right, langPref) - scoreProfessionalVoice(left, langPref)
+  ));
+  return sorted[0] || null;
 }
 
 function speak(text) {
-  if (muted) return;
-  speechSynthesis.cancel();
+  const script = String(text || "").replace(/\s+/g, " ").trim();
+  if (muted || !script || !audioSynth || typeof window.SpeechSynthesisUtterance === "undefined") return;
+  audioSynth.cancel();
 
-  const u = new SpeechSynthesisUtterance(text);
+  const u = new SpeechSynthesisUtterance(script);
   const v = pickVoice();
-  if (v) u.voice = v;
+  if (v) {
+    u.voice = v;
+    u.lang = v.lang || "en-US";
+  } else {
+    const profile = getProfile() || {};
+    const globalLang = typeof currentLang === "string" ? currentLang : "";
+    const langSource = String(globalLang || profile?.lang || "en").toLowerCase();
+    u.lang = langSource.startsWith("es") ? "es-ES" : "en-US";
+  }
 
-  u.rate = 0.95;
-  u.pitch = 1;
+  u.rate = 0.9;
+  u.pitch = 0.9;
+  u.volume = 1;
 
-  speechSynthesis.speak(u);
+  audioSynth.speak(u);
 }
 
 if (headerLang) {
@@ -8009,7 +8113,7 @@ function getUserDisplayNumber(entity = {}) {
 function getDisplayNameWithNumber(name, entity = {}) {
   const rawName = stripUserDisplayNumber(name || entity.name || entity.email || entity.athleteName || "");
   if (!rawName) return "";
-  return `${rawName} #${getUserDisplayNumber({ ...entity, name: rawName })}`;
+  return rawName;
 }
 
 function escapeRegExp(value) {
@@ -8091,10 +8195,12 @@ function decorateVisibleUserNames(root = document.body) {
   });
   let currentNode = walker.nextNode();
   while (currentNode) {
-    let nextValue = currentNode.nodeValue;
+    let nextValue = String(currentNode.nodeValue || "");
     entries.forEach((entry) => {
-      const pattern = new RegExp(`${escapeRegExp(entry.rawName)}(?!\\s+#\\d{4})`, "g");
-      nextValue = nextValue.replace(pattern, entry.displayName);
+      const withNumberPattern = new RegExp(`${escapeRegExp(entry.rawName)}\\s+#\\d{4}\\b`, "g");
+      nextValue = nextValue.replace(withNumberPattern, entry.rawName);
+      const basePattern = new RegExp(`${escapeRegExp(entry.rawName)}(?!\\s+#\\d{4})`, "g");
+      nextValue = nextValue.replace(basePattern, entry.displayName);
     });
     if (nextValue !== currentNode.nodeValue) {
       currentNode.nodeValue = nextValue;
@@ -9864,6 +9970,8 @@ async function replaceAssignmentsForPlan(plan) {
   const batch = firebaseFirestoreInstance.batch();
   existingSnap.forEach((doc) => batch.delete(doc.ref));
   const timestamp = getFirestoreServerTimestamp();
+  const startDateKey = plan.range?.startKey || plan.range?.endKey || getCurrentAppDateKey();
+  const endDateKey = plan.range?.endKey || plan.range?.startKey || getCurrentAppDateKey();
   const dueDateKey = plan.range?.endKey || plan.range?.startKey || getCurrentAppDateKey();
   const dueLabel = formatPlanDateLabel(dueDateKey);
   const createdAssignments = [];
@@ -9879,6 +9987,8 @@ async function replaceAssignmentsForPlan(plan) {
       athleteIds: target.athleteIds,
       athleteUids: target.athleteUids,
       type: getPlanAssignmentTypeLabel(plan.type),
+      startDateKey,
+      endDateKey,
       dueDateKey,
       dueLabel,
       status: "not_started",
@@ -9886,7 +9996,7 @@ async function replaceAssignmentsForPlan(plan) {
       source: plan.sourceLabel || getPlanScopeLabel(),
       planId: plan.id,
       planType: plan.type,
-      notificationStatus: "pending",
+      notificationStatus: "assignment_only",
       createdAt: timestamp,
       updatedAt: timestamp
     });
@@ -9964,11 +10074,6 @@ async function saveCoachPlan({ createAssignments = false, navigateAfterSave = fa
     if (createAssignments) {
       const createdAssignments = await replaceAssignmentsForPlan({ ...draft, id: planRef.id });
       assignmentCount = createdAssignments.length;
-      try {
-        await Promise.all(createdAssignments.map((assignment) => sendCoachAssignmentNotification(assignment)));
-      } catch (notifyErr) {
-        console.warn("Assignment notification dispatch failed", notifyErr);
-      }
     }
 
     localStorage.setItem("wpl_daily_plan", JSON.stringify(draft.items));
@@ -11427,14 +11532,28 @@ function renderAthleteQuestionnaireProgress(profile = getProfile(), { useDom = t
   `;
 }
 
+function getNextUnansweredAthleteQuestionnaireFieldId(profile = getProfile(), { useDom = true } = {}) {
+  const progress = getAthleteQuestionnaireProgress(profile, { useDom });
+  const firstFocusableMissing = progress.missingFields.find((field) => !!document.getElementById(field.id));
+  return firstFocusableMissing?.id || "";
+}
+
 function focusAthleteQuestionnaireField(fieldId = "") {
-  const field = ATHLETE_QUESTIONNAIRE_FIELDS.find((item) => item.id === fieldId) || null;
+  const fallbackFieldId = getNextUnansweredAthleteQuestionnaireFieldId(getProfile(), { useDom: true });
+  const targetFieldId = fieldId || fallbackFieldId;
+  const field = ATHLETE_QUESTIONNAIRE_FIELDS.find((item) => item.id === targetFieldId) || null;
   if (!field) return;
   showTab("athlete-profile");
   showProfileSubtab(field.panel || "training");
   const input = document.getElementById(field.id);
   if (!input) return;
   window.setTimeout(() => {
+    const prefersReducedMotion = !!window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    input.scrollIntoView?.({
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+      block: "center",
+      inline: "nearest"
+    });
     input.focus?.();
     if (typeof input.select === "function") input.select();
   }, 90);
@@ -11508,7 +11627,8 @@ function maybePromptAthleteQuestionnaire(profile = getProfile()) {
   questionnairePromptShownForUserId = currentUserId || questionnairePromptShownForUserId;
   questionnairePromptShownThisSession = true;
   if (window.confirm(promptMessage)) {
-    focusAthleteQuestionnaireField(progress.missingFields[0]?.id || "");
+    const nextFieldId = getNextUnansweredAthleteQuestionnaireFieldId(profile, { useDom: true }) || progress.missingFields[0]?.id || "";
+    focusAthleteQuestionnaireField(nextFieldId);
   } else {
     toast(currentLang === "es"
       ? "Puedes continuar el cuestionario luego desde Profile."
@@ -12923,13 +13043,57 @@ function buildAthletePlanDetailLines(plan) {
 
 function getAthleteTrainingAssignments({ includeCompleted = true } = {}) {
   if (!isAthleteRole(getProfile()?.role) || !getAthleteLinkedCoachUid()) return [];
-  const list = coachWorkspaceSortByUpdated(athletePortalAssignmentsCache).filter((assignment) => {
+  const list = sortAthleteAssignmentsForDisplay(athletePortalAssignmentsCache).filter((assignment) => {
     const track = getAssignmentTrainingTrack(assignment);
     if (!["wrestling", "lifting", "mental"].includes(track)) return false;
     if (includeCompleted) return true;
     return normalizeAssignmentStatus(assignment.status) !== "completed";
   });
   return list;
+}
+
+function normalizeAthleteTrainingTrackSelection(value = "") {
+  const safeValue = String(value || "").trim().toLowerCase();
+  if (safeValue === "lifting" || safeValue === "mental") return safeValue;
+  return "wrestling";
+}
+
+function getAthleteTrainingTrackSectionLabel(track = "wrestling") {
+  const safeTrack = normalizeAthleteTrainingTrackSelection(track);
+  if (safeTrack === "lifting") {
+    return currentLang === "es" ? "Lifting y Conditioning" : "Lifting & Conditioning";
+  }
+  if (safeTrack === "mental") {
+    return currentLang === "es" ? "Mind y Focus Training" : "Mind & Focus Training";
+  }
+  return currentLang === "es" ? "Wrestling Training" : "Wrestling Training";
+}
+
+function renderAthleteTrainingTrackSwitch(assignments = []) {
+  if (!athleteTrainingTrackSwitch) return;
+  const sections = ["wrestling", "lifting", "mental"];
+  athleteTrainingTrackSwitch.classList.remove("hidden");
+  if (athleteTrainingTrackHint) {
+    athleteTrainingTrackHint.classList.remove("hidden");
+    athleteTrainingTrackHint.textContent = currentLang === "es"
+      ? "Vista solo lectura. El entrenador controla ediciones y asignaciones."
+      : "Read-only view. Coach controls edits and assignments.";
+  }
+  athleteTrainingSelectedTrack = normalizeAthleteTrainingTrackSelection(athleteTrainingSelectedTrack);
+  athleteTrainingTrackSwitch.querySelectorAll("[data-athlete-training-track]").forEach((button) => {
+    const track = normalizeAthleteTrainingTrackSelection(button.dataset.athleteTrainingTrack || "");
+    const count = (Array.isArray(assignments) ? assignments : []).filter((assignment) => getAssignmentTrainingTrack(assignment) === track).length;
+    button.textContent = `${getAthleteTrainingTrackSectionLabel(track)} (${count})`;
+    const isActive = track === athleteTrainingSelectedTrack;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-selected", isActive ? "true" : "false");
+    button.onclick = () => {
+      if (athleteTrainingSelectedTrack === track) return;
+      athleteTrainingSelectedTrack = track;
+      athleteTrainingSelectedAssignmentId = "";
+      renderPlanGrid(0);
+    };
+  });
 }
 
 function getAthletePlanById(planId = "") {
@@ -13030,6 +13194,9 @@ async function updateAthleteAssignmentChecklistStep(assignment, stepId, checked)
   if (!assignment?.id || !coachUid || !assignmentsRef || !authUser?.id) {
     throw new Error("athlete_assignment_checklist_unavailable");
   }
+  if (isAssignmentLockedUntilScheduledDate(assignment, athletePortalPlansCache, getCurrentAppDateKey())) {
+    throw new Error("athlete_assignment_locked_until_due_date");
+  }
   const steps = buildAthleteAssignmentChecklistSteps(assignment);
   const nextChecklist = {
     ...normalizeAssignmentChecklist(assignment.athleteChecklist),
@@ -13057,6 +13224,20 @@ async function updateAthleteAssignmentChecklistStep(assignment, stepId, checked)
     FIREBASE_OP_TIMEOUT_MS,
     "firestore_athlete_assignment_checklist_timeout"
   );
+  if (
+    nextStatus === "completed"
+    && normalizeAssignmentStatus(assignment?.status) !== "completed"
+    && String(assignment?.assigneeType || "").trim().toLowerCase() !== "coach"
+  ) {
+    try {
+      await notifyCoachAssignmentCompletedViaMessages(assignment, {
+        athleteUid: authUser.id,
+        athleteName: String(profile?.name || authUser.email || "").trim()
+      });
+    } catch (err) {
+      console.warn("Assignment checklist completion notify failed", err);
+    }
+  }
 }
 
 async function updateAthleteAssignmentStatus(assignment, status) {
@@ -13066,6 +13247,9 @@ async function updateAthleteAssignmentStatus(assignment, status) {
   const profile = getProfile();
   if (!assignment?.id || !coachUid || !assignmentsRef || !authUser?.id) {
     throw new Error("athlete_assignment_sync_unavailable");
+  }
+  if (isAssignmentLockedUntilScheduledDate(assignment, athletePortalPlansCache, getCurrentAppDateKey())) {
+    throw new Error("athlete_assignment_locked_until_due_date");
   }
   const normalizedStatus = normalizeAssignmentStatus(status);
   await withTimeout(
@@ -13080,6 +13264,20 @@ async function updateAthleteAssignmentStatus(assignment, status) {
     FIREBASE_OP_TIMEOUT_MS,
     "firestore_athlete_assignment_update_timeout"
   );
+  if (
+    normalizedStatus === "completed"
+    && normalizeAssignmentStatus(assignment?.status) !== "completed"
+    && String(assignment?.assigneeType || "").trim().toLowerCase() !== "coach"
+  ) {
+    try {
+      await notifyCoachAssignmentCompletedViaMessages(assignment, {
+        athleteUid: authUser.id,
+        athleteName: String(profile?.name || authUser.email || "").trim()
+      });
+    } catch (err) {
+      console.warn("Assignment completion notify failed", err);
+    }
+  }
 }
 
 function getAssignmentOwnerCoachUid(assignment = null) {
@@ -13139,6 +13337,69 @@ async function notifyAssignmentDiscussionViaMessages(assignment, comment) {
     sender: current,
     text: buildAssignmentDiscussionNoticeText(assignment, comment)
   });
+}
+
+function buildAssignmentCompletionNoticeText(assignment, athleteName = "") {
+  const safeAthleteName = String(athleteName || "").trim() || "Athlete";
+  const assignmentTitle = String(assignment?.title || "").trim() || (currentLang === "es" ? "asignacion" : "assignment");
+  const dueLabel = String(assignment?.dueLabel || formatPlanDateLabel(assignment?.dueDateKey || getCurrentAppDateKey()) || "").trim();
+  if (currentLang === "es") {
+    return `Tarea completada: ${assignmentTitle}\nAtleta: ${safeAthleteName}${dueLabel ? `\nEntrega: ${dueLabel}` : ""}`;
+  }
+  return `Assignment completed: ${assignmentTitle}\nAthlete: ${safeAthleteName}${dueLabel ? `\nDue: ${dueLabel}` : ""}`;
+}
+
+async function notifyCoachAssignmentCompletedViaMessages(assignment, {
+  athleteUid = "",
+  athleteName = ""
+} = {}) {
+  const coachUid = getAssignmentOwnerCoachUid(assignment);
+  const current = getMessagesCurrentUser();
+  const assignmentsRef = getCoachWorkspaceCollectionRef("assignments", coachUid);
+  if (!assignment?.id || !coachUid || !assignmentsRef || !current?.uid || current.uid === coachUid) return false;
+
+  const assignmentRef = assignmentsRef.doc(String(assignment.id || "").trim());
+  const existingSnapshot = await withTimeout(
+    assignmentRef.get(),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_assignment_completion_notify_read_timeout"
+  ).catch(() => null);
+  const existing = existingSnapshot?.exists
+    ? normalizeCoachAssignmentRecord(existingSnapshot.id, existingSnapshot.data() || {})
+    : normalizeCoachAssignmentRecord(assignment.id, assignment || {});
+  if (String(existing.notificationStatus || "").trim().toLowerCase() === "completed_notified" || existing.completionNotifiedAt) {
+    return false;
+  }
+
+  const coachUser = await findFirebaseUserByUid(coachUid);
+  const coachContact = {
+    uid: coachUid,
+    name: coachUser?.name || "Coach",
+    email: coachUser?.email || "",
+    role: "coach",
+    linkedCoachUid: coachUid,
+    linkedAthleteId: coachUser?.linkedAthleteId || "",
+    linkedAthleteUid: coachUser?.linkedAthleteUid || ""
+  };
+  const threadId = await ensureDirectMessageThread(coachContact);
+  await appendMessageToThread({
+    threadId,
+    participants: [current, coachContact],
+    sender: current,
+    text: buildAssignmentCompletionNoticeText(existing, athleteName || current.name || athleteUid)
+  });
+  await withTimeout(
+    assignmentRef.set(stripUndefinedDeep({
+      notificationStatus: "completed_notified",
+      completionNotifiedAt: getFirestoreServerTimestamp(),
+      completionNotifiedByUid: normalizeUid(athleteUid || current.uid),
+      completionNotifiedByName: String(athleteName || current.name || "").trim(),
+      updatedAt: getFirestoreServerTimestamp()
+    }), { merge: true }),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_assignment_completion_notify_write_timeout"
+  );
+  return true;
 }
 
 async function postAssignmentDiscussionComment(assignment, {
@@ -13252,7 +13513,9 @@ function renderAthleteTrackTaskList(container, records = [], { track = "wrestlin
   list.slice(0, 6).forEach((record) => {
     const card = document.createElement("div");
     card.className = "completion-card";
-    const statusMeta = getAssignmentStatusMeta(record.status);
+    const availability = getAssignmentAvailabilityMeta(record, athletePortalPlansCache, getCurrentAppDateKey());
+    const isLocked = availability.locked;
+    const statusMeta = getAssignmentDisplayStatusMeta(record, athletePortalPlansCache, getCurrentAppDateKey());
     const dueLabel = record.dueLabel || formatPlanDateLabel(record.dueDateKey || getCurrentAppDateKey());
     const noteText = String(record.note || "").trim();
     const trackLabel = track === "mental"
@@ -13273,6 +13536,14 @@ function renderAthleteTrackTaskList(container, records = [], { track = "wrestlin
     `;
     const actions = document.createElement("div");
     actions.className = "assignment-card-actions";
+    if (isLocked && availability.startLabel) {
+      const lockNote = document.createElement("div");
+      lockNote.className = "completion-card-meta completion-card-lock";
+      lockNote.textContent = currentLang === "es"
+        ? `Visible ahora. Disponible el ${availability.startLabel}.`
+        : `Visible now. Available on ${availability.startLabel}.`;
+      card.appendChild(lockNote);
+    }
     const askCoachBtn = document.createElement("button");
     askCoachBtn.type = "button";
     askCoachBtn.className = "ghost";
@@ -13300,7 +13571,7 @@ function renderAthleteTrackTaskList(container, records = [], { track = "wrestlin
       }
     });
     actions.appendChild(askCoachBtn);
-    if (normalizeAssignmentStatus(record.status) === "not_started") {
+    if (!isLocked && normalizeAssignmentStatus(record.status) === "not_started") {
       const startBtn = document.createElement("button");
       startBtn.type = "button";
       startBtn.className = "ghost";
@@ -13317,7 +13588,7 @@ function renderAthleteTrackTaskList(container, records = [], { track = "wrestlin
       });
       actions.appendChild(startBtn);
     }
-    if (normalizeAssignmentStatus(record.status) !== "completed") {
+    if (!isLocked && normalizeAssignmentStatus(record.status) !== "completed") {
       const completeBtn = document.createElement("button");
       completeBtn.type = "button";
       completeBtn.className = "primary";
@@ -13359,20 +13630,193 @@ function renderAthleteTrackTaskAreas() {
   renderAthleteTrackTaskList(athleteMindTasksList, mentalTasks, { track: "mental" });
 }
 
+function getAthleteUnreadThreadsForToday() {
+  const current = getMessagesCurrentUser();
+  if (!current?.uid || !Array.isArray(messagesThreadRows)) return [];
+  return messagesThreadRows
+    .filter((thread) => isMessageThreadUnread(thread, current))
+    .sort((left, right) => (
+      messageTimestampToMillis(right.lastMessageAt || right.updatedAt)
+      - messageTimestampToMillis(left.lastMessageAt || left.updatedAt)
+    ));
+}
+
+function renderTodayActionQueue() {
+  if (!todayActionQueueCard || !todayActionQueueList) return;
+  const profile = getProfile();
+  const isPortalAthlete = isAthleteRole(profile?.role) && Boolean(getAthleteLinkedCoachUid(profile));
+  todayActionQueueCard.classList.toggle("hidden", !isPortalAthlete);
+  if (!isPortalAthlete) {
+    todayActionQueueList.innerHTML = "";
+    if (todayActionQueueCount) todayActionQueueCount.textContent = "0";
+    return;
+  }
+
+  if (todayActionQueueTitle) {
+    todayActionQueueTitle.textContent = currentLang === "es" ? "Pendiente ahora" : "Pending now";
+  }
+  if (todayActionQueueHint) {
+    todayActionQueueHint.textContent = currentLang === "es"
+      ? "Resuelve entrenamiento, juegos y mensajes sin salir de Today."
+      : "Resolve training, games, and unread messages without leaving Today.";
+  }
+
+  const pendingAssignments = getAthleteTrainingAssignments({ includeCompleted: false }).filter((assignment) => (
+    !isAssignmentLockedUntilScheduledDate(assignment, athletePortalPlansCache, getCurrentAppDateKey())
+  ));
+  const unreadThreads = getAthleteUnreadThreadsForToday();
+  if (todayActionQueueCount) {
+    todayActionQueueCount.textContent = String(pendingAssignments.length + unreadThreads.length);
+  }
+
+  todayActionQueueList.innerHTML = "";
+  if (!pendingAssignments.length && !unreadThreads.length) {
+    const empty = document.createElement("div");
+    empty.className = "small muted";
+    empty.textContent = currentLang === "es"
+      ? "Todo al dia. No hay tareas pendientes ni mensajes sin leer."
+      : "All set. No pending tasks or unread messages.";
+    todayActionQueueList.appendChild(empty);
+    return;
+  }
+
+  pendingAssignments.slice(0, 8).forEach((assignment) => {
+    const statusMeta = getAssignmentStatusMeta(assignment.status);
+    const normalizedStatus = normalizeAssignmentStatus(assignment.status);
+    const card = document.createElement("article");
+    card.className = "completion-card";
+    const dueLabel = assignment.dueLabel || formatPlanDateLabel(assignment.dueDateKey || getCurrentAppDateKey());
+    card.innerHTML = `
+      <div class="completion-card-top">
+        <div>
+          <h3>${escapeHtml(assignment.title || defaultPlanTitle(assignment.planType || "day"))}</h3>
+          <div class="small">${escapeHtml(getTrainingTrackLabel(getAssignmentTrainingTrack(assignment)))} • ${escapeHtml(dueLabel)}</div>
+        </div>
+        <span class="status-pill ${statusMeta.className}">${escapeHtml(statusMeta.label)}</span>
+      </div>
+    `;
+    const actions = document.createElement("div");
+    actions.className = "assignment-card-actions";
+    if (normalizedStatus === "not_started") {
+      const startBtn = document.createElement("button");
+      startBtn.type = "button";
+      startBtn.className = "ghost";
+      startBtn.textContent = currentLang === "es" ? "Iniciar" : "Start";
+      startBtn.addEventListener("click", async () => {
+        startBtn.disabled = true;
+        try {
+          await updateAthleteAssignmentStatus(assignment, "in_progress");
+          toast(currentLang === "es" ? "Tarea iniciada." : "Task started.");
+          renderToday(getCurrentAppDayIndex());
+        } catch (err) {
+          console.warn("Today queue start failed", err);
+          toast(currentLang === "es" ? "No se pudo iniciar la tarea." : "Could not start task.");
+        } finally {
+          startBtn.disabled = false;
+        }
+      });
+      actions.appendChild(startBtn);
+    }
+    if (normalizedStatus !== "completed") {
+      const completeBtn = document.createElement("button");
+      completeBtn.type = "button";
+      completeBtn.className = "primary";
+      completeBtn.textContent = currentLang === "es" ? "Completar" : "Complete";
+      completeBtn.addEventListener("click", async () => {
+        completeBtn.disabled = true;
+        try {
+          await updateAthleteAssignmentStatus(assignment, "completed");
+          toast(currentLang === "es" ? "Tarea completada." : "Task completed.");
+          renderToday(getCurrentAppDayIndex());
+        } catch (err) {
+          console.warn("Today queue complete failed", err);
+          toast(currentLang === "es" ? "No se pudo completar la tarea." : "Could not complete task.");
+        } finally {
+          completeBtn.disabled = false;
+        }
+      });
+      actions.appendChild(completeBtn);
+    }
+    if (assignment.mediaAssetPath) {
+      const mediaBtn = document.createElement("button");
+      mediaBtn.type = "button";
+      mediaBtn.className = "ghost";
+      mediaBtn.textContent = currentLang === "es" ? "Ver media" : "Open media";
+      mediaBtn.addEventListener("click", () => {
+        window.open(assignment.mediaAssetPath, "_blank", "noopener,noreferrer");
+      });
+      actions.appendChild(mediaBtn);
+    }
+    if (actions.children.length) card.appendChild(actions);
+    todayActionQueueList.appendChild(card);
+  });
+
+  unreadThreads.slice(0, 6).forEach((thread) => {
+    const current = getMessagesCurrentUser();
+    const other = getMessageOtherParticipant(thread, current?.uid || "");
+    const card = document.createElement("article");
+    card.className = "completion-card";
+    card.innerHTML = `
+      <div class="completion-card-top">
+        <div>
+          <h3>${escapeHtml(currentLang === "es" ? "Mensaje sin leer" : "Unread message")}</h3>
+          <div class="small">${escapeHtml(other.name || (currentLang === "es" ? "Contacto" : "Contact"))} • ${escapeHtml(formatMessageTimestamp(thread.lastMessageAt || thread.updatedAt) || "-")}</div>
+        </div>
+        <span class="status-pill status-pill-pending">${escapeHtml(currentLang === "es" ? "Leer" : "Read")}</span>
+      </div>
+      <div class="completion-card-meta">${escapeHtml(getMessageThreadPreviewText(thread))}</div>
+    `;
+    const actions = document.createElement("div");
+    actions.className = "assignment-card-actions";
+    const markReadBtn = document.createElement("button");
+    markReadBtn.type = "button";
+    markReadBtn.className = "primary";
+    markReadBtn.textContent = currentLang === "es" ? "Marcar leido" : "Mark read";
+    markReadBtn.addEventListener("click", () => {
+      markMessageThreadSeen(thread.id, messageTimestampToMillis(thread.lastMessageAt || thread.updatedAt));
+      updateMessagesUnreadIndicators();
+      renderToday(getCurrentAppDayIndex());
+    });
+    actions.appendChild(markReadBtn);
+    const openChatBtn = document.createElement("button");
+    openChatBtn.type = "button";
+    openChatBtn.className = "ghost";
+    openChatBtn.textContent = currentLang === "es" ? "Abrir chat" : "Open chat";
+    openChatBtn.addEventListener("click", () => {
+      showTab("messages");
+      selectMessageThread(thread.id, { openInCompact: true });
+    });
+    actions.appendChild(openChatBtn);
+    card.appendChild(actions);
+    todayActionQueueList.appendChild(card);
+  });
+}
+
 function renderToday(dayIndex = getCurrentAppDayIndex()) {
   if (isAthleteRole(getProfile()?.role) && getAthleteLinkedCoachUid()) {
     const live = buildAthletePortalTodayPlan();
     const primaryAssignment = live.assignment;
+    const nextAssignment = live.nextAssignment;
     const primaryPlan = live.plan;
     const mediaContext = live.mediaContext;
-    const statusMeta = getAssignmentStatusMeta(primaryAssignment?.status || "not_started");
+    const statusMeta = primaryAssignment
+      ? getAssignmentDisplayStatusMeta(primaryAssignment, athletePortalPlansCache, getCurrentAppDateKey())
+      : (nextAssignment
+        ? getAssignmentDisplayStatusMeta(nextAssignment, athletePortalPlansCache, getCurrentAppDateKey())
+        : { label: currentLang === "es" ? "Sin tarea para hoy" : "No task today" });
     todayTitle.textContent = live.focus;
-    todaySubtitle.textContent = [
-      `${currentLang === "es" ? "Entrega" : "Due"}: ${primaryAssignment?.dueLabel || live.subtitleNote || formatPlanDateLabel(getCurrentAppDateKey())}`,
-      `${currentLang === "es" ? "Estado" : "Status"}: ${statusMeta.label}`
-    ].join(" - ");
+    if (primaryAssignment || nextAssignment) {
+      todaySubtitle.textContent = [
+        `${currentLang === "es" ? "Entrega" : "Due"}: ${(primaryAssignment?.dueLabel || live.subtitleNote || formatPlanDateLabel(getCurrentAppDateKey()))}`,
+        `${currentLang === "es" ? "Estado" : "Status"}: ${statusMeta.label}`
+      ].join(" - ");
+    } else {
+      todaySubtitle.textContent = currentLang === "es"
+        ? "No hay tareas desbloqueadas para hoy."
+        : "There are no unlocked tasks for today.";
+    }
     todayType.textContent = live.typeLabel || statusMeta.label;
-    roleMeta.textContent = `${currentLang === "es" ? "Training Focus" : "Training Focus"}: ${primaryPlan?.focus || primaryAssignment?.type || live.focus}`;
+    roleMeta.textContent = `${currentLang === "es" ? "Training Focus" : "Training Focus"}: ${primaryPlan?.focus || primaryAssignment?.type || nextAssignment?.type || live.focus}`;
     sessionBlocks.innerHTML = "";
     if (live.blocks.length) {
       live.blocks.forEach((block) => {
@@ -13388,6 +13832,7 @@ function renderToday(dayIndex = getCurrentAppDayIndex()) {
     if (watchFilmBtn) watchFilmBtn.disabled = !mediaContext?.assetPath;
     if (logCompletionBtn) logCompletionBtn.disabled = !primaryAssignment;
     renderAthleteTrackTaskAreas();
+    renderTodayActionQueue();
     return;
   }
 
@@ -13414,6 +13859,7 @@ function renderToday(dayIndex = getCurrentAppDayIndex()) {
     sessionBlocks.appendChild(row);
   });
   renderAthleteTrackTaskAreas();
+  renderTodayActionQueue();
 }
 
 function renderFeelingScale() {
@@ -13501,46 +13947,67 @@ logCompletionBtn.addEventListener("click", async () => {
 function renderPlanGrid(selectedDay = getCurrentAppDayIndex()) {
   if (isAthleteRole(getProfile()?.role) && getAthleteLinkedCoachUid()) {
     const assignments = getAthleteTrainingAssignments({ includeCompleted: true });
-    if (assignments.length) {
-      const fallbackAssignment = assignments.find((item) => normalizeAssignmentStatus(item.status) !== "completed") || assignments[0];
-      const selectedId = String(athleteTrainingSelectedAssignmentId || "").trim();
-      if (!selectedId || !assignments.some((item) => item.id === selectedId)) {
-        athleteTrainingSelectedAssignmentId = fallbackAssignment?.id || "";
-      }
-      if (trainingPanelChip) {
-        const completed = assignments.filter((item) => normalizeAssignmentStatus(item.status) === "completed").length;
-        const open = Math.max(0, assignments.length - completed);
-        trainingPanelChip.textContent = currentLang === "es"
-          ? `${open} pendientes • ${completed} completadas`
-          : `${open} pending • ${completed} done`;
-      }
-      planGrid.innerHTML = "";
-      assignments.forEach((assignment) => {
-        const card = document.createElement("div");
-        const isActive = assignment.id === athleteTrainingSelectedAssignmentId;
-        const normalizedStatus = normalizeAssignmentStatus(assignment.status);
-        const track = getAssignmentTrainingTrack(assignment);
-        const steps = buildAthleteAssignmentChecklistSteps(assignment);
-        const progress = getAssignmentChecklistProgress(assignment, steps);
-        const progressText = progress.total
-          ? `${progress.done}/${progress.total}`
-          : (normalizedStatus === "completed" ? "1/1" : "0/1");
-        card.className = `plan-card${isActive ? " active" : ""} plan-card-${normalizedStatus}`;
-        card.innerHTML = `
-          <strong>${escapeHtml(assignment.title || defaultPlanTitle(assignment.planType || "day"))}</strong>
-          <div class="small">${escapeHtml(getTrainingTrackLabel(track))} • ${escapeHtml(assignment.dueLabel || formatPlanDateLabel(assignment.dueDateKey || getCurrentAppDateKey()))}</div>
-          <div class="small">${escapeHtml(getAssignmentStatusMeta(normalizedStatus).label)} • ${escapeHtml(progressText)}</div>
-        `;
-        card.addEventListener("click", () => {
-          athleteTrainingSelectedAssignmentId = assignment.id;
-          renderPlanGrid(0);
-          renderPlanDetails(assignment.id);
-        });
-        planGrid.appendChild(card);
-      });
-      renderPlanDetails(athleteTrainingSelectedAssignmentId);
+    renderAthleteTrainingTrackSwitch(assignments);
+    athleteTrainingSelectedTrack = normalizeAthleteTrainingTrackSelection(athleteTrainingSelectedTrack);
+    const trackLabel = getAthleteTrainingTrackSectionLabel(athleteTrainingSelectedTrack);
+    const filteredAssignments = assignments.filter((item) => (
+      getAssignmentTrainingTrack(item) === athleteTrainingSelectedTrack
+    ));
+    const fallbackAssignment = filteredAssignments.find((item) => normalizeAssignmentStatus(item.status) !== "completed") || filteredAssignments[0];
+    const selectedId = String(athleteTrainingSelectedAssignmentId || "").trim();
+    if (!selectedId || !filteredAssignments.some((item) => item.id === selectedId)) {
+      athleteTrainingSelectedAssignmentId = fallbackAssignment?.id || "";
+    }
+    if (trainingPanelChip) {
+      const completed = filteredAssignments.filter((item) => normalizeAssignmentStatus(item.status) === "completed").length;
+      const open = Math.max(0, filteredAssignments.length - completed);
+      trainingPanelChip.textContent = currentLang === "es"
+        ? `${trackLabel} • ${open} pendientes • ${completed} completadas`
+        : `${trackLabel} • ${open} pending • ${completed} done`;
+    }
+    planGrid.innerHTML = "";
+    if (!assignments.length || !filteredAssignments.length) {
+      const empty = document.createElement("div");
+      empty.className = "small muted";
+      empty.textContent = currentLang === "es"
+        ? "No hay tareas en esta seccion todavia."
+        : "No tasks in this section yet.";
+      planGrid.appendChild(empty);
+      renderPlanDetails("");
       return;
     }
+    filteredAssignments.forEach((assignment) => {
+      const card = document.createElement("div");
+      const isActive = assignment.id === athleteTrainingSelectedAssignmentId;
+      const normalizedStatus = normalizeAssignmentStatus(assignment.status);
+      const track = getAssignmentTrainingTrack(assignment);
+      const availability = getAssignmentAvailabilityMeta(assignment, athletePortalPlansCache, getCurrentAppDateKey());
+      const steps = buildAthleteAssignmentChecklistSteps(assignment);
+      const progress = getAssignmentChecklistProgress(assignment, steps);
+      const progressText = progress.total
+        ? `${progress.done}/${progress.total}`
+        : (normalizedStatus === "completed" ? "1/1" : "0/1");
+      const statusMeta = getAssignmentDisplayStatusMeta(assignment, athletePortalPlansCache, getCurrentAppDateKey());
+      card.className = `plan-card${isActive ? " active" : ""} plan-card-${normalizedStatus}${availability.locked ? " plan-card-scheduled" : ""}`;
+      card.innerHTML = `
+        <strong>${escapeHtml(assignment.title || defaultPlanTitle(assignment.planType || "day"))}</strong>
+        <div class="small">${escapeHtml(getTrainingTrackLabel(track))} • ${escapeHtml(assignment.dueLabel || formatPlanDateLabel(assignment.dueDateKey || getCurrentAppDateKey()))}</div>
+        <div class="small">${escapeHtml(statusMeta.label)} • ${escapeHtml(progressText)}</div>
+        ${availability.locked && availability.startLabel ? `<div class="small muted">${escapeHtml(currentLang === "es" ? `Disponible el ${availability.startLabel}` : `Available on ${availability.startLabel}`)}</div>` : ""}
+      `;
+      card.addEventListener("click", () => {
+        athleteTrainingSelectedAssignmentId = assignment.id;
+        renderPlanGrid(0);
+        renderPlanDetails(assignment.id);
+      });
+      planGrid.appendChild(card);
+    });
+    renderPlanDetails(athleteTrainingSelectedAssignmentId);
+    return;
+  }
+  if (!(isAthleteRole(getProfile()?.role) && getAthleteLinkedCoachUid())) {
+    if (athleteTrainingTrackSwitch) athleteTrainingTrackSwitch.classList.add("hidden");
+    if (athleteTrainingTrackHint) athleteTrainingTrackHint.classList.add("hidden");
   }
 
   if (trainingPanelChip) {
@@ -13590,24 +14057,39 @@ function renderPlanGrid(selectedDay = getCurrentAppDayIndex()) {
 function renderPlanDetails(dayIndex) {
   if (isAthleteRole(getProfile()?.role) && getAthleteLinkedCoachUid()) {
     const assignments = getAthleteTrainingAssignments({ includeCompleted: true });
+    const selectedTrack = normalizeAthleteTrainingTrackSelection(athleteTrainingSelectedTrack);
+    const trackAssignments = assignments.filter((item) => getAssignmentTrainingTrack(item) === selectedTrack);
+    if (!assignments.length || !trackAssignments.length) {
+      planDayTitle.textContent = getAthleteTrainingTrackSectionLabel(selectedTrack);
+      planDayDetail.innerHTML = "";
+      const emptyRow = document.createElement("li");
+      emptyRow.className = "small muted";
+      emptyRow.textContent = currentLang === "es"
+        ? "No hay tareas en esta seccion todavia."
+        : "No tasks in this section yet.";
+      planDayDetail.appendChild(emptyRow);
+      return;
+    }
     if (assignments.length) {
       let selectedAssignment = null;
       const requestedId = typeof dayIndex === "string" ? String(dayIndex || "").trim() : "";
       if (requestedId) {
-        selectedAssignment = assignments.find((item) => item.id === requestedId) || null;
+        selectedAssignment = trackAssignments.find((item) => item.id === requestedId) || null;
       }
       if (!selectedAssignment && athleteTrainingSelectedAssignmentId) {
-        selectedAssignment = assignments.find((item) => item.id === athleteTrainingSelectedAssignmentId) || null;
+        selectedAssignment = trackAssignments.find((item) => item.id === athleteTrainingSelectedAssignmentId) || null;
       }
       if (!selectedAssignment && Number.isFinite(Number(dayIndex))) {
-        selectedAssignment = assignments[Math.max(0, Math.min(assignments.length - 1, Number(dayIndex)))] || null;
+        selectedAssignment = trackAssignments[Math.max(0, Math.min(trackAssignments.length - 1, Number(dayIndex)))] || null;
       }
-      if (!selectedAssignment) selectedAssignment = assignments[0];
+      if (!selectedAssignment) selectedAssignment = trackAssignments[0];
       athleteTrainingSelectedAssignmentId = selectedAssignment?.id || "";
       if (!selectedAssignment) return;
 
-      const trackLabel = getTrainingTrackLabel(getAssignmentTrainingTrack(selectedAssignment));
+      const trackLabel = getAthleteTrainingTrackSectionLabel(getAssignmentTrainingTrack(selectedAssignment));
       const dueLabel = selectedAssignment.dueLabel || formatPlanDateLabel(selectedAssignment.dueDateKey || getCurrentAppDateKey());
+      const availability = getAssignmentAvailabilityMeta(selectedAssignment, athletePortalPlansCache, getCurrentAppDateKey());
+      const statusMeta = getAssignmentDisplayStatusMeta(selectedAssignment, athletePortalPlansCache, getCurrentAppDateKey());
       planDayTitle.textContent = `${selectedAssignment.title || defaultPlanTitle(selectedAssignment.planType || "day")} (${trackLabel})`;
       planDayDetail.innerHTML = "";
 
@@ -13616,37 +14098,32 @@ function renderPlanDetails(dayIndex) {
       const summary = document.createElement("li");
       summary.className = "assignment-step-summary";
       summary.textContent = currentLang === "es"
-        ? `${getAssignmentStatusMeta(selectedAssignment.status).label} • Entrega: ${dueLabel} • Completado: ${progress.done}/${progress.total || 1}`
-        : `${getAssignmentStatusMeta(selectedAssignment.status).label} • Due: ${dueLabel} • Completed: ${progress.done}/${progress.total || 1}`;
+        ? `${statusMeta.label} • Entrega: ${dueLabel} • Completado: ${progress.done}/${progress.total || 1}`
+        : `${statusMeta.label} • Due: ${dueLabel} • Completed: ${progress.done}/${progress.total || 1}`;
       planDayDetail.appendChild(summary);
+
+      if (availability.locked && availability.startLabel) {
+        const lockNotice = document.createElement("li");
+        lockNotice.className = "assignment-step-summary";
+        lockNotice.textContent = currentLang === "es"
+          ? `Esta tarea ya esta asignada, pero no se puede iniciar hasta el ${availability.startLabel}.`
+          : `This task is already assigned, but it cannot be started until ${availability.startLabel}.`;
+        planDayDetail.appendChild(lockNotice);
+      }
 
       steps.forEach((step) => {
         const li = document.createElement("li");
         const checked = Boolean(progress.checklist[step.id]) || normalizeAssignmentStatus(selectedAssignment.status) === "completed";
         li.className = `assignment-step${checked ? " is-done" : ""}`;
-        const label = document.createElement("label");
-        label.className = "assignment-step-row";
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.checked = checked;
-        checkbox.addEventListener("change", async () => {
-          checkbox.disabled = true;
-          try {
-            await updateAthleteAssignmentChecklistStep(selectedAssignment, step.id, checkbox.checked);
-            toast(currentLang === "es" ? "Progreso actualizado." : "Progress updated.");
-            renderPlanGrid(0);
-            renderToday(getCurrentAppDayIndex());
-          } catch (err) {
-            console.warn("Athlete checklist update failed", err);
-            toast(currentLang === "es" ? "No se pudo actualizar." : "Could not update progress.");
-          } finally {
-            checkbox.disabled = false;
-          }
-        });
+        const label = document.createElement("div");
+        label.className = "assignment-step-row assignment-step-row-readonly";
+        const marker = document.createElement("span");
+        marker.className = "assignment-step-readonly-indicator";
+        marker.textContent = checked ? "✓" : "○";
         const text = document.createElement("span");
         text.className = "assignment-step-label";
         text.textContent = step.label;
-        label.appendChild(checkbox);
+        label.appendChild(marker);
         label.appendChild(text);
         li.appendChild(label);
         planDayDetail.appendChild(li);
@@ -13658,8 +14135,8 @@ function renderPlanDetails(dayIndex) {
       const discussionTitle = document.createElement("h4");
       discussionTitle.className = "assignment-discussion-title";
       discussionTitle.textContent = currentLang === "es"
-        ? `Preguntas al coach (${discussionRows.length})`
-        : `Questions to coach (${discussionRows.length})`;
+        ? `Comentarios de la tarea (${discussionRows.length})`
+        : `Task comments (${discussionRows.length})`;
       discussionShell.appendChild(discussionTitle);
 
       const discussionList = document.createElement("div");
@@ -13668,8 +14145,8 @@ function renderPlanDetails(dayIndex) {
         const emptyRow = document.createElement("p");
         emptyRow.className = "small muted";
         emptyRow.textContent = currentLang === "es"
-          ? "No hay comentarios todavia. Pregunta cualquier duda sobre un ejercicio."
-          : "No comments yet. Ask any question about an exercise.";
+          ? "No hay comentarios todavia."
+          : "No comments yet.";
         discussionList.appendChild(emptyRow);
       } else {
         discussionRows.slice(-6).forEach((entry) => {
@@ -13688,73 +14165,6 @@ function renderPlanDetails(dayIndex) {
         });
       }
       discussionShell.appendChild(discussionList);
-
-      const composer = document.createElement("div");
-      composer.className = "assignment-discussion-composer";
-      const stepSelect = document.createElement("select");
-      stepSelect.className = "assignment-discussion-select";
-      const generalOption = document.createElement("option");
-      generalOption.value = "";
-      generalOption.textContent = currentLang === "es" ? "Pregunta general" : "General question";
-      stepSelect.appendChild(generalOption);
-      steps.forEach((step) => {
-        const option = document.createElement("option");
-        option.value = step.id;
-        option.textContent = step.label;
-        stepSelect.appendChild(option);
-      });
-
-      const questionInput = document.createElement("textarea");
-      questionInput.className = "assignment-discussion-input";
-      questionInput.rows = 2;
-      questionInput.placeholder = currentLang === "es"
-        ? "Escribe tu pregunta o comentario para el entrenador..."
-        : "Write your question or comment for the coach...";
-
-      const sendBtn = document.createElement("button");
-      sendBtn.type = "button";
-      sendBtn.className = "primary";
-      sendBtn.textContent = currentLang === "es" ? "Enviar al coach" : "Send to coach";
-      sendBtn.addEventListener("click", async () => {
-        const message = String(questionInput.value || "").trim();
-        if (!message) {
-          toast(currentLang === "es" ? "Escribe una pregunta primero." : "Write a question first.");
-          return;
-        }
-        const selectedStepId = String(stepSelect.value || "").trim();
-        const selectedStepLabel = selectedStepId
-          ? (steps.find((step) => step.id === selectedStepId)?.label || "")
-          : "";
-        sendBtn.disabled = true;
-        try {
-          const postedComment = await postAssignmentDiscussionComment(selectedAssignment, {
-            text: message,
-            stepId: selectedStepId,
-            stepLabel: selectedStepLabel,
-            notifyCoach: true
-          });
-          const cacheRecord = athletePortalAssignmentsCache.find((item) => item.id === selectedAssignment.id);
-          if (cacheRecord) {
-            cacheRecord.discussion = normalizeAssignmentDiscussion([...(cacheRecord.discussion || []), postedComment]);
-            cacheRecord.discussionCount = cacheRecord.discussion.length;
-            cacheRecord.latestDiscussion = cacheRecord.discussion[cacheRecord.discussion.length - 1] || null;
-          }
-          questionInput.value = "";
-          stepSelect.value = "";
-          toast(currentLang === "es" ? "Mensaje enviado al coach." : "Message sent to coach.");
-          renderPlanDetails(selectedAssignment.id);
-        } catch (err) {
-          console.warn("Assignment discussion send failed", err);
-          toast(currentLang === "es" ? "No se pudo enviar el mensaje." : "Could not send the message.");
-        } finally {
-          sendBtn.disabled = false;
-        }
-      });
-
-      composer.appendChild(stepSelect);
-      composer.appendChild(questionInput);
-      composer.appendChild(sendBtn);
-      discussionShell.appendChild(composer);
       planDayDetail.appendChild(discussionShell);
       return;
     }
@@ -15777,13 +16187,15 @@ async function createAssignmentFromSelectedMedia() {
     athleteIds: athleteAudience.athleteIds,
     athleteUids: athleteAudience.athleteUids,
     type,
+    startDateKey: dueDateKey,
+    endDateKey: dueDateKey,
     dueDateKey,
     dueLabel: formatPlanDateLabel(dueDateKey),
     status: "not_started",
     note,
     source: `Media - ${mediaRef.mediaType || "Video"}`,
     ...mediaRef,
-    notificationStatus: "pending"
+    notificationStatus: "assignment_only"
   };
   const ref = assignmentsRef.doc();
   await withTimeout(
@@ -15795,15 +16207,6 @@ async function createAssignmentFromSelectedMedia() {
     FIREBASE_OP_TIMEOUT_MS,
     "firestore_media_assignment_timeout"
   );
-  try {
-    await sendCoachAssignmentNotification(normalizeCoachAssignmentRecord(ref.id, {
-      ...payload,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    }));
-  } catch (err) {
-    console.warn("Media assignment notification failed", err);
-  }
 }
 
 function getMediaActionErrorMessage(err, mode = "assignment") {
@@ -16510,16 +16913,19 @@ function getFilteredCoachAssignments(records = getCoachAssignmentRecords()) {
 function getAssignmentNotificationText(record) {
   const raw = String(record?.notificationStatus || "").trim().toLowerCase();
   if (!raw || raw === "pending") {
-    return currentLang === "es" ? "Notificacion pendiente" : "Notification pending";
+    return currentLang === "es" ? "Lista para aparecer en Plan y tareas" : "Ready in Training & Assignments";
   }
-  if (raw === "logged") {
-    return currentLang === "es" ? "Notificacion registrada en el task flow" : "Notification logged in the task flow";
+  if (raw === "assignment_only" || raw === "logged") {
+    return currentLang === "es" ? "Disponible en Plan y tareas" : "Available in Training & Assignments";
+  }
+  if (raw === "completed_notified") {
+    return currentLang === "es" ? "Coach notificado al completar" : "Coach notified on completion";
   }
   if (raw.startsWith("notified:")) {
     const count = Number.parseInt(raw.split(":")[1], 10) || 1;
     return currentLang === "es"
-      ? `Notificado a ${count} atleta${count === 1 ? "" : "s"}`
-      : `Notified ${count} athlete${count === 1 ? "" : "s"}`;
+      ? `Recordatorio enviado a ${count} atleta${count === 1 ? "" : "s"}`
+      : `Reminder sent to ${count} athlete${count === 1 ? "" : "s"}`;
   }
   return raw;
 }
@@ -16750,7 +17156,6 @@ function renderCoachAssignments() {
     const typeLabel = currentLang === "es" ? "Tipo" : "Type";
     const dueLabel = currentLang === "es" ? "Entrega" : "Due";
     const sourceLabel = currentLang === "es" ? "Origen" : "Source";
-    const notifyLabel = currentLang === "es" ? "Notificar atleta" : "Notify athlete";
     const updateLabel = currentLang === "es" ? "Actualizar estado" : "Update status";
     const mediaLabel = currentLang === "es" ? "Abrir media" : "Open media";
     const discussionLabel = currentLang === "es" ? "Preguntas y comentarios" : "Questions and comments";
@@ -16842,21 +17247,6 @@ function renderCoachAssignments() {
       });
       actions.appendChild(updateBtn);
     }
-    const notifyBtn = document.createElement("button");
-    notifyBtn.type = "button";
-    notifyBtn.textContent = isCoachShare
-      ? (currentLang === "es" ? "Notificar coach" : "Notify coach")
-      : notifyLabel;
-    notifyBtn.addEventListener("click", async () => {
-      try {
-        await sendCoachAssignmentNotification(item);
-        toast(currentLang === "es" ? "Notificacion registrada." : "Notification recorded.");
-      } catch (err) {
-        console.warn("Assignment notification failed", err);
-        toast(currentLang === "es" ? "No se pudo notificar." : "Could not notify athlete.");
-      }
-    });
-    actions.appendChild(notifyBtn);
     if (item.mediaAssetPath) {
       const mediaBtn = document.createElement("button");
       mediaBtn.type = "button";
@@ -17599,14 +17989,145 @@ function getParentPortalActiveAssignments() {
   return coachWorkspaceSortByUpdated(parentPortalAssignmentsCache).filter((item) => item.status !== "completed");
 }
 
-function getParentPortalPrimaryAssignment() {
-  const todayKey = getCurrentAppDateKey();
-  const assignments = getParentPortalActiveAssignments();
-  const dueNow = assignments.filter((item) => !item.dueDateKey || item.dueDateKey <= todayKey);
-  return dueNow.find((item) => normalizeAssignmentStatus(item.status) === "in_progress")
+function isDateKeyWithinScheduleRange(dateKey = "", startKey = "", endKey = "") {
+  const safeDateKey = normalizeDateKey(dateKey);
+  const safeStartKey = normalizeDateKey(startKey);
+  const safeEndKey = normalizeDateKey(endKey || safeStartKey);
+  if (!safeDateKey) return false;
+  if (safeStartKey && safeEndKey) {
+    return safeDateKey >= safeStartKey && safeDateKey <= safeEndKey;
+  }
+  if (safeStartKey) return safeDateKey === safeStartKey;
+  return false;
+}
+
+function getAssignmentScheduleMatchLevel(record = null, plansCache = [], dateKey = getCurrentAppDateKey()) {
+  if (!record || typeof record !== "object") return 0;
+  const safeDateKey = normalizeDateKey(dateKey || getCurrentAppDateKey());
+  if (!safeDateKey) return 0;
+  const dueDateKey = normalizeDateKey(record.dueDateKey || "");
+  const startDateKey = getAssignmentScheduleStartKey(record, plansCache);
+  const endDateKey = getAssignmentScheduleEndKey(record, plansCache);
+  if (dueDateKey && dueDateKey === safeDateKey) return 3;
+  if (startDateKey && endDateKey && isDateKeyWithinScheduleRange(safeDateKey, startDateKey, endDateKey)) {
+    return 2;
+  }
+
+  const planId = String(record.planId || "").trim();
+  if (planId && Array.isArray(plansCache) && plansCache.length) {
+    const linkedPlan = plansCache.find((plan) => String(plan?.id || "").trim() === planId) || null;
+    if (linkedPlan?.range && isDateKeyWithinScheduleRange(safeDateKey, linkedPlan.range.startKey, linkedPlan.range.endKey)) {
+      return 2;
+    }
+    const scheduledDay = normalizeName(linkedPlan?.day || linkedPlan?.dayName || linkedPlan?.weekday || "");
+    if (scheduledDay) {
+      const targetDate = dateFromKey(safeDateKey);
+      if (targetDate) {
+        const dayEn = normalizeName(new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: APP_TIMEZONE }).format(targetDate));
+        const dayEs = normalizeName(new Intl.DateTimeFormat("es-ES", { weekday: "long", timeZone: APP_TIMEZONE }).format(targetDate));
+        if (scheduledDay === dayEn || scheduledDay === dayEs) {
+          return 2;
+        }
+      }
+    }
+  }
+
+  if (!dueDateKey) return 1;
+  if (dueDateKey <= safeDateKey) return 1;
+  return 0;
+}
+
+function getAssignmentScheduleStartKey(record = null, plansCache = []) {
+  if (!record || typeof record !== "object") return "";
+  const directStartKey = normalizeDateKey(
+    record.startDateKey
+    || record.weekStartKey
+    || record.range?.startKey
+    || ""
+  );
+  if (directStartKey) return directStartKey;
+  const planId = String(record.planId || "").trim();
+  if (planId && Array.isArray(plansCache) && plansCache.length) {
+    const linkedPlan = plansCache.find((plan) => String(plan?.id || "").trim() === planId) || null;
+    const linkedStartKey = normalizeDateKey(linkedPlan?.range?.startKey || "");
+    if (linkedStartKey) return linkedStartKey;
+  }
+  return normalizeDateKey(record.dueDateKey || "");
+}
+
+function getAssignmentScheduleEndKey(record = null, plansCache = []) {
+  if (!record || typeof record !== "object") return "";
+  const directEndKey = normalizeDateKey(
+    record.endDateKey
+    || record.weekEndKey
+    || record.range?.endKey
+    || ""
+  );
+  if (directEndKey) return directEndKey;
+  const planId = String(record.planId || "").trim();
+  if (planId && Array.isArray(plansCache) && plansCache.length) {
+    const linkedPlan = plansCache.find((plan) => String(plan?.id || "").trim() === planId) || null;
+    const linkedEndKey = normalizeDateKey(linkedPlan?.range?.endKey || linkedPlan?.range?.startKey || "");
+    if (linkedEndKey) return linkedEndKey;
+  }
+  return normalizeDateKey(record.dueDateKey || "");
+}
+
+function isAssignmentLockedUntilScheduledDate(record = null, plansCache = [], dateKey = getCurrentAppDateKey()) {
+  const safeDateKey = normalizeDateKey(dateKey || getCurrentAppDateKey());
+  const normalizedStatus = normalizeAssignmentStatus(record?.status);
+  if (!safeDateKey || normalizedStatus === "completed" || normalizedStatus === "shared") return false;
+  const startKey = getAssignmentScheduleStartKey(record, plansCache);
+  return Boolean(startKey && startKey > safeDateKey);
+}
+
+function getAssignmentAvailabilityMeta(record = null, plansCache = [], dateKey = getCurrentAppDateKey()) {
+  const startKey = getAssignmentScheduleStartKey(record, plansCache);
+  const endKey = getAssignmentScheduleEndKey(record, plansCache);
+  const locked = isAssignmentLockedUntilScheduledDate(record, plansCache, dateKey);
+  return {
+    startKey,
+    endKey,
+    locked,
+    startLabel: startKey ? formatPlanDateLabel(startKey) : "",
+    endLabel: endKey ? formatPlanDateLabel(endKey) : ""
+  };
+}
+
+function getAssignmentDisplayStatusMeta(record = null, plansCache = [], dateKey = getCurrentAppDateKey()) {
+  if (isAssignmentLockedUntilScheduledDate(record, plansCache, dateKey)) {
+    return {
+      label: currentLang === "es" ? "Programado" : "Scheduled",
+      className: "status-pill-limited"
+    };
+  }
+  return getAssignmentStatusMeta(record?.status);
+}
+
+function pickPrimaryAssignmentForDate(assignments = [], plansCache = [], dateKey = getCurrentAppDateKey()) {
+  const pool = Array.isArray(assignments) ? assignments : [];
+  if (!pool.length) return null;
+  const statusIsInProgress = (record) => normalizeAssignmentStatus(record?.status) === "in_progress";
+  const atLevel = (level) => pool.filter((record) => getAssignmentScheduleMatchLevel(record, plansCache, dateKey) >= level);
+  const todayOrRange = atLevel(2);
+  if (todayOrRange.length) {
+    return todayOrRange.find(statusIsInProgress)
+      || todayOrRange.find((record) => String(record.planId || "").trim())
+      || todayOrRange[0];
+  }
+  const dueNow = atLevel(1);
+  return dueNow.find(statusIsInProgress)
+    || dueNow.find((record) => String(record.planId || "").trim())
     || dueNow[0]
-    || assignments.find((item) => item.planId)
-    || assignments[0]
+    || pool.find(statusIsInProgress)
+    || pool.find((record) => String(record.planId || "").trim())
+    || pool[0]
+    || null;
+}
+
+function getParentPortalPrimaryAssignment() {
+  const assignments = getParentPortalActiveAssignments();
+  return pickPrimaryAssignmentForDate(assignments, parentPortalPlansCache, getCurrentAppDateKey())
     || coachWorkspaceSortByUpdated(parentPortalAssignmentsCache)[0]
     || null;
 }
@@ -17880,6 +18401,7 @@ function refreshParentPortalDataSync() {
   const coachUid = getParentLinkedCoachUid(profile);
   const athleteId = getParentLinkedAthleteId(profile);
   const athleteName = getParentLinkedAthleteName(profile);
+  const athleteUid = getParentLinkedAthleteUid(profile);
   const workspaceAthletesRef = getCoachWorkspaceCollectionRef("athletes", coachUid);
   const assignmentsRef = getCoachWorkspaceCollectionRef("assignments", coachUid);
   const journalRef = getCoachWorkspaceCollectionRef("journal_entries", coachUid);
@@ -17887,10 +18409,11 @@ function refreshParentPortalDataSync() {
   if (!workspaceAthletesRef || !assignmentsRef || !journalRef || !scoutingRef) return;
   let parentAssignmentsById = [];
   let parentAssignmentsByName = [];
+  let parentAssignmentsByUid = [];
   let parentJournalById = [];
   let parentJournalByName = [];
   const applyParentAssignments = () => {
-    parentPortalAssignmentsCache = mergeCoachRecordsById(parentAssignmentsById, parentAssignmentsByName);
+    parentPortalAssignmentsCache = mergeCoachRecordsById(parentAssignmentsById, parentAssignmentsByName, parentAssignmentsByUid);
     refreshParentPortalPlansFromAssignments().catch((err) => console.warn("Parent plan refresh failed", err));
     renderParentHome();
   };
@@ -17938,6 +18461,15 @@ function refreshParentPortalDataSync() {
       renderParentScouting();
     }, (err) => console.warn("Parent scouting sync failed", err))
   );
+
+  if (athleteUid) {
+    parentPortalDataUnsubs.push(
+      assignmentsRef.where("athleteUids", "array-contains", athleteUid).onSnapshot((snapshot) => {
+        parentAssignmentsByUid = snapshot.docs.map((doc) => normalizeCoachAssignmentRecord(doc.id, doc.data() || {}));
+        applyParentAssignments();
+      }, (err) => console.warn("Parent assignment uid sync failed", err))
+    );
+  }
 
   renderParentHome();
   renderParentScouting();
@@ -18077,6 +18609,7 @@ function resetAthletePortalCaches() {
   athletePortalAthleteCache = null;
   athletePortalAssignmentsCache = [];
   athleteTrainingSelectedAssignmentId = "";
+  athleteTrainingSelectedTrack = "wrestling";
   athletePortalPlansCache = [];
   athletePortalJournalCache = [];
   athletePortalNotesCache = [];
@@ -18127,9 +18660,33 @@ function getAssignmentTrainingTrack(record = {}) {
   return "wrestling";
 }
 
+function sortAthleteAssignmentsForDisplay(records = [], plansCache = athletePortalPlansCache, dateKey = getCurrentAppDateKey()) {
+  return [...(Array.isArray(records) ? records : [])].sort((left, right) => {
+    const leftCompleted = normalizeAssignmentStatus(left?.status) === "completed";
+    const rightCompleted = normalizeAssignmentStatus(right?.status) === "completed";
+    if (leftCompleted !== rightCompleted) return leftCompleted ? 1 : -1;
+
+    const leftLocked = isAssignmentLockedUntilScheduledDate(left, plansCache, dateKey);
+    const rightLocked = isAssignmentLockedUntilScheduledDate(right, plansCache, dateKey);
+    if (leftLocked !== rightLocked) return leftLocked ? 1 : -1;
+
+    const leftLevel = getAssignmentScheduleMatchLevel(left, plansCache, dateKey);
+    const rightLevel = getAssignmentScheduleMatchLevel(right, plansCache, dateKey);
+    if (leftLevel !== rightLevel) return rightLevel - leftLevel;
+
+    const leftStart = getAssignmentScheduleStartKey(left, plansCache) || "9999-99-99";
+    const rightStart = getAssignmentScheduleStartKey(right, plansCache) || "9999-99-99";
+    if (leftStart !== rightStart) return leftStart.localeCompare(rightStart);
+
+    const leftUpdated = parseIsoTimestamp(left?.updatedAt || left?.createdAt || "");
+    const rightUpdated = parseIsoTimestamp(right?.updatedAt || right?.createdAt || "");
+    return rightUpdated - leftUpdated;
+  });
+}
+
 function getAthletePortalTrackAssignments(track = "wrestling", { onlyOpen = true } = {}) {
   const normalizedTrack = String(track || "wrestling").trim().toLowerCase();
-  const records = coachWorkspaceSortByUpdated(athletePortalAssignmentsCache).filter((item) => (
+  const records = sortAthleteAssignmentsForDisplay(athletePortalAssignmentsCache).filter((item) => (
     getAssignmentTrainingTrack(item) === normalizedTrack
   ));
   if (!onlyOpen) return records;
@@ -18137,21 +18694,29 @@ function getAthletePortalTrackAssignments(track = "wrestling", { onlyOpen = true
 }
 
 function getAthletePortalActiveAssignments() {
-  return coachWorkspaceSortByUpdated(athletePortalAssignmentsCache).filter((item) => item.status !== "completed");
+  return sortAthleteAssignmentsForDisplay(athletePortalAssignmentsCache).filter((item) => (
+    normalizeAssignmentStatus(item.status) !== "completed"
+  ));
+}
+
+function getAthletePortalActionableAssignments(dateKey = getCurrentAppDateKey()) {
+  return getAthletePortalActiveAssignments().filter((item) => !isAssignmentLockedUntilScheduledDate(item, athletePortalPlansCache, dateKey));
+}
+
+function getAthletePortalNextScheduledAssignment(dateKey = getCurrentAppDateKey()) {
+  return sortAthleteAssignmentsForDisplay(getAthletePortalActiveAssignments(), athletePortalPlansCache, dateKey)
+    .find((item) => isAssignmentLockedUntilScheduledDate(item, athletePortalPlansCache, dateKey))
+    || null;
 }
 
 function getAthletePortalPrimaryAssignment() {
-  const todayKey = getCurrentAppDateKey();
-  const assignments = getAthletePortalActiveAssignments();
+  const assignments = getAthletePortalActionableAssignments(getCurrentAppDateKey());
   const wrestlingAssignments = assignments.filter((item) => getAssignmentTrainingTrack(item) === "wrestling");
   const pool = wrestlingAssignments.length ? wrestlingAssignments : assignments;
-  const dueNow = pool.filter((item) => !item.dueDateKey || item.dueDateKey <= todayKey);
-  return dueNow.find((item) => normalizeAssignmentStatus(item.status) === "in_progress")
-    || dueNow[0]
+  return pickPrimaryAssignmentForDate(pool, athletePortalPlansCache, getCurrentAppDateKey())
     || pool.find((item) => normalizeAssignmentStatus(item.status) === "in_progress")
-    || pool.find((item) => item.planId)
+    || pool.find((item) => String(item.planId || "").trim())
     || pool[0]
-    || coachWorkspaceSortByUpdated(athletePortalAssignmentsCache)[0]
     || null;
 }
 
@@ -18162,9 +18727,10 @@ function getAthletePortalPrimaryPlan() {
 }
 
 function getAthletePortalFilmAssignment() {
-  const activeAssignments = getAthletePortalActiveAssignments();
+  const activeAssignments = getAthletePortalActionableAssignments(getCurrentAppDateKey());
   return activeAssignments.find((item) => item.mediaAssetPath)
-    || coachWorkspaceSortByUpdated(athletePortalAssignmentsCache).find((item) => item.mediaAssetPath)
+    || sortAthleteAssignmentsForDisplay(athletePortalAssignmentsCache)
+      .find((item) => item.mediaAssetPath && !isAssignmentLockedUntilScheduledDate(item, athletePortalPlansCache, getCurrentAppDateKey()))
     || null;
 }
 
@@ -18206,6 +18772,7 @@ function getAthletePortalMediaContext() {
 
 function buildAthletePortalTodayPlan() {
   const assignment = getAthletePortalPrimaryAssignment();
+  const nextAssignment = assignment ? null : getAthletePortalNextScheduledAssignment(getCurrentAppDateKey());
   const plan = getAthletePortalPrimaryPlan();
   const mediaContext = getAthletePortalMediaContext();
   const blocks = [];
@@ -18232,6 +18799,15 @@ function buildAthletePortalTodayPlan() {
       detail: assignment.note || assignment.title
     });
   }
+  if (!blocks.length && nextAssignment) {
+    const availability = getAssignmentAvailabilityMeta(nextAssignment, athletePortalPlansCache, getCurrentAppDateKey());
+    blocks.push({
+      label: currentLang === "es" ? "Proximo" : "Up next",
+      detail: currentLang === "es"
+        ? `${nextAssignment.title || nextAssignment.type || "Tarea"} • Disponible el ${availability.startLabel || formatPlanDateLabel(nextAssignment.dueDateKey || getCurrentAppDateKey())}`
+        : `${nextAssignment.title || nextAssignment.type || "Task"} • Available on ${availability.startLabel || formatPlanDateLabel(nextAssignment.dueDateKey || getCurrentAppDateKey())}`
+    });
+  }
   if (mediaContext?.title) {
     blocks.push({
       label: currentLang === "es" ? "Film" : "Film",
@@ -18241,13 +18817,20 @@ function buildAthletePortalTodayPlan() {
   const totalMinutes = Math.max(blocks.length * 18, 30);
   return {
     assignment,
+    nextAssignment,
     plan,
     mediaContext,
-    focus: assignment?.title || plan?.title || pickCopy({ en: "Assigned Work", es: "Trabajo asignado" }),
+    focus: assignment?.title
+      || nextAssignment?.title
+      || plan?.title
+      || pickCopy({ en: "Assigned Work", es: "Trabajo asignado" }),
     totalLabel: `${totalMinutes} min`,
     intensity: plan?.type === "week" || plan?.type === "season" ? "Medium" : "High",
-    typeLabel: assignment?.type || getPlanAssignmentTypeLabel(plan?.type || "day"),
-    subtitleNote: assignment?.dueLabel || (plan?.range?.startKey ? formatPlanDateLabel(plan.range.startKey) : ""),
+    typeLabel: assignment?.type
+      || (nextAssignment ? (currentLang === "es" ? "Tarea programada" : "Scheduled task") : getPlanAssignmentTypeLabel(plan?.type || "day")),
+    subtitleNote: assignment?.dueLabel
+      || (nextAssignment ? getAssignmentAvailabilityMeta(nextAssignment, athletePortalPlansCache, getCurrentAppDateKey()).startLabel : "")
+      || (plan?.range?.startKey ? formatPlanDateLabel(plan.range.startKey) : ""),
     blocks
   };
 }
@@ -18298,6 +18881,7 @@ function refreshAthletePortalDataSync() {
   const coachUid = getAthleteLinkedCoachUid(profile);
   const athleteId = getAthleteLinkedAthleteId(profile);
   const athleteName = String(profile?.name || "").trim();
+  const athleteUid = getAthleteLinkedAthleteUid(profile, authUser);
   const workspaceAthletesRef = getCoachWorkspaceCollectionRef("athletes", coachUid);
   const assignmentsRef = getCoachWorkspaceCollectionRef("assignments", coachUid);
   const notesRef = getCoachWorkspaceCollectionRef("coach_notes", coachUid);
@@ -18315,6 +18899,7 @@ function refreshAthletePortalDataSync() {
 
   let assignmentById = [];
   let assignmentByName = [];
+  let assignmentByUid = [];
   let journalById = [];
   let journalByName = [];
   let analysisById = [];
@@ -18323,7 +18908,7 @@ function refreshAthletePortalDataSync() {
   let competitionsById = [];
   let competitionsByName = [];
   const applyAssignments = () => {
-    athletePortalAssignmentsCache = mergeCoachRecordsById(assignmentById, assignmentByName);
+    athletePortalAssignmentsCache = mergeCoachRecordsById(assignmentById, assignmentByName, assignmentByUid);
     refreshAthletePortalPlansFromAssignments().catch((err) => console.warn("Athlete plan refresh failed", err));
     renderToday(getCurrentAppDayIndex());
     renderPlanGrid(getCurrentAppDayIndex());
@@ -18426,6 +19011,15 @@ function refreshAthletePortalDataSync() {
       applyCompetitions();
     }, (err) => console.warn("Athlete competition name fallback sync failed", err))
   );
+
+  if (athleteUid) {
+    athletePortalDataUnsubs.push(
+      assignmentsRef.where("athleteUids", "array-contains", athleteUid).onSnapshot((snapshot) => {
+        assignmentByUid = snapshot.docs.map((doc) => normalizeCoachAssignmentRecord(doc.id, doc.data() || {}));
+        applyAssignments();
+      }, (err) => console.warn("Athlete assignment uid sync failed", err))
+    );
+  }
 
   renderToday(getCurrentAppDayIndex());
   renderJournalEntries();
@@ -20120,16 +20714,16 @@ function normalizeManagedUserRecord(uid, data = {}) {
   return {
     uid: String(uid || "").trim(),
     email: String(data.email || "").trim().toLowerCase(),
-    name: String(data.name || "").trim(),
+    name: stripUserDisplayNumber(data.name || ""),
     role,
     lang,
     view,
     status: normalizeParentVerificationStatus(data.status),
-    athleteName: String(data.athleteName || data.linkedAthleteName || "").trim(),
+    athleteName: stripUserDisplayNumber(data.athleteName || data.linkedAthleteName || ""),
     linkedAthleteId: String(data.linkedAthleteId || "").trim(),
     linkedAthleteUid: String(data.linkedAthleteUid || "").trim(),
     linkedCoachUid: String(data.linkedCoachUid || "").trim(),
-    linkedCoachName: String(data.linkedCoachName || "").trim(),
+    linkedCoachName: stripUserDisplayNumber(data.linkedCoachName || ""),
     linkedCoachEmail: normalizeEmail(data.linkedCoachEmail || ""),
     phone: String(data.phone || data.phoneNumber || data.mobile || data.cell || "").trim(),
     whatsapp: String(data.whatsapp || data.whatsappNumber || "").trim(),
@@ -21183,6 +21777,7 @@ const messagesBackToChatsBtn = document.getElementById("messagesBackToChatsBtn")
 const messagesShareProgressBtn = document.getElementById("messagesShareProgressBtn");
 const messagesThreadVoiceBtn = document.getElementById("messagesThreadVoiceBtn");
 const messagesThreadVideoBtn = document.getElementById("messagesThreadVideoBtn");
+const messagesThreadMoreBtn = document.getElementById("messagesThreadMoreBtn");
 const messagesStatus = document.getElementById("messagesStatus");
 const messagesTypingIndicator = document.getElementById("messagesTypingIndicator");
 const messagesFeed = document.getElementById("messagesFeed");
@@ -21238,6 +21833,7 @@ const MESSAGES_COPY = {
   shareProgressBtn: { en: "Share progress", es: "Compartir progreso" },
   threadVoiceBtn: { en: "Call", es: "Llamar" },
   threadVideoBtn: { en: "Video", es: "Video" },
+  threadMoreBtn: { en: "More", es: "Mas" },
   filtersAll: { en: "All", es: "Todos" },
   filtersAthletes: { en: "Athletes", es: "Atletas" },
   filtersParents: { en: "Parents", es: "Padres" },
@@ -21301,6 +21897,39 @@ const MESSAGES_COPY = {
   sendError: {
     en: "Could not send this message.",
     es: "No se pudo enviar este mensaje."
+  },
+  deleteMessageBtn: { en: "Delete", es: "Borrar" },
+  deleteMessageConfirm: {
+    en: "Delete this message for everyone?",
+    es: "Borrar este mensaje para todos?"
+  },
+  deleteAllOwnMessagesConfirm: {
+    en: "Delete all messages in this chat?",
+    es: "Borrar todos los mensajes en este chat?"
+  },
+  deletingMessage: { en: "Deleting message...", es: "Borrando mensaje..." },
+  deletingMessages: { en: "Deleting messages...", es: "Borrando mensajes..." },
+  deleteMessageSuccess: { en: "Message deleted.", es: "Mensaje borrado." },
+  deleteMessagesSuccess: { en: "Messages deleted.", es: "Mensajes borrados." },
+  deleteMessageError: {
+    en: "Could not delete this message.",
+    es: "No se pudo borrar este mensaje."
+  },
+  deleteMessagesError: {
+    en: "Could not delete these messages.",
+    es: "No se pudieron borrar estos mensajes."
+  },
+  deleteNoOwnedMessages: {
+    en: "There are no messages to delete in this chat.",
+    es: "No hay mensajes para borrar en este chat."
+  },
+  deleteNotAllowed: {
+    en: "You cannot delete this message.",
+    es: "No puedes borrar este mensaje."
+  },
+  deleteMenuAction: {
+    en: "Delete chat messages",
+    es: "Borrar mensajes del chat"
   },
   sentToast: { en: "Message sent.", es: "Mensaje enviado." },
   readReceiptSeen: { en: "Seen", es: "Leido" },
@@ -21500,6 +22129,7 @@ let messagesThreadOpeningRequestId = 0;
 let messagesSendInFlight = false;
 let messagesLastSendByThread = {};
 let messagesPendingEntriesByThread = {};
+let messagesDeleteInFlightByMessage = {};
 let messagesOpenRequestId = 0;
 let messagesComposerFiles = [];
 let messagesComposerPreviewUrls = [];
@@ -22415,7 +23045,7 @@ function normalizeMessageParticipantProfile(data = {}) {
   return {
     uid,
     email,
-    name: String(data.name || data.displayName || data.email || "").trim() || "User",
+    name: stripUserDisplayNumber(data.name || data.displayName || data.email || "") || "User",
     role: normalizeMessageParticipantRole(data.role, email),
     phone: String(data.phone || data.phoneNumber || data.mobile || data.cell || "").trim(),
     whatsapp: String(data.whatsapp || data.whatsappNumber || "").trim(),
@@ -22824,6 +23454,7 @@ function teardownMessagesSession({ preserveSelection = false } = {}) {
   messagesSendInFlight = false;
   messagesLastSendByThread = {};
   messagesPendingEntriesByThread = {};
+  messagesDeleteInFlightByMessage = {};
   messagesReadSyncInFlight = {};
   messagesAnimatedEntryState = {};
   messagesOpenRequestId = 0;
@@ -23108,6 +23739,9 @@ function subscribeToMessageThreads(current) {
       renderMessages();
       markSelectedMessageThreadSeen();
       updateMessagesUnreadIndicators();
+      if (isAthleteRole(getProfile()?.role) && getAthleteLinkedCoachUid()) {
+        renderTodayActionQueue();
+      }
     }, (err) => {
       console.warn("Failed to subscribe to threads", err);
       messagesThreadRows = [];
@@ -24008,6 +24642,10 @@ function renderMessagesThreadHeaderActions(current, selectedThread) {
   setTextContent(messagesShareProgressBtn, MESSAGES_COPY.shareProgressBtn);
   setTextContent(messagesThreadVoiceBtn, MESSAGES_COPY.threadVoiceBtn);
   setTextContent(messagesThreadVideoBtn, MESSAGES_COPY.threadVideoBtn);
+  if (messagesThreadMoreBtn) {
+    messagesThreadMoreBtn.title = pickCopy(MESSAGES_COPY.threadMoreBtn);
+    messagesThreadMoreBtn.setAttribute("aria-label", pickCopy(MESSAGES_COPY.threadMoreBtn));
+  }
   const compact = isCompactMessagesViewport();
   const showBack = compact && Boolean(selectedThread) && messagesCompactThreadVisible;
   if (messagesBackToChatsBtn) {
@@ -24016,9 +24654,11 @@ function renderMessagesThreadHeaderActions(current, selectedThread) {
   }
   const canCall = Boolean(current?.uid && selectedThread);
   const canShareProgress = Boolean(current?.uid && selectedThread && isCoachMessagingUser(current));
+  const canOpenThreadMenu = Boolean(current?.uid && selectedThread);
   if (messagesShareProgressBtn) messagesShareProgressBtn.disabled = !canShareProgress;
   if (messagesThreadVoiceBtn) messagesThreadVoiceBtn.disabled = !canCall;
   if (messagesThreadVideoBtn) messagesThreadVideoBtn.disabled = !canCall;
+  if (messagesThreadMoreBtn) messagesThreadMoreBtn.disabled = !canOpenThreadMenu;
 }
 
 function getSelectedThreadContact(current, selectedThread) {
@@ -24102,6 +24742,220 @@ function getMessageSendErrorCopy(err = null) {
     return MESSAGES_COPY.loadError;
   }
   return MESSAGES_COPY.sendError;
+}
+
+function getMessageDeleteEntryKey(entry = {}) {
+  return String(entry?.id || entry?.clientMessageId || "").trim();
+}
+
+function isMessageDeleteInFlight(entry = {}) {
+  const key = getMessageDeleteEntryKey(entry);
+  return Boolean(key && messagesDeleteInFlightByMessage[key]);
+}
+
+function setMessageDeleteInFlight(entry = {}, isDeleting = false) {
+  const key = getMessageDeleteEntryKey(entry);
+  if (!key) return;
+  const next = { ...messagesDeleteInFlightByMessage };
+  if (isDeleting) {
+    next[key] = true;
+  } else {
+    delete next[key];
+  }
+  messagesDeleteInFlightByMessage = next;
+}
+
+function canDeleteMessageEntry(entry = {}, current = getMessagesCurrentUser()) {
+  if (!entry?.id || !current?.uid) return false;
+  if (entry.optimistic) return false;
+  if (isAdminRole(current.role)) return true;
+  const selectedThread = getSelectedMessageThread();
+  const participantIds = Array.isArray(selectedThread?.participantIds)
+    ? selectedThread.participantIds.map((value) => String(value || "").trim()).filter(Boolean)
+    : [];
+  if (participantIds.length) {
+    return participantIds.includes(String(current.uid || "").trim());
+  }
+  return true;
+}
+
+function getCurrentThreadFeedRows(selectedThread = getSelectedMessageThread()) {
+  return dedupeMessageEntries(messagesFeedRows.length ? messagesFeedRows : (selectedThread?.messageHistory || []));
+}
+
+function buildThreadStateFromRows(rows = [], fallbackUpdatedAt = "") {
+  const normalizedRows = dedupeMessageEntries(rows).slice(-120);
+  const lastEntry = normalizedRows[normalizedRows.length - 1] || null;
+  const updatedAt = String(lastEntry?.createdAt || fallbackUpdatedAt || new Date().toISOString()).trim() || new Date().toISOString();
+  return {
+    messageHistory: normalizedRows,
+    lastMessageText: String(lastEntry?.text || "").trim(),
+    lastSenderUid: String(lastEntry?.senderUid || "").trim(),
+    lastMessageAt: String(lastEntry?.createdAt || "").trim(),
+    updatedAt
+  };
+}
+
+function applyThreadStateLocally(threadId = "", nextState = {}) {
+  const safeThreadId = String(threadId || "").trim();
+  if (!safeThreadId) return;
+  messagesThreadRows = sortMessageThreads(messagesThreadRows.map((thread) => (
+    thread.id !== safeThreadId
+      ? thread
+      : {
+          ...thread,
+          ...nextState
+        }
+  )));
+}
+
+function getThreadParticipantsForPersistence(thread = null, current = getMessagesCurrentUser()) {
+  const existing = buildMessageParticipantProfiles(Array.isArray(thread?.participantProfiles) ? thread.participantProfiles : []);
+  if (existing.length >= 2) return existing;
+  return buildMessageParticipantProfiles(getMessageThreadParticipantsForSend(thread, current));
+}
+
+async function persistThreadStateAfterMessageDeletion(thread = null, rows = [], current = getMessagesCurrentUser()) {
+  const safeThreadId = String(thread?.id || "").trim();
+  if (!safeThreadId) return;
+  const threadRef = getMessageThreadDocRef(safeThreadId);
+  if (!threadRef) return;
+  const participants = getThreadParticipantsForPersistence(thread, current);
+  if (participants.length < 2) return;
+  const nextState = buildThreadStateFromRows(rows, thread?.updatedAt || "");
+  await withTimeout(
+    threadRef.set(buildMessageThreadPayload(participants, {
+      updatedAt: nextState.updatedAt,
+      lastMessageAt: nextState.lastMessageAt,
+      serverUpdatedAt: getFirestoreServerTimestamp(),
+      serverLastMessageAt: getFirestoreServerTimestamp(),
+      lastMessageText: nextState.lastMessageText,
+      lastSenderUid: nextState.lastSenderUid,
+      messageHistory: nextState.messageHistory
+    }), { merge: true }),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_message_delete_sync_timeout"
+  );
+}
+
+async function ensureThreadParticipantsReadyForWrites(thread = null, current = getMessagesCurrentUser()) {
+  const safeThreadId = String(thread?.id || "").trim();
+  if (!safeThreadId || !current?.uid) return;
+  const threadRef = getMessageThreadDocRef(safeThreadId);
+  if (!threadRef) return;
+  const existingIds = uniqueMessageIds(Array.isArray(thread?.participantIds) ? thread.participantIds : []);
+  const participants = getMessageThreadParticipantsForSend(thread, current);
+  const participantIds = uniqueMessageIds(participants.map((participant) => participant.uid));
+  if (existingIds.length === 2 && participantIds.length === 2 && existingIds.every((uid) => participantIds.includes(uid))) {
+    ensureLocalMessageThreadParticipants(safeThreadId, participants);
+    return;
+  }
+  if (participantIds.length < 2) return;
+  const payload = buildMessageThreadPayload(participants, {
+    updatedAt: String(thread?.updatedAt || new Date().toISOString()).trim() || new Date().toISOString(),
+    lastMessageAt: String(thread?.lastMessageAt || "").trim(),
+    serverUpdatedAt: getFirestoreServerTimestamp()
+  });
+  await withTimeout(
+    threadRef.set(payload, { merge: true }),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_message_thread_repair_timeout"
+  );
+  ensureLocalMessageThreadParticipants(safeThreadId, participants);
+}
+
+async function deleteMessageEntryFromSelectedThread(entry = null) {
+  const target = entry || {};
+  const current = getMessagesCurrentUser();
+  const selectedThread = getSelectedMessageThread();
+  const threadId = String(selectedThread?.id || "").trim();
+  const messageId = String(target.id || "").trim();
+  const targetClientMessageId = String(target.clientMessageId || "").trim();
+  if (!current?.uid || !threadId || !messageId) return;
+  if (!canDeleteMessageEntry(target, current)) {
+    setMessagesStatus(MESSAGES_COPY.deleteNotAllowed, "error");
+    renderMessages();
+    return;
+  }
+  if (isMessageDeleteInFlight(target)) return;
+  const confirmed = window.confirm(pickCopy(MESSAGES_COPY.deleteMessageConfirm));
+  if (!confirmed) return;
+  setMessageDeleteInFlight(target, true);
+  setMessagesStatus(MESSAGES_COPY.deletingMessage, "");
+  renderMessages();
+  try {
+    const threadRef = getMessageThreadDocRef(threadId);
+    if (!threadRef) throw new Error("firestore_not_configured");
+    await ensureThreadParticipantsReadyForWrites(selectedThread, current);
+    await withTimeout(
+      threadRef.collection("messages").doc(messageId).delete(),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_message_delete_timeout"
+    );
+    removePendingThreadEntry(threadId, targetClientMessageId);
+    const remainingRows = getCurrentThreadFeedRows(selectedThread).filter((row) => (
+      String(row.id || "").trim() !== messageId
+    ));
+    messagesFeedRows = dedupeMessageEntries(remainingRows);
+    const nextState = buildThreadStateFromRows(messagesFeedRows, selectedThread?.updatedAt || "");
+    applyThreadStateLocally(threadId, nextState);
+    await persistThreadStateAfterMessageDeletion(selectedThread, messagesFeedRows, current);
+    setMessagesStatus(MESSAGES_COPY.deleteMessageSuccess, "ok");
+    toast(pickCopy(MESSAGES_COPY.deleteMessageSuccess));
+  } catch (err) {
+    console.warn("Failed to delete message", err);
+    setMessagesStatus(MESSAGES_COPY.deleteMessageError, "error");
+  } finally {
+    setMessageDeleteInFlight(target, false);
+    renderMessages();
+  }
+}
+
+async function deleteOwnMessagesInSelectedThread() {
+  const current = getMessagesCurrentUser();
+  const selectedThread = getSelectedMessageThread();
+  const threadId = String(selectedThread?.id || "").trim();
+  if (!current?.uid || !threadId || !selectedThread) return;
+  const rows = getCurrentThreadFeedRows(selectedThread);
+  const deletableRows = rows.filter((entry) => canDeleteMessageEntry(entry, current) && entry.id);
+  if (!deletableRows.length) {
+    setMessagesStatus(MESSAGES_COPY.deleteNoOwnedMessages, "error");
+    renderMessages();
+    return;
+  }
+  const confirmed = window.confirm(pickCopy(MESSAGES_COPY.deleteAllOwnMessagesConfirm));
+  if (!confirmed) return;
+  setMessagesStatus(MESSAGES_COPY.deletingMessages, "");
+  renderMessages();
+  try {
+    const threadRef = getMessageThreadDocRef(threadId);
+    if (!threadRef || !firebaseFirestoreInstance?.batch) throw new Error("firestore_not_configured");
+    await ensureThreadParticipantsReadyForWrites(selectedThread, current);
+    const batch = firebaseFirestoreInstance.batch();
+    deletableRows.forEach((entry) => {
+      batch.delete(threadRef.collection("messages").doc(entry.id));
+      if (entry.clientMessageId) {
+        removePendingThreadEntry(threadId, entry.clientMessageId);
+      }
+    });
+    await withTimeout(
+      batch.commit(),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_message_bulk_delete_timeout"
+    );
+    const ownIds = new Set(deletableRows.map((entry) => String(entry.id || "").trim()).filter(Boolean));
+    messagesFeedRows = dedupeMessageEntries(rows.filter((entry) => !ownIds.has(String(entry.id || "").trim())));
+    const nextState = buildThreadStateFromRows(messagesFeedRows, selectedThread?.updatedAt || "");
+    applyThreadStateLocally(threadId, nextState);
+    await persistThreadStateAfterMessageDeletion(selectedThread, messagesFeedRows, current);
+    setMessagesStatus(MESSAGES_COPY.deleteMessagesSuccess, "ok");
+    toast(pickCopy(MESSAGES_COPY.deleteMessagesSuccess));
+  } catch (err) {
+    console.warn("Failed to delete own messages", err);
+    setMessagesStatus(MESSAGES_COPY.deleteMessagesError, "error");
+  } finally {
+    renderMessages();
+  }
 }
 
 function getMessageThreadPreviewText(thread = {}) {
@@ -24607,6 +25461,30 @@ function renderMessagesFeed(current) {
       readCheck.textContent = "✓✓";
       readCheck.title = pickCopy(entry.read ? MESSAGES_COPY.readReceiptSeen : MESSAGES_COPY.readReceiptSent);
       time.appendChild(readCheck);
+    }
+    const canDelete = canDeleteMessageEntry(entry, current);
+    if (canDelete) {
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "message-bubble-delete-btn";
+      deleteBtn.textContent = pickCopy(MESSAGES_COPY.deleteMessageBtn);
+      deleteBtn.title = pickCopy(MESSAGES_COPY.deleteMessageBtn);
+      const deleting = isMessageDeleteInFlight(entry);
+      deleteBtn.disabled = deleting;
+      if (deleting) {
+        deleteBtn.textContent = currentLang === "es" ? "..." : "...";
+      }
+      deleteBtn.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (isMessageDeleteInFlight(entry)) return;
+        deleteMessageEntryFromSelectedThread(entry).catch((err) => {
+          console.warn("Delete message action failed", err);
+          setMessagesStatus(MESSAGES_COPY.deleteMessageError, "error");
+          renderMessages();
+        });
+      });
+      time.appendChild(deleteBtn);
     }
     header.appendChild(senderBlock);
     header.appendChild(time);
@@ -25339,6 +26217,15 @@ if (messageComposer && !messagesBound) {
       sendMessageCallRequestToContact(contact, "video").catch((err) => {
         console.warn("Thread video call request failed", err);
         setMessagesCallsStatus(MESSAGES_COPY.callsSendError, "error");
+      });
+    });
+  }
+  if (messagesThreadMoreBtn) {
+    messagesThreadMoreBtn.addEventListener("click", () => {
+      deleteOwnMessagesInSelectedThread().catch((err) => {
+        console.warn("Thread delete action failed", err);
+        setMessagesStatus(MESSAGES_COPY.deleteMessagesError, "error");
+        renderMessages();
       });
     });
   }

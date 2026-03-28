@@ -12,6 +12,16 @@
     { id: "announcements", name: "Announcements" }
   ];
 
+  const CATEGORY_NAME_TRANSLATIONS = {
+    roll_call: { en: "Roll Call and Announcements", es: "Lista y anuncios" },
+    warm_up: { en: "Warm Up", es: "Calentamiento" },
+    techniques: { en: "Introduction of New Techniques or drills", es: "Introduccion de nuevas tecnicas o ejercicios" },
+    live_wrestling: { en: "Live wrestling (High pace drills)", es: "Lucha en vivo (ejercicios de alto ritmo)" },
+    strength: { en: "Strength and Skill Based Activities", es: "Actividades de fuerza y habilidad" },
+    cool_down: { en: "Cool Down Closing and Visualization", es: "Vuelta a la calma, cierre y visualizacion" },
+    announcements: { en: "Announcements", es: "Anuncios" }
+  };
+
   const INITIAL_LIBRARY = [
     { id: "1", name: "Jogging & Dynamic Stretching", categoryId: "warm_up" },
     { id: "2", name: "Takedown setups", categoryId: "techniques" },
@@ -66,103 +76,217 @@
   const MENTAL_GAME_META = {
     [MENTAL_GAME_KEYS.GO_NO_GO]: {
       title: "Go / No-Go",
+      titleEs: "Go / No-Go",
       subtitle: "Reflejos + control de impulsos",
+      subtitleEs: "Reflejos + control de impulsos",
       ruleBrief: "Tap GREEN only. Ignore RED.",
+      ruleBriefEs: "Toca solo VERDE. Ignora ROJO.",
       duration: 30,
       gradient: "linear-gradient(135deg, rgba(16, 185, 129, 0.95), rgba(20, 184, 166, 0.92))",
-      cue: "Tap GREEN. Do not tap RED."
+      cue: "Tap GREEN. Do not tap RED.",
+      cueEs: "Toca VERDE. No toques ROJO."
     },
     [MENTAL_GAME_KEYS.MEMORY]: {
       title: "Memory Sequence",
+      titleEs: "Secuencia de Memoria",
       subtitle: "Memoria de trabajo y enfoque",
+      subtitleEs: "Memoria de trabajo y enfoque",
       ruleBrief: "Watch the sequence, then repeat in exact order.",
+      ruleBriefEs: "Mira la secuencia y repitela en el mismo orden.",
       duration: 45,
       gradient: "linear-gradient(135deg, rgba(139, 92, 246, 0.95), rgba(217, 70, 239, 0.92))",
-      cue: "Memorize, then repeat in order."
+      cue: "Memorize, then repeat in order.",
+      cueEs: "Memoriza y luego repite en orden."
     },
     [MENTAL_GAME_KEYS.DECISION]: {
       title: "Quick Decision",
+      titleEs: "Decision Rapida",
       subtitle: "Decisiones tacticas bajo presion",
+      subtitleEs: "Decisiones tacticas bajo presion",
       ruleBrief: "Read fast and choose the best tactical option.",
+      ruleBriefEs: "Lee rapido y elige la mejor opcion tactica.",
       duration: 45,
       gradient: "linear-gradient(135deg, rgba(245, 158, 11, 0.95), rgba(249, 115, 22, 0.92))",
-      cue: "Choose the best option quickly."
+      cue: "Choose the best option quickly.",
+      cueEs: "Elige la mejor opcion con rapidez."
     },
     [MENTAL_GAME_KEYS.SCORE]: {
       title: "Score Awareness",
+      titleEs: "Lectura de Puntuacion",
       subtitle: "Lectura de score en tiempo real",
+      subtitleEs: "Lectura de score en tiempo real",
       ruleBrief: "Track each scoring action and identify who leads.",
+      ruleBriefEs: "Sigue cada accion de puntuacion e identifica quien va ganando.",
       duration: 45,
       gradient: "linear-gradient(135deg, rgba(14, 165, 233, 0.95), rgba(59, 130, 246, 0.92))",
-      cue: "Track every point sequence."
+      cue: "Track every point sequence.",
+      cueEs: "Sigue cada secuencia de puntos."
     },
     [MENTAL_GAME_KEYS.SWITCH]: {
       title: "Rule Switch",
+      titleEs: "Cambio de Regla",
       subtitle: "Adaptacion mental instantanea",
+      subtitleEs: "Adaptacion mental instantanea",
       ruleBrief: "Follow the active rule and adapt on every switch.",
+      ruleBriefEs: "Sigue la regla activa y adaptate en cada cambio.",
       duration: 40,
       gradient: "linear-gradient(135deg, rgba(244, 63, 94, 0.95), rgba(236, 72, 153, 0.92))",
-      cue: "Read the rule before tapping."
+      cue: "Read the rule before tapping.",
+      cueEs: "Lee la regla antes de tocar."
     }
   };
 
   const MENTAL_COLORS = [
-    { key: "red", name: "Red" },
-    { key: "blue", name: "Blue" },
-    { key: "green", name: "Green" },
-    { key: "yellow", name: "Yellow" }
+    { key: "red", name: "Red", nameEs: "Rojo" },
+    { key: "blue", name: "Blue", nameEs: "Azul" },
+    { key: "green", name: "Green", nameEs: "Verde" },
+    { key: "yellow", name: "Yellow", nameEs: "Amarillo" }
   ];
 
   const MENTAL_DECISION_SCENARIOS = [
     {
       prompt: "You are losing by 1 with 15 seconds left in neutral.",
       options: ["Attack a clean single", "Back away", "Hold center only", "Force a big throw"],
-      answer: "Attack a clean single"
+      answer: "Attack a clean single",
+      promptEs: "Vas perdiendo por 1 con 15 segundos en neutral.",
+      optionsEs: ["Ataca un single limpio", "Alejate", "Solo controla el centro", "Fuerza un lanzamiento grande"],
+      answerEs: "Ataca un single limpio"
     },
     {
       prompt: "You are up by 2 with 12 seconds left and your opponent is pressing.",
       options: ["Take a risky shot", "Control position and circle", "Jump to upper body", "Stay flat-footed"],
-      answer: "Control position and circle"
+      answer: "Control position and circle",
+      promptEs: "Vas ganando por 2 con 12 segundos y tu oponente esta presionando.",
+      optionsEs: ["Haz un ataque arriesgado", "Controla posicion y circula", "Salta a upper body", "Quedate plano"],
+      answerEs: "Controla posicion y circula"
     },
     {
       prompt: "Opponent is heavy on the head and leaning forward.",
       options: ["Snap and go behind", "Stand straight up", "Reach from too far", "Pause and wait"],
-      answer: "Snap and go behind"
+      answer: "Snap and go behind",
+      promptEs: "El oponente carga la cabeza y se inclina hacia adelante.",
+      optionsEs: ["Haz snap y pasa atras", "Parate recto", "Alcanza desde muy lejos", "Pausa y espera"],
+      answerEs: "Haz snap y pasa atras"
     },
     {
       prompt: "Bottom position, tied late in the match.",
       options: ["Secure a fast stand-up", "Lay flat", "Try a slow roll", "Look at the clock only"],
-      answer: "Secure a fast stand-up"
+      answer: "Secure a fast stand-up",
+      promptEs: "Posicion abajo, empate al final del combate.",
+      optionsEs: ["Asegura un stand-up rapido", "Quedate plano", "Intenta un giro lento", "Mira solo el reloj"],
+      answerEs: "Asegura un stand-up rapido"
     }
   ];
 
   const MENTAL_SCORE_EVENTS = [
-    { text: "Red takedown", delta: { red: 3, green: 0 } },
-    { text: "Green escape", delta: { red: 0, green: 1 } },
-    { text: "Red stall point", delta: { red: 1, green: 0 } },
-    { text: "Green reversal", delta: { red: 0, green: 2 } },
-    { text: "Red escape", delta: { red: 1, green: 0 } },
-    { text: "Green takedown", delta: { red: 0, green: 3 } },
-    { text: "Red reversal", delta: { red: 2, green: 0 } }
+    { text: "Red takedown", textEs: "Rojo derribo", delta: { red: 3, green: 0 } },
+    { text: "Green escape", textEs: "Verde escape", delta: { red: 0, green: 1 } },
+    { text: "Red stall point", textEs: "Rojo punto por pasividad", delta: { red: 1, green: 0 } },
+    { text: "Green reversal", textEs: "Verde reversa", delta: { red: 0, green: 2 } },
+    { text: "Red escape", textEs: "Rojo escape", delta: { red: 1, green: 0 } },
+    { text: "Green takedown", textEs: "Verde derribo", delta: { red: 0, green: 3 } },
+    { text: "Red reversal", textEs: "Rojo reversa", delta: { red: 2, green: 0 } }
   ];
 
   const MENTAL_SWITCH_RULES = [
     {
       id: "higher",
       label: "Tap the higher number",
+      labelEs: "Toca el numero mas alto",
       evaluate: (a, b) => (a > b ? "left" : "right")
     },
     {
       id: "lower",
       label: "Tap the lower number",
+      labelEs: "Toca el numero mas bajo",
       evaluate: (a, b) => (a < b ? "left" : "right")
     },
     {
       id: "even",
       label: "Tap the even number",
+      labelEs: "Toca el numero par",
       evaluate: (a, b) => (a % 2 === 0 ? "left" : "right")
     }
   ];
+
+  function getLocalizedMentalMeta(gameKey) {
+    const base = MENTAL_GAME_META[gameKey] || MENTAL_GAME_META[MENTAL_GAME_KEYS.GO_NO_GO] || {};
+    const isSpanish = getPlannerLang() === "es";
+    return {
+      ...base,
+      title: isSpanish ? (base.titleEs || base.title || "") : (base.title || base.titleEs || ""),
+      subtitle: isSpanish ? (base.subtitleEs || base.subtitle || "") : (base.subtitle || base.subtitleEs || ""),
+      ruleBrief: isSpanish ? (base.ruleBriefEs || base.ruleBrief || "") : (base.ruleBrief || base.ruleBriefEs || ""),
+      cue: isSpanish ? (base.cueEs || base.cue || "") : (base.cue || base.cueEs || "")
+    };
+  }
+
+  function getMentalColorLabel(name) {
+    const color = MENTAL_COLORS.find((entry) => String(entry.name || "").toLowerCase() === String(name || "").toLowerCase());
+    if (!color) return String(name || "");
+    return getPlannerLang() === "es" ? String(color.nameEs || color.name || "") : String(color.name || color.nameEs || "");
+  }
+
+  function getLocalizedDecisionScenario(scenario = {}) {
+    const isSpanish = getPlannerLang() === "es";
+    if (!isSpanish) {
+      return {
+        prompt: String(scenario.prompt || "").trim(),
+        options: Array.isArray(scenario.options) ? scenario.options.map((item) => String(item || "").trim()).filter(Boolean) : [],
+        answer: String(scenario.answer || "").trim()
+      };
+    }
+    const options = Array.isArray(scenario.optionsEs)
+      ? scenario.optionsEs.map((item) => String(item || "").trim()).filter(Boolean)
+      : (Array.isArray(scenario.options) ? scenario.options.map((item) => String(item || "").trim()).filter(Boolean) : []);
+    return {
+      prompt: String(scenario.promptEs || scenario.prompt || "").trim(),
+      options,
+      answer: String(scenario.answerEs || scenario.answer || "").trim()
+    };
+  }
+
+  function getLocalizedScoreEvent(baseEvent = {}) {
+    const isSpanish = getPlannerLang() === "es";
+    return {
+      ...baseEvent,
+      text: String((isSpanish ? baseEvent.textEs : baseEvent.text) || baseEvent.text || baseEvent.textEs || "").trim()
+    };
+  }
+
+  function getMentalRuleLabel(rule = {}) {
+    const isSpanish = getPlannerLang() === "es";
+    return String((isSpanish ? rule.labelEs : rule.label) || rule.label || rule.labelEs || "").trim();
+  }
+
+  function getMentalRoleLabel(role) {
+    const safeRole = normalizeMentalLeaderboardRole(role);
+    if (safeRole === "coach" || safeRole === "admin") return tr({ en: "Coach", es: "Entrenador" });
+    if (safeRole === "parent") return tr({ en: "Parent", es: "Padre/Madre" });
+    return tr({ en: "Athlete", es: "Atleta" });
+  }
+
+  function getMentalScoreLeadLabel(color, margin) {
+    const safeMargin = Math.max(1, parseInt(String(margin || 1), 10) || 1);
+    const safeColor = String(color || "red").toLowerCase() === "green" ? "green" : "red";
+    return tr({
+      en: `${safeColor === "red" ? "Red" : "Green"} by ${safeMargin}`,
+      es: `${safeColor === "red" ? "Rojo" : "Verde"} por ${safeMargin}`
+    });
+  }
+
+  function getMentalScoreTiedLabel() {
+    return tr({ en: "Tied", es: "Empate" });
+  }
+
+  function getMentalScoreExactLabel(red, green) {
+    const safeRed = Math.max(0, parseInt(String(red || 0), 10) || 0);
+    const safeGreen = Math.max(0, parseInt(String(green || 0), 10) || 0);
+    return tr({
+      en: `Red ${safeRed} - Green ${safeGreen}`,
+      es: `Rojo ${safeRed} - Verde ${safeGreen}`
+    });
+  }
 
   function buildDefaultMentalScores() {
     return {
@@ -193,11 +317,15 @@
       const bestScore = Math.max(0, parseInt(String(item.bestScore || 0), 10) || 0);
       const averageScore = Math.max(0, parseInt(String(item.averageScore || 0), 10) || 0);
       const lastScore = Math.max(0, parseInt(String(item.lastScore || 0), 10) || 0);
+      const averageReactionMs = Math.max(0, parseInt(String(item.averageReactionMs || 0), 10) || 0);
+      const lastReactionMs = Math.max(0, parseInt(String(item.lastReactionMs || 0), 10) || 0);
       gameStats[key] = {
         plays,
         bestScore,
         averageScore,
         lastScore,
+        averageReactionMs,
+        lastReactionMs,
         details: item.details && typeof item.details === "object" ? item.details : {}
       };
     });
@@ -213,13 +341,13 @@
   function buildDefaultLiftingPlan() {
     return {
       id: "",
-      name: "New 7-Day Cycle",
+      name: tr({ en: "New 7-Day Cycle", es: "Nuevo ciclo de 7 dias" }),
       weeks: "1-4",
-      purpose: "Full week metabolic conditioning and strength base.",
-      benefits: "Optimized recovery and specific wrestling movements.",
+      purpose: tr({ en: "Full week metabolic conditioning and strength base.", es: "Semana completa de base metabolica y fuerza." }),
+      benefits: tr({ en: "Optimized recovery and specific wrestling movements.", es: "Recuperacion optimizada y movimientos especificos de lucha." }),
       days: Array.from({ length: 7 }, (_, index) => ({
         id: index + 1,
-        name: `Day ${index + 1}`,
+        name: tr({ en: `Day ${index + 1}`, es: `Dia ${index + 1}` }),
         exercises: []
       }))
     };
@@ -307,9 +435,27 @@
 
   function getDefaultCategoryNames() {
     return CATEGORIES.reduce((acc, category) => {
-      acc[category.id] = category.name;
+      const localized = CATEGORY_NAME_TRANSLATIONS[category.id] || { en: category.name, es: category.name };
+      acc[category.id] = getPlannerLang() === "es" ? localized.es : localized.en;
       return acc;
     }, {});
+  }
+
+  function syncCategoryNamesForLanguage() {
+    const lang = getPlannerLang();
+    let changed = false;
+    CATEGORIES.forEach((category) => {
+      const localized = CATEGORY_NAME_TRANSLATIONS[category.id] || { en: category.name, es: category.name };
+      const target = lang === "es" ? localized.es : localized.en;
+      const current = String(state.categoryNames?.[category.id] || "").trim();
+      if (!current || current === localized.en || current === localized.es) {
+        if (current !== target) {
+          state.categoryNames[category.id] = target;
+          changed = true;
+        }
+      }
+    });
+    if (changed) persistCategoryNames();
   }
 
   function normalizeCategoryId(value) {
@@ -373,14 +519,19 @@
     const days = baseDays.slice(0, 7).map((day, index) => {
       const daySource = day && typeof day === "object" ? day : {};
       const exercises = Array.isArray(daySource.exercises) ? daySource.exercises : [];
+      const fallbackDayName = tr({ en: `Day ${index + 1}`, es: `Dia ${index + 1}` });
       return {
         id: index + 1,
-        name: String(daySource.name || `Day ${index + 1}`).trim() || `Day ${index + 1}`,
+        name: String(daySource.name || fallbackDayName).trim() || fallbackDayName,
         exercises: exercises.map(normalizeLiftingExercise).filter(Boolean)
       };
     });
     while (days.length < 7) {
-      days.push({ id: days.length + 1, name: `Day ${days.length + 1}`, exercises: [] });
+      days.push({
+        id: days.length + 1,
+        name: tr({ en: `Day ${days.length + 1}`, es: `Dia ${days.length + 1}` }),
+        exercises: []
+      });
     }
     return {
       id: String(source.id || "").trim(),
@@ -397,7 +548,7 @@
     const source = raw && typeof raw === "object" ? raw : {};
     return {
       id: String(id || source.id || "").trim(),
-      name: String(source.name || "Untitled Protocol").trim() || "Untitled Protocol",
+      name: String(source.name || tr({ en: "Untitled Protocol", es: "Protocolo sin titulo" })).trim() || tr({ en: "Untitled Protocol", es: "Protocolo sin titulo" }),
       weeks: String(source.weeks || "").trim(),
       updatedAt: String(source.updatedAt || source.createdAt || "").trim()
     };
@@ -409,7 +560,7 @@
     const fromProfile = String(profile?.name || "").trim();
     const fromAuthName = String(authUser?.name || "").trim();
     const fromAuthEmail = String(authUser?.email || "").trim();
-    return fromProfile || fromAuthName || fromAuthEmail || "Coach";
+    return fromProfile || fromAuthName || fromAuthEmail || tr({ en: "Coach", es: "Entrenador" });
   }
 
   function buildPlannerDefaultSettings() {
@@ -493,7 +644,7 @@
       ...(dailyState.categoryTimes && typeof dailyState.categoryTimes === "object" ? dailyState.categoryTimes : {})
     },
     coachLibraries: [],
-    coachLibrariesStatus: "Loading coach libraries...",
+    coachLibrariesStatus: tr({ en: "Loading coach libraries...", es: "Cargando librerias de entrenadores..." }),
     coachLibrariesUnsub: null,
     coachLibrariesReady: false,
     librarySyncTimer: null,
@@ -508,6 +659,8 @@
     selectedAthleteIds: [],
     assignSearch: "",
     assignDueDate: "",
+    assignScheduleMode: "day",
+    assignWeekCount: 1,
     assignModalBusy: false,
     assignContext: {
       track: "wrestling",
@@ -517,7 +670,7 @@
     mentalDraft: readJson(STORAGE_KEYS.mentalDraft, {}) || {},
     mentalScores: normalizeMentalScoreValue(readJson(STORAGE_KEYS.mentalScores, buildDefaultMentalScores()) || buildDefaultMentalScores()),
     mentalLeaderboard: buildDefaultMentalLeaderboard(),
-    mentalLeaderboardStatus: "Loading global leaderboard...",
+    mentalLeaderboardStatus: tr({ en: "Loading global leaderboard...", es: "Cargando leaderboard global..." }),
     mentalLeaderboardReady: false,
     mentalLeaderboardLoadedKeys: {},
     mentalLeaderboardUnsubs: [],
@@ -540,7 +693,8 @@
     lastSavedTemplateId: "",
     lastSentPlanId: "",
     toastTimer: null,
-    pendingFocus: null
+    pendingFocus: null,
+    readOnly: false
   };
 
   CATEGORIES.forEach((category) => {
@@ -619,10 +773,16 @@
     assignSendBtn: document.getElementById("plannerAssignSendBtn"),
     assignList: document.getElementById("plannerAssignList"),
     assignStatus: document.getElementById("plannerAssignStatus"),
+    assignWeekHint: document.getElementById("plannerAssignWeekHint"),
     assignSearchInput: document.getElementById("plannerAssignSearchInput"),
     assignSelectAllBtn: document.getElementById("plannerAssignSelectAllBtn"),
     assignClearBtn: document.getElementById("plannerAssignClearBtn"),
+    assignDueDateLabel: document.getElementById("plannerAssignDueDateLabel"),
     assignDueDateInput: document.getElementById("plannerAssignDueDateInput"),
+    assignScheduleModeWrapper: document.getElementById("plannerAssignScheduleModeWrapper"),
+    assignScheduleModeInput: document.getElementById("plannerAssignScheduleModeInput"),
+    assignWeekCountWrapper: document.getElementById("plannerAssignWeekCountWrapper"),
+    assignWeekCountInput: document.getElementById("plannerAssignWeekCountInput"),
     liftingTitleInput: document.getElementById("plannerLiftingTitle"),
     liftingDateInput: document.getElementById("plannerLiftingDate"),
     liftingTotalTimeInput: document.getElementById("plannerLiftingTotalTime"),
@@ -712,7 +872,11 @@
   }
 
   function getCategoryNameById(categoryId) {
-    const fallback = CATEGORIES.find((category) => category.id === categoryId)?.name || "Category";
+    const fallback = (CATEGORY_NAME_TRANSLATIONS[categoryId] && (getPlannerLang() === "es"
+      ? CATEGORY_NAME_TRANSLATIONS[categoryId].es
+      : CATEGORY_NAME_TRANSLATIONS[categoryId].en))
+      || CATEGORIES.find((category) => category.id === categoryId)?.name
+      || tr({ en: "Category", es: "Categoria" });
     return String(state.categoryNames?.[categoryId] || fallback).trim() || fallback;
   }
 
@@ -801,7 +965,10 @@
     }
     if (els.overtimeAlert) {
       if (used > planned) {
-        els.overtimeAlert.textContent = `Time exceeded: ${used} / ${planned} min. Adjust category times.`;
+        els.overtimeAlert.textContent = tr({
+          en: `Time exceeded: ${used} / ${planned} min. Adjust category times.`,
+          es: `Tiempo excedido: ${used} / ${planned} min. Ajusta los tiempos por categoria.`
+        });
         els.overtimeAlert.classList.remove("hidden");
       } else {
         els.overtimeAlert.classList.add("hidden");
@@ -819,19 +986,19 @@
   function getTrackUiCopy(track) {
     if (track === "lifting") {
       return {
-        title: "Lifting & Conditioning Lab",
-        subtitle: "Build 7-day strength protocols with a live exercise library."
+        title: tr({ en: "Lifting & Conditioning Lab", es: "Laboratorio de Lifting y Conditioning" }),
+        subtitle: tr({ en: "Build 7-day strength protocols with a live exercise library.", es: "Crea protocolos de fuerza de 7 dias con libreria de ejercicios en vivo." })
       };
     }
     if (track === "mental") {
       return {
-        title: "Mind & Focus Lab",
-        subtitle: "Visual games for reaction, tactical decisions, and competitive focus."
+        title: tr({ en: "Mind & Focus Lab", es: "Laboratorio de Mente y Enfoque" }),
+        subtitle: tr({ en: "Visual games for reaction, tactical decisions, and competitive focus.", es: "Juegos visuales para reaccion, decisiones tacticas y enfoque competitivo." })
       };
     }
     return {
-      title: "Wrestling Training Planner",
-      subtitle: "Build and assign wrestling practice plans."
+      title: tr({ en: "Wrestling Training Planner", es: "Planificador de Entrenamiento de Lucha" }),
+      subtitle: tr({ en: "Build and assign wrestling practice plans.", es: "Crea y asigna planes de practica de lucha." })
     };
   }
 
@@ -993,10 +1160,7 @@
   }
 
   function getMentalLeaderboardRoleLabel(role) {
-    const safeRole = normalizeMentalLeaderboardRole(role);
-    if (safeRole === "coach" || safeRole === "admin") return "Coach";
-    if (safeRole === "parent") return "Parent";
-    return "Athlete";
+    return getMentalRoleLabel(role);
   }
 
   function getPlannerSharedCollectionName() {
@@ -1024,7 +1188,7 @@
     const uid = String(source.uid || source.id || "").trim();
     const score = Math.max(0, parseInt(String(source.bestScore ?? source.mentalScore ?? 0), 10) || 0);
     const plays = Math.max(0, parseInt(String(source.plays || 0), 10) || 0);
-    const name = String(source.name || source.email || "").trim() || (uid ? `User ${uid.slice(0, 6)}` : "User");
+    const name = String(source.name || source.email || "").trim() || (uid ? `${tr({ en: "User", es: "Usuario" })} ${uid.slice(0, 6)}` : tr({ en: "User", es: "Usuario" }));
     return {
       uid,
       name,
@@ -1045,10 +1209,25 @@
       .slice(0, 3);
   }
 
+  function upsertLocalMentalLeaderboardEntry(gameKey, entry = {}) {
+    const safeKey = String(gameKey || "").trim().toLowerCase();
+    if (!safeKey || !MENTAL_GAME_META[safeKey]) return;
+    const normalized = normalizeMentalLeaderboardEntry(entry);
+    if (!normalized.uid) return;
+    const currentRows = Array.isArray(state.mentalLeaderboard?.[safeKey]) ? state.mentalLeaderboard[safeKey] : [];
+    const nextRows = currentRows
+      .map((item) => normalizeMentalLeaderboardEntry(item))
+      .filter((item) => item.uid && item.uid !== normalized.uid);
+    nextRows.push(normalized);
+    state.mentalLeaderboard[safeKey] = nextRows
+      .sort((left, right) => right.bestScore - left.bestScore)
+      .slice(0, 3);
+  }
+
   function renderMentalLeaderboardRows(gameKey) {
     const rows = getMentalLeaderboardRows(gameKey);
     if (!rows.length) {
-      return `<li class="planner-mental-leader-empty">No scores yet.</li>`;
+      return `<li class="planner-mental-leader-empty">${escapeHtml(tr({ en: "No scores yet.", es: "Aun no hay puntuaciones." }))}</li>`;
     }
     return rows.map((entry, index) => `
       <li class="planner-mental-leader-row">
@@ -1063,24 +1242,27 @@
   }
 
   function renderMentalLeaderboardSection() {
-    const cards = Object.entries(MENTAL_GAME_META).map(([gameKey, meta]) => `
+    const cards = Object.entries(MENTAL_GAME_META).map(([gameKey, meta]) => {
+      const localizedMeta = getLocalizedMentalMeta(gameKey);
+      return `
       <article class="planner-mental-leader-game">
         <header>
-          <h5>${escapeHtml(meta.title)}</h5>
-          <span>${escapeHtml(meta.duration)}s</span>
+          <h5>${escapeHtml(localizedMeta.title)}</h5>
+          <span>${escapeHtml(localizedMeta.duration)}s</span>
         </header>
         <ol class="planner-mental-leader-list">${renderMentalLeaderboardRows(gameKey)}</ol>
       </article>
-    `).join("");
-    const status = String(state.mentalLeaderboardStatus || "").trim() || "Loading global leaderboard...";
+    `;
+    }).join("");
+    const status = String(state.mentalLeaderboardStatus || "").trim() || tr({ en: "Loading global leaderboard...", es: "Cargando leaderboard global..." });
     return `
       <section class="planner-mental-card planner-mental-leaderboard-card">
         <div class="planner-mental-game-header">
           <div>
-            <h4>Global Leaderboard</h4>
-            <p class="small muted">Top 3 records per game across all users.</p>
+            <h4>${escapeHtml(tr({ en: "Global Leaderboard", es: "Leaderboard Global" }))}</h4>
+            <p class="small muted">${escapeHtml(tr({ en: "Top 3 records per game across all users.", es: "Top 3 por juego entre todos los usuarios." }))}</p>
           </div>
-          <span class="planner-mental-game-badge">Top 3</span>
+          <span class="planner-mental-game-badge">${escapeHtml(tr({ en: "Top 3", es: "Top 3" }))}</span>
         </div>
         <p class="small muted planner-mental-leader-status">${escapeHtml(status)}</p>
         <div class="planner-mental-leader-grid">${cards}</div>
@@ -1106,22 +1288,22 @@
     stopMentalLeaderboardSync();
     state.mentalLeaderboard = buildDefaultMentalLeaderboard();
     state.mentalLeaderboardReady = false;
-    state.mentalLeaderboardStatus = "Loading global leaderboard...";
+    state.mentalLeaderboardStatus = tr({ en: "Loading global leaderboard...", es: "Cargando leaderboard global..." });
     const gameKeys = Object.keys(MENTAL_GAME_META);
     if (!gameKeys.length) {
       state.mentalLeaderboardReady = true;
-      state.mentalLeaderboardStatus = "No games available.";
+      state.mentalLeaderboardStatus = tr({ en: "No games available.", es: "No hay juegos disponibles." });
       return;
     }
     if (typeof firebaseFirestoreInstance === "undefined" || !firebaseFirestoreInstance) {
       state.mentalLeaderboardReady = true;
-      state.mentalLeaderboardStatus = "Leaderboard unavailable while Firebase is offline.";
+      state.mentalLeaderboardStatus = tr({ en: "Leaderboard unavailable while Firebase is offline.", es: "El leaderboard no esta disponible mientras Firebase esta fuera de linea." });
       renderMentalApp();
       return;
     }
     if (!getPlannerAuthUser()?.id) {
       state.mentalLeaderboardReady = true;
-      state.mentalLeaderboardStatus = "Sign in to load leaderboard data.";
+      state.mentalLeaderboardStatus = tr({ en: "Sign in to load leaderboard data.", es: "Inicia sesion para cargar los datos del leaderboard." });
       renderMentalApp();
       return;
     }
@@ -1153,10 +1335,13 @@
           state.mentalLeaderboardReady = loadedCount >= gameKeys.length;
           if (state.mentalLeaderboardReady) {
             state.mentalLeaderboardStatus = totalRows
-              ? "Live leaderboard synced across all users."
-              : "No scores yet. Complete a game to set the first records.";
+              ? tr({ en: "Live leaderboard synced across all users.", es: "Leaderboard en vivo sincronizado para todos los usuarios." })
+              : tr({ en: "No scores yet. Complete a game to set the first records.", es: "Aun no hay puntuaciones. Completa un juego para registrar los primeros records." });
           } else {
-            state.mentalLeaderboardStatus = `Loading global leaderboard (${loadedCount}/${gameKeys.length})...`;
+            state.mentalLeaderboardStatus = tr({
+              en: `Loading global leaderboard (${loadedCount}/${gameKeys.length})...`,
+              es: `Cargando leaderboard global (${loadedCount}/${gameKeys.length})...`
+            });
           }
           renderMentalApp();
         }, (err) => {
@@ -1164,7 +1349,7 @@
           state.mentalLeaderboard[gameKey] = [];
           markLoaded(gameKey);
           state.mentalLeaderboardReady = loadedCount >= gameKeys.length;
-          state.mentalLeaderboardStatus = "Could not sync leaderboard right now.";
+          state.mentalLeaderboardStatus = tr({ en: "Could not sync leaderboard right now.", es: "No se pudo sincronizar el leaderboard ahora." });
           renderMentalApp();
         });
       state.mentalLeaderboardUnsubs.push(unsub);
@@ -1180,7 +1365,7 @@
     const uid = String(authUser.id || "").trim();
     if (!uid) return;
     const profile = getPlannerProfile() || {};
-    const name = String(profile?.name || authUser?.email || "").trim() || `User ${uid.slice(0, 6)}`;
+    const name = String(profile?.name || authUser?.email || "").trim() || `${tr({ en: "User", es: "Usuario" })} ${uid.slice(0, 6)}`;
     const role = normalizeMentalLeaderboardRole(profile?.role || authUser?.role);
     const score = Math.max(0, parseInt(String(result?.mentalScore || 0), 10) || 0);
     const accuracy = Math.max(0, parseInt(String(result?.accuracy || 0), 10) || 0);
@@ -1224,8 +1409,24 @@
         payload.createdAt = getPlannerTimestamp();
       }
       await entryRef.set(payload, { merge: true });
+      upsertLocalMentalLeaderboardEntry(safeGameKey, {
+        uid,
+        name,
+        role,
+        bestScore,
+        plays: previousPlays + 1,
+        updatedAtIso: payload.updatedAtIso
+      });
+      const totalRows = Object.keys(MENTAL_GAME_META).reduce((sum, key) => sum + getMentalLeaderboardRows(key).length, 0);
+      if (totalRows > 0) {
+        state.mentalLeaderboardStatus = tr({ en: "Live leaderboard synced across all users.", es: "Leaderboard en vivo sincronizado para todos los usuarios." });
+      }
+      if (state.mentalView === "home" || state.mentalView === "progress") {
+        renderMentalApp();
+      }
     } catch (err) {
       console.warn("Failed to publish mental leaderboard result", err);
+      state.mentalLeaderboardStatus = tr({ en: "Could not publish leaderboard result right now.", es: "No se pudo publicar el resultado del leaderboard ahora." });
     }
   }
 
@@ -1235,6 +1436,8 @@
       bestScore: 0,
       averageScore: 0,
       lastScore: 0,
+      averageReactionMs: 0,
+      lastReactionMs: 0,
       details: {}
     };
   }
@@ -1243,6 +1446,27 @@
     const sessions = Math.max(0, parseInt(String(state.mentalScores?.totalSessions || 0), 10) || 0);
     if (!sessions) return 0;
     return Math.round((parseInt(String(state.mentalScores?.totalMentalScore || 0), 10) || 0) / sessions);
+  }
+
+  function formatReactionSecondsLabel(milliseconds = 0) {
+    const ms = Math.max(0, parseInt(String(milliseconds || 0), 10) || 0);
+    if (!ms) return "-";
+    return `${(ms / 1000).toFixed(2)}s`;
+  }
+
+  function getMentalAverageChipLabel(gameKey) {
+    if (gameKey === MENTAL_GAME_KEYS.GO_NO_GO) {
+      return tr({ en: "Avg reaction", es: "Reaccion prom." });
+    }
+    return tr({ en: "Average", es: "Promedio" });
+  }
+
+  function getMentalAverageChipValue(gameKey, stats = {}) {
+    if (gameKey === MENTAL_GAME_KEYS.GO_NO_GO) {
+      const fallbackMs = Math.max(0, parseInt(String(stats?.details?.avgRT || 0), 10) || 0);
+      return formatReactionSecondsLabel(stats.averageReactionMs || fallbackMs);
+    }
+    return String(stats.averageScore || 0);
   }
 
   function clearMentalTimers() {
@@ -1269,20 +1493,42 @@
     );
   }
 
+  const MENTAL_NARRATION_VOICE_HINTS = {
+    en: ["aria", "jenny", "samantha", "allison", "ava", "emma", "guy", "davis", "david", "alex", "google us english", "google uk english"],
+    es: ["helena", "elvira", "paulina", "monica", "marta", "sabina", "google español", "google spanish"],
+    any: ["microsoft", "google", "premium", "neural", "natural"]
+  };
+  const MENTAL_NARRATION_AVOID_TOKENS = ["whisper", "novelty", "child", "kid", "junior", "robot"];
+
+  function scoreMentalNarrationVoice(voice, langPrefix = "en") {
+    if (!voice) return -1;
+    const name = String(voice.name || "").toLowerCase();
+    const lang = String(voice.lang || "").toLowerCase();
+    let score = 0;
+    if (lang.startsWith(langPrefix)) score += 120;
+    if (langPrefix === "es" && lang.startsWith("es")) score += 30;
+    if (langPrefix === "en" && lang.startsWith("en")) score += 30;
+    if (voice.localService === true) score += 12;
+    if (voice.default === true) score += 8;
+    if (MENTAL_NARRATION_VOICE_HINTS.any.some((token) => name.includes(token))) score += 24;
+    const hints = langPrefix === "es" ? MENTAL_NARRATION_VOICE_HINTS.es : MENTAL_NARRATION_VOICE_HINTS.en;
+    hints.forEach((token, index) => {
+      if (name.includes(token)) score += 70 - (index * 2);
+    });
+    if (MENTAL_NARRATION_AVOID_TOKENS.some((token) => name.includes(token))) score -= 80;
+    return score;
+  }
+
   function getMentalNarrationVoice() {
     if (!supportsMentalNarration()) return null;
     const synth = window.speechSynthesis;
     const voices = typeof synth.getVoices === "function" ? synth.getVoices() : [];
     if (!Array.isArray(voices) || !voices.length) return null;
-    const englishVoices = voices.filter((voice) => String(voice?.lang || "").toLowerCase().startsWith("en"));
-    const pool = englishVoices.length ? englishVoices : voices;
-    const preferredTokens = ["aria", "jenny", "samantha", "alex", "google us english", "david", "guy"];
-    for (let i = 0; i < preferredTokens.length; i += 1) {
-      const token = preferredTokens[i];
-      const match = pool.find((voice) => String(voice?.name || "").toLowerCase().includes(token));
-      if (match) return match;
-    }
-    return pool[0] || null;
+    const langPrefix = getPlannerLang() === "es" ? "es" : "en";
+    const sorted = [...voices].sort((left, right) => (
+      scoreMentalNarrationVoice(right, langPrefix) - scoreMentalNarrationVoice(left, langPrefix)
+    ));
+    return sorted[0] || null;
   }
 
   function stopMentalNarration() {
@@ -1302,9 +1548,13 @@
       const utterance = new SpeechSynthesisUtterance(script);
       const voice = getMentalNarrationVoice();
       if (voice) utterance.voice = voice;
-      utterance.lang = voice?.lang || "en-US";
-      utterance.rate = 0.96;
-      utterance.pitch = 0.96;
+      if (voice?.lang) {
+        utterance.lang = voice.lang;
+      } else {
+        utterance.lang = getPlannerLang() === "es" ? "es-ES" : "en-US";
+      }
+      utterance.rate = 0.9;
+      utterance.pitch = 0.9;
       utterance.volume = 1;
       window.speechSynthesis.speak(utterance);
     } catch {
@@ -1320,7 +1570,9 @@
   }
 
   function getMentalAudioToggleLabel() {
-    return state.mentalAudioMuted ? "Unmute audio" : "Mute audio";
+    return state.mentalAudioMuted
+      ? tr({ en: "Unmute audio", es: "Activar audio" })
+      : tr({ en: "Mute audio", es: "Silenciar audio" });
   }
 
   function getMentalAudioContext() {
@@ -1407,11 +1659,15 @@
       plays: 0,
       bestScore: 0,
       averageScore: 0,
-      lastScore: 0
+      lastScore: 0,
+      averageReactionMs: 0,
+      lastReactionMs: 0
     };
     const score = Math.max(0, parseInt(String(result.mentalScore || 0), 10) || 0);
     const plays = previous.plays + 1;
     const averageScore = Math.round(((previous.averageScore * previous.plays) + score) / plays);
+    const reactionMs = Math.max(0, parseInt(String(result.avgRT || result.averageReactionMs || 0), 10) || 0);
+    const averageReactionMs = Math.round(((previous.averageReactionMs || 0) * previous.plays + reactionMs) / plays);
     current.totalSessions += 1;
     current.totalMentalScore += score;
     current.bestMentalScore = Math.max(current.bestMentalScore, score);
@@ -1421,6 +1677,8 @@
       bestScore: Math.max(previous.bestScore, score),
       averageScore,
       lastScore: score,
+      averageReactionMs,
+      lastReactionMs: reactionMs,
       details: {
         ...result,
         updatedAt: current.lastPlayed
@@ -1433,14 +1691,17 @@
   function resetMentalScores() {
     state.mentalScores = buildDefaultMentalScores();
     persistMentalScores();
-    triggerToast("Mind & Focus progress reset.");
+    triggerToast(tr({ en: "Mind & Focus progress reset.", es: "Progreso de Mente y Enfoque reiniciado." }));
     renderMentalApp();
   }
 
   function renderMentalHome() {
     const average = getMentalAverageScore();
-    const cards = Object.entries(MENTAL_GAME_META).map(([gameKey, meta]) => {
+    const cards = Object.entries(MENTAL_GAME_META).map(([gameKey]) => {
+      const meta = getLocalizedMentalMeta(gameKey);
       const stats = getMentalGameStats(gameKey);
+      const averageLabel = getMentalAverageChipLabel(gameKey);
+      const averageValue = getMentalAverageChipValue(gameKey, stats);
       return `
         <article class="planner-mental-game-card">
           <span class="planner-mental-game-badge" style="background:${meta.gradient};color:#f8fafc;border-color:rgba(248,250,252,0.35);">
@@ -1450,14 +1711,14 @@
           <p class="small muted">${escapeHtml(meta.subtitle)}</p>
           <p class="small planner-mental-rule">${escapeHtml(meta.ruleBrief || meta.cue || "")}</p>
           <div class="planner-mental-game-meta">
-            <div class="planner-mental-chip"><span>Best</span><strong>${escapeHtml(stats.bestScore || 0)}</strong></div>
-            <div class="planner-mental-chip"><span>Last</span><strong>${escapeHtml(stats.lastScore || 0)}</strong></div>
-            <div class="planner-mental-chip"><span>Average</span><strong>${escapeHtml(stats.averageScore || 0)}</strong></div>
-            <div class="planner-mental-chip"><span>Plays</span><strong>${escapeHtml(stats.plays || 0)}</strong></div>
+            <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Best", es: "Mejor" }))}</span><strong>${escapeHtml(stats.bestScore || 0)}</strong></div>
+            <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Last", es: "Ultimo" }))}</span><strong>${escapeHtml(stats.lastScore || 0)}</strong></div>
+            <div class="planner-mental-chip"><span>${escapeHtml(averageLabel)}</span><strong>${escapeHtml(averageValue)}</strong></div>
+            <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Plays", es: "Partidas" }))}</span><strong>${escapeHtml(stats.plays || 0)}</strong></div>
           </div>
           <div class="planner-mental-actions">
-            <button type="button" class="primary" data-action="mental-open-game" data-game="${escapeHtml(gameKey)}">Play now</button>
-            <button type="button" class="ghost" data-action="mental-assign-game" data-game="${escapeHtml(gameKey)}">Assign game</button>
+            <button type="button" class="primary" data-action="mental-open-game" data-game="${escapeHtml(gameKey)}">${escapeHtml(tr({ en: "Play now", es: "Jugar ahora" }))}</button>
+            <button type="button" class="ghost" data-action="mental-assign-game" data-game="${escapeHtml(gameKey)}">${escapeHtml(tr({ en: "Assign game", es: "Asignar juego" }))}</button>
           </div>
         </article>
       `;
@@ -1467,21 +1728,21 @@
       <div class="planner-mental-grid">
         <div class="planner-mental-home-grid">
           <section class="planner-mental-hero">
-            <span class="planner-mental-game-badge">Coach + Athlete Mode</span>
-            <h4>Train the mind like you train on the mat.</h4>
-            <p class="small muted">Reaction speed, tactical reads, score memory, and adaptability. Fast rounds built for wrestling performance.</p>
+            <span class="planner-mental-game-badge">${escapeHtml(tr({ en: "Coach + Athlete Mode", es: "Modo Entrenador + Atleta" }))}</span>
+            <h4>${escapeHtml(tr({ en: "Train the mind like you train on the mat.", es: "Entrena la mente igual que entrenas en el tapiz." }))}</h4>
+            <p class="small muted">${escapeHtml(tr({ en: "Reaction speed, tactical reads, score memory, and adaptability. Fast rounds built for wrestling performance.", es: "Velocidad de reaccion, lectura tactica, memoria de puntuacion y adaptabilidad. Rondas rapidas para rendimiento en lucha." }))}</p>
             <div class="planner-mental-actions">
-              <button type="button" class="primary" data-action="mental-open-game" data-game="${escapeHtml(MENTAL_GAME_KEYS.GO_NO_GO)}">Start training</button>
-              <button type="button" class="ghost" data-action="mental-open-progress">View progress</button>
+              <button type="button" class="primary" data-action="mental-open-game" data-game="${escapeHtml(MENTAL_GAME_KEYS.GO_NO_GO)}">${escapeHtml(tr({ en: "Start training", es: "Comenzar entrenamiento" }))}</button>
+              <button type="button" class="ghost" data-action="mental-open-progress">${escapeHtml(tr({ en: "View progress", es: "Ver progreso" }))}</button>
             </div>
           </section>
           <section class="planner-mental-card">
-            <h4>Athlete Snapshot</h4>
+            <h4>${escapeHtml(tr({ en: "Athlete Snapshot", es: "Resumen del Atleta" }))}</h4>
             <div class="planner-mental-snapshot">
-              <div class="planner-mental-stat"><span>Sessions completed</span><strong>${escapeHtml(state.mentalScores.totalSessions || 0)}</strong></div>
-              <div class="planner-mental-stat"><span>Best mental score</span><strong>${escapeHtml(state.mentalScores.bestMentalScore || 0)}</strong></div>
-              <div class="planner-mental-stat"><span>Average mental score</span><strong>${escapeHtml(average)}</strong></div>
-              <div class="planner-mental-stat"><span>Games active</span><strong>${escapeHtml(Object.keys(MENTAL_GAME_META).length)}</strong></div>
+              <div class="planner-mental-stat"><span>${escapeHtml(tr({ en: "Sessions completed", es: "Sesiones completadas" }))}</span><strong>${escapeHtml(state.mentalScores.totalSessions || 0)}</strong></div>
+              <div class="planner-mental-stat"><span>${escapeHtml(tr({ en: "Best mental score", es: "Mejor puntuacion mental" }))}</span><strong>${escapeHtml(state.mentalScores.bestMentalScore || 0)}</strong></div>
+              <div class="planner-mental-stat"><span>${escapeHtml(tr({ en: "Average mental score", es: "Puntuacion mental promedio" }))}</span><strong>${escapeHtml(average)}</strong></div>
+              <div class="planner-mental-stat"><span>${escapeHtml(tr({ en: "Games active", es: "Juegos activos" }))}</span><strong>${escapeHtml(Object.keys(MENTAL_GAME_META).length)}</strong></div>
             </div>
           </section>
         </div>
@@ -1493,8 +1754,11 @@
 
   function renderMentalProgress() {
     const average = getMentalAverageScore();
-    const rows = Object.entries(MENTAL_GAME_META).map(([gameKey, meta]) => {
+    const rows = Object.entries(MENTAL_GAME_META).map(([gameKey]) => {
+      const meta = getLocalizedMentalMeta(gameKey);
       const stats = getMentalGameStats(gameKey);
+      const averageLabel = getMentalAverageChipLabel(gameKey);
+      const averageValue = getMentalAverageChipValue(gameKey, stats);
       return `
         <article class="planner-mental-card">
           <div class="planner-mental-game-header">
@@ -1502,13 +1766,13 @@
               <h4>${escapeHtml(meta.title)}</h4>
               <p class="small muted">${escapeHtml(meta.subtitle)}</p>
             </div>
-            <span class="planner-mental-game-badge">${escapeHtml(stats.plays || 0)} plays</span>
+            <span class="planner-mental-game-badge">${escapeHtml(stats.plays || 0)} ${escapeHtml(tr({ en: "plays", es: "partidas" }))}</span>
           </div>
           <div class="planner-mental-game-meta">
-            <div class="planner-mental-chip"><span>Best</span><strong>${escapeHtml(stats.bestScore || 0)}</strong></div>
-            <div class="planner-mental-chip"><span>Average</span><strong>${escapeHtml(stats.averageScore || 0)}</strong></div>
-            <div class="planner-mental-chip"><span>Last</span><strong>${escapeHtml(stats.lastScore || 0)}</strong></div>
-            <div class="planner-mental-chip"><span>Duration</span><strong>${escapeHtml(meta.duration)}s</strong></div>
+            <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Best", es: "Mejor" }))}</span><strong>${escapeHtml(stats.bestScore || 0)}</strong></div>
+            <div class="planner-mental-chip"><span>${escapeHtml(averageLabel)}</span><strong>${escapeHtml(averageValue)}</strong></div>
+            <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Last", es: "Ultimo" }))}</span><strong>${escapeHtml(stats.lastScore || 0)}</strong></div>
+            <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Duration", es: "Duracion" }))}</span><strong>${escapeHtml(meta.duration)}s</strong></div>
           </div>
         </article>
       `;
@@ -1519,19 +1783,19 @@
         <section class="planner-mental-card">
           <div class="planner-mental-game-header">
             <div>
-              <h4>Performance Overview</h4>
-              <p class="small muted">Track reaction, memory, tactical awareness, and adaptability progress.</p>
+              <h4>${escapeHtml(tr({ en: "Performance Overview", es: "Resumen de Rendimiento" }))}</h4>
+              <p class="small muted">${escapeHtml(tr({ en: "Track reaction, memory, tactical awareness, and adaptability progress.", es: "Da seguimiento al progreso en reaccion, memoria, lectura tactica y adaptabilidad." }))}</p>
             </div>
             <div class="planner-mental-actions">
-              <button type="button" class="ghost" data-action="mental-open-home">Home</button>
-              <button type="button" class="ghost" data-action="mental-reset-progress">Reset data</button>
+              <button type="button" class="ghost" data-action="mental-open-home">${escapeHtml(tr({ en: "Home", es: "Inicio" }))}</button>
+              <button type="button" class="ghost" data-action="mental-reset-progress">${escapeHtml(tr({ en: "Reset data", es: "Reiniciar datos" }))}</button>
             </div>
           </div>
           <div class="planner-mental-game-meta">
-            <div class="planner-mental-chip"><span>Total sessions</span><strong>${escapeHtml(state.mentalScores.totalSessions || 0)}</strong></div>
-            <div class="planner-mental-chip"><span>Best mental score</span><strong>${escapeHtml(state.mentalScores.bestMentalScore || 0)}</strong></div>
-            <div class="planner-mental-chip"><span>Average score</span><strong>${escapeHtml(average)}</strong></div>
-            <div class="planner-mental-chip"><span>Games tracked</span><strong>${escapeHtml(Object.keys(MENTAL_GAME_META).length)}</strong></div>
+            <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Total sessions", es: "Sesiones totales" }))}</span><strong>${escapeHtml(state.mentalScores.totalSessions || 0)}</strong></div>
+            <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Best mental score", es: "Mejor puntuacion mental" }))}</span><strong>${escapeHtml(state.mentalScores.bestMentalScore || 0)}</strong></div>
+            <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Average score", es: "Puntuacion promedio" }))}</span><strong>${escapeHtml(average)}</strong></div>
+            <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Games tracked", es: "Juegos registrados" }))}</span><strong>${escapeHtml(Object.keys(MENTAL_GAME_META).length)}</strong></div>
           </div>
         </section>
         ${renderMentalLeaderboardSection()}
@@ -1542,10 +1806,10 @@
 
   function renderMentalResult() {
     const gameKey = state.mentalActiveGame;
-    const meta = MENTAL_GAME_META[gameKey];
+    const meta = getLocalizedMentalMeta(gameKey);
     const result = state.mentalResult;
     if (!meta || !result) {
-      return `<div class="planner-mental-empty">No result available yet.</div>`;
+      return `<div class="planner-mental-empty">${escapeHtml(tr({ en: "No result available yet.", es: "Aun no hay resultado disponible." }))}</div>`;
     }
     const breakdownRows = Array.isArray(result.breakdown) ? result.breakdown : [];
     const breakdownHtml = breakdownRows.map((item) => {
@@ -1564,20 +1828,20 @@
     }).join("");
     return `
       <div class="planner-mental-result">
-        <span class="planner-mental-game-badge" style="background:${meta.gradient};color:#f8fafc;border-color:rgba(248,250,252,0.35);">Session complete</span>
+        <span class="planner-mental-game-badge" style="background:${meta.gradient};color:#f8fafc;border-color:rgba(248,250,252,0.35);">${escapeHtml(tr({ en: "Session complete", es: "Sesion completada" }))}</span>
         <h4>${escapeHtml(meta.title)}</h4>
-        <p class="small muted">${escapeHtml(result.feedback || "Solid round. Keep building consistency.")}</p>
+        <p class="small muted">${escapeHtml(result.feedback || tr({ en: "Solid round. Keep building consistency.", es: "Buena ronda. Sigue construyendo consistencia." }))}</p>
         <div class="planner-mental-game-meta">
-          <div class="planner-mental-chip"><span>Mental score</span><strong>${escapeHtml(result.mentalScore || 0)}</strong></div>
-          <div class="planner-mental-chip"><span>Accuracy</span><strong>${escapeHtml(result.accuracy || 0)}%</strong></div>
-          <div class="planner-mental-chip"><span>Speed</span><strong>${escapeHtml(result.speedScore || 0)}</strong></div>
-          <div class="planner-mental-chip"><span>Control</span><strong>${escapeHtml(result.controlScore ?? result.consistencyScore ?? 0)}</strong></div>
+          <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Mental score", es: "Puntuacion mental" }))}</span><strong>${escapeHtml(result.mentalScore || 0)}</strong></div>
+          <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Accuracy", es: "Precision" }))}</span><strong>${escapeHtml(result.accuracy || 0)}%</strong></div>
+          <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Speed", es: "Velocidad" }))}</span><strong>${escapeHtml(result.speedScore || 0)}</strong></div>
+          <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Control", es: "Control" }))}</span><strong>${escapeHtml(result.controlScore ?? result.consistencyScore ?? 0)}</strong></div>
         </div>
         <div class="planner-mental-breakdown">${breakdownHtml}</div>
         <div class="planner-mental-actions">
-          <button type="button" class="primary" data-action="mental-retry-game">Play again</button>
-          <button type="button" class="ghost" data-action="mental-assign-game" data-game="${escapeHtml(gameKey)}">Assign game</button>
-          <button type="button" class="ghost" data-action="mental-open-home">Back home</button>
+          <button type="button" class="primary" data-action="mental-retry-game">${escapeHtml(tr({ en: "Play again", es: "Jugar otra vez" }))}</button>
+          <button type="button" class="ghost" data-action="mental-assign-game" data-game="${escapeHtml(gameKey)}">${escapeHtml(tr({ en: "Assign game", es: "Asignar juego" }))}</button>
+          <button type="button" class="ghost" data-action="mental-open-home">${escapeHtml(tr({ en: "Back home", es: "Volver al inicio" }))}</button>
         </div>
       </div>
     `;
@@ -1587,7 +1851,7 @@
     return `
       <div class="planner-mental-countdown">
         <div>
-          <span class="small muted">Starting in</span>
+          <span class="small muted">${escapeHtml(tr({ en: "Starting in", es: "Comienza en" }))}</span>
           <strong>${escapeHtml(session.countdown || 0)}</strong>
           <div class="planner-mental-actions">
             <button type="button" class="ghost" data-action="mental-toggle-audio">${escapeHtml(getMentalAudioToggleLabel())}</button>
@@ -1611,7 +1875,7 @@
             <div class="planner-mental-actions">
               <span class="planner-mental-timer">${escapeHtml(session.timeLeft || 0)}s</span>
               <button type="button" class="ghost" data-action="mental-toggle-audio">${escapeHtml(getMentalAudioToggleLabel())}</button>
-              <button type="button" class="ghost" data-action="mental-exit-game">Exit</button>
+              <button type="button" class="ghost" data-action="mental-exit-game">${escapeHtml(tr({ en: "Exit", es: "Salir" }))}</button>
             </div>
           </div>
           <div class="planner-mental-progress-wrap">
@@ -1635,22 +1899,30 @@
         ? "no"
         : "wait";
     const label = session.stimulusType === "go"
-      ? "GREEN"
+      ? tr({ en: "GREEN", es: "VERDE" })
       : session.stimulusType === "no"
-        ? "RED"
-        : "WAIT";
+        ? tr({ en: "RED", es: "ROJO" })
+        : tr({ en: "WAIT", es: "ESPERA" });
     const avgReaction = session.reactionTimes?.length
       ? Math.round(session.reactionTimes.reduce((sum, value) => sum + value, 0) / session.reactionTimes.length)
       : 0;
     const content = `
-      <div class="planner-mental-stimulus ${stimulusClass}">${escapeHtml(label)}</div>
-      <button type="button" class="primary planner-mental-tap-btn" data-action="mental-go-tap">Tap</button>
+      <div
+        class="planner-mental-stimulus planner-mental-stimulus-hitbox planner-mental-go-zone ${stimulusClass}"
+        data-action="mental-go-tap"
+        role="button"
+        tabindex="0"
+        aria-label="${escapeHtml(tr({ en: "Tap anywhere in this color area", es: "Toca en cualquier parte de esta area de color" }))}"
+      >
+        <strong>${escapeHtml(label)}</strong>
+        <span class="planner-mental-go-helper">${escapeHtml(tr({ en: "Tap anywhere in the color area", es: "Toca en cualquier parte del area de color" }))}</span>
+      </div>
     `;
     const sidebar = `
-      <div class="planner-mental-chip"><span>Correct taps</span><strong>${escapeHtml(session.hits || 0)}</strong></div>
-      <div class="planner-mental-chip"><span>Missed greens</span><strong>${escapeHtml(session.misses || 0)}</strong></div>
-      <div class="planner-mental-chip"><span>False taps</span><strong>${escapeHtml(session.falseTaps || 0)}</strong></div>
-      <div class="planner-mental-chip"><span>Avg reaction</span><strong>${avgReaction ? `${escapeHtml(avgReaction)} ms` : "-"}</strong></div>
+      <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Correct taps", es: "Toques correctos" }))}</span><strong>${escapeHtml(session.hits || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Missed greens", es: "Verdes perdidos" }))}</span><strong>${escapeHtml(session.misses || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "False taps", es: "Toques falsos" }))}</span><strong>${escapeHtml(session.falseTaps || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Avg reaction", es: "Reaccion prom." }))}</span><strong>${avgReaction ? `${escapeHtml(avgReaction)} ms` : "-"}</strong></div>
     `;
     return renderMentalGameShell(meta, session, content, sidebar);
   }
@@ -1658,7 +1930,7 @@
   function renderMemoryGame(meta, session) {
     const sequenceHtml = (session.sequence || []).map((name, index) => {
       const active = session.showingSequence && index === session.showIndex;
-      return `<span class="planner-mental-seq-item${active ? " active" : ""}">${escapeHtml(name)}</span>`;
+      return `<span class="planner-mental-seq-item${active ? " active" : ""}">${escapeHtml(getMentalColorLabel(name))}</span>`;
     }).join("");
     const colorButtons = MENTAL_COLORS.map((color) => `
       <button
@@ -1667,21 +1939,21 @@
         data-action="mental-memory-tap"
         data-color="${escapeHtml(color.name)}"
         ${session.showingSequence ? "disabled" : ""}
-      >${escapeHtml(color.name)}</button>
+      >${escapeHtml(getMentalColorLabel(color.name))}</button>
     `).join("");
     const content = `
       <div class="planner-mental-actions">
-        <span class="planner-mental-game-badge">Level ${escapeHtml(session.level || 1)}</span>
-        <span class="small muted">${session.showingSequence ? "Memorize" : "Repeat"}</span>
+        <span class="planner-mental-game-badge">${escapeHtml(tr({ en: "Level", es: "Nivel" }))} ${escapeHtml(session.level || 1)}</span>
+        <span class="small muted">${escapeHtml(session.showingSequence ? tr({ en: "Memorize", es: "Memoriza" }) : tr({ en: "Repeat", es: "Repite" }))}</span>
       </div>
-      <div class="planner-mental-seq">${sequenceHtml || '<span class="small muted">Preparing sequence...</span>'}</div>
+      <div class="planner-mental-seq">${sequenceHtml || `<span class="small muted">${escapeHtml(tr({ en: "Preparing sequence...", es: "Preparando secuencia..." }))}</span>`}</div>
       <div class="planner-mental-color-grid">${colorButtons}</div>
-      <div class="planner-mental-chip"><span>Current input</span><strong>${escapeHtml((session.input || []).join(" • ") || "Waiting...")}</strong></div>
+      <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Current input", es: "Entrada actual" }))}</span><strong>${escapeHtml((session.input || []).map((value) => getMentalColorLabel(value)).join(" • ") || tr({ en: "Waiting...", es: "Esperando..." }))}</strong></div>
     `;
     const sidebar = `
-      <div class="planner-mental-chip"><span>Correct rounds</span><strong>${escapeHtml(session.correctRounds || 0)}</strong></div>
-      <div class="planner-mental-chip"><span>Wrong rounds</span><strong>${escapeHtml(session.wrongRounds || 0)}</strong></div>
-      <div class="planner-mental-chip"><span>Max level</span><strong>${escapeHtml(session.maxLevel || 1)}</strong></div>
+      <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Correct rounds", es: "Rondas correctas" }))}</span><strong>${escapeHtml(session.correctRounds || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Wrong rounds", es: "Rondas incorrectas" }))}</span><strong>${escapeHtml(session.wrongRounds || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Max level", es: "Nivel maximo" }))}</span><strong>${escapeHtml(session.maxLevel || 1)}</strong></div>
     `;
     return renderMentalGameShell(meta, session, content, sidebar);
   }
@@ -1696,15 +1968,15 @@
       : 0;
     const content = current ? `
       <div class="planner-mental-card">
-        <span class="small muted">Scenario</span>
+        <span class="small muted">${escapeHtml(tr({ en: "Scenario", es: "Escenario" }))}</span>
         <h4>${escapeHtml(current.prompt)}</h4>
       </div>
       <div class="planner-mental-options">${options}</div>
-    ` : `<div class="planner-mental-empty">Loading scenario...</div>`;
+    ` : `<div class="planner-mental-empty">${escapeHtml(tr({ en: "Loading scenario...", es: "Cargando escenario..." }))}</div>`;
     const sidebar = `
-      <div class="planner-mental-chip"><span>Questions</span><strong>${escapeHtml(session.questions || 0)}</strong></div>
-      <div class="planner-mental-chip"><span>Correct</span><strong>${escapeHtml(session.correct || 0)}</strong></div>
-      <div class="planner-mental-chip"><span>Avg time</span><strong>${averageTime ? `${escapeHtml(averageTime)} ms` : "-"}</strong></div>
+      <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Questions", es: "Preguntas" }))}</span><strong>${escapeHtml(session.questions || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Correct", es: "Correctas" }))}</span><strong>${escapeHtml(session.correct || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Avg time", es: "Tiempo prom." }))}</span><strong>${averageTime ? `${escapeHtml(averageTime)} ms` : "-"}</strong></div>
     `;
     return renderMentalGameShell(meta, session, content, sidebar);
   }
@@ -1718,8 +1990,8 @@
     `).join("");
     const sequenceBlock = `
       <div class="planner-mental-card">
-        <span class="small muted">${session.showingSequence ? "Memorize sequence" : "Score sequence (always visible)"}</span>
-        <div class="planner-mental-grid">${sequenceHtml || '<span class="small muted">Preparing sequence...</span>'}</div>
+        <span class="small muted">${escapeHtml(session.showingSequence ? tr({ en: "Memorize sequence", es: "Memoriza la secuencia" }) : tr({ en: "Score sequence (always visible)", es: "Secuencia de score (siempre visible)" }))}</span>
+        <div class="planner-mental-grid">${sequenceHtml || `<span class="small muted">${escapeHtml(tr({ en: "Preparing sequence...", es: "Preparando secuencia..." }))}</span>`}</div>
       </div>
     `;
     let content = "";
@@ -1732,18 +2004,18 @@
       content = `
         ${sequenceBlock}
         <div class="planner-mental-card">
-          <span class="small muted">Question</span>
-          <h4>Who is winning after that sequence?</h4>
+          <span class="small muted">${escapeHtml(tr({ en: "Question", es: "Pregunta" }))}</span>
+          <h4>${escapeHtml(tr({ en: "Who is winning after that sequence?", es: "Quien va ganando despues de esa secuencia?" }))}</h4>
         </div>
         <div class="planner-mental-options">${options}</div>
       `;
     } else {
-      content = `<div class="planner-mental-empty">Preparing sequence...</div>`;
+      content = `<div class="planner-mental-empty">${escapeHtml(tr({ en: "Preparing sequence...", es: "Preparando secuencia..." }))}</div>`;
     }
     const sidebar = `
-      <div class="planner-mental-chip"><span>Questions</span><strong>${escapeHtml(session.questions || 0)}</strong></div>
-      <div class="planner-mental-chip"><span>Correct</span><strong>${escapeHtml(session.correct || 0)}</strong></div>
-      <div class="planner-mental-chip"><span>Avg time</span><strong>${averageTime ? `${escapeHtml(averageTime)} ms` : "-"}</strong></div>
+      <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Questions", es: "Preguntas" }))}</span><strong>${escapeHtml(session.questions || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Correct", es: "Correctas" }))}</span><strong>${escapeHtml(session.correct || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Avg time", es: "Tiempo prom." }))}</span><strong>${averageTime ? `${escapeHtml(averageTime)} ms` : "-"}</strong></div>
     `;
     return renderMentalGameShell(meta, session, content, sidebar);
   }
@@ -1755,8 +2027,8 @@
       : 0;
     const content = `
       <div class="planner-mental-card">
-        <span class="small muted">Active rule</span>
-        <h4>${escapeHtml(session.rule?.label || "Tap the higher number")}</h4>
+        <span class="small muted">${escapeHtml(tr({ en: "Active rule", es: "Regla activa" }))}</span>
+        <h4>${escapeHtml(getMentalRuleLabel(session.rule || MENTAL_SWITCH_RULES[0]) || tr({ en: "Tap the higher number", es: "Toca el numero mas alto" }))}</h4>
       </div>
       <div class="planner-mental-switch-grid">
         <button type="button" class="primary planner-mental-switch-btn" data-action="mental-switch-choice" data-choice="left">${escapeHtml(pair[0])}</button>
@@ -1764,10 +2036,10 @@
       </div>
     `;
     const sidebar = `
-      <div class="planner-mental-chip"><span>Correct</span><strong>${escapeHtml(session.correct || 0)}</strong></div>
-      <div class="planner-mental-chip"><span>Wrong</span><strong>${escapeHtml(session.wrong || 0)}</strong></div>
-      <div class="planner-mental-chip"><span>Rule changes</span><strong>${escapeHtml(session.switches || 0)}</strong></div>
-      <div class="planner-mental-chip"><span>Avg time</span><strong>${averageTime ? `${escapeHtml(averageTime)} ms` : "-"}</strong></div>
+      <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Correct", es: "Correctas" }))}</span><strong>${escapeHtml(session.correct || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Wrong", es: "Incorrectas" }))}</span><strong>${escapeHtml(session.wrong || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Rule changes", es: "Cambios de regla" }))}</span><strong>${escapeHtml(session.switches || 0)}</strong></div>
+      <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Avg time", es: "Tiempo prom." }))}</span><strong>${averageTime ? `${escapeHtml(averageTime)} ms` : "-"}</strong></div>
     `;
     return renderMentalGameShell(meta, session, content, sidebar);
   }
@@ -1775,9 +2047,9 @@
   function renderMentalGame() {
     const session = state.mentalSession;
     const gameKey = state.mentalActiveGame;
-    const meta = MENTAL_GAME_META[gameKey];
+    const meta = getLocalizedMentalMeta(gameKey);
     if (!session || !meta) {
-      return `<div class="planner-mental-empty">No game selected.</div>`;
+      return `<div class="planner-mental-empty">${escapeHtml(tr({ en: "No game selected.", es: "No hay juego seleccionado." }))}</div>`;
     }
     if (session.phase === "countdown") {
       return renderMentalCountdown(session);
@@ -1787,7 +2059,7 @@
     if (gameKey === MENTAL_GAME_KEYS.DECISION) return renderDecisionGame(meta, session);
     if (gameKey === MENTAL_GAME_KEYS.SCORE) return renderScoreGame(meta, session);
     if (gameKey === MENTAL_GAME_KEYS.SWITCH) return renderSwitchGame(meta, session);
-    return `<div class="planner-mental-empty">Game unavailable.</div>`;
+    return `<div class="planner-mental-empty">${escapeHtml(tr({ en: "Game unavailable.", es: "Juego no disponible." }))}</div>`;
   }
 
   function renderMentalApp() {
@@ -1847,14 +2119,14 @@
       speedScore,
       controlScore,
       feedback: (session.falseTaps || 0) > 3
-        ? "Fast hands, but too impulsive. Slow down just enough to read the cue."
+        ? tr({ en: "Fast hands, but too impulsive. Slow down just enough to read the cue.", es: "Manos rapidas, pero muy impulsivo. Baja un poco para leer mejor la senal." })
         : accuracy > 80
-          ? "Strong control and sharp reactions."
-          : "Good speed, now improve visual control under pressure.",
+          ? tr({ en: "Strong control and sharp reactions.", es: "Buen control y reacciones rapidas." })
+          : tr({ en: "Good speed, now improve visual control under pressure.", es: "Buena velocidad; ahora mejora el control visual bajo presion." }),
       breakdown: [
-        { label: "Accuracy", value: accuracy },
-        { label: "Speed", value: speedScore },
-        { label: "Impulse Control", value: controlScore }
+        { label: tr({ en: "Accuracy", es: "Precision" }), value: accuracy },
+        { label: tr({ en: "Speed", es: "Velocidad" }), value: speedScore },
+        { label: tr({ en: "Impulse Control", es: "Control de impulso" }), value: controlScore }
       ]
     };
   }
@@ -1872,14 +2144,14 @@
       consistencyScore,
       controlScore: consistencyScore,
       feedback: (session.maxLevel || 1) >= 5
-        ? "Excellent memory depth under time pressure."
+        ? tr({ en: "Excellent memory depth under time pressure.", es: "Excelente profundidad de memoria bajo presion de tiempo." })
         : (session.wrongRounds || 0) > (session.correctRounds || 0)
-          ? "Good effort, reduce rushing and lock the order first."
-          : "Solid memory work. Keep pushing one level higher.",
+          ? tr({ en: "Good effort, reduce rushing and lock the order first.", es: "Buen esfuerzo; reduce la prisa y fija primero el orden." })
+          : tr({ en: "Solid memory work. Keep pushing one level higher.", es: "Buen trabajo de memoria. Sigue subiendo un nivel." }),
       breakdown: [
-        { label: "Accuracy", value: accuracy },
-        { label: "Memory Depth", value: clamp((session.maxLevel || 1) * 16, 0, 100) },
-        { label: "Consistency", value: consistencyScore }
+        { label: tr({ en: "Accuracy", es: "Precision" }), value: accuracy },
+        { label: tr({ en: "Memory Depth", es: "Profundidad de memoria" }), value: clamp((session.maxLevel || 1) * 16, 0, 100) },
+        { label: tr({ en: "Consistency", es: "Consistencia" }), value: consistencyScore }
       ]
     };
   }
@@ -1898,14 +2170,14 @@
       speedScore,
       controlScore,
       feedback: accuracy >= 80
-        ? "Strong tactical reading under pressure."
+        ? tr({ en: "Strong tactical reading under pressure.", es: "Buena lectura tactica bajo presion." })
         : avgTime < 1200
-          ? "You are deciding fast, now improve option quality."
-          : "You see the position well; commit faster to the best option.",
+          ? tr({ en: "You are deciding fast, now improve option quality.", es: "Estas decidiendo rapido; ahora mejora la calidad de la opcion." })
+          : tr({ en: "You see the position well; commit faster to the best option.", es: "Lees bien la posicion; comprometete mas rapido con la mejor opcion." }),
       breakdown: [
-        { label: "Decision Accuracy", value: accuracy },
-        { label: "Decision Speed", value: speedScore },
-        { label: "Control", value: controlScore }
+        { label: tr({ en: "Decision Accuracy", es: "Precision de decision" }), value: accuracy },
+        { label: tr({ en: "Decision Speed", es: "Velocidad de decision" }), value: speedScore },
+        { label: tr({ en: "Control", es: "Control" }), value: controlScore }
       ]
     };
   }
@@ -1925,12 +2197,12 @@
       consistencyScore,
       controlScore: consistencyScore,
       feedback: accuracy >= 75
-        ? "Excellent tactical memory. You tracked the sequence well."
-        : "Good start, track each score event with more focus.",
+        ? tr({ en: "Excellent tactical memory. You tracked the sequence well.", es: "Excelente memoria tactica. Seguiste bien la secuencia." })
+        : tr({ en: "Good start, track each score event with more focus.", es: "Buen inicio; sigue cada accion de puntuacion con mas enfoque." }),
       breakdown: [
-        { label: "Score Accuracy", value: accuracy },
-        { label: "Recall Speed", value: speedScore },
-        { label: "Consistency", value: consistencyScore }
+        { label: tr({ en: "Score Accuracy", es: "Precision de score" }), value: accuracy },
+        { label: tr({ en: "Recall Speed", es: "Velocidad de recuerdo" }), value: speedScore },
+        { label: tr({ en: "Consistency", es: "Consistencia" }), value: consistencyScore }
       ]
     };
   }
@@ -1950,14 +2222,14 @@
       speedScore,
       controlScore,
       feedback: accuracy >= 80
-        ? "Excellent adaptation between changing rules."
+        ? tr({ en: "Excellent adaptation between changing rules.", es: "Excelente adaptacion entre reglas cambiantes." })
         : (session.wrong || 0) > (session.correct || 0) / 2
-          ? "Read the rule before reacting to improve control."
-          : "Good adaptability. Keep pushing cleaner transitions.",
+          ? tr({ en: "Read the rule before reacting to improve control.", es: "Lee la regla antes de reaccionar para mejorar el control." })
+          : tr({ en: "Good adaptability. Keep pushing cleaner transitions.", es: "Buena adaptabilidad. Sigue mejorando transiciones mas limpias." }),
       breakdown: [
-        { label: "Accuracy", value: accuracy },
-        { label: "Adapt Speed", value: speedScore },
-        { label: "Rule Control", value: controlScore }
+        { label: tr({ en: "Accuracy", es: "Precision" }), value: accuracy },
+        { label: tr({ en: "Adapt Speed", es: "Velocidad de adaptacion" }), value: speedScore },
+        { label: tr({ en: "Rule Control", es: "Control de regla" }), value: controlScore }
       ]
     };
   }
@@ -2019,7 +2291,10 @@
     session.misses = 0;
     session.falseTaps = 0;
     session.reactionTimes = [];
-    speakMentalNarration("Go No-Go. Tap green. Do not tap red. Stay calm and precise.");
+    speakMentalNarration(tr({
+      en: "Go No-Go. Tap green. Do not tap red. Stay calm and precise.",
+      es: "Go No-Go. Toca verde. No toques rojo. Mantente calmado y preciso."
+    }));
 
     const spawnStimulus = () => {
       if (!isActiveMentalSession(session) || session.phase !== "playing") return;
@@ -2083,16 +2358,24 @@
     session.input = [];
     session.showIndex = -1;
     session.showingSequence = true;
-    speakMentalNarration("Memory Sequence. Memorize the color order, then repeat it exactly.");
+    speakMentalNarration(tr({
+      en: "Memory Sequence. Memorize the color order, then repeat it exactly.",
+      es: "Secuencia de Memoria. Memoriza el orden de colores y luego repitelo exactamente."
+    }));
     startMentalMemoryRound(session, 1);
   }
 
   function startMentalDecisionQuestion(session) {
     if (!isActiveMentalSession(session) || session.phase !== "playing") return;
-    const random = MENTAL_DECISION_SCENARIOS[Math.floor(Math.random() * MENTAL_DECISION_SCENARIOS.length)];
+    const localizedScenarios = MENTAL_DECISION_SCENARIOS.map((scenario) => getLocalizedDecisionScenario(scenario)).filter((scenario) => scenario.prompt && scenario.options?.length && scenario.answer);
+    const scenarios = localizedScenarios.length ? localizedScenarios : MENTAL_DECISION_SCENARIOS.map((scenario) => getLocalizedDecisionScenario(scenario));
+    const random = scenarios[Math.floor(Math.random() * scenarios.length)];
     session.currentQuestion = random;
     session.questionStartedAt = performance.now();
-    speakMentalNarration(`Quick Decision. ${random.prompt} Options: ${random.options.join(", ")}.`);
+    speakMentalNarration(tr({
+      en: `Quick Decision. ${random.prompt} Options: ${random.options.join(", ")}.`,
+      es: `Decision Rapida. ${random.prompt} Opciones: ${random.options.join(", ")}.`
+    }));
     renderMentalApp();
   }
 
@@ -2108,13 +2391,16 @@
     if (!isActiveMentalSession(session) || session.phase !== "playing") return;
     const sequenceLength = 3 + Math.floor(Math.random() * 2);
     session.sequence = Array.from({ length: sequenceLength }, () => (
-      MENTAL_SCORE_EVENTS[Math.floor(Math.random() * MENTAL_SCORE_EVENTS.length)]
+      getLocalizedScoreEvent(MENTAL_SCORE_EVENTS[Math.floor(Math.random() * MENTAL_SCORE_EVENTS.length)])
     ));
     session.showingSequence = true;
     session.question = null;
     if (session.sequence.length) {
       const sequenceCall = session.sequence.map((item, index) => `${index + 1}. ${item.text}`).join(". ");
-      speakMentalNarration(`Score Awareness. Track this sequence: ${sequenceCall}.`);
+      speakMentalNarration(tr({
+        en: `Score Awareness. Track this sequence: ${sequenceCall}.`,
+        es: `Lectura de Puntuacion. Sigue esta secuencia: ${sequenceCall}.`
+      }));
     }
     renderMentalApp();
     trackMentalTimer(setTimeout(() => {
@@ -2125,16 +2411,18 @@
         red += item.delta.red;
         green += item.delta.green;
       });
-      const answer = red === green ? "Tied" : (red > green ? `Red by ${red - green}` : `Green by ${green - red}`);
+      const answer = red === green
+        ? getMentalScoreTiedLabel()
+        : (red > green ? getMentalScoreLeadLabel("red", red - green) : getMentalScoreLeadLabel("green", green - red));
       const optionsPool = [
         answer,
-        red === green ? "Red by 1" : "Tied",
-        red > green ? `Green by ${red - green}` : `Red by ${Math.max(1, green - red)}`,
-        `Red ${red} - Green ${green}`
+        red === green ? getMentalScoreLeadLabel("red", 1) : getMentalScoreTiedLabel(),
+        red > green ? getMentalScoreLeadLabel("green", red - green) : getMentalScoreLeadLabel("red", Math.max(1, green - red)),
+        getMentalScoreExactLabel(red, green)
       ];
       const uniqueOptions = Array.from(new Set(optionsPool));
       while (uniqueOptions.length < 4) {
-        uniqueOptions.push(`Red by ${Math.max(1, uniqueOptions.length)}`);
+        uniqueOptions.push(getMentalScoreLeadLabel("red", Math.max(1, uniqueOptions.length)));
       }
       const options = shuffleList(uniqueOptions).slice(0, 4);
       if (!options.includes(answer)) options[0] = answer;
@@ -2144,7 +2432,10 @@
       };
       session.showingSequence = false;
       session.questionStartedAt = performance.now();
-      speakMentalNarration(`Who is winning after that sequence? Options: ${options.join(", ")}.`);
+      speakMentalNarration(tr({
+        en: `Who is winning after that sequence? Options: ${options.join(", ")}.`,
+        es: `Quien va ganando despues de esa secuencia? Opciones: ${options.join(", ")}.`
+      }));
       renderMentalApp();
     }, 2400));
   }
@@ -2180,7 +2471,11 @@
       }
     }
     if (force || ruleChanged) {
-      speakMentalNarration(`Rule Switch. ${session.rule?.label || "Tap the higher number"}. Left ${left}. Right ${right}.`);
+      const ruleLabel = getMentalRuleLabel(session.rule || MENTAL_SWITCH_RULES[0]) || tr({ en: "Tap the higher number", es: "Toca el numero mas alto" });
+      speakMentalNarration(tr({
+        en: `Rule Switch. ${ruleLabel}. Left ${left}. Right ${right}.`,
+        es: `Cambio de Regla. ${ruleLabel}. Izquierda ${left}. Derecha ${right}.`
+      }));
     }
     session.roundStartedAt = performance.now();
     renderMentalApp();
@@ -2241,7 +2536,8 @@
     state.mentalResult = null;
     state.mentalView = "game";
     state.mentalSession = createMentalSession(normalized);
-    speakMentalNarration(`${MENTAL_GAME_META[normalized]?.title || "Mind game"}. ${MENTAL_GAME_META[normalized]?.cue || ""}`);
+    const localizedMeta = getLocalizedMentalMeta(normalized);
+    speakMentalNarration(`${localizedMeta?.title || tr({ en: "Mind game", es: "Juego mental" })}. ${localizedMeta?.cue || ""}`);
     renderMentalApp();
     startMentalCountdown(state.mentalSession);
     focusPlannerWindow(els.mentalShell || root, { smooth: true });
@@ -2372,7 +2668,9 @@
     }
     if (action === "mental-toggle-audio") {
       setMentalAudioMuted(!state.mentalAudioMuted);
-      triggerToast(state.mentalAudioMuted ? "Mental game audio muted." : "Mental game audio enabled.");
+      triggerToast(state.mentalAudioMuted
+        ? tr({ en: "Mental game audio muted.", es: "Audio de juegos mentales silenciado." })
+        : tr({ en: "Mental game audio enabled.", es: "Audio de juegos mentales activado." }));
       renderMentalApp();
       return true;
     }
@@ -2482,7 +2780,7 @@
           data-action="lifting-switch-day"
           data-day-index="${index}"
         >
-          ${escapeHtml(day.name || `Day ${index + 1}`)}${count ? ` (${count})` : ""}
+          ${escapeHtml(day.name || tr({ en: `Day ${index + 1}`, es: `Dia ${index + 1}` }))}${count ? ` (${count})` : ""}
         </button>
       `;
     }).join("");
@@ -2493,7 +2791,7 @@
     if (!els.liftingExerciseList) return;
     const day = getActiveLiftingDay();
     if (!day || !Array.isArray(day.exercises) || !day.exercises.length) {
-      els.liftingExerciseList.innerHTML = `<p class="planner-lifting-empty">No exercises yet. Add movements from the library.</p>`;
+      els.liftingExerciseList.innerHTML = `<p class="planner-lifting-empty">${escapeHtml(tr({ en: "No exercises yet. Add movements from the library.", es: "Aun no hay ejercicios. Agrega movimientos desde la libreria." }))}</p>`;
       return;
     }
     const html = day.exercises.map((exercise) => {
@@ -2506,11 +2804,11 @@
               class="ghost"
               data-action="lifting-remove-exercise"
               data-exercise-id="${escapeHtml(exercise.id)}"
-            >Delete</button>
+            >${escapeHtml(tr({ en: "Delete", es: "Eliminar" }))}</button>
           </div>
           <div class="planner-lifting-exercise-fields">
             <label>
-              <span>Sets</span>
+              <span>${escapeHtml(tr({ en: "Sets", es: "Series" }))}</span>
               <input
                 type="text"
                 value="${escapeHtml(exercise.sets)}"
@@ -2520,7 +2818,7 @@
               >
             </label>
             <label>
-              <span>Reps</span>
+              <span>${escapeHtml(tr({ en: "Reps", es: "Reps" }))}</span>
               <input
                 type="text"
                 value="${escapeHtml(exercise.reps)}"
@@ -2580,7 +2878,7 @@
     const filtered = getFilteredLiftingLibrary();
     const categories = Object.keys(filtered);
     if (!categories.length) {
-      els.liftingLibraryGroups.innerHTML = `<p class="small muted">No matches in library.</p>`;
+      els.liftingLibraryGroups.innerHTML = `<p class="small muted">${escapeHtml(tr({ en: "No matches in library.", es: "No hay coincidencias en la libreria." }))}</p>`;
       return;
     }
     els.liftingLibraryGroups.innerHTML = categories.map((category) => {
@@ -2605,14 +2903,14 @@
 
   function formatLiftingUpdatedAt(value) {
     const date = new Date(String(value || ""));
-    if (Number.isNaN(date.getTime())) return "No date";
+    if (Number.isNaN(date.getTime())) return tr({ en: "No date", es: "Sin fecha" });
     return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
   }
 
   function renderLiftingSavedList() {
     if (!els.liftingSavedList) return;
     if (!state.liftingPlans.length) {
-      els.liftingSavedList.innerHTML = `<p class="small muted">No saved protocols yet.</p>`;
+      els.liftingSavedList.innerHTML = `<p class="small muted">${escapeHtml(tr({ en: "No saved protocols yet.", es: "Aun no hay protocolos guardados." }))}</p>`;
       return;
     }
     els.liftingSavedList.innerHTML = state.liftingPlans.map((plan) => {
@@ -2624,8 +2922,8 @@
             <p class="small muted">${escapeHtml(formatLiftingUpdatedAt(plan.updatedAt))}</p>
           </div>
           <div class="planner-inline-buttons">
-            <button type="button" class="ghost" data-action="lifting-load-plan" data-plan-id="${escapeHtml(plan.id)}">Load</button>
-            <button type="button" class="ghost" data-action="lifting-delete-plan" data-plan-id="${escapeHtml(plan.id)}">Delete</button>
+            <button type="button" class="ghost" data-action="lifting-load-plan" data-plan-id="${escapeHtml(plan.id)}">${escapeHtml(tr({ en: "Load", es: "Cargar" }))}</button>
+            <button type="button" class="ghost" data-action="lifting-delete-plan" data-plan-id="${escapeHtml(plan.id)}">${escapeHtml(tr({ en: "Delete", es: "Eliminar" }))}</button>
           </div>
         </article>
       `;
@@ -2644,7 +2942,7 @@
     }
     if (els.liftingActiveDayLabel) {
       const day = getActiveLiftingDay();
-      els.liftingActiveDayLabel.textContent = day?.name || `Day ${state.liftingActiveDay + 1}`;
+      els.liftingActiveDayLabel.textContent = day?.name || tr({ en: `Day ${state.liftingActiveDay + 1}`, es: `Dia ${state.liftingActiveDay + 1}` });
     }
   }
 
@@ -2770,10 +3068,10 @@
   function renderLiftingProgramKpis(metrics) {
     if (!els.liftingProgramKpis) return;
     const cards = [
-      { label: "Total exercises", value: String(metrics.totalExercises) },
-      { label: "Active days", value: `${metrics.activeDays}/7` },
-      { label: "Total sets", value: String(Math.round(metrics.totalSets)) },
-      { label: "Volume reps", value: String(Math.round(metrics.totalVolume)) }
+      { label: tr({ en: "Total exercises", es: "Ejercicios totales" }), value: String(metrics.totalExercises) },
+      { label: tr({ en: "Active days", es: "Dias activos" }), value: `${metrics.activeDays}/7` },
+      { label: tr({ en: "Total sets", es: "Series totales" }), value: String(Math.round(metrics.totalSets)) },
+      { label: tr({ en: "Volume reps", es: "Volumen reps" }), value: String(Math.round(metrics.totalVolume)) }
     ];
     els.liftingProgramKpis.innerHTML = cards.map((card) => {
       return `
@@ -2788,7 +3086,7 @@
   function renderLiftingProgramDayChart(metrics) {
     if (!els.liftingProgramDayChart) return;
     if (!metrics.totalExercises) {
-      els.liftingProgramDayChart.innerHTML = `<p class="planner-lifting-program-empty">Add exercises and save the protocol to view day-by-day load.</p>`;
+      els.liftingProgramDayChart.innerHTML = `<p class="planner-lifting-program-empty">${escapeHtml(tr({ en: "Add exercises and save the protocol to view day-by-day load.", es: "Agrega ejercicios y guarda el protocolo para ver la carga por dia." }))}</p>`;
       return;
     }
     els.liftingProgramDayChart.innerHTML = metrics.dayRows.map((day) => {
@@ -2797,7 +3095,7 @@
         <div class="planner-lifting-program-bar">
           <div class="planner-lifting-program-bar-head">
             <span>${escapeHtml(day.name)}</span>
-            <span>${Math.round(day.totalVolume)} reps-load</span>
+            <span>${Math.round(day.totalVolume)} ${escapeHtml(tr({ en: "reps-load", es: "reps-carga" }))}</span>
           </div>
           <div class="planner-lifting-program-bar-track">
             <div class="planner-lifting-program-bar-fill" style="width:${percent}%"></div>
@@ -2810,7 +3108,7 @@
   function renderLiftingProgramCategoryChart(metrics) {
     if (!els.liftingProgramCategoryChart) return;
     if (!metrics.categoryRows.length) {
-      els.liftingProgramCategoryChart.innerHTML = `<p class="planner-lifting-program-empty">Category distribution will appear after adding exercises.</p>`;
+      els.liftingProgramCategoryChart.innerHTML = `<p class="planner-lifting-program-empty">${escapeHtml(tr({ en: "Category distribution will appear after adding exercises.", es: "La distribucion por categoria aparecera luego de agregar ejercicios." }))}</p>`;
       return;
     }
     els.liftingProgramCategoryChart.innerHTML = metrics.categoryRows.slice(0, 6).map((row) => {
@@ -2835,12 +3133,12 @@
     els.liftingProgramIntensity.innerHTML = `
       <div class="planner-lifting-intensity-main">
         <strong>${avg}</strong>
-        <span>Average intensity</span>
+        <span>${escapeHtml(tr({ en: "Average intensity", es: "Intensidad promedio" }))}</span>
       </div>
       <div class="planner-lifting-intensity-breakdown">
-        <div class="planner-lifting-intensity-breakdown-row"><span>Low (&lt;65%)</span><span>${metrics.intensityBuckets.low}</span></div>
-        <div class="planner-lifting-intensity-breakdown-row"><span>Moderate (65-80%)</span><span>${metrics.intensityBuckets.moderate}</span></div>
-        <div class="planner-lifting-intensity-breakdown-row"><span>High (&gt;80%)</span><span>${metrics.intensityBuckets.high}</span></div>
+        <div class="planner-lifting-intensity-breakdown-row"><span>${escapeHtml(tr({ en: "Low (<65%)", es: "Baja (<65%)" }))}</span><span>${metrics.intensityBuckets.low}</span></div>
+        <div class="planner-lifting-intensity-breakdown-row"><span>${escapeHtml(tr({ en: "Moderate (65-80%)", es: "Moderada (65-80%)" }))}</span><span>${metrics.intensityBuckets.moderate}</span></div>
+        <div class="planner-lifting-intensity-breakdown-row"><span>${escapeHtml(tr({ en: "High (>80%)", es: "Alta (>80%)" }))}</span><span>${metrics.intensityBuckets.high}</span></div>
       </div>
     `;
   }
@@ -2848,8 +3146,11 @@
   function renderLiftingProgramBlueprint() {
     const metrics = buildLiftingBlueprintMetrics();
     if (els.liftingProgramMeta) {
-      const updatedLabel = metrics.plan.updatedAt ? formatLiftingUpdatedAt(metrics.plan.updatedAt) : "No date";
-      els.liftingProgramMeta.textContent = `${metrics.plan.name} • Weeks ${metrics.plan.weeks || "--"} • Updated ${updatedLabel}`;
+      const updatedLabel = metrics.plan.updatedAt ? formatLiftingUpdatedAt(metrics.plan.updatedAt) : tr({ en: "No date", es: "Sin fecha" });
+      els.liftingProgramMeta.textContent = tr({
+        en: `${metrics.plan.name} • Weeks ${metrics.plan.weeks || "--"} • Updated ${updatedLabel}`,
+        es: `${metrics.plan.name} • Semanas ${metrics.plan.weeks || "--"} • Actualizado ${updatedLabel}`
+      });
     }
     renderLiftingProgramKpis(metrics);
     renderLiftingProgramDayChart(metrics);
@@ -2959,7 +3260,7 @@
   function addLiftingCategory() {
     const value = String(els.liftingNewCategoryInput?.value || "").trim();
     if (!value) {
-      setLiftingStatus("Enter a category name first.", true);
+      setLiftingStatus(tr({ en: "Enter a category name first.", es: "Ingresa primero un nombre de categoria." }), true);
       return;
     }
     if (!state.liftingLibrary[value]) {
@@ -2970,18 +3271,18 @@
     if (els.liftingNewCategoryInput) els.liftingNewCategoryInput.value = "";
     renderLiftingCategorySelect();
     renderLiftingLibraryGroups();
-    setLiftingStatus(`Category added: ${value}`);
+    setLiftingStatus(tr({ en: `Category added: ${value}`, es: `Categoria agregada: ${value}` }));
   }
 
   function addLiftingExerciseToLibrary() {
     const exercise = String(els.liftingNewExerciseInput?.value || "").trim();
     const category = String(els.liftingCategorySelect?.value || "").trim();
     if (!exercise) {
-      setLiftingStatus("Enter an exercise name first.", true);
+      setLiftingStatus(tr({ en: "Enter an exercise name first.", es: "Ingresa primero un nombre de ejercicio." }), true);
       return;
     }
     if (!category) {
-      setLiftingStatus("Select a category first.", true);
+      setLiftingStatus(tr({ en: "Select a category first.", es: "Selecciona primero una categoria." }), true);
       return;
     }
     if (!state.liftingLibrary[category]) {
@@ -2996,7 +3297,7 @@
     if (els.liftingNewExerciseInput) els.liftingNewExerciseInput.value = "";
     renderLiftingLibraryGroups();
     renderLiftingOverview();
-    setLiftingStatus(`Exercise added to ${category}.`);
+    setLiftingStatus(tr({ en: `Exercise added to ${category}.`, es: `Ejercicio agregado a ${category}.` }));
   }
 
   function loadLiftingPlanFromList(planId) {
@@ -3004,7 +3305,7 @@
     if (!safeId) return;
     const record = state.liftingPlans.find((entry) => entry.id === safeId);
     if (!record) {
-      setLiftingStatus("Protocol not found.", true);
+      setLiftingStatus(tr({ en: "Protocol not found.", es: "Protocolo no encontrado." }), true);
       return;
     }
     const normalized = normalizeLiftingPlan(record);
@@ -3014,13 +3315,13 @@
     persistLiftingPlanLocal();
     persistLiftingUiLocal();
     renderLiftingLab();
-    setLiftingStatus(`Loaded protocol: ${normalized.name}`);
+    setLiftingStatus(tr({ en: `Loaded protocol: ${normalized.name}`, es: `Protocolo cargado: ${normalized.name}` }));
   }
 
   async function saveLiftingProtocol() {
     const name = String(state.liftingPlan.name || "").trim();
     if (!name) {
-      setLiftingStatus("Protocol name is required.", true);
+      setLiftingStatus(tr({ en: "Protocol name is required.", es: "El nombre del protocolo es obligatorio." }), true);
       return;
     }
     if (state.liftingBusy) return;
@@ -3048,13 +3349,13 @@
       state.liftingPlans.sort((left, right) => Number(new Date(right.updatedAt || 0)) - Number(new Date(left.updatedAt || 0)));
       renderLiftingSavedList();
       renderLiftingOverview();
-      setLiftingStatus(`Saved protocol: ${payload.name}`);
-      triggerToast("Lifting protocol saved.");
+      setLiftingStatus(tr({ en: `Saved protocol: ${payload.name}`, es: `Protocolo guardado: ${payload.name}` }));
+      triggerToast(tr({ en: "Lifting protocol saved.", es: "Protocolo de lifting guardado." }));
       setLiftingTab("program");
       focusPlannerWindow(root, { smooth: true });
     } catch (err) {
       console.warn("Failed to save lifting protocol", err);
-      setLiftingStatus("Could not save protocol right now.", true);
+      setLiftingStatus(tr({ en: "Could not save protocol right now.", es: "No se pudo guardar el protocolo ahora." }), true);
     } finally {
       state.liftingBusy = false;
       if (els.liftingSaveProtocolBtn) els.liftingSaveProtocolBtn.disabled = false;
@@ -3076,10 +3377,10 @@
         persistLiftingPlanLocal();
       }
       renderLiftingLab();
-      setLiftingStatus("Protocol deleted.");
+      setLiftingStatus(tr({ en: "Protocol deleted.", es: "Protocolo eliminado." }));
     } catch (err) {
       console.warn("Failed to delete lifting protocol", err);
-      setLiftingStatus("Could not delete protocol right now.", true);
+      setLiftingStatus(tr({ en: "Could not delete protocol right now.", es: "No se pudo eliminar el protocolo ahora." }), true);
     }
   }
 
@@ -3215,8 +3516,90 @@
     return new Date().toISOString();
   }
 
+  function getPlannerLang() {
+    try {
+      if (typeof currentLang === "string" && currentLang) {
+        return String(currentLang).toLowerCase().startsWith("es") ? "es" : "en";
+      }
+    } catch {
+      // fall through
+    }
+    const profile = getPlannerProfile() || {};
+    return String(profile?.lang || "en").toLowerCase().startsWith("es") ? "es" : "en";
+  }
+
+  function tr(copy = {}) {
+    if (typeof copy === "string") return copy;
+    const lang = getPlannerLang();
+    if (lang === "es") return String(copy.es || copy.en || "").trim();
+    return String(copy.en || copy.es || "").trim();
+  }
+
   function getTodayDateKey() {
     return new Date().toISOString().slice(0, 10);
+  }
+
+  function dateFromDateKey(value) {
+    const safeKey = normalizeDateKeyValue(value || getTodayDateKey());
+    const date = new Date(`${safeKey}T00:00:00`);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function dateToDateKey(value) {
+    if (!(value instanceof Date) || Number.isNaN(value.getTime())) return getTodayDateKey();
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function getWeekStartDateKey(value) {
+    const date = dateFromDateKey(value || getTodayDateKey());
+    if (!date) return getTodayDateKey();
+    const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    start.setDate(start.getDate() - start.getDay());
+    return dateToDateKey(start);
+  }
+
+  function addDaysToDateKey(value, days = 0) {
+    const date = dateFromDateKey(value || getTodayDateKey());
+    if (!date) return getTodayDateKey();
+    const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    next.setDate(next.getDate() + (Number(days) || 0));
+    return dateToDateKey(next);
+  }
+
+  function normalizeAssignWeekCount(value) {
+    const parsed = parseInt(String(value || 1), 10);
+    if (Number.isNaN(parsed)) return 1;
+    return clamp(parsed, 1, 12);
+  }
+
+  function isWrestlingWeeklyMode() {
+    return getAssignContextTrack() === "wrestling" && state.assignScheduleMode === "week";
+  }
+
+  function getWeeklyScheduleWindow(anchorDateKey = state.assignDueDate || getTodayDateKey(), weekCount = state.assignWeekCount) {
+    const safeWeekCount = normalizeAssignWeekCount(weekCount);
+    const startKey = getWeekStartDateKey(anchorDateKey);
+    const endKey = addDaysToDateKey(startKey, (safeWeekCount * 7) - 1);
+    return {
+      startKey,
+      endKey,
+      weekCount: safeWeekCount
+    };
+  }
+
+  function getWeeklyScheduleLabel(windowValue) {
+    const safeWindow = windowValue && typeof windowValue === "object" ? windowValue : getWeeklyScheduleWindow();
+    const weekNoun = tr({
+      en: safeWindow.weekCount === 1 ? "week" : "weeks",
+      es: safeWindow.weekCount === 1 ? "semana" : "semanas"
+    });
+    return tr({
+      en: `Sun-Sat range: ${formatDateLabel(safeWindow.startKey)} to ${formatDateLabel(safeWindow.endKey)} (${safeWindow.weekCount} ${weekNoun})`,
+      es: `Rango Dom-Sab: ${formatDateLabel(safeWindow.startKey)} a ${formatDateLabel(safeWindow.endKey)} (${safeWindow.weekCount} ${weekNoun})`
+    });
   }
 
   function normalizeDateKeyValue(value) {
@@ -3248,9 +3631,12 @@
 
   function getBottomStatusDefaultMessage() {
     if (state.activeTemplateName) {
-      return `Editing template: ${state.activeTemplateName}`;
+      return `${tr({ en: "Editing template", es: "Editando plantilla" })}: ${state.activeTemplateName}`;
     }
-    return "Save as template or share this plan with athletes and coaches.";
+    return tr({
+      en: "Save as template or share this plan with athletes and coaches.",
+      es: "Guarda como plantilla o comparte este plan con atletas y entrenadores."
+    });
   }
 
   function setAssignStatus(message, isError = false) {
@@ -3401,9 +3787,9 @@
 
   function formatTemplateUpdatedLabel(record) {
     const raw = record?.updatedAt || record?.createdAt || "";
-    if (!raw) return "No date";
+    if (!raw) return tr({ en: "No date", es: "Sin fecha" });
     const date = new Date(raw);
-    if (Number.isNaN(date.getTime())) return "No date";
+    if (Number.isNaN(date.getTime())) return tr({ en: "No date", es: "Sin fecha" });
     return date.toLocaleString(undefined, {
       month: "short",
       day: "numeric",
@@ -3422,7 +3808,7 @@
   function renderTemplateList() {
     if (!els.templatesList) return;
     if (!state.templateRecords.length) {
-      els.templatesList.innerHTML = `<p class="small muted">No templates found yet.</p>`;
+      els.templatesList.innerHTML = `<p class="small muted">${escapeHtml(tr({ en: "No templates found yet.", es: "Todavia no hay plantillas." }))}</p>`;
       return;
     }
     const html = state.templateRecords.map((template) => {
@@ -3431,14 +3817,14 @@
         <article class="planner-template-card${isActive ? " active" : ""}">
           <div>
             <strong>${escapeHtml(template.name)}</strong>
-            <p class="small muted">Updated: ${escapeHtml(formatTemplateUpdatedLabel(template))}</p>
+            <p class="small muted">${escapeHtml(tr({ en: "Updated", es: "Actualizado" }))}: ${escapeHtml(formatTemplateUpdatedLabel(template))}</p>
           </div>
           <button
             type="button"
             class="primary"
             data-action="load-template-record"
             data-template-id="${escapeHtml(template.id)}"
-          >Load</button>
+          >${escapeHtml(tr({ en: "Load", es: "Cargar" }))}</button>
         </article>
       `;
     }).join("");
@@ -3450,11 +3836,11 @@
     if (!templatesRef) {
       state.templateRecords = [];
       renderTemplateList();
-      setTemplatesStatus("Template storage is not available.", true);
+      setTemplatesStatus(tr({ en: "Template storage is not available.", es: "El almacenamiento de plantillas no esta disponible." }), true);
       return;
     }
     try {
-      setTemplatesStatus("Loading templates...");
+      setTemplatesStatus(tr({ en: "Loading templates...", es: "Cargando plantillas..." }));
       const snap = await templatesRef.get();
       state.templateRecords = snap.docs
         .map((doc) => normalizePlannerTemplateRecord(doc.id, doc.data() || {}))
@@ -3465,12 +3851,14 @@
           return rightDate - leftDate;
         });
       renderTemplateList();
-      setTemplatesStatus(state.templateRecords.length ? `${state.templateRecords.length} templates loaded.` : "No templates found.");
+      setTemplatesStatus(state.templateRecords.length
+        ? tr({ en: `${state.templateRecords.length} templates loaded.`, es: `${state.templateRecords.length} plantillas cargadas.` })
+        : tr({ en: "No templates found.", es: "No se encontraron plantillas." }));
     } catch (err) {
       console.warn("Failed to load planner templates", err);
       state.templateRecords = [];
       renderTemplateList();
-      setTemplatesStatus("Could not load templates right now.", true);
+      setTemplatesStatus(tr({ en: "Could not load templates right now.", es: "No se pudieron cargar las plantillas ahora." }), true);
     }
   }
 
@@ -3488,7 +3876,7 @@
     const targetId = String(templateId || "").trim();
     const template = state.templateRecords.find((record) => record.id === targetId);
     if (!template) {
-      setTemplatesStatus("Template not found.", true);
+      setTemplatesStatus(tr({ en: "Template not found.", es: "Plantilla no encontrada." }), true);
       return;
     }
     state.activeTemplateId = template.id;
@@ -3503,13 +3891,16 @@
     persistCategoryNames();
     render();
     closeTemplatesModal();
-    triggerToast(`Template loaded: ${template.name}`);
-    setBottomStatus(`Loaded template: ${template.name}`);
+    triggerToast(tr({ en: `Template loaded: ${template.name}`, es: `Plantilla cargada: ${template.name}` }));
+    setBottomStatus(tr({ en: `Loaded template: ${template.name}`, es: `Plantilla cargada: ${template.name}` }));
   }
 
   function getPlannerTitle() {
     const dateKey = normalizeDateKeyValue(state.docInfo.date || getTodayDateKey());
-    return `Daily Training Plan - ${formatDateLabel(dateKey)}`;
+    return tr({
+      en: `Daily Training Plan - ${formatDateLabel(dateKey)}`,
+      es: `Plan diario de entrenamiento - ${formatDateLabel(dateKey)}`
+    });
   }
 
   function getAssignContextTrack() {
@@ -3520,30 +3911,30 @@
   function getAssignContextMeta(track = getAssignContextTrack(), mentalGameKey = state.assignContext?.mentalGameKey || "") {
     if (track === "lifting") {
       return {
-        modalTitle: "Share lifting plan",
-        sendLabel: "Share lifting",
-        sendingLabel: "Sharing lifting...",
-        statusHint: "Choose recipients for the lifting plan.",
-        successNoun: "Lifting plan"
+        modalTitle: tr({ en: "Share lifting plan", es: "Compartir plan de lifting" }),
+        sendLabel: tr({ en: "Share lifting", es: "Compartir lifting" }),
+        sendingLabel: tr({ en: "Sharing lifting...", es: "Compartiendo lifting..." }),
+        statusHint: tr({ en: "Choose recipients for the lifting plan.", es: "Selecciona destinatarios para el plan de lifting." }),
+        successNoun: tr({ en: "Lifting plan", es: "Plan de lifting" })
       };
     }
     if (track === "mental") {
       const key = String(mentalGameKey || "").trim().toLowerCase();
-      const gameMeta = MENTAL_GAME_META[key] || MENTAL_GAME_META[MENTAL_GAME_KEYS.GO_NO_GO];
+      const gameMeta = getLocalizedMentalMeta(key || MENTAL_GAME_KEYS.GO_NO_GO);
       return {
-        modalTitle: `Assign mind task: ${gameMeta.title}`,
-        sendLabel: "Assign game",
-        sendingLabel: "Assigning game...",
-        statusHint: "Choose recipients for this mind & focus game.",
-        successNoun: "Mind task"
+        modalTitle: `${tr({ en: "Assign mind task", es: "Asignar tarea mental" })}: ${gameMeta.title}`,
+        sendLabel: tr({ en: "Assign game", es: "Asignar juego" }),
+        sendingLabel: tr({ en: "Assigning game...", es: "Asignando juego..." }),
+        statusHint: tr({ en: "Choose recipients for this mind & focus game.", es: "Selecciona destinatarios para este juego de mente y enfoque." }),
+        successNoun: tr({ en: "Mind task", es: "Tarea mental" })
       };
     }
     return {
-      modalTitle: "Share wrestling plan",
-      sendLabel: "Share plan",
-      sendingLabel: "Sharing...",
-      statusHint: "Choose recipients, then share.",
-      successNoun: "Wrestling plan"
+      modalTitle: tr({ en: "Share wrestling plan", es: "Compartir plan de lucha" }),
+      sendLabel: tr({ en: "Share plan", es: "Compartir plan" }),
+      sendingLabel: tr({ en: "Sharing...", es: "Compartiendo..." }),
+      statusHint: tr({ en: "Choose recipients, then share.", es: "Selecciona destinatarios y luego comparte." }),
+      successNoun: tr({ en: "Wrestling plan", es: "Plan de lucha" })
     };
   }
 
@@ -3552,6 +3943,33 @@
     if (els.assignTitle) els.assignTitle.textContent = meta.modalTitle;
     if (els.assignSendBtn && !state.assignModalBusy) {
       els.assignSendBtn.textContent = meta.sendLabel;
+    }
+    const isWrestling = getAssignContextTrack() === "wrestling";
+    const isWeekly = isWrestling && state.assignScheduleMode === "week";
+    els.assignScheduleModeWrapper?.classList.toggle("hidden", !isWrestling);
+    els.assignWeekCountWrapper?.classList.toggle("hidden", !isWeekly);
+    if (els.assignScheduleModeInput) {
+      els.assignScheduleModeInput.value = isWrestling ? state.assignScheduleMode : "day";
+    }
+    if (els.assignWeekCountInput) {
+      els.assignWeekCountInput.value = String(normalizeAssignWeekCount(state.assignWeekCount));
+    }
+    if (els.assignDueDateLabel) {
+      els.assignDueDateLabel.textContent = isWeekly
+        ? tr({ en: "Week start date", es: "Fecha de inicio de semana" })
+        : tr({ en: "Due date", es: "Fecha de entrega" });
+    }
+    if (els.assignWeekHint) {
+      if (!isWrestling) {
+        els.assignWeekHint.textContent = tr({ en: "Choose recipients, then share.", es: "Selecciona destinatarios y luego comparte." });
+      } else if (isWeekly) {
+        els.assignWeekHint.textContent = getWeeklyScheduleLabel();
+      } else {
+        els.assignWeekHint.textContent = tr({
+          en: "Single-day assignment. Switch to Weekly to repeat this plan for multiple weeks.",
+          es: "Asignacion de un dia. Cambia a Semanal para repetir este plan varias semanas."
+        });
+      }
     }
   }
 
@@ -3578,12 +3996,18 @@
     const safeDay = day || getActiveLiftingDay();
     const exerciseLines = getLiftingDayExerciseLines(safeDay);
     return {
-      intro: [`Cycle: ${state.liftingPlan.name || "Lifting cycle"}`],
+      intro: [tr({
+        en: `Cycle: ${state.liftingPlan.name || "Lifting cycle"}`,
+        es: `Ciclo: ${state.liftingPlan.name || "Ciclo de lifting"}`
+      })],
       warmup: [String(state.liftingPlan.purpose || "").trim()].filter(Boolean),
-      drills: exerciseLines.length ? exerciseLines : ["Coach will update exercise blocks."],
+      drills: exerciseLines.length ? exerciseLines : [tr({ en: "Coach will update exercise blocks.", es: "El entrenador actualizara los bloques de ejercicios." })],
       live: [],
       cooldown: [String(state.liftingPlan.benefits || "").trim()].filter(Boolean),
-      announcements: [`Assigned day: ${safeDay?.name || `Day ${state.liftingActiveDay + 1}`}`]
+      announcements: [tr({
+        en: `Assigned day: ${safeDay?.name || `Day ${state.liftingActiveDay + 1}`}`,
+        es: `Dia asignado: ${safeDay?.name || `Dia ${state.liftingActiveDay + 1}`}`
+      })]
     };
   }
 
@@ -3614,12 +4038,14 @@
         || athlete.recipientEmail.toLowerCase().includes(filter);
     });
     if (!filtered.length) {
-      els.assignList.innerHTML = `<p class="small muted">No recipients found.</p>`;
+      els.assignList.innerHTML = `<p class="small muted">${escapeHtml(tr({ en: "No recipients found.", es: "No se encontraron destinatarios." }))}</p>`;
       return;
     }
     const html = filtered.map((athlete) => {
       const isSelected = state.selectedAthleteIds.includes(athlete.id);
-      const roleLabel = athlete.recipientType === "coach" ? "Coach" : "Athlete";
+      const roleLabel = athlete.recipientType === "coach"
+        ? tr({ en: "Coach", es: "Entrenador" })
+        : tr({ en: "Athlete", es: "Atleta" });
       return `
         <button
           type="button"
@@ -3641,12 +4067,12 @@
       state.assignAthletes = [];
       state.selectedAthleteIds = [];
       renderAssignAthleteList();
-      setAssignStatus("Planner recipients are not available right now.", true);
+      setAssignStatus(tr({ en: "Planner recipients are not available right now.", es: "Los destinatarios del planificador no estan disponibles ahora." }), true);
       return;
     }
 
     try {
-      setAssignStatus("Loading recipients...");
+      setAssignStatus(tr({ en: "Loading recipients...", es: "Cargando destinatarios..." }));
       const snap = await athletesRef.get();
       let athleteRecords = snap.docs
         .map((doc) => normalizeRecipientRecord(doc.id, doc.data() || {}, "athlete"))
@@ -3693,24 +4119,35 @@
       state.selectedAthleteIds = state.selectedAthleteIds.filter((athleteId) => records.some((item) => item.id === athleteId));
       renderAssignAthleteList();
       if (!records.length) {
-        setAssignStatus("No recipients available yet. Register users first.");
+        setAssignStatus(tr({ en: "No recipients available yet. Register users first.", es: "Aun no hay destinatarios. Registra usuarios primero." }));
       } else {
         const athletesCount = records.filter((record) => record.recipientType === "athlete").length;
         const coachesCount = records.filter((record) => record.recipientType === "coach").length;
-        setAssignStatus(`${athletesCount} athletes + ${coachesCount} coaches available.`);
+        setAssignStatus(tr({
+          en: `${athletesCount} athletes + ${coachesCount} coaches available.`,
+          es: `${athletesCount} atletas + ${coachesCount} entrenadores disponibles.`
+        }));
       }
     } catch (err) {
       console.warn("Failed to load recipients for planner assignment", err);
       state.assignAthletes = [];
       state.selectedAthleteIds = [];
       renderAssignAthleteList();
-      setAssignStatus("Could not load recipients. Try again.", true);
+      setAssignStatus(tr({ en: "Could not load recipients. Try again.", es: "No se pudieron cargar los destinatarios. Intenta de nuevo." }), true);
     }
   }
 
   function openAssignModal(options = {}) {
     const nextTrack = normalizeTrack(options.track || state.activeTrack || "wrestling");
     const nextMentalGameKey = String(options.mentalGameKey || "").trim().toLowerCase();
+    if (nextTrack !== "wrestling") {
+      state.assignScheduleMode = "day";
+      state.assignWeekCount = 1;
+    } else {
+      const requestedMode = String(options.scheduleMode || state.assignScheduleMode || "day").trim().toLowerCase();
+      state.assignScheduleMode = requestedMode === "week" ? "week" : "day";
+      state.assignWeekCount = normalizeAssignWeekCount(options.weekCount || state.assignWeekCount || 1);
+    }
     state.assignContext = {
       track: nextTrack,
       mentalGameKey: nextTrack === "mental"
@@ -3720,7 +4157,10 @@
     const dueSeed = nextTrack === "wrestling"
       ? (state.docInfo.date || getTodayDateKey())
       : getTodayDateKey();
-    const nextDue = normalizeDateKeyValue(dueSeed);
+    let nextDue = normalizeDateKeyValue(options.dueDate || state.assignDueDate || dueSeed);
+    if (nextTrack === "wrestling" && state.assignScheduleMode === "week") {
+      nextDue = getWeekStartDateKey(nextDue);
+    }
     state.assignDueDate = nextDue;
     state.assignSearch = "";
     if (els.assignDueDateInput) els.assignDueDateInput.value = nextDue;
@@ -3740,7 +4180,7 @@
     if (state.templateSaveBusy || state.assignModalBusy) return;
     const templatesRef = getPlannerWorkspaceCollectionRef("templates");
     if (!templatesRef) {
-      setBottomStatus("Template storage is not available.", true);
+      setBottomStatus(tr({ en: "Template storage is not available.", es: "El almacenamiento de plantillas no esta disponible." }), true);
       return;
     }
 
@@ -3749,7 +4189,10 @@
     let defaultName = `Template - ${formatDateLabel(state.docInfo.date || getTodayDateKey())}`;
 
     if (state.activeTemplateId) {
-      const useCurrent = window.confirm(`Save changes to current template "${state.activeTemplateName}"?\nPress Cancel to save as a new template.`);
+      const useCurrent = window.confirm(tr({
+        en: `Save changes to current template "${state.activeTemplateName}"?\nPress Cancel to save as a new template.`,
+        es: `Guardar cambios en la plantilla actual "${state.activeTemplateName}"?\nPresiona Cancelar para guardar como una plantilla nueva.`
+      }));
       if (useCurrent) {
         saveAsNew = false;
         targetId = state.activeTemplateId;
@@ -3759,12 +4202,14 @@
       }
     }
 
-    const namePrompt = saveAsNew ? "Template name (new)" : "Template name";
+    const namePrompt = saveAsNew
+      ? tr({ en: "Template name (new)", es: "Nombre de plantilla (nueva)" })
+      : tr({ en: "Template name", es: "Nombre de plantilla" });
     const nextName = window.prompt(namePrompt, defaultName);
     if (nextName == null) return;
     const cleanName = String(nextName || "").trim();
     if (!cleanName) {
-      setBottomStatus("Template name is required.", true);
+      setBottomStatus(tr({ en: "Template name is required.", es: "El nombre de la plantilla es obligatorio." }), true);
       return;
     }
 
@@ -3797,16 +4242,16 @@
       state.activeTemplateName = cleanName;
       state.lastSavedTemplateId = ref.id;
       const message = saveAsNew
-        ? `Template saved as new: ${cleanName}`
-        : `Template updated: ${cleanName}`;
+        ? tr({ en: `Template saved as new: ${cleanName}`, es: `Plantilla guardada como nueva: ${cleanName}` })
+        : tr({ en: `Template updated: ${cleanName}`, es: `Plantilla actualizada: ${cleanName}` });
       setBottomStatus(message);
-      triggerToast("Template saved.");
+      triggerToast(tr({ en: "Template saved.", es: "Plantilla guardada." }));
       if (!els.templatesModal?.classList.contains("hidden")) {
         loadPlannerTemplates().catch(() => {});
       }
     } catch (err) {
       console.warn("Failed to save planner template", err);
-      setBottomStatus("Could not save template.", true);
+      setBottomStatus(tr({ en: "Could not save template.", es: "No se pudo guardar la plantilla." }), true);
     } finally {
       state.templateSaveBusy = false;
     }
@@ -3816,7 +4261,7 @@
     if (state.assignModalBusy) return;
     const selected = state.assignAthletes.filter((athlete) => state.selectedAthleteIds.includes(athlete.id));
     if (!selected.length) {
-      setAssignStatus("Select at least one recipient.", true);
+      setAssignStatus(tr({ en: "Select at least one recipient.", es: "Selecciona al menos un destinatario." }), true);
       return;
     }
 
@@ -3826,7 +4271,7 @@
     const assignmentsRef = getPlannerWorkspaceCollectionRef("assignments");
     const needsPlanDoc = contextTrack !== "mental";
     if ((!plansRef && needsPlanDoc) || !assignmentsRef || typeof firebaseFirestoreInstance === "undefined" || !firebaseFirestoreInstance) {
-      setAssignStatus("Plan/assignment storage is not available.", true);
+      setAssignStatus(tr({ en: "Plan/assignment storage is not available.", es: "El almacenamiento de planes/asignaciones no esta disponible." }), true);
       return;
     }
 
@@ -3835,9 +4280,31 @@
       els.assignSendBtn.disabled = true;
       els.assignSendBtn.textContent = contextMeta.sendingLabel;
     }
-    setAssignStatus("Saving assignments...");
+    setAssignStatus(tr({ en: "Saving assignments...", es: "Guardando asignaciones..." }));
 
-    const dueDateKey = normalizeDateKeyValue(state.assignDueDate || getTodayDateKey());
+    const scheduleTrack = getAssignContextTrack();
+    const weeklyMode = scheduleTrack === "wrestling" && state.assignScheduleMode === "week";
+    let dueDateKey = normalizeDateKeyValue(state.assignDueDate || getTodayDateKey());
+    let dueLabel = formatDateLabel(dueDateKey);
+    let wrestlingWindow = null;
+    if (weeklyMode) {
+      wrestlingWindow = getWeeklyScheduleWindow(dueDateKey, state.assignWeekCount);
+      dueDateKey = wrestlingWindow.endKey;
+      dueLabel = getWeeklyScheduleLabel(wrestlingWindow);
+    }
+    const wrestlingSchedulePayload = weeklyMode && wrestlingWindow
+      ? {
+          scheduleMode: "week",
+          weekCount: wrestlingWindow.weekCount,
+          weekStartKey: wrestlingWindow.startKey,
+          weekEndKey: wrestlingWindow.endKey
+        }
+      : {
+          scheduleMode: "day",
+          weekCount: 1,
+          weekStartKey: dueDateKey,
+          weekEndKey: dueDateKey
+        };
     const timestamp = getPlannerTimestamp();
     const authUser = getPlannerAuthUser();
     const profile = getPlannerProfile();
@@ -3851,26 +4318,34 @@
     const coachIds = coachRecipients.map((coach) => coach.id);
     const coachUids = coachRecipients.map((coach) => coach.recipientUid).filter(Boolean);
     const audienceMode = selected.length > 1 ? "multi" : "single";
-    const dueLabel = formatDateLabel(dueDateKey);
 
     try {
       let planId = "";
       let assignmentTitle = getPlannerTitle();
-      let assignmentType = "Daily Plan";
-      let assignmentNote = `Coach planner session (${Math.max(1, parseTimeValue(state.docInfo.totalTime || "90"))} min total).`;
-      let assignmentSource = "Coach Planner";
+      let assignmentType = tr({ en: "Daily Plan", es: "Plan Diario" });
+      let assignmentNote = tr({
+        en: `Coach planner session (${Math.max(1, parseTimeValue(state.docInfo.totalTime || "90"))} min total).`,
+        es: `Sesion del planificador del entrenador (${Math.max(1, parseTimeValue(state.docInfo.totalTime || "90"))} min total).`
+      });
+      let assignmentSource = tr({ en: "Coach Planner", es: "Planificador del Entrenador" });
       let assignmentPlanType = "day";
       let trackPayload = { trainingTrack: "wrestling" };
 
       if (contextTrack === "lifting") {
         const activeDay = getActiveLiftingDay();
         const dayLines = getLiftingDayExerciseLines(activeDay);
-        assignmentTitle = `${state.liftingPlan.name || "Lifting Cycle"} - ${activeDay?.name || `Day ${state.liftingActiveDay + 1}`}`;
-        assignmentType = "Lifting Plan";
+        assignmentTitle = `${state.liftingPlan.name || tr({ en: "Lifting Cycle", es: "Ciclo de Lifting" })} - ${activeDay?.name || tr({ en: `Day ${state.liftingActiveDay + 1}`, es: `Dia ${state.liftingActiveDay + 1}` })}`;
+        assignmentType = tr({ en: "Lifting Plan", es: "Plan de Lifting" });
         assignmentNote = dayLines.length
-          ? `Complete ${activeDay?.name || "today's lifting"}: ${dayLines.join(" - ")}`
-          : `Complete ${activeDay?.name || "today's lifting"} and log completion.`;
-        assignmentSource = "Lifting & Conditioning";
+          ? tr({
+            en: `Complete ${activeDay?.name || "today's lifting"}: ${dayLines.join(" - ")}`,
+            es: `Completa ${activeDay?.name || "el lifting de hoy"}: ${dayLines.join(" - ")}`
+          })
+          : tr({
+            en: `Complete ${activeDay?.name || "today's lifting"} and log completion.`,
+            es: `Completa ${activeDay?.name || "el lifting de hoy"} y registra la finalizacion.`
+          });
+        assignmentSource = tr({ en: "Lifting & Conditioning", es: "Lifting y Conditioning" });
         assignmentPlanType = "week";
         trackPayload = {
           trainingTrack: "lifting",
@@ -3885,7 +4360,7 @@
           coachNotes: String(state.liftingPlan.benefits || "").trim(),
           sourceMode: "lifting",
           sourceRefId: String(state.liftingPlan.id || "").trim(),
-          sourceLabel: "Lifting & Conditioning",
+          sourceLabel: tr({ en: "Lifting & Conditioning", es: "Lifting y Conditioning" }),
           range: {
             startKey: dueDateKey,
             endKey: dueDateKey
@@ -3917,11 +4392,14 @@
         planId = planRef.id;
       } else if (contextTrack === "mental") {
         const mentalKey = String(state.assignContext?.mentalGameKey || state.mentalActiveGame || MENTAL_GAME_KEYS.GO_NO_GO).trim().toLowerCase();
-        const gameMeta = MENTAL_GAME_META[mentalKey] || MENTAL_GAME_META[MENTAL_GAME_KEYS.GO_NO_GO];
-        assignmentTitle = `Mind & Focus - ${gameMeta.title}`;
-        assignmentType = "Mind Game";
+        const gameMeta = getLocalizedMentalMeta(mentalKey || MENTAL_GAME_KEYS.GO_NO_GO);
+        assignmentTitle = tr({
+          en: `Mind & Focus - ${gameMeta.title}`,
+          es: `Mente y Enfoque - ${gameMeta.title}`
+        });
+        assignmentType = tr({ en: "Mind Game", es: "Juego Mental" });
         assignmentNote = `${gameMeta.cue} (${gameMeta.duration}s).`;
-        assignmentSource = "Mind & Focus";
+        assignmentSource = tr({ en: "Mind & Focus", es: "Mente y Enfoque" });
         assignmentPlanType = "day";
         trackPayload = {
           trainingTrack: "mental",
@@ -3930,18 +4408,30 @@
           mentalGameDuration: gameMeta.duration
         };
       } else {
+        if (weeklyMode && wrestlingWindow) {
+          assignmentTitle = tr({
+            en: `Weekly Training Plan (${wrestlingWindow.weekCount} ${wrestlingWindow.weekCount === 1 ? "week" : "weeks"})`,
+            es: `Plan Semanal de Entrenamiento (${wrestlingWindow.weekCount} ${wrestlingWindow.weekCount === 1 ? "semana" : "semanas"})`
+          });
+          assignmentType = tr({ en: "Weekly Plan", es: "Plan Semanal" });
+          assignmentPlanType = "week";
+          assignmentNote = tr({
+            en: `Coach planner session (${Math.max(1, parseTimeValue(state.docInfo.totalTime || "90"))} min total). Repeat this same plan for ${wrestlingWindow.weekCount} ${wrestlingWindow.weekCount === 1 ? "week" : "weeks"}, Sunday to Saturday.`,
+            es: `Sesion del planificador del entrenador (${Math.max(1, parseTimeValue(state.docInfo.totalTime || "90"))} min total). Repite este mismo plan por ${wrestlingWindow.weekCount} ${wrestlingWindow.weekCount === 1 ? "semana" : "semanas"}, de domingo a sabado.`
+          });
+        }
         const planRef = plansRef.doc();
         const planPayload = {
           title: assignmentTitle,
-          type: "day",
+          type: assignmentPlanType,
           focus: assignmentNote,
           coachNotes: assignmentNote,
           sourceMode: "scratch",
           sourceRefId: "",
-          sourceLabel: "Coach Planner",
+          sourceLabel: tr({ en: "Coach Planner", es: "Planificador del Entrenador" }),
           range: {
-            startKey: dueDateKey,
-            endKey: dueDateKey
+            startKey: weeklyMode && wrestlingWindow ? wrestlingWindow.startKey : dueDateKey,
+            endKey: weeklyMode && wrestlingWindow ? wrestlingWindow.endKey : dueDateKey
           },
           items: buildPlanItemsFromPlanner(),
           monthlyNotes: "",
@@ -3963,7 +4453,8 @@
           createdBy,
           updatedBy: createdBy,
           createdAt: timestamp,
-          updatedAt: timestamp
+          updatedAt: timestamp,
+          ...wrestlingSchedulePayload
         };
         await planRef.set(planPayload, { merge: true });
         planId = planRef.id;
@@ -3975,6 +4466,12 @@
         const assignmentRef = assignmentsRef.doc();
         const isCoach = athlete.recipientType === "coach";
         const initialStatus = isCoach ? "shared" : "not_started";
+        const startDateKey = contextTrack === "wrestling" && weeklyMode && wrestlingWindow
+          ? wrestlingWindow.startKey
+          : dueDateKey;
+        const endDateKey = contextTrack === "wrestling" && weeklyMode && wrestlingWindow
+          ? wrestlingWindow.endKey
+          : dueDateKey;
         const assignmentPayload = {
           title: assignmentTitle,
           assigneeType: isCoach ? "coach" : "athlete",
@@ -3988,6 +4485,8 @@
           coachIds: isCoach ? [athlete.id] : [],
           coachUids: isCoach ? (athlete.recipientUid ? [athlete.recipientUid] : []) : [],
           type: assignmentType,
+          startDateKey,
+          endDateKey,
           dueDateKey,
           dueLabel,
           status: initialStatus,
@@ -3996,7 +4495,8 @@
           planId,
           planType: assignmentPlanType,
           ...trackPayload,
-          notificationStatus: "pending",
+          ...(contextTrack === "wrestling" ? wrestlingSchedulePayload : {}),
+          notificationStatus: "assignment_only",
           createdAt: timestamp,
           updatedAt: timestamp
         };
@@ -4012,20 +4512,17 @@
       await batch.commit();
       if (planId) state.lastSentPlanId = planId;
 
-      if (typeof sendCoachAssignmentNotification === "function") {
-        Promise.all(createdAssignments.map((assignment) => sendCoachAssignmentNotification(assignment))).catch((err) => {
-          console.warn("Planner assignment notifications failed", err);
-        });
-      }
-
-      const successMessage = `${contextMeta.successNoun} shared with ${selected.length} recipient${selected.length === 1 ? "" : "s"}.`;
+      const successMessage = tr({
+        en: `${contextMeta.successNoun} shared with ${selected.length} recipient${selected.length === 1 ? "" : "s"}.`,
+        es: `${contextMeta.successNoun} compartido con ${selected.length} destinatario${selected.length === 1 ? "" : "s"}.`
+      });
       setAssignStatus(successMessage);
       setBottomStatus(successMessage);
       triggerToast(successMessage);
       closeAssignModal();
     } catch (err) {
       console.warn("Failed to share planner assignments", err);
-      setAssignStatus("Could not share plan. Try again.", true);
+      setAssignStatus(tr({ en: "Could not share plan. Try again.", es: "No se pudo compartir el plan. Intenta de nuevo." }), true);
     } finally {
       state.assignModalBusy = false;
       if (els.assignSendBtn) {
@@ -4109,6 +4606,63 @@
     return role === "coach" || role === "admin" || role === "administrator" || role === "head_coach";
   }
 
+  function getPlannerCurrentView() {
+    if (typeof window !== "undefined" && typeof window.wplGetCurrentView === "function") {
+      try {
+        return String(window.wplGetCurrentView() || "").trim().toLowerCase();
+      } catch {
+        return "";
+      }
+    }
+    return "";
+  }
+
+  function isPlannerReadOnlyMode() {
+    const view = getPlannerCurrentView();
+    if (view === "athlete" || view === "parent") return true;
+    const role = String(getPlannerProfile()?.role || "").trim().toLowerCase();
+    return !isCoachLikeRole(role);
+  }
+
+  function applyPlannerAccessMode() {
+    const readOnly = isPlannerReadOnlyMode();
+    state.readOnly = readOnly;
+    root.classList.toggle("planner-readonly", readOnly);
+
+    const controls = Array.from(root.querySelectorAll("input, select, textarea, button"));
+    controls.forEach((control) => {
+      const keepEnabled = !readOnly || control.matches("[data-planner-track], [data-lifting-tab]");
+      control.disabled = !keepEnabled;
+      control.setAttribute("aria-disabled", keepEnabled ? "false" : "true");
+    });
+
+    if (readOnly) {
+      if (els.headerTitle) {
+        els.headerTitle.textContent = tr({
+          en: "Plans & Assignments",
+          es: "Planes y asignaciones"
+        });
+      }
+      if (els.headerSubtitle) {
+        els.headerSubtitle.textContent = tr({
+          en: "Athlete read-only view of coach plans.",
+          es: "Vista de solo lectura para atletas."
+        });
+      }
+      closeSettingsModal();
+      closeLibraryModal();
+      closeTemplatesModal();
+      closeAssignModal();
+      setBottomStatus(tr({
+        en: "Read-only mode: athlete can view coach plans only.",
+        es: "Modo solo lectura: el atleta solo puede ver los planes del entrenador."
+      }));
+      return;
+    }
+
+    setBottomStatus(getBottomStatusDefaultMessage());
+  }
+
   function setCoachLibrariesStatus(message = "") {
     state.coachLibrariesStatus = String(message || "");
     if (els.coachLibrariesStatus) {
@@ -4130,7 +4684,7 @@
     }, {});
     return {
       uid: String(uid || "").trim(),
-      name: String(data?.name || "").trim() || String(data?.email || "").trim() || "Coach",
+      name: String(data?.name || "").trim() || String(data?.email || "").trim() || tr({ en: "Coach", es: "Entrenador" }),
       email: String(data?.email || "").trim(),
       entries,
       categoryNames,
@@ -4141,7 +4695,7 @@
   function renderCoachLibraries() {
     if (!els.coachLibraries) return;
     if (!state.coachLibraries.length) {
-      els.coachLibraries.innerHTML = `<p class=\"small muted\">No coach libraries available yet.</p>`;
+      els.coachLibraries.innerHTML = `<p class=\"small muted\">${escapeHtml(tr({ en: "No coach libraries available yet.", es: "Aun no hay librerias de entrenadores disponibles." }))}</p>`;
       return;
     }
     const cardsHtml = state.coachLibraries.map((coach) => {
@@ -4152,7 +4706,7 @@
         const items = entries.map((entry) => (
           `<li>
             <span>${escapeHtml(entry.name)}</span>
-            <button type=\"button\" class=\"ghost\" data-action=\"import-coach-item\" data-coach-uid=\"${escapeHtml(coach.uid)}\" data-item-id=\"${escapeHtml(entry.id)}\" title=\"Add to current library\">+</button>
+            <button type=\"button\" class=\"ghost\" data-action=\"import-coach-item\" data-coach-uid=\"${escapeHtml(coach.uid)}\" data-item-id=\"${escapeHtml(entry.id)}\" title=\"${escapeHtml(tr({ en: "Add to current library", es: "Agregar a la libreria actual" }))}\">+</button>
           </li>`
         )).join("");
         return `
@@ -4166,9 +4720,9 @@
         <article class=\"planner-coach-card\">
           <header>
             <strong>${escapeHtml(coach.name)}</strong>
-            <span>${escapeHtml(coach.email || "coach")}</span>
+            <span>${escapeHtml(coach.email || tr({ en: "coach", es: "entrenador" }))}</span>
           </header>
-          ${grouped || `<p class=\"small muted\">No exercises shared yet.</p>`}
+          ${grouped || `<p class=\"small muted\">${escapeHtml(tr({ en: "No exercises shared yet.", es: "Aun no hay ejercicios compartidos." }))}</p>`}
         </article>
       `;
     }).join("");
@@ -4181,7 +4735,7 @@
     const item = coach.entries.find((entry) => entry.id === String(itemId || "").trim());
     if (!item) return;
     if (isDuplicateLibraryEntry(item.name, item.categoryId)) {
-      triggerToast("Exercise already exists in this category.");
+      triggerToast(tr({ en: "Exercise already exists in this category.", es: "Ese ejercicio ya existe en esta categoria." }));
       return;
     }
     state.exerciseLibrary = [
@@ -4196,7 +4750,7 @@
     queuePlannerLibrarySync();
     renderRows();
     renderLibraryGroups();
-    triggerToast(`Added from ${coach.name}`);
+    triggerToast(tr({ en: `Added from ${coach.name}`, es: `Agregado desde ${coach.name}` }));
   }
 
   async function syncPlannerLibraryNow() {
@@ -4228,12 +4782,12 @@
   function subscribeCoachLibraries() {
     const usersRef = getPlannerUsersCollectionRef();
     if (!usersRef) {
-      setCoachLibrariesStatus("Coach libraries available after Firebase connects.");
+      setCoachLibrariesStatus(tr({ en: "Coach libraries available after Firebase connects.", es: "Las librerias de entrenadores estaran disponibles cuando Firebase conecte." }));
       renderCoachLibraries();
       return;
     }
     if (state.coachLibrariesUnsub) return;
-    setCoachLibrariesStatus("Syncing coach libraries...");
+    setCoachLibrariesStatus(tr({ en: "Syncing coach libraries...", es: "Sincronizando librerias de entrenadores..." }));
     state.coachLibrariesUnsub = usersRef.onSnapshot((snapshot) => {
       const rows = snapshot.docs
         .map((doc) => normalizeCoachLibraryFromUserDoc(doc.id, doc.data() || {}))
@@ -4241,11 +4795,13 @@
         .sort((left, right) => left.name.localeCompare(right.name));
       state.coachLibraries = rows;
       state.coachLibrariesReady = true;
-      setCoachLibrariesStatus(rows.length ? `${rows.length} coach libraries loaded.` : "No coach libraries yet.");
+      setCoachLibrariesStatus(rows.length
+        ? tr({ en: `${rows.length} coach libraries loaded.`, es: `${rows.length} librerias de entrenadores cargadas.` })
+        : tr({ en: "No coach libraries yet.", es: "Aun no hay librerias de entrenadores." }));
       renderCoachLibraries();
     }, (err) => {
       console.warn("Failed to load coach libraries", err);
-      setCoachLibrariesStatus("Could not load coach libraries right now.");
+      setCoachLibrariesStatus(tr({ en: "Could not load coach libraries right now.", es: "No se pudieron cargar las librerias de entrenadores ahora." }));
       renderCoachLibraries();
     });
   }
@@ -4286,7 +4842,7 @@
     if (!state.tempSettings) return;
     mergePlannerSettings(state.tempSettings, { sync: true });
     closeSettingsModal();
-    triggerToast("Template settings saved!");
+    triggerToast(tr({ en: "Template settings saved!", es: "Configuracion de plantilla guardada." }));
   }
 
   function openLibraryModal() {
@@ -4339,12 +4895,12 @@
     const name = String(els.newExerciseNameInput?.value || "").trim();
     const categoryId = normalizeCategoryId(els.newExerciseCategorySelect?.value || CATEGORIES[0].id);
     if (!name) {
-      triggerToast("Write an exercise name first.");
+      triggerToast(tr({ en: "Write an exercise name first.", es: "Escribe primero el nombre del ejercicio." }));
       els.newExerciseNameInput?.focus();
       return;
     }
     if (isDuplicateLibraryEntry(name, categoryId)) {
-      triggerToast("Exercise already exists in this category.");
+      triggerToast(tr({ en: "Exercise already exists in this category.", es: "Ese ejercicio ya existe en esta categoria." }));
       return;
     }
     state.exerciseLibrary = [...state.exerciseLibrary, { id: makeId(), name, categoryId }];
@@ -4355,7 +4911,7 @@
     renderCoachLibraries();
     if (els.newExerciseNameInput) els.newExerciseNameInput.value = "";
     els.newExerciseNameInput?.focus();
-    triggerToast("Exercise saved to library!");
+    triggerToast(tr({ en: "Exercise saved to library!", es: "Ejercicio guardado en la libreria." }));
   }
 
   function deleteExerciseFromLibrary(id) {
@@ -4370,7 +4926,9 @@
   function updateCategoryName(categoryId, name) {
     const safeCategoryId = normalizeCategoryId(categoryId);
     const cleanName = String(name || "").trim();
-    state.categoryNames[safeCategoryId] = cleanName || CATEGORIES.find((category) => category.id === safeCategoryId)?.name || safeCategoryId;
+    const defaults = CATEGORY_NAME_TRANSLATIONS[safeCategoryId] || { en: safeCategoryId, es: safeCategoryId };
+    const fallback = getPlannerLang() === "es" ? defaults.es : defaults.en;
+    state.categoryNames[safeCategoryId] = cleanName || fallback || safeCategoryId;
     persistCategoryNames();
     queuePlannerLibrarySync();
     renderCategorySelectOptions();
@@ -4387,11 +4945,11 @@
     const safeCategoryId = normalizeCategoryId(categoryId);
     const draftName = String(state.categoryDrafts[safeCategoryId] || "").trim();
     if (!draftName) {
-      triggerToast("Write an exercise name first.");
+      triggerToast(tr({ en: "Write an exercise name first.", es: "Escribe primero el nombre del ejercicio." }));
       return;
     }
     if (isDuplicateLibraryEntry(draftName, safeCategoryId)) {
-      triggerToast("Exercise already exists in this category.");
+      triggerToast(tr({ en: "Exercise already exists in this category.", es: "Ese ejercicio ya existe en esta categoria." }));
       return;
     }
     state.exerciseLibrary = [
@@ -4404,12 +4962,12 @@
     renderRows();
     renderLibraryGroups();
     renderCoachLibraries();
-    triggerToast("Exercise added.");
+    triggerToast(tr({ en: "Exercise added.", es: "Ejercicio agregado." }));
   }
 
   function getNextDefaultLibraryName(categoryId) {
     const safeCategoryId = normalizeCategoryId(categoryId);
-    const baseName = "New exercise";
+    const baseName = tr({ en: "New exercise", es: "Nuevo ejercicio" });
     const normalized = state.exerciseLibrary
       .filter((entry) => normalizeCategoryId(entry.categoryId) === safeCategoryId)
       .map((entry) => String(entry.name || "").trim().toLowerCase());
@@ -4435,7 +4993,7 @@
     renderRows();
     renderLibraryGroups();
     renderCoachLibraries();
-    triggerToast("Exercise added. Edit the name.");
+    triggerToast(tr({ en: "Exercise added. Edit the name.", es: "Ejercicio agregado. Edita el nombre." }));
   }
 
   function updateLibraryItemName(itemId, categoryId, nextName) {
@@ -4450,7 +5008,7 @@
           && String(entry.name || "").trim().toLowerCase() === cleanName.toLowerCase();
       });
       if (duplicate) {
-        triggerToast("Exercise already exists in this category.");
+        triggerToast(tr({ en: "Exercise already exists in this category.", es: "Ese ejercicio ya existe en esta categoria." }));
         renderLibraryGroups();
         return;
       }
@@ -4489,7 +5047,7 @@
     const item = state.exerciseLibrary.find((entry) => entry.id === safeItemId);
     if (!item) return;
     addToSchedule(safeCategoryId, item.name);
-    triggerToast("Added to current plan.");
+    triggerToast(tr({ en: "Added to current plan.", es: "Agregado al plan actual." }));
   }
 
   function renderCategorySelectOptions() {
@@ -4501,6 +5059,12 @@
 
   function renderLibraryGroups() {
     if (!els.libraryGroups) return;
+    const addToPlanLabel = tr({ en: "Add to plan", es: "Agregar al plan" });
+    const deleteLabel = tr({ en: "Delete", es: "Eliminar" });
+    const noExercisesLabel = tr({ en: "No exercises saved yet.", es: "Aun no hay ejercicios guardados." });
+    const addExerciseTitle = tr({ en: "Add exercise", es: "Agregar ejercicio" });
+    const addExercisePlaceholder = tr({ en: "Add new movement/exercise", es: "Agregar nuevo movimiento/ejercicio" });
+    const addLabel = tr({ en: "Add +", es: "Agregar +" });
     const groupsHtml = CATEGORIES.map((category) => {
       const items = state.exerciseLibrary.filter((entry) => entry.categoryId === category.id);
       const draft = String(state.categoryDrafts[category.id] || "");
@@ -4517,14 +5081,14 @@
                     data-category="${category.id}"
                   >
                   <div class="planner-library-item-actions">
-                    <button type="button" class="ghost" data-action="add-library-item-to-plan" data-id="${item.id}" data-category="${category.id}" title="Add to plan">+</button>
-                    <button type="button" class="ghost" data-action="delete-library" data-id="${item.id}">Delete</button>
+                    <button type="button" class="ghost" data-action="add-library-item-to-plan" data-id="${item.id}" data-category="${category.id}" title="${escapeHtml(addToPlanLabel)}">+</button>
+                    <button type="button" class="ghost" data-action="delete-library" data-id="${item.id}">${escapeHtml(deleteLabel)}</button>
                   </div>
                 </li>
               `)
               .join("")}
           </ul>`
-        : `<p class="small muted">No exercises saved yet.</p>`;
+        : `<p class="small muted">${escapeHtml(noExercisesLabel)}</p>`;
       return `
         <section class="planner-library-group">
           <header>
@@ -4536,19 +5100,19 @@
               data-category="${category.id}"
             >
             <div class="planner-library-header-actions">
-              <button type="button" class="ghost planner-library-plus" data-action="quick-add-library-item" data-category="${category.id}" title="Add exercise">+</button>
+              <button type="button" class="ghost planner-library-plus" data-action="quick-add-library-item" data-category="${category.id}" title="${escapeHtml(addExerciseTitle)}">+</button>
               <span>${items.length}</span>
             </div>
           </header>
           <div class="planner-library-quick-add">
             <input
               type="text"
-              placeholder="Add new movement/exercise"
+              placeholder="${escapeHtml(addExercisePlaceholder)}"
               value="${escapeHtml(draft)}"
               data-action="library-draft-input"
               data-category="${category.id}"
             >
-            <button type="button" class="primary" data-action="save-library-draft" data-category="${category.id}">Add +</button>
+            <button type="button" class="primary" data-action="save-library-draft" data-category="${category.id}">${escapeHtml(addLabel)}</button>
           </div>
           ${itemsHtml}
         </section>
@@ -4574,6 +5138,22 @@
 
   function renderRows() {
     if (!els.rows) return;
+    const activityLabel = tr({ en: "Activity", es: "Actividad" });
+    const timeLabel = tr({ en: "Time", es: "Tiempo" });
+    const chooseDrillLabel = tr({ en: "Choose saved drill...", es: "Elige ejercicio guardado..." });
+    const addTypeLabel = tr({ en: "+ Type", es: "+ Escribir" });
+    const typeDrillPlaceholder = tr({ en: "Type drill here...", es: "Escribe el ejercicio aqui..." });
+    const deleteLabel = tr({ en: "Delete", es: "Eliminar" });
+    if (els.rows?.previousElementSibling?.tagName === "THEAD") {
+      const ths = Array.from(els.rows.previousElementSibling.querySelectorAll("th"));
+      if (ths[0]) ths[0].textContent = activityLabel;
+      if (ths[1]) ths[1].textContent = timeLabel;
+    } else {
+      const table = els.rows.closest("table");
+      const ths = Array.from(table?.querySelectorAll("thead th") || []);
+      if (ths[0]) ths[0].textContent = activityLabel;
+      if (ths[1]) ths[1].textContent = timeLabel;
+    }
     const rowsHtml = CATEGORIES.map((category) => {
       const items = state.schedule[category.id] || [];
       const options = state.exerciseLibrary
@@ -4589,10 +5169,10 @@
                 data-category="${category.id}"
                 data-item-id="${item.id}"
                 rows="1"
-                placeholder="Type drill here..."
+                placeholder="${escapeHtml(typeDrillPlaceholder)}"
               >${escapeHtml(item.name)}</textarea>
               <div class="planner-item-print-text">${escapeHtml(item.name || "-")}</div>
-              <button type="button" class="ghost" data-action="remove-item" data-category="${category.id}" data-item-id="${item.id}">Delete</button>
+              <button type="button" class="ghost" data-action="remove-item" data-category="${category.id}" data-item-id="${item.id}">${escapeHtml(deleteLabel)}</button>
             </li>
           `;
         })
@@ -4604,10 +5184,10 @@
             <div class="planner-category-title">${escapeHtml(getCategoryNameById(category.id))}</div>
             <div class="planner-row-controls">
               <select data-action="pick-library" data-category="${category.id}">
-                <option value="">Choose saved drill...</option>
+                <option value="">${escapeHtml(chooseDrillLabel)}</option>
                 ${options}
               </select>
-              <button type="button" class="ghost" data-action="add-manual" data-category="${category.id}">+ Type</button>
+              <button type="button" class="ghost" data-action="add-manual" data-category="${category.id}">${escapeHtml(addTypeLabel)}</button>
             </div>
             <ul class="planner-items-list">${itemsHtml}</ul>
           </td>
@@ -4637,7 +5217,86 @@
     }
   }
 
+  function applyPlannerLanguageToStaticDom() {
+    if (els.openSettingsBtn) els.openSettingsBtn.textContent = tr({ en: "Customize", es: "Personalizar" });
+    if (els.openLibraryBtn) els.openLibraryBtn.textContent = tr({ en: "Library", es: "Libreria" });
+    if (els.loadTemplateBtn) els.loadTemplateBtn.textContent = tr({ en: "Load template", es: "Cargar plantilla" });
+    if (els.saveTemplateTopBtn) els.saveTemplateTopBtn.textContent = tr({ en: "Save template", es: "Guardar plantilla" });
+    if (els.sendAthletesTopBtn) els.sendAthletesTopBtn.textContent = tr({ en: "Share plan", es: "Compartir plan" });
+    if (els.printBtn) els.printBtn.textContent = tr({ en: "Print", es: "Imprimir" });
+    if (els.saveTemplateBtn) els.saveTemplateBtn.textContent = tr({ en: "Save as template", es: "Guardar como plantilla" });
+    if (els.sendAthletesBtn) els.sendAthletesBtn.textContent = tr({ en: "Share plan", es: "Compartir plan" });
+    if (els.assignCloseBtn) els.assignCloseBtn.textContent = tr({ en: "Close", es: "Cerrar" });
+    if (els.assignCancelBtn) els.assignCancelBtn.textContent = tr({ en: "Cancel", es: "Cancelar" });
+    if (els.assignSelectAllBtn) els.assignSelectAllBtn.textContent = tr({ en: "Select all", es: "Seleccionar todo" });
+    if (els.assignClearBtn) els.assignClearBtn.textContent = tr({ en: "Clear", es: "Limpiar" });
+    if (els.assignSearchInput) els.assignSearchInput.placeholder = tr({ en: "Type athlete or coach name", es: "Escribe nombre de atleta o entrenador" });
+    if (els.templatesCloseBtn) els.templatesCloseBtn.textContent = tr({ en: "Close", es: "Cerrar" });
+    if (els.templatesCancelBtn) els.templatesCancelBtn.textContent = tr({ en: "Close", es: "Cerrar" });
+    if (els.templatesRefreshBtn) els.templatesRefreshBtn.textContent = tr({ en: "Refresh", es: "Actualizar" });
+    if (els.libraryCloseBtn) els.libraryCloseBtn.textContent = tr({ en: "Close", es: "Cerrar" });
+    if (els.libraryCancelBtn) els.libraryCancelBtn.textContent = tr({ en: "Close", es: "Cerrar" });
+    if (els.saveLibraryItemBtn) els.saveLibraryItemBtn.textContent = tr({ en: "Save", es: "Guardar" });
+    if (els.newExerciseNameInput) els.newExerciseNameInput.placeholder = tr({ en: "Exercise name", es: "Nombre del ejercicio" });
+    if (els.settingsCloseBtn) els.settingsCloseBtn.textContent = tr({ en: "Close", es: "Cerrar" });
+    if (els.settingsCancelBtn) els.settingsCancelBtn.textContent = tr({ en: "Cancel", es: "Cancelar" });
+    if (els.settingsSaveBtn) els.settingsSaveBtn.textContent = tr({ en: "Save changes", es: "Guardar cambios" });
+    if (els.settingsRemoveLogoBtn) els.settingsRemoveLogoBtn.textContent = tr({ en: "Remove logo", es: "Quitar logo" });
+    if (els.liftingShareBtn) els.liftingShareBtn.textContent = tr({ en: "Share plan", es: "Compartir plan" });
+    if (els.liftingPrintBtn) els.liftingPrintBtn.textContent = tr({ en: "Print", es: "Imprimir" });
+    if (els.liftingSaveProtocolBtn) els.liftingSaveProtocolBtn.textContent = tr({ en: "Save Protocol", es: "Guardar Protocolo" });
+    if (els.liftingAddCategoryBtn) els.liftingAddCategoryBtn.textContent = tr({ en: "+ Category", es: "+ Categoria" });
+    if (els.liftingAddExerciseBtn) els.liftingAddExerciseBtn.textContent = tr({ en: "+ Exercise", es: "+ Ejercicio" });
+    if (els.liftingNewCategoryInput) els.liftingNewCategoryInput.placeholder = tr({ en: "New category name", es: "Nombre de categoria nueva" });
+    if (els.liftingNewExerciseInput) els.liftingNewExerciseInput.placeholder = tr({ en: "Exercise name", es: "Nombre del ejercicio" });
+    if (els.liftingSearchInput) els.liftingSearchInput.placeholder = tr({ en: "Search movement", es: "Buscar movimiento" });
+    if (els.liftingPlanNameInput) els.liftingPlanNameInput.placeholder = tr({ en: "New 7-Day Cycle", es: "Nuevo ciclo de 7 dias" });
+    if (els.liftingPlanWeeksInput) els.liftingPlanWeeksInput.placeholder = tr({ en: "1-4", es: "1-4" });
+    if (els.liftingPlanPurposeInput) els.liftingPlanPurposeInput.placeholder = tr({ en: "Full week metabolic conditioning and strength base.", es: "Semana completa de base metabolica y fuerza." });
+    if (els.liftingPlanBenefitsInput) els.liftingPlanBenefitsInput.placeholder = tr({ en: "Optimized recovery and specific wrestling movements.", es: "Recuperacion optimizada y movimientos especificos de lucha." });
+    if (els.liftingActiveDayNameInput) els.liftingActiveDayNameInput.placeholder = tr({ en: "Day Name", es: "Nombre del dia" });
+    if (els.templatesStatus && String(els.templatesStatus.textContent || "").trim() === "Loading templates...") {
+      els.templatesStatus.textContent = tr({ en: "Loading templates...", es: "Cargando plantillas..." });
+    }
+    if (els.coachLibrariesStatus && String(els.coachLibrariesStatus.textContent || "").trim() === "Loading coach libraries...") {
+      els.coachLibrariesStatus.textContent = tr({ en: "Loading coach libraries...", es: "Cargando librerias de entrenadores..." });
+    }
+    if (els.bottomStatus && !String(els.bottomStatus.textContent || "").trim()) {
+      els.bottomStatus.textContent = getBottomStatusDefaultMessage();
+    }
+
+    const trackBtnLabels = {
+      wrestling: tr({ en: "Wrestling Training", es: "Entrenamiento de Lucha" }),
+      lifting: tr({ en: "Lifting & Conditioning", es: "Lifting y Conditioning" }),
+      mental: tr({ en: "Mind & Focus Training", es: "Entrenamiento Mental y Enfoque" })
+    };
+    els.trackButtons.forEach((btn) => {
+      const key = normalizeTrack(btn.dataset.plannerTrack);
+      if (trackBtnLabels[key]) btn.textContent = trackBtnLabels[key];
+    });
+
+    const assignModeSelect = els.assignScheduleModeInput;
+    if (assignModeSelect) {
+      const dayOption = assignModeSelect.querySelector("option[value='day']");
+      const weekOption = assignModeSelect.querySelector("option[value='week']");
+      if (dayOption) dayOption.textContent = tr({ en: "Single day", es: "Un solo dia" });
+      if (weekOption) weekOption.textContent = tr({ en: "Weekly (Sun-Sat)", es: "Semanal (Dom-Sab)" });
+    }
+    const weekCountSelect = els.assignWeekCountInput;
+    if (weekCountSelect) {
+      Array.from(weekCountSelect.options || []).forEach((option) => {
+        const count = parseInt(String(option.value || "0"), 10) || 0;
+        option.textContent = tr({
+          en: `${count} ${count === 1 ? "week" : "weeks"}`,
+          es: `${count} ${count === 1 ? "semana" : "semanas"}`
+        });
+      });
+    }
+  }
+
   function render() {
+    syncCategoryNamesForLanguage();
+    applyPlannerLanguageToStaticDom();
     if (els.dateInput) els.dateInput.value = state.docInfo.date || "";
     if (els.totalTimeInput) els.totalTimeInput.value = state.docInfo.totalTime || "90";
     updatePrintMetaValues();
@@ -4651,9 +5310,11 @@
     renderTrackPanels();
     renderLiftingLab();
     renderMentalApp();
+    applyPlannerAccessMode();
   }
 
   function handleRootClick(event) {
+    if (state.readOnly) return;
     const trigger = event.target.closest("[data-action]");
     if (!trigger) return;
     const action = trigger.dataset.action;
@@ -4730,6 +5391,7 @@
   }
 
   function handleRootChange(event) {
+    if (state.readOnly) return;
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
 
@@ -4768,6 +5430,7 @@
   }
 
   function handleRootInput(event) {
+    if (state.readOnly) return;
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
 
@@ -4839,8 +5502,32 @@
       return;
     }
 
+    if (target === els.assignScheduleModeInput) {
+      const nextMode = String(els.assignScheduleModeInput.value || "day").trim().toLowerCase();
+      state.assignScheduleMode = nextMode === "week" ? "week" : "day";
+      if (state.assignScheduleMode === "week") {
+        state.assignDueDate = getWeekStartDateKey(state.assignDueDate || getTodayDateKey());
+      }
+      if (els.assignDueDateInput) {
+        els.assignDueDateInput.value = state.assignDueDate;
+      }
+      applyAssignContextUi();
+      return;
+    }
+
+    if (target === els.assignWeekCountInput) {
+      state.assignWeekCount = normalizeAssignWeekCount(els.assignWeekCountInput.value || 1);
+      applyAssignContextUi();
+      return;
+    }
+
     if (target === els.assignDueDateInput) {
-      state.assignDueDate = normalizeDateKeyValue(els.assignDueDateInput.value || "");
+      const rawDueDate = normalizeDateKeyValue(els.assignDueDateInput.value || "");
+      state.assignDueDate = isWrestlingWeeklyMode() ? getWeekStartDateKey(rawDueDate) : rawDueDate;
+      if (els.assignDueDateInput && els.assignDueDateInput.value !== state.assignDueDate) {
+        els.assignDueDateInput.value = state.assignDueDate;
+      }
+      applyAssignContextUi();
       return;
     }
 
@@ -4870,6 +5557,7 @@
   }
 
   function handleRootBlur(event) {
+    if (state.readOnly) return;
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
     if (target.matches("textarea[data-action='item-input']")) {
@@ -4889,16 +5577,33 @@
   }
 
   function handleRootKeydown(event) {
+    if (state.readOnly) return;
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
+    if (target.matches("[data-action='mental-go-tap']") && (event.key === "Enter" || event.key === " ")) {
+      event.preventDefault();
+      handleMentalGoNoGoTap();
+      return;
+    }
     if (!target.matches("input[data-action='library-draft-input']")) return;
     if (event.key !== "Enter") return;
     event.preventDefault();
     addDraftExerciseToLibrary(target.dataset.category);
   }
 
+  function handleRootPointerDown(event) {
+    if (state.readOnly) return;
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const tapZone = target.closest("[data-action='mental-go-tap']");
+    if (!tapZone) return;
+    event.preventDefault();
+    handleMentalGoNoGoTap();
+  }
+
   function bindStaticEvents() {
     root.addEventListener("click", handleRootClick);
+    root.addEventListener("pointerdown", handleRootPointerDown);
     root.addEventListener("change", handleRootChange);
     root.addEventListener("input", handleRootInput);
     root.addEventListener("blur", handleRootBlur, true);
@@ -5035,6 +5740,19 @@
       window.addEventListener("beforeprint", () => {
         updatePrintMetaValues();
         renderRows();
+      });
+      window.addEventListener("wpl:view-changed", () => {
+        applyPlannerAccessMode();
+      });
+      window.addEventListener("wpl:language-changed", () => {
+        if (state.mentalView === "game") {
+          stopMentalNarration();
+        }
+        if (!state.mentalLeaderboardReady) {
+          state.mentalLeaderboardStatus = tr({ en: "Loading global leaderboard...", es: "Cargando leaderboard global..." });
+        }
+        render();
+        applyAssignContextUi();
       });
     }
   }
