@@ -294,7 +294,14 @@ service cloud.firestore {
               "startedAt",
               "completedAt",
               "athleteLogUid",
-              "athleteLogName"
+              "athleteLogName",
+              "discussion",
+              "lastCommentAt",
+              "lastCommentAtIso",
+              "lastCommentText",
+              "lastCommentBy",
+              "lastCommentByUid",
+              "lastCommentByRole"
             ])
           );
         allow delete: if isAdminEmail() || isSelf(coachUid);

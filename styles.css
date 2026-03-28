@@ -3467,6 +3467,87 @@ textarea:focus{
   text-decoration: line-through;
 }
 
+.assignment-discussion-shell{
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(8, 20, 38, 0.44);
+  display: grid;
+  gap: 10px;
+}
+
+.assignment-discussion-title{
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.assignment-discussion-list{
+  display: grid;
+  gap: 8px;
+}
+
+.assignment-discussion-entry{
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  background: rgba(0,0,0,0.18);
+  padding: 8px 10px;
+  display: grid;
+  gap: 5px;
+}
+
+.assignment-discussion-entry.mine{
+  border-color: rgba(59, 130, 246, 0.45);
+  background: rgba(30, 64, 175, 0.2);
+}
+
+.assignment-discussion-entry-head{
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.75rem;
+}
+
+.assignment-discussion-entry-head span{
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.assignment-discussion-step{
+  font-size: 0.72rem;
+  color: #8dc8ff;
+}
+
+.assignment-discussion-entry p{
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.assignment-discussion-composer{
+  display: grid;
+  gap: 8px;
+}
+
+.assignment-discussion-select,
+.assignment-discussion-input{
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(0,0,0,0.34);
+  color: var(--text);
+  padding: 8px 10px;
+}
+
+.assignment-discussion-input{
+  resize: vertical;
+  min-height: 64px;
+}
+
 .assignment-list,
 .completion-list{
   display: grid;
@@ -3502,6 +3583,70 @@ textarea:focus{
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
+}
+
+.assignment-discussion-preview{
+  margin-top: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(8, 20, 38, 0.38);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.assignment-discussion-preview.is-empty{
+  gap: 4px;
+}
+
+.assignment-discussion-preview-head{
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.assignment-discussion-preview-head span{
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.assignment-discussion-preview-entry{
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: 8px 9px;
+  background: rgba(0,0,0,0.18);
+  display: grid;
+  gap: 4px;
+}
+
+.assignment-discussion-preview-meta{
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.assignment-discussion-preview-meta strong{
+  font-size: 0.8rem;
+}
+
+.assignment-discussion-preview-meta span{
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.assignment-discussion-preview-step{
+  font-size: 0.7rem;
+  color: #8dc8ff;
+}
+
+.assignment-discussion-preview-entry p{
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .assignment-card-meta,

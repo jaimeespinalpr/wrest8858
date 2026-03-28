@@ -4016,6 +4016,56 @@ function normalizeAssignmentChecklist(raw = {}) {
   }, {});
 }
 
+function normalizeAssignmentDiscussionEntry(raw = {}) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const id = String(source.id || source.commentId || "").trim();
+  const text = String(source.text || source.message || "").trim();
+  const authorUid = normalizeUid(source.authorUid || source.userUid || source.senderUid || source.uid || "");
+  const authorName = String(source.authorName || source.userName || source.senderName || source.name || "").trim();
+  const authorRole = normalizeAuthRole(source.authorRole || source.role || "athlete");
+  const stepId = String(source.stepId || "").trim();
+  const stepLabel = String(source.stepLabel || source.exerciseLabel || "").trim();
+  const createdAtIso = String(source.createdAtIso || source.createdAt || source.timestamp || "").trim();
+  if (!id || !text || !authorUid) return null;
+  return {
+    id,
+    text,
+    authorUid,
+    authorName: authorName || "User",
+    authorRole: authorRole || "athlete",
+    stepId,
+    stepLabel,
+    createdAtIso
+  };
+}
+
+function normalizeAssignmentDiscussion(raw = []) {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set();
+  const rows = [];
+  raw.forEach((entry) => {
+    const normalized = normalizeAssignmentDiscussionEntry(entry);
+    if (!normalized || seen.has(normalized.id)) return;
+    seen.add(normalized.id);
+    rows.push(normalized);
+  });
+  rows.sort((left, right) => parseIsoTimestamp(left.createdAtIso) - parseIsoTimestamp(right.createdAtIso));
+  return rows;
+}
+
+function formatAssignmentDiscussionTime(value = "") {
+  const ts = parseIsoTimestamp(value);
+  if (!ts) return "";
+  const locale = currentLang === "es" ? "es-ES" : "en-US";
+  return new Date(ts).toLocaleString(locale, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: APP_TIMEZONE
+  });
+}
+
 function normalizeCoachAssignmentRecord(id, data = {}) {
   const dueDateKey = isDateKey(data.dueDateKey) ? data.dueDateKey : "";
   const assigneeType = String(data.assigneeType || "athlete").trim().toLowerCase();
@@ -4024,6 +4074,8 @@ function normalizeCoachAssignmentRecord(id, data = {}) {
   const derivedStatus = dueDateKey && dueDateKey < getCurrentAppDateKey() && effectiveStatus !== "completed" && effectiveStatus !== "shared"
     ? "overdue"
     : effectiveStatus;
+  const discussion = normalizeAssignmentDiscussion(data.discussion || []);
+  const latestDiscussion = discussion.length ? discussion[discussion.length - 1] : null;
   return {
     id,
     title: String(data.title || "").trim(),
@@ -4056,6 +4108,9 @@ function normalizeCoachAssignmentRecord(id, data = {}) {
     mentalGameKey: String(data.mentalGameKey || "").trim().toLowerCase(),
     mentalGameTitle: String(data.mentalGameTitle || "").trim(),
     mentalGameDuration: Number.isFinite(Number(data.mentalGameDuration)) ? Number(data.mentalGameDuration) : 0,
+    discussion,
+    discussionCount: discussion.length,
+    latestDiscussion,
     notifiedAt: normalizeFirestoreDateValue(data.notifiedAt),
     notificationStatus: String(data.notificationStatus || "").trim(),
     createdAt: normalizeFirestoreDateValue(data.createdAt),
@@ -13027,6 +13082,131 @@ async function updateAthleteAssignmentStatus(assignment, status) {
   );
 }
 
+function getAssignmentOwnerCoachUid(assignment = null) {
+  if (isCoachWorkspaceActive()) {
+    return normalizeUid(getAuthUser()?.id || "");
+  }
+  if (isAthleteRole(getProfile()?.role)) {
+    return normalizeUid(getAthleteLinkedCoachUid() || "");
+  }
+  return normalizeUid(getParentLinkedCoachUid() || "");
+}
+
+async function findFirebaseUserByUid(uid = "") {
+  const safeUid = normalizeUid(uid);
+  if (!safeUid || !firebaseFirestoreInstance) return null;
+  const snapshot = await withTimeout(
+    firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION).doc(safeUid).get(),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_user_uid_lookup_timeout"
+  ).catch(() => null);
+  if (!snapshot?.exists) return null;
+  return normalizeManagedUserRecord(snapshot.id, snapshot.data() || {});
+}
+
+function buildAssignmentDiscussionNoticeText(assignment, comment) {
+  const authorName = String(comment?.authorName || "").trim() || "Athlete";
+  const assignmentTitle = String(assignment?.title || "").trim() || (currentLang === "es" ? "asignacion" : "assignment");
+  const stepLabel = String(comment?.stepLabel || "").trim();
+  const body = String(comment?.text || "").trim();
+  if (currentLang === "es") {
+    const stepPart = stepLabel ? `\nEjercicio: ${stepLabel}` : "";
+    return `Nueva pregunta en ${assignmentTitle} por ${authorName}.${stepPart}\n${body}`;
+  }
+  const stepPart = stepLabel ? `\nExercise: ${stepLabel}` : "";
+  return `New question on ${assignmentTitle} from ${authorName}.${stepPart}\n${body}`;
+}
+
+async function notifyAssignmentDiscussionViaMessages(assignment, comment) {
+  const current = getMessagesCurrentUser();
+  if (!current?.uid) return;
+  const coachUid = getAssignmentOwnerCoachUid(assignment);
+  if (!coachUid || current.uid === coachUid) return;
+  const coachUser = await findFirebaseUserByUid(coachUid);
+  const coachContact = {
+    uid: coachUid,
+    name: coachUser?.name || "Coach",
+    email: coachUser?.email || "",
+    role: "coach",
+    linkedCoachUid: coachUid,
+    linkedAthleteId: coachUser?.linkedAthleteId || "",
+    linkedAthleteUid: coachUser?.linkedAthleteUid || ""
+  };
+  const threadId = await ensureDirectMessageThread(coachContact);
+  await appendMessageToThread({
+    threadId,
+    participants: [current, coachContact],
+    sender: current,
+    text: buildAssignmentDiscussionNoticeText(assignment, comment)
+  });
+}
+
+async function postAssignmentDiscussionComment(assignment, {
+  text = "",
+  stepId = "",
+  stepLabel = "",
+  notifyCoach = false
+} = {}) {
+  const safeAssignmentId = String(assignment?.id || "").trim();
+  const message = String(text || "").trim();
+  const coachUid = getAssignmentOwnerCoachUid(assignment);
+  const assignmentsRef = getCoachWorkspaceCollectionRef("assignments", coachUid);
+  const authUser = getAuthUser();
+  const profile = getProfile();
+  if (!safeAssignmentId || !message || !coachUid || !assignmentsRef || !authUser?.id) {
+    throw new Error("assignment_comment_unavailable");
+  }
+  const authorName = String(profile?.name || authUser.email || "").trim() || "User";
+  const authorRole = normalizeAuthRole(profile?.role || authUser.role || "athlete");
+  const comment = {
+    id: `c_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    text: message,
+    authorUid: normalizeUid(authUser.id),
+    authorName,
+    authorRole,
+    stepId: String(stepId || "").trim(),
+    stepLabel: String(stepLabel || "").trim(),
+    createdAtIso: new Date().toISOString()
+  };
+
+  const assignmentRef = assignmentsRef.doc(safeAssignmentId);
+  const existingSnapshot = await withTimeout(
+    assignmentRef.get(),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_assignment_comment_read_timeout"
+  );
+  if (!existingSnapshot.exists) {
+    throw new Error("assignment_comment_target_missing");
+  }
+  const existing = normalizeCoachAssignmentRecord(existingSnapshot.id, existingSnapshot.data() || {});
+  const nextDiscussion = normalizeAssignmentDiscussion([...(existing.discussion || []), comment]).slice(-120);
+  await withTimeout(
+    assignmentRef.set(stripUndefinedDeep({
+      discussion: nextDiscussion,
+      lastCommentText: comment.text,
+      lastCommentBy: comment.authorName,
+      lastCommentByUid: comment.authorUid,
+      lastCommentByRole: comment.authorRole,
+      lastCommentAtIso: comment.createdAtIso,
+      lastCommentAt: getFirestoreServerTimestamp(),
+      updatedAt: getFirestoreServerTimestamp(),
+      athleteLogUid: comment.authorUid,
+      athleteLogName: comment.authorName
+    }), { merge: true }),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_assignment_comment_write_timeout"
+  );
+
+  if (notifyCoach && isAthleteRole(authorRole)) {
+    try {
+      await notifyAssignmentDiscussionViaMessages(assignment, comment);
+    } catch (err) {
+      console.warn("Assignment discussion message notify failed", err);
+    }
+  }
+  return comment;
+}
+
 async function saveAthleteQuickCheckIn(score) {
   const profile = getProfile();
   const authUser = getAuthUser();
@@ -13093,6 +13273,33 @@ function renderAthleteTrackTaskList(container, records = [], { track = "wrestlin
     `;
     const actions = document.createElement("div");
     actions.className = "assignment-card-actions";
+    const askCoachBtn = document.createElement("button");
+    askCoachBtn.type = "button";
+    askCoachBtn.className = "ghost";
+    askCoachBtn.textContent = currentLang === "es" ? "Preguntar al coach" : "Ask coach";
+    askCoachBtn.addEventListener("click", async () => {
+      const promptText = window.prompt(
+        currentLang === "es"
+          ? "Escribe tu pregunta para el coach:"
+          : "Write your question for the coach:"
+      );
+      const message = String(promptText || "").trim();
+      if (!message) return;
+      askCoachBtn.disabled = true;
+      try {
+        await postAssignmentDiscussionComment(record, {
+          text: message,
+          notifyCoach: true
+        });
+        toast(currentLang === "es" ? "Pregunta enviada al coach." : "Question sent to coach.");
+      } catch (err) {
+        console.warn("Assignment question send failed", err);
+        toast(currentLang === "es" ? "No se pudo enviar la pregunta." : "Could not send the question.");
+      } finally {
+        askCoachBtn.disabled = false;
+      }
+    });
+    actions.appendChild(askCoachBtn);
     if (normalizeAssignmentStatus(record.status) === "not_started") {
       const startBtn = document.createElement("button");
       startBtn.type = "button";
@@ -13444,6 +13651,111 @@ function renderPlanDetails(dayIndex) {
         li.appendChild(label);
         planDayDetail.appendChild(li);
       });
+
+      const discussionShell = document.createElement("li");
+      discussionShell.className = "assignment-discussion-shell";
+      const discussionRows = normalizeAssignmentDiscussion(selectedAssignment.discussion || []);
+      const discussionTitle = document.createElement("h4");
+      discussionTitle.className = "assignment-discussion-title";
+      discussionTitle.textContent = currentLang === "es"
+        ? `Preguntas al coach (${discussionRows.length})`
+        : `Questions to coach (${discussionRows.length})`;
+      discussionShell.appendChild(discussionTitle);
+
+      const discussionList = document.createElement("div");
+      discussionList.className = "assignment-discussion-list";
+      if (!discussionRows.length) {
+        const emptyRow = document.createElement("p");
+        emptyRow.className = "small muted";
+        emptyRow.textContent = currentLang === "es"
+          ? "No hay comentarios todavia. Pregunta cualquier duda sobre un ejercicio."
+          : "No comments yet. Ask any question about an exercise.";
+        discussionList.appendChild(emptyRow);
+      } else {
+        discussionRows.slice(-6).forEach((entry) => {
+          const row = document.createElement("article");
+          row.className = `assignment-discussion-entry${normalizeUid(entry.authorUid) === normalizeUid(getAuthUser()?.id) ? " mine" : ""}`;
+          const roleLabel = getRoleLabelEnglish(entry.authorRole || "athlete");
+          row.innerHTML = `
+            <div class="assignment-discussion-entry-head">
+              <strong>${escapeHtml(entry.authorName || "User")}</strong>
+              <span>${escapeHtml(roleLabel)} • ${escapeHtml(formatAssignmentDiscussionTime(entry.createdAtIso) || "-")}</span>
+            </div>
+            ${entry.stepLabel ? `<div class="assignment-discussion-step">${escapeHtml(entry.stepLabel)}</div>` : ""}
+            <p>${escapeHtml(entry.text || "")}</p>
+          `;
+          discussionList.appendChild(row);
+        });
+      }
+      discussionShell.appendChild(discussionList);
+
+      const composer = document.createElement("div");
+      composer.className = "assignment-discussion-composer";
+      const stepSelect = document.createElement("select");
+      stepSelect.className = "assignment-discussion-select";
+      const generalOption = document.createElement("option");
+      generalOption.value = "";
+      generalOption.textContent = currentLang === "es" ? "Pregunta general" : "General question";
+      stepSelect.appendChild(generalOption);
+      steps.forEach((step) => {
+        const option = document.createElement("option");
+        option.value = step.id;
+        option.textContent = step.label;
+        stepSelect.appendChild(option);
+      });
+
+      const questionInput = document.createElement("textarea");
+      questionInput.className = "assignment-discussion-input";
+      questionInput.rows = 2;
+      questionInput.placeholder = currentLang === "es"
+        ? "Escribe tu pregunta o comentario para el entrenador..."
+        : "Write your question or comment for the coach...";
+
+      const sendBtn = document.createElement("button");
+      sendBtn.type = "button";
+      sendBtn.className = "primary";
+      sendBtn.textContent = currentLang === "es" ? "Enviar al coach" : "Send to coach";
+      sendBtn.addEventListener("click", async () => {
+        const message = String(questionInput.value || "").trim();
+        if (!message) {
+          toast(currentLang === "es" ? "Escribe una pregunta primero." : "Write a question first.");
+          return;
+        }
+        const selectedStepId = String(stepSelect.value || "").trim();
+        const selectedStepLabel = selectedStepId
+          ? (steps.find((step) => step.id === selectedStepId)?.label || "")
+          : "";
+        sendBtn.disabled = true;
+        try {
+          const postedComment = await postAssignmentDiscussionComment(selectedAssignment, {
+            text: message,
+            stepId: selectedStepId,
+            stepLabel: selectedStepLabel,
+            notifyCoach: true
+          });
+          const cacheRecord = athletePortalAssignmentsCache.find((item) => item.id === selectedAssignment.id);
+          if (cacheRecord) {
+            cacheRecord.discussion = normalizeAssignmentDiscussion([...(cacheRecord.discussion || []), postedComment]);
+            cacheRecord.discussionCount = cacheRecord.discussion.length;
+            cacheRecord.latestDiscussion = cacheRecord.discussion[cacheRecord.discussion.length - 1] || null;
+          }
+          questionInput.value = "";
+          stepSelect.value = "";
+          toast(currentLang === "es" ? "Mensaje enviado al coach." : "Message sent to coach.");
+          renderPlanDetails(selectedAssignment.id);
+        } catch (err) {
+          console.warn("Assignment discussion send failed", err);
+          toast(currentLang === "es" ? "No se pudo enviar el mensaje." : "Could not send the message.");
+        } finally {
+          sendBtn.disabled = false;
+        }
+      });
+
+      composer.appendChild(stepSelect);
+      composer.appendChild(questionInput);
+      composer.appendChild(sendBtn);
+      discussionShell.appendChild(composer);
+      planDayDetail.appendChild(discussionShell);
       return;
     }
   }
@@ -16432,6 +16744,8 @@ function renderCoachAssignments() {
   visibleAssignments.forEach((item) => {
     const status = getAssignmentStatusMeta(item.status);
     const isCoachShare = String(item.assigneeType || "").trim().toLowerCase() === "coach";
+    const discussionRows = normalizeAssignmentDiscussion(item.discussion || []);
+    const athleteQuestionCount = discussionRows.filter((entry) => isAthleteRole(entry.authorRole)).length;
     const assignedLabel = currentLang === "es" ? "Asignado a" : "Assigned to";
     const typeLabel = currentLang === "es" ? "Tipo" : "Type";
     const dueLabel = currentLang === "es" ? "Entrega" : "Due";
@@ -16439,6 +16753,7 @@ function renderCoachAssignments() {
     const notifyLabel = currentLang === "es" ? "Notificar atleta" : "Notify athlete";
     const updateLabel = currentLang === "es" ? "Actualizar estado" : "Update status";
     const mediaLabel = currentLang === "es" ? "Abrir media" : "Open media";
+    const discussionLabel = currentLang === "es" ? "Preguntas y comentarios" : "Questions and comments";
     const statusOptions = ["not_started", "in_progress", "completed", "overdue", "shared"]
       .map((option) => {
         const meta = getAssignmentStatusMeta(option);
@@ -16447,6 +16762,35 @@ function renderCoachAssignments() {
       })
       .join("");
     const notificationText = getAssignmentNotificationText(item);
+    const discussionHtml = discussionRows.length
+      ? `
+      <div class="assignment-discussion-preview">
+        <div class="assignment-discussion-preview-head">
+          <strong>${discussionLabel}</strong>
+          <span>${currentLang === "es" ? `${athleteQuestionCount} de atleta` : `${athleteQuestionCount} from athletes`}</span>
+        </div>
+        ${discussionRows.slice(-3).map((entry) => {
+          const roleLabel = getRoleLabelEnglish(entry.authorRole || "athlete");
+          const timeLabel = formatAssignmentDiscussionTime(entry.createdAtIso) || "-";
+          return `
+            <article class="assignment-discussion-preview-entry">
+              <div class="assignment-discussion-preview-meta">
+                <strong>${escapeHtml(entry.authorName || "User")}</strong>
+                <span>${escapeHtml(roleLabel)} • ${escapeHtml(timeLabel)}</span>
+              </div>
+              ${entry.stepLabel ? `<div class="assignment-discussion-preview-step">${escapeHtml(entry.stepLabel)}</div>` : ""}
+              <p>${escapeHtml(entry.text || "")}</p>
+            </article>
+          `;
+        }).join("")}
+      </div>
+      `
+      : `
+      <div class="assignment-discussion-preview is-empty">
+        <strong>${discussionLabel}</strong>
+        <p class="small muted">${currentLang === "es" ? "Sin mensajes todavia." : "No messages yet."}</p>
+      </div>
+      `;
     const card = document.createElement("article");
     card.className = "assignment-card";
     card.innerHTML = `
@@ -16472,6 +16816,7 @@ function renderCoachAssignments() {
       </div>
       <div class="assignment-card-meta">${sourceLabel}: ${item.source || getPlanAssignmentTypeLabel(item.planType)}</div>
       <p class="small">${item.note || (currentLang === "es" ? "Sin nota adicional." : "No additional note.")}</p>
+      ${discussionHtml}
       ${isCoachShare ? `<div class="assignment-card-meta">${currentLang === "es" ? "Modo" : "Mode"}: ${currentLang === "es" ? "Solo compartir entre entrenadores" : "Coach-to-coach share only"}</div>` : ""}
       <div class="assignment-card-meta">${notificationText}</div>
     `;
