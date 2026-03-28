@@ -1376,22 +1376,24 @@
     const averageTime = session.times?.length
       ? Math.round(session.times.reduce((sum, value) => sum + value, 0) / session.times.length)
       : 0;
+    const sequenceHtml = (session.sequence || []).map((item, index) => `
+      <div class="planner-mental-seq-item active">${escapeHtml(index + 1)}. ${escapeHtml(item.text)}</div>
+    `).join("");
+    const sequenceBlock = `
+      <div class="planner-mental-card">
+        <span class="small muted">${session.showingSequence ? "Memorize sequence" : "Score sequence (always visible)"}</span>
+        <div class="planner-mental-grid">${sequenceHtml || '<span class="small muted">Preparing sequence...</span>'}</div>
+      </div>
+    `;
     let content = "";
     if (session.showingSequence) {
-      const sequenceHtml = (session.sequence || []).map((item, index) => `
-        <div class="planner-mental-seq-item active">${escapeHtml(index + 1)}. ${escapeHtml(item.text)}</div>
-      `).join("");
-      content = `
-        <div class="planner-mental-card">
-          <span class="small muted">Memorize sequence</span>
-          <div class="planner-mental-grid">${sequenceHtml}</div>
-        </div>
-      `;
+      content = sequenceBlock;
     } else if (session.question) {
       const options = (session.question.options || []).map((option, index) => `
         <button type="button" class="ghost" data-action="mental-score-answer" data-option-index="${index}">${escapeHtml(option)}</button>
       `).join("");
       content = `
+        ${sequenceBlock}
         <div class="planner-mental-card">
           <span class="small muted">Question</span>
           <h4>Who is winning after that sequence?</h4>
