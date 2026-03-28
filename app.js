@@ -1861,8 +1861,8 @@ const TAB_COPY = {
     ru: "Тренировки и задания"
   },
   plans: {
-    en: "Plans & Assignments",
-    es: "Planes y asignaciones",
+    en: "Training and Tasks to Do",
+    es: "Entrenamiento y tareas por hacer",
     uz: "Rejalar va topshiriqlar",
     ru: "Планы и назначения"
   },

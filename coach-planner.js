@@ -4639,8 +4639,8 @@
     if (readOnly) {
       if (els.headerTitle) {
         els.headerTitle.textContent = tr({
-          en: "Plans & Assignments",
-          es: "Planes y asignaciones"
+          en: "Training and Tasks to Do",
+          es: "Entrenamiento y tareas por hacer"
         });
       }
       if (els.headerSubtitle) {
