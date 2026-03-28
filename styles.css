@@ -10881,6 +10881,67 @@ body.viewport-mobile .app{
   cursor: default !important;
 }
 
+/* Global UWC corner mark (always visible) */
+.global-uwc-corner-mark{
+  position: fixed;
+  right: max(12px, calc(env(safe-area-inset-right) + 10px));
+  bottom: max(12px, calc(env(safe-area-inset-bottom) + 10px));
+  z-index: 1700;
+  pointer-events: none;
+}
+
+.global-uwc-corner-mark-shell{
+  width: clamp(48px, 5.4vw, 66px);
+  height: clamp(48px, 5.4vw, 66px);
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  background: linear-gradient(165deg, rgba(8, 17, 39, 0.84), rgba(11, 28, 68, 0.86));
+  box-shadow: 0 10px 22px rgba(2, 6, 23, 0.32);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.global-uwc-corner-mark-shell img{
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 2px 4px rgba(2, 6, 23, 0.45));
+}
+
+.global-uwc-corner-mark-shell span{
+  position: absolute;
+  bottom: 4px;
+  right: 5px;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #dbeafe;
+  opacity: 0.86;
+  text-shadow: 0 1px 2px rgba(2, 6, 23, 0.65);
+}
+
+@media (max-width: 640px){
+  .global-uwc-corner-mark{
+    right: max(10px, calc(env(safe-area-inset-right) + 8px));
+    bottom: max(10px, calc(env(safe-area-inset-bottom) + 8px));
+  }
+  .global-uwc-corner-mark-shell{
+    border-radius: 14px;
+  }
+}
+
+@media print{
+  .global-uwc-corner-mark{
+    display: none !important;
+  }
+}
+
 /* Athlete assignment game modal */
 .athlete-game-modal-overlay{
   position: fixed;
