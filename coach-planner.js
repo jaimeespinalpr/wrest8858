@@ -477,7 +477,12 @@
     liftingSavedList: document.getElementById("plannerLiftingSavedList"),
     liftingProtocolsCount: document.getElementById("plannerLiftingProtocolsCount"),
     liftingExercisesCount: document.getElementById("plannerLiftingExercisesCount"),
-    liftingActiveDayLabel: document.getElementById("plannerLiftingActiveDayLabel")
+    liftingActiveDayLabel: document.getElementById("plannerLiftingActiveDayLabel"),
+    liftingProgramMeta: document.getElementById("plannerLiftingProgramMeta"),
+    liftingProgramKpis: document.getElementById("plannerLiftingProgramKpis"),
+    liftingProgramDayChart: document.getElementById("plannerLiftingProgramDayChart"),
+    liftingProgramCategoryChart: document.getElementById("plannerLiftingProgramCategoryChart"),
+    liftingProgramIntensity: document.getElementById("plannerLiftingProgramIntensity")
   };
 
   function persistDaily() {
@@ -996,6 +1001,215 @@
     }
   }
 
+  function parseLiftingNumber(value, fallback = 0) {
+    const match = String(value || "").match(/-?\d+(\.\d+)?/);
+    if (!match) return fallback;
+    const parsed = Number(match[0]);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  function parseLiftingRepsValue(value) {
+    const numbers = String(value || "")
+      .match(/\d+(\.\d+)?/g);
+    if (!numbers || !numbers.length) return 0;
+    if (numbers.length === 1) return Number(numbers[0]) || 0;
+    const sum = numbers.reduce((acc, item) => acc + (Number(item) || 0), 0);
+    return sum / numbers.length;
+  }
+
+  function parseLiftingIntensityValue(value) {
+    const parsed = parseLiftingNumber(value, 0);
+    if (parsed <= 0) return 0;
+    if (parsed <= 1) return parsed * 100;
+    return parsed;
+  }
+
+  function resolveLiftingExerciseCategoryName(exerciseName = "") {
+    const target = String(exerciseName || "").trim().toLowerCase();
+    if (!target) return "Uncategorized";
+    const libraryEntries = Object.entries(state.liftingLibrary || {});
+    for (const [categoryName, exerciseList] of libraryEntries) {
+      const found = (Array.isArray(exerciseList) ? exerciseList : []).some((item) => {
+        return String(item || "").trim().toLowerCase() === target;
+      });
+      if (found) return categoryName;
+    }
+    return "Uncategorized";
+  }
+
+  function buildLiftingBlueprintMetrics() {
+    const safePlan = normalizeLiftingPlan(state.liftingPlan || buildDefaultLiftingPlan());
+    const dayRows = safePlan.days.map((day, index) => {
+      const exercises = Array.isArray(day.exercises) ? day.exercises : [];
+      let totalSets = 0;
+      let totalVolume = 0;
+      let intensityWeighted = 0;
+      let intensityCount = 0;
+      exercises.forEach((exercise) => {
+        const sets = Math.max(0, parseLiftingNumber(exercise.sets, 0));
+        const reps = Math.max(0, parseLiftingRepsValue(exercise.reps));
+        const intensity = Math.max(0, parseLiftingIntensityValue(exercise.intensity));
+        const volume = sets * reps;
+        totalSets += sets;
+        totalVolume += volume;
+        if (intensity > 0) {
+          intensityWeighted += intensity;
+          intensityCount += 1;
+        }
+      });
+      return {
+        index,
+        name: day.name || `Day ${index + 1}`,
+        exercises,
+        exerciseCount: exercises.length,
+        totalSets,
+        totalVolume,
+        avgIntensity: intensityCount ? (intensityWeighted / intensityCount) : 0,
+        loadScore: totalVolume * ((intensityCount ? (intensityWeighted / intensityCount) : 70) / 100)
+      };
+    });
+
+    const allExercises = dayRows.flatMap((day) => day.exercises.map((exercise) => ({ day, exercise })));
+    const categoryMap = new Map();
+    const intensityBuckets = {
+      low: 0,
+      moderate: 0,
+      high: 0
+    };
+    let totalSets = 0;
+    let totalVolume = 0;
+    let intensitySum = 0;
+    let intensityCount = 0;
+
+    allExercises.forEach(({ exercise }) => {
+      const category = resolveLiftingExerciseCategoryName(exercise.name);
+      categoryMap.set(category, (categoryMap.get(category) || 0) + 1);
+      const sets = Math.max(0, parseLiftingNumber(exercise.sets, 0));
+      const reps = Math.max(0, parseLiftingRepsValue(exercise.reps));
+      const intensity = Math.max(0, parseLiftingIntensityValue(exercise.intensity));
+      totalSets += sets;
+      totalVolume += sets * reps;
+      if (intensity > 0) {
+        intensitySum += intensity;
+        intensityCount += 1;
+        if (intensity < 65) intensityBuckets.low += 1;
+        else if (intensity <= 80) intensityBuckets.moderate += 1;
+        else intensityBuckets.high += 1;
+      }
+    });
+
+    const categoryRows = Array.from(categoryMap.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((left, right) => right.count - left.count);
+
+    const maxDayLoad = Math.max(1, ...dayRows.map((day) => day.loadScore || 0));
+    const maxCategoryCount = Math.max(1, ...categoryRows.map((row) => row.count || 0));
+
+    return {
+      plan: safePlan,
+      dayRows,
+      totalExercises: allExercises.length,
+      activeDays: dayRows.filter((day) => day.exerciseCount > 0).length,
+      totalSets,
+      totalVolume,
+      avgIntensity: intensityCount ? (intensitySum / intensityCount) : 0,
+      maxDayLoad,
+      categoryRows,
+      maxCategoryCount,
+      intensityBuckets
+    };
+  }
+
+  function renderLiftingProgramKpis(metrics) {
+    if (!els.liftingProgramKpis) return;
+    const cards = [
+      { label: "Total exercises", value: String(metrics.totalExercises) },
+      { label: "Active days", value: `${metrics.activeDays}/7` },
+      { label: "Total sets", value: String(Math.round(metrics.totalSets)) },
+      { label: "Volume reps", value: String(Math.round(metrics.totalVolume)) }
+    ];
+    els.liftingProgramKpis.innerHTML = cards.map((card) => {
+      return `
+        <article class="planner-lifting-program-kpi">
+          <span>${escapeHtml(card.label)}</span>
+          <strong>${escapeHtml(card.value)}</strong>
+        </article>
+      `;
+    }).join("");
+  }
+
+  function renderLiftingProgramDayChart(metrics) {
+    if (!els.liftingProgramDayChart) return;
+    if (!metrics.totalExercises) {
+      els.liftingProgramDayChart.innerHTML = `<p class="planner-lifting-program-empty">Add exercises and save the protocol to view day-by-day load.</p>`;
+      return;
+    }
+    els.liftingProgramDayChart.innerHTML = metrics.dayRows.map((day) => {
+      const percent = Math.max(3, Math.round(((day.loadScore || 0) / metrics.maxDayLoad) * 100));
+      return `
+        <div class="planner-lifting-program-bar">
+          <div class="planner-lifting-program-bar-head">
+            <span>${escapeHtml(day.name)}</span>
+            <span>${Math.round(day.totalVolume)} reps-load</span>
+          </div>
+          <div class="planner-lifting-program-bar-track">
+            <div class="planner-lifting-program-bar-fill" style="width:${percent}%"></div>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderLiftingProgramCategoryChart(metrics) {
+    if (!els.liftingProgramCategoryChart) return;
+    if (!metrics.categoryRows.length) {
+      els.liftingProgramCategoryChart.innerHTML = `<p class="planner-lifting-program-empty">Category distribution will appear after adding exercises.</p>`;
+      return;
+    }
+    els.liftingProgramCategoryChart.innerHTML = metrics.categoryRows.slice(0, 6).map((row) => {
+      const percent = Math.max(6, Math.round((row.count / metrics.maxCategoryCount) * 100));
+      return `
+        <div class="planner-lifting-program-bar">
+          <div class="planner-lifting-program-bar-head">
+            <span>${escapeHtml(row.name)}</span>
+            <span>${row.count}</span>
+          </div>
+          <div class="planner-lifting-program-bar-track">
+            <div class="planner-lifting-program-bar-fill" style="width:${percent}%"></div>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderLiftingProgramIntensity(metrics) {
+    if (!els.liftingProgramIntensity) return;
+    const avg = metrics.avgIntensity > 0 ? `${Math.round(metrics.avgIntensity)}%` : "--";
+    els.liftingProgramIntensity.innerHTML = `
+      <div class="planner-lifting-intensity-main">
+        <strong>${avg}</strong>
+        <span>Average intensity</span>
+      </div>
+      <div class="planner-lifting-intensity-breakdown">
+        <div class="planner-lifting-intensity-breakdown-row"><span>Low (&lt;65%)</span><span>${metrics.intensityBuckets.low}</span></div>
+        <div class="planner-lifting-intensity-breakdown-row"><span>Moderate (65-80%)</span><span>${metrics.intensityBuckets.moderate}</span></div>
+        <div class="planner-lifting-intensity-breakdown-row"><span>High (&gt;80%)</span><span>${metrics.intensityBuckets.high}</span></div>
+      </div>
+    `;
+  }
+
+  function renderLiftingProgramBlueprint() {
+    const metrics = buildLiftingBlueprintMetrics();
+    if (els.liftingProgramMeta) {
+      const updatedLabel = metrics.plan.updatedAt ? formatLiftingUpdatedAt(metrics.plan.updatedAt) : "No date";
+      els.liftingProgramMeta.textContent = `${metrics.plan.name} • Weeks ${metrics.plan.weeks || "--"} • Updated ${updatedLabel}`;
+    }
+    renderLiftingProgramKpis(metrics);
+    renderLiftingProgramDayChart(metrics);
+    renderLiftingProgramCategoryChart(metrics);
+    renderLiftingProgramIntensity(metrics);
+  }
+
   function renderLiftingPlanFields() {
     if (els.liftingPlanNameInput) els.liftingPlanNameInput.value = state.liftingPlan.name || "";
     if (els.liftingPlanWeeksInput) els.liftingPlanWeeksInput.value = state.liftingPlan.weeks || "";
@@ -1021,6 +1235,7 @@
     renderLiftingLibraryGroups();
     renderLiftingSavedList();
     renderLiftingOverview();
+    renderLiftingProgramBlueprint();
   }
 
   function setLiftingTab(tab) {
@@ -1188,6 +1403,8 @@
       renderLiftingOverview();
       setLiftingStatus(`Saved protocol: ${payload.name}`);
       triggerToast("Lifting protocol saved.");
+      setLiftingTab("program");
+      focusPlannerWindow(root, { smooth: true });
     } catch (err) {
       console.warn("Failed to save lifting protocol", err);
       setLiftingStatus("Could not save protocol right now.", true);
