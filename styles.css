@@ -8739,6 +8739,147 @@ svg{
   border-radius: 12px;
   background: rgba(11, 23, 42, 0.86);
   padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.planner-lifting-program-head{
+  display: grid;
+  gap: 4px;
+}
+
+.planner-lifting-program-head h4{
+  margin: 0;
+}
+
+.planner-lifting-program-grid{
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.planner-lifting-program-panel{
+  border: 1px solid rgba(112, 141, 190, 0.28);
+  border-radius: 12px;
+  background: rgba(7, 16, 33, 0.84);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.planner-lifting-program-panel h5{
+  margin: 0;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9fb5d9;
+}
+
+.planner-lifting-program-kpis{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.planner-lifting-program-kpi{
+  border: 1px solid rgba(126, 156, 207, 0.32);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(18, 33, 59, 0.82);
+  display: grid;
+  gap: 2px;
+}
+
+.planner-lifting-program-kpi span{
+  font-size: 0.72rem;
+  color: #a9bfdf;
+}
+
+.planner-lifting-program-kpi strong{
+  font-size: 1.2rem;
+  color: #f5f9ff;
+}
+
+.planner-lifting-program-bars{
+  display: grid;
+  gap: 8px;
+}
+
+.planner-lifting-program-bar{
+  display: grid;
+  gap: 4px;
+}
+
+.planner-lifting-program-bar-head{
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: #c6d7f1;
+}
+
+.planner-lifting-program-bar-track{
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(51, 65, 85, 0.72);
+  overflow: hidden;
+}
+
+.planner-lifting-program-bar-fill{
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.92), rgba(45, 212, 191, 0.9));
+}
+
+.planner-lifting-program-bars.compact .planner-lifting-program-bar-track{
+  height: 8px;
+}
+
+.planner-lifting-intensity-card{
+  border: 1px solid rgba(126, 156, 207, 0.32);
+  border-radius: 10px;
+  padding: 12px;
+  background: rgba(18, 33, 59, 0.82);
+  display: grid;
+  gap: 8px;
+}
+
+.planner-lifting-intensity-main{
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.planner-lifting-intensity-main strong{
+  font-size: 1.35rem;
+  color: #f5f9ff;
+}
+
+.planner-lifting-intensity-main span{
+  font-size: 0.76rem;
+  color: #9fb5d9;
+}
+
+.planner-lifting-intensity-breakdown{
+  display: grid;
+  gap: 6px;
+}
+
+.planner-lifting-intensity-breakdown-row{
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: #c6d7f1;
+}
+
+.planner-lifting-program-empty{
+  color: #94a3b8;
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 12px;
+  border: 1px dashed rgba(148, 163, 184, 0.42);
+  border-radius: 10px;
 }
 
 @media (max-width: 1024px){
@@ -8748,11 +8889,17 @@ svg{
   .planner-lifting-editor-grid{
     grid-template-columns: 1fr;
   }
+  .planner-lifting-program-grid{
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 700px){
   .planner-lifting-meta-grid,
   .planner-lifting-exercise-fields{
+    grid-template-columns: 1fr;
+  }
+  .planner-lifting-program-kpis{
     grid-template-columns: 1fr;
   }
 }

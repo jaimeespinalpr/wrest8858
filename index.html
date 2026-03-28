@@ -1484,8 +1484,28 @@
 
               <div class="planner-lifting-view hidden" data-lifting-view="program">
                 <div class="planner-lifting-program-card">
-                  <h4>Master Blueprint</h4>
-                  <p class="small muted">Use the 7-Day Editor to create and maintain your protocol library.</p>
+                  <div class="planner-lifting-program-head">
+                    <h4>Master Blueprint</h4>
+                    <p class="small muted" id="plannerLiftingProgramMeta">Save a protocol to generate the blueprint.</p>
+                  </div>
+                  <div class="planner-lifting-program-grid">
+                    <section class="planner-lifting-program-panel">
+                      <h5>Program summary</h5>
+                      <div id="plannerLiftingProgramKpis" class="planner-lifting-program-kpis"></div>
+                    </section>
+                    <section class="planner-lifting-program-panel">
+                      <h5>Daily load chart</h5>
+                      <div id="plannerLiftingProgramDayChart" class="planner-lifting-program-bars"></div>
+                    </section>
+                    <section class="planner-lifting-program-panel">
+                      <h5>Category distribution</h5>
+                      <div id="plannerLiftingProgramCategoryChart" class="planner-lifting-program-bars compact"></div>
+                    </section>
+                    <section class="planner-lifting-program-panel">
+                      <h5>Intensity profile</h5>
+                      <div id="plannerLiftingProgramIntensity" class="planner-lifting-intensity-card"></div>
+                    </section>
+                  </div>
                 </div>
               </div>
             </div>
