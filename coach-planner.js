@@ -1386,7 +1386,7 @@
     if (state.activeTemplateName) {
       return `Editing template: ${state.activeTemplateName}`;
     }
-    return "Save as template or send this training to athletes.";
+    return "Save as template or share this plan with athletes and coaches.";
   }
 
   function setAssignStatus(message, isError = false) {
@@ -1648,16 +1648,20 @@
     return `Daily Training Plan - ${formatDateLabel(dateKey)}`;
   }
 
-  function normalizeAthleteRecord(id, data = {}) {
+  function normalizeRecipientRecord(id, data = {}, fallbackType = "athlete") {
     const name = String(data?.name || "").trim();
     if (!name) return null;
-    const athleteUid = String(data?.athleteUid || data?.uid || "").trim();
-    const athleteEmail = String(data?.athleteEmail || data?.email || "").trim();
+    const role = String(data?.role || fallbackType).trim().toLowerCase();
+    const recipientType = isCoachLikeRole(role) ? "coach" : "athlete";
+    const recipientUid = String(data?.athleteUid || data?.uid || "").trim();
+    const recipientEmail = String(data?.athleteEmail || data?.email || "").trim();
     return {
       id: String(id || toSimpleSlug(name)).trim() || toSimpleSlug(name),
       name,
-      athleteUid,
-      athleteEmail
+      recipientType,
+      role,
+      recipientUid,
+      recipientEmail
     };
   }
 
@@ -1668,14 +1672,15 @@
       if (!filter) return true;
       return athlete.name.toLowerCase().includes(filter)
         || athlete.id.toLowerCase().includes(filter)
-        || athlete.athleteEmail.toLowerCase().includes(filter);
+        || athlete.recipientEmail.toLowerCase().includes(filter);
     });
     if (!filtered.length) {
-      els.assignList.innerHTML = `<p class="small muted">No athletes found.</p>`;
+      els.assignList.innerHTML = `<p class="small muted">No recipients found.</p>`;
       return;
     }
     const html = filtered.map((athlete) => {
       const isSelected = state.selectedAthleteIds.includes(athlete.id);
+      const roleLabel = athlete.recipientType === "coach" ? "Coach" : "Athlete";
       return `
         <button
           type="button"
@@ -1683,8 +1688,8 @@
           data-action="toggle-assign-athlete"
           data-athlete-id="${escapeHtml(athlete.id)}"
         >
-          <strong>${escapeHtml(athlete.name)}</strong>
-          <span>${escapeHtml(athlete.athleteEmail || athlete.id)}</span>
+          <strong>${escapeHtml(athlete.name)} <small>(${roleLabel})</small></strong>
+          <span>${escapeHtml(athlete.recipientEmail || athlete.id)}</span>
         </button>
       `;
     }).join("");
@@ -1697,43 +1702,70 @@
       state.assignAthletes = [];
       state.selectedAthleteIds = [];
       renderAssignAthleteList();
-      setAssignStatus("Coach workspace is not available right now.", true);
+      setAssignStatus("Planner recipients are not available right now.", true);
       return;
     }
 
     try {
-      setAssignStatus("Loading athletes...");
+      setAssignStatus("Loading recipients...");
       const snap = await athletesRef.get();
-      let records = snap.docs
-        .map((doc) => normalizeAthleteRecord(doc.id, doc.data() || {}))
+      let athleteRecords = snap.docs
+        .map((doc) => normalizeRecipientRecord(doc.id, doc.data() || {}, "athlete"))
         .filter(Boolean)
+        .filter((record) => record.recipientType === "athlete")
         .sort((left, right) => left.name.localeCompare(right.name));
 
-      if (!records.length) {
-        const usersRef = getPlannerUsersCollectionRef();
-        if (usersRef) {
-          const usersSnap = await usersRef.where("role", "==", "athlete").get();
-          records = usersSnap.docs
-            .map((doc) => normalizeAthleteRecord(doc.id, doc.data() || {}))
+      const usersRef = getPlannerUsersCollectionRef();
+      let coachRecords = [];
+      if (usersRef) {
+        const usersSnap = await usersRef.get();
+        const seenCoachUid = new Set();
+        usersSnap.docs.forEach((doc) => {
+          const record = normalizeRecipientRecord(doc.id, doc.data() || {}, "athlete");
+          if (!record || record.recipientType !== "coach") return;
+          const uidKey = String(record.recipientUid || record.id).trim();
+          if (!uidKey || seenCoachUid.has(uidKey)) return;
+          seenCoachUid.add(uidKey);
+          coachRecords.push(record);
+        });
+
+        if (!athleteRecords.length) {
+          athleteRecords = usersSnap.docs
+            .map((doc) => normalizeRecipientRecord(doc.id, doc.data() || {}, "athlete"))
             .filter(Boolean)
+            .filter((record) => record.recipientType === "athlete")
             .sort((left, right) => left.name.localeCompare(right.name));
         }
       }
+
+      const records = [...athleteRecords, ...coachRecords]
+        .reduce((acc, record) => {
+          if (!acc.some((entry) => entry.id === record.id)) acc.push(record);
+          return acc;
+        }, [])
+        .sort((left, right) => {
+          if (left.recipientType !== right.recipientType) {
+            return left.recipientType === "athlete" ? -1 : 1;
+          }
+          return left.name.localeCompare(right.name);
+        });
 
       state.assignAthletes = records;
       state.selectedAthleteIds = state.selectedAthleteIds.filter((athleteId) => records.some((item) => item.id === athleteId));
       renderAssignAthleteList();
       if (!records.length) {
-        setAssignStatus("No athletes available yet. Register athletes first.");
+        setAssignStatus("No recipients available yet. Register users first.");
       } else {
-        setAssignStatus(`${records.length} athletes available.`);
+        const athletesCount = records.filter((record) => record.recipientType === "athlete").length;
+        const coachesCount = records.filter((record) => record.recipientType === "coach").length;
+        setAssignStatus(`${athletesCount} athletes + ${coachesCount} coaches available.`);
       }
     } catch (err) {
-      console.warn("Failed to load athletes for planner assignment", err);
+      console.warn("Failed to load recipients for planner assignment", err);
       state.assignAthletes = [];
       state.selectedAthleteIds = [];
       renderAssignAthleteList();
-      setAssignStatus("Could not load athletes. Try again.", true);
+      setAssignStatus("Could not load recipients. Try again.", true);
     }
   }
 
@@ -1745,7 +1777,7 @@
     if (els.assignSearchInput) els.assignSearchInput.value = "";
     els.assignModal?.classList.remove("hidden");
     focusPlannerWindow(els.assignModal, { smooth: true });
-    setAssignStatus("Choose athletes, then send.");
+    setAssignStatus("Choose recipients, then share.");
     loadPlannerAthletesForAssignment().catch(() => {});
   }
 
@@ -1833,7 +1865,7 @@
     if (state.assignModalBusy) return;
     const selected = state.assignAthletes.filter((athlete) => state.selectedAthleteIds.includes(athlete.id));
     if (!selected.length) {
-      setAssignStatus("Select at least one athlete.", true);
+      setAssignStatus("Select at least one recipient.", true);
       return;
     }
 
@@ -1847,7 +1879,7 @@
     state.assignModalBusy = true;
     if (els.assignSendBtn) {
       els.assignSendBtn.disabled = true;
-      els.assignSendBtn.textContent = "Sending...";
+      els.assignSendBtn.textContent = "Sharing...";
     }
     setAssignStatus("Saving plan and assignments...");
 
@@ -1857,9 +1889,14 @@
     const profile = getPlannerProfile();
     const createdBy = String(profile?.name || authUser?.email || "Coach").trim();
     const planTitle = getPlannerTitle();
-    const athleteNames = selected.map((athlete) => athlete.name);
-    const athleteIds = selected.map((athlete) => athlete.id);
-    const athleteUids = selected.map((athlete) => athlete.athleteUid).filter(Boolean);
+    const athleteRecipients = selected.filter((athlete) => athlete.recipientType !== "coach");
+    const coachRecipients = selected.filter((athlete) => athlete.recipientType === "coach");
+    const athleteNames = athleteRecipients.map((athlete) => athlete.name);
+    const athleteIds = athleteRecipients.map((athlete) => athlete.id);
+    const athleteUids = athleteRecipients.map((athlete) => athlete.recipientUid).filter(Boolean);
+    const coachNames = coachRecipients.map((coach) => coach.name);
+    const coachIds = coachRecipients.map((coach) => coach.id);
+    const coachUids = coachRecipients.map((coach) => coach.recipientUid).filter(Boolean);
     const audienceMode = selected.length > 1 ? "multi" : "single";
     const note = `Coach planner session (${Math.max(1, parseTimeValue(state.docInfo.totalTime || "90"))} min total).`;
 
@@ -1882,9 +1919,15 @@
         seasonYear: String(state.settings?.season || "").trim(),
         audience: {
           mode: audienceMode,
+          recipientNames: selected.map((item) => item.name),
+          recipientIds: selected.map((item) => item.id),
+          recipientUids: selected.map((item) => item.recipientUid).filter(Boolean),
           athleteNames,
           athleteIds,
           athleteUids,
+          coachNames,
+          coachIds,
+          coachUids,
           groupId: "",
           groupName: ""
         },
@@ -1901,14 +1944,19 @@
       const createdAssignments = [];
       selected.forEach((athlete) => {
         const assignmentRef = assignmentsRef.doc();
+        const isCoach = athlete.recipientType === "coach";
         const assignmentPayload = {
           title: planTitle,
-          assigneeType: "athlete",
+          assigneeType: isCoach ? "coach" : "athlete",
           assigneeId: athlete.id,
           assigneeName: athlete.name,
           assigneeNames: [athlete.name],
-          athleteIds: [athlete.id],
-          athleteUids: athlete.athleteUid ? [athlete.athleteUid] : [],
+          recipientType: isCoach ? "coach" : "athlete",
+          recipientUid: athlete.recipientUid || "",
+          athleteIds: isCoach ? [] : [athlete.id],
+          athleteUids: isCoach ? [] : (athlete.recipientUid ? [athlete.recipientUid] : []),
+          coachIds: isCoach ? [athlete.id] : [],
+          coachUids: isCoach ? (athlete.recipientUid ? [athlete.recipientUid] : []) : [],
           type: "Daily Plan",
           dueDateKey,
           dueLabel,
@@ -1939,19 +1987,19 @@
         });
       }
 
-      const successMessage = `Training sent to ${selected.length} athlete${selected.length === 1 ? "" : "s"}.`;
+      const successMessage = `Plan shared with ${selected.length} recipient${selected.length === 1 ? "" : "s"}.`;
       setAssignStatus(successMessage);
       setBottomStatus(successMessage);
       triggerToast(successMessage);
       closeAssignModal();
     } catch (err) {
-      console.warn("Failed to send planner training assignments", err);
-      setAssignStatus("Could not send training. Try again.", true);
+      console.warn("Failed to share planner assignments", err);
+      setAssignStatus("Could not share plan. Try again.", true);
     } finally {
       state.assignModalBusy = false;
       if (els.assignSendBtn) {
         els.assignSendBtn.disabled = false;
-        els.assignSendBtn.textContent = "Send training";
+        els.assignSendBtn.textContent = "Share plan";
       }
     }
   }

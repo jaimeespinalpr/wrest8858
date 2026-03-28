@@ -15884,6 +15884,8 @@ async function findFirebaseUsersForAssignment(assignment) {
   if (!firebaseFirestoreInstance || !assignment) return [];
   const usersRef = firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION);
   const byUid = new Map();
+  const assigneeType = String(assignment.assigneeType || "athlete").trim().toLowerCase();
+  const isCoachTarget = assigneeType === "coach";
   const canonicalTargets = getCanonicalAssignmentAthleteTargets(assignment);
   const athleteUids = normalizedStringList(assignment.athleteUids || []);
   const athleteIds = normalizedStringList(assignment.athleteIds || []);
@@ -15909,8 +15911,8 @@ async function findFirebaseUsersForAssignment(assignment) {
     if (target?.uid) {
       byUid.set(uid, {
         uid,
-        name: target.name || assignment.assigneeName || "Athlete",
-        role: "athlete",
+        name: target.name || assignment.assigneeName || (isCoachTarget ? "Coach" : "Athlete"),
+        role: isCoachTarget ? "coach" : "athlete",
         email: target.email || "",
         linkedAthleteId: target.linkedAthleteId || ""
       });
@@ -15940,7 +15942,14 @@ async function findFirebaseUsersForAssignment(assignment) {
     }
   }
 
-  return Array.from(byUid.values()).filter((user) => user.uid && normalizeAuthRole(user.role) === "athlete");
+  return Array.from(byUid.values()).filter((user) => {
+    if (!user.uid) return false;
+    const role = normalizeAuthRole(user.role);
+    if (isCoachTarget) {
+      return role === "coach" || role === "admin" || role === "administrator" || role === "head_coach";
+    }
+    return role === "athlete";
+  });
 }
 
 async function sendCoachAssignmentNotification(assignment) {
