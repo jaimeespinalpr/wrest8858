@@ -116,6 +116,7 @@ let athletePortalCompletionCache = null;
 let athletePortalMatchAnalysisCache = [];
 let athletePortalCompetitionsCache = [];
 let athletePortalPlanFetchKey = "";
+let athleteTrainingSelectedAssignmentId = "";
 let coachRelationshipSyncTimeout = null;
 let coachRelationshipSyncInFlight = false;
 let parentScoutingRecorder = null;
@@ -342,6 +343,7 @@ const dailyStatus = document.getElementById("dailyStatus");
 const planGrid = document.getElementById("planGrid");
 const planDayTitle = document.getElementById("planDayTitle");
 const planDayDetail = document.getElementById("planDayDetail");
+const trainingPanelChip = document.querySelector("#panel-training .card-header .chip");
 const calendarGrid = document.getElementById("calendarMonthGrid");
 const calendarMonthLabel = document.getElementById("calendarMonthLabel");
 const calendarPrevBtn = document.getElementById("calendarPrevBtn");
@@ -1822,10 +1824,10 @@ const TAB_COPY = {
     ru: "Профиль"
   },
   training: {
-    en: "Training Plan",
-    es: "Plan de entrenamiento",
-    uz: "Trening rejasi",
-    ru: "План тренировок"
+    en: "Training & Assignments",
+    es: "Entrenamiento y tareas",
+    uz: "Trening va topshiriqlar",
+    ru: "Тренировки и задания"
   },
   calendar: {
     en: "Calendar",
@@ -2374,16 +2376,16 @@ function applyTextTranslations(root = document.body) {
 const PANEL_COPY = {
   "panel-training": {
     title: {
-      en: "Training Plan",
-      es: "Plan de entrenamiento",
-      uz: "Trening rejasi",
-      ru: "План тренировок"
+      en: "Training & Assignments",
+      es: "Entrenamiento y tareas",
+      uz: "Trening va topshiriqlar",
+      ru: "Тренировки и задания"
     },
     chip: {
-      en: "Week 3 - Pre-Tournament",
-      es: "Semana 3 - Pre torneo",
-      uz: "3-hafta - Turnirdan oldin",
-      ru: "Неделя 3 - Предтурнир"
+      en: "Coach shared tasks",
+      es: "Tareas compartidas por el coach",
+      uz: "Murabbiy yuborgan topshiriqlar",
+      ru: "Задачи от тренера"
     }
   },
   "panel-athlete-profile": {
@@ -4003,6 +4005,16 @@ function normalizeAssignmentStatus(status) {
   return "not_started";
 }
 
+function normalizeAssignmentChecklist(raw = {}) {
+  if (!raw || typeof raw !== "object") return {};
+  return Object.entries(raw).reduce((acc, [key, value]) => {
+    const safeKey = String(key || "").trim();
+    if (!safeKey) return acc;
+    acc[safeKey] = Boolean(value);
+    return acc;
+  }, {});
+}
+
 function normalizeCoachAssignmentRecord(id, data = {}) {
   const dueDateKey = isDateKey(data.dueDateKey) ? data.dueDateKey : "";
   const normalizedStatus = normalizeAssignmentStatus(data.status);
@@ -4026,6 +4038,7 @@ function normalizeCoachAssignmentRecord(id, data = {}) {
     source: String(data.source || "").trim(),
     planId: String(data.planId || "").trim(),
     planType: normalizePlanType(data.planType || "day"),
+    athleteChecklist: normalizeAssignmentChecklist(data.athleteChecklist),
     mediaId: String(data.mediaId || "").trim(),
     mediaTitle: String(data.mediaTitle || "").trim(),
     mediaAssetPath: String(data.mediaAssetPath || "").trim(),
@@ -12848,6 +12861,144 @@ function buildAthletePlanDetailLines(plan) {
     .map(([key, values]) => `${labels[key] || key}: ${values.join(" - ")}`);
 }
 
+function getAthleteTrainingAssignments({ includeCompleted = true } = {}) {
+  if (!isAthleteRole(getProfile()?.role) || !getAthleteLinkedCoachUid()) return [];
+  const list = coachWorkspaceSortByUpdated(athletePortalAssignmentsCache).filter((assignment) => {
+    const track = getAssignmentTrainingTrack(assignment);
+    if (!["wrestling", "lifting", "mental"].includes(track)) return false;
+    if (includeCompleted) return true;
+    return normalizeAssignmentStatus(assignment.status) !== "completed";
+  });
+  return list;
+}
+
+function getAthletePlanById(planId = "") {
+  const safeId = String(planId || "").trim();
+  if (!safeId) return null;
+  return athletePortalPlansCache.find((plan) => String(plan.id || "").trim() === safeId) || null;
+}
+
+function getTrainingTrackLabel(track = "wrestling") {
+  const safeTrack = String(track || "wrestling").trim().toLowerCase();
+  if (safeTrack === "lifting") return currentLang === "es" ? "Lifting y conditioning" : "Lifting";
+  if (safeTrack === "mental") return currentLang === "es" ? "Mind y Focus" : "Mind & Focus";
+  return currentLang === "es" ? "Wrestling" : "Wrestling";
+}
+
+function extractChecklistLinesFromText(rawText = "") {
+  const text = String(rawText || "").trim();
+  if (!text) return [];
+  return text
+    .replace(/\s{2,}/g, " ")
+    .split(/\n+|\s+-\s+|;\s+/)
+    .map((line) => String(line || "").trim())
+    .filter(Boolean);
+}
+
+function buildAthleteAssignmentChecklistSteps(assignment = null) {
+  if (!assignment) return [];
+  const steps = [];
+  const seen = new Set();
+  const pushStep = (value, keyPrefix = "step", idSeed = "") => {
+    const label = String(value || "").trim();
+    if (!label) return;
+    const stableSeed = String(idSeed || label).trim().toLowerCase();
+    const dedupeKey = stableSeed || label.toLowerCase();
+    if (seen.has(dedupeKey)) return;
+    seen.add(dedupeKey);
+    steps.push({
+      id: `${keyPrefix}-${slugifyKey(stableSeed || label)}-${steps.length + 1}`,
+      label
+    });
+  };
+
+  const linkedPlan = getAthletePlanById(assignment.planId);
+  if (linkedPlan?.items && typeof linkedPlan.items === "object") {
+    const labels = {
+      intro: currentLang === "es" ? "Inicio" : "Intro",
+      warmup: currentLang === "es" ? "Warm-up" : "Warm-up",
+      drills: currentLang === "es" ? "Drills" : "Drills",
+      live: currentLang === "es" ? "Live" : "Live",
+      cooldown: currentLang === "es" ? "Cooldown" : "Cooldown",
+      announcements: currentLang === "es" ? "Notas" : "Notes"
+    };
+    ["intro", "warmup", "drills", "live", "cooldown", "announcements"].forEach((key) => {
+      const values = Array.isArray(linkedPlan.items[key]) ? linkedPlan.items[key] : [];
+      values.forEach((line) => {
+        pushStep(`${labels[key]}: ${line}`, key, `${key}-${line}`);
+      });
+    });
+  }
+
+  const trainingTrack = getAssignmentTrainingTrack(assignment);
+  if (trainingTrack === "mental") {
+    const title = assignment.mentalGameTitle || assignment.title;
+    if (title) {
+      const durationSuffix = assignment.mentalGameDuration ? ` (${assignment.mentalGameDuration}s)` : "";
+      pushStep(`${currentLang === "es" ? "Completa" : "Complete"} ${title}${durationSuffix}`, "mental", `${title}-${assignment.mentalGameDuration || ""}`);
+    }
+  }
+
+  if (assignment.mediaTitle) {
+    pushStep(`${currentLang === "es" ? "Ver film" : "Watch film"}: ${assignment.mediaTitle}`, "media", assignment.mediaTitle);
+  }
+
+  const noteLines = extractChecklistLinesFromText(assignment.note).map((line) => line.replace(/^complete[^:]*:\s*/i, "").trim());
+  noteLines.forEach((line) => pushStep(line, "note", line));
+
+  if (!steps.length) {
+    pushStep(assignment.title || (currentLang === "es" ? "Tarea asignada" : "Assigned task"), "task", assignment.id || assignment.title);
+  }
+  return steps;
+}
+
+function getAssignmentChecklistProgress(assignment = null, steps = null, checklistOverride = null) {
+  const safeSteps = Array.isArray(steps) ? steps : buildAthleteAssignmentChecklistSteps(assignment);
+  const checklist = checklistOverride && typeof checklistOverride === "object"
+    ? normalizeAssignmentChecklist(checklistOverride)
+    : normalizeAssignmentChecklist(assignment?.athleteChecklist);
+  const total = safeSteps.length;
+  const done = safeSteps.reduce((count, step) => count + (checklist[step.id] ? 1 : 0), 0);
+  return { total, done, checklist };
+}
+
+async function updateAthleteAssignmentChecklistStep(assignment, stepId, checked) {
+  const coachUid = getAthleteLinkedCoachUid();
+  const assignmentsRef = getCoachWorkspaceCollectionRef("assignments", coachUid);
+  const authUser = getAuthUser();
+  const profile = getProfile();
+  if (!assignment?.id || !coachUid || !assignmentsRef || !authUser?.id) {
+    throw new Error("athlete_assignment_checklist_unavailable");
+  }
+  const steps = buildAthleteAssignmentChecklistSteps(assignment);
+  const nextChecklist = {
+    ...normalizeAssignmentChecklist(assignment.athleteChecklist),
+    [stepId]: Boolean(checked)
+  };
+  const progress = getAssignmentChecklistProgress(assignment, steps, nextChecklist);
+  let nextStatus = "not_started";
+  if (progress.total && progress.done >= progress.total) {
+    nextStatus = "completed";
+  } else if (progress.done > 0) {
+    nextStatus = "in_progress";
+  } else if (assignment.dueDateKey && assignment.dueDateKey < getCurrentAppDateKey()) {
+    nextStatus = "overdue";
+  }
+  await withTimeout(
+    assignmentsRef.doc(assignment.id).set(stripUndefinedDeep({
+      athleteChecklist: nextChecklist,
+      status: nextStatus,
+      updatedAt: getFirestoreServerTimestamp(),
+      startedAt: nextStatus === "in_progress" || nextStatus === "completed" ? getFirestoreServerTimestamp() : null,
+      completedAt: nextStatus === "completed" ? getFirestoreServerTimestamp() : null,
+      athleteLogUid: authUser.id,
+      athleteLogName: String(profile?.name || authUser.email || "").trim()
+    }), { merge: true }),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_athlete_assignment_checklist_timeout"
+  );
+}
+
 async function updateAthleteAssignmentStatus(assignment, status) {
   const coachUid = getAthleteLinkedCoachUid();
   const assignmentsRef = getCoachWorkspaceCollectionRef("assignments", coachUid);
@@ -13136,6 +13287,54 @@ logCompletionBtn.addEventListener("click", async () => {
 });
 
 function renderPlanGrid(selectedDay = getCurrentAppDayIndex()) {
+  if (isAthleteRole(getProfile()?.role) && getAthleteLinkedCoachUid()) {
+    const assignments = getAthleteTrainingAssignments({ includeCompleted: true });
+    if (assignments.length) {
+      const fallbackAssignment = assignments.find((item) => normalizeAssignmentStatus(item.status) !== "completed") || assignments[0];
+      const selectedId = String(athleteTrainingSelectedAssignmentId || "").trim();
+      if (!selectedId || !assignments.some((item) => item.id === selectedId)) {
+        athleteTrainingSelectedAssignmentId = fallbackAssignment?.id || "";
+      }
+      if (trainingPanelChip) {
+        const completed = assignments.filter((item) => normalizeAssignmentStatus(item.status) === "completed").length;
+        const open = Math.max(0, assignments.length - completed);
+        trainingPanelChip.textContent = currentLang === "es"
+          ? `${open} pendientes • ${completed} completadas`
+          : `${open} pending • ${completed} done`;
+      }
+      planGrid.innerHTML = "";
+      assignments.forEach((assignment) => {
+        const card = document.createElement("div");
+        const isActive = assignment.id === athleteTrainingSelectedAssignmentId;
+        const normalizedStatus = normalizeAssignmentStatus(assignment.status);
+        const track = getAssignmentTrainingTrack(assignment);
+        const steps = buildAthleteAssignmentChecklistSteps(assignment);
+        const progress = getAssignmentChecklistProgress(assignment, steps);
+        const progressText = progress.total
+          ? `${progress.done}/${progress.total}`
+          : (normalizedStatus === "completed" ? "1/1" : "0/1");
+        card.className = `plan-card${isActive ? " active" : ""} plan-card-${normalizedStatus}`;
+        card.innerHTML = `
+          <strong>${escapeHtml(assignment.title || defaultPlanTitle(assignment.planType || "day"))}</strong>
+          <div class="small">${escapeHtml(getTrainingTrackLabel(track))} • ${escapeHtml(assignment.dueLabel || formatPlanDateLabel(assignment.dueDateKey || getCurrentAppDateKey()))}</div>
+          <div class="small">${escapeHtml(getAssignmentStatusMeta(normalizedStatus).label)} • ${escapeHtml(progressText)}</div>
+        `;
+        card.addEventListener("click", () => {
+          athleteTrainingSelectedAssignmentId = assignment.id;
+          renderPlanGrid(0);
+          renderPlanDetails(assignment.id);
+        });
+        planGrid.appendChild(card);
+      });
+      renderPlanDetails(athleteTrainingSelectedAssignmentId);
+      return;
+    }
+  }
+
+  if (trainingPanelChip) {
+    trainingPanelChip.textContent = pickCopy(PANEL_COPY["panel-training"].chip);
+  }
+
   if (isAthleteRole(getProfile()?.role) && getAthleteLivePlanRecords().length) {
     const planRecords = getAthleteLivePlanRecords();
     const safeIndex = Math.min(Math.max(Number(selectedDay) || 0, 0), Math.max(planRecords.length - 1, 0));
@@ -13156,6 +13355,7 @@ function renderPlanGrid(selectedDay = getCurrentAppDayIndex()) {
     renderPlanDetails(safeIndex);
     return;
   }
+
   planGrid.innerHTML = "";
   const weekPlan = getWeekPlanData();
   weekPlan.forEach((plan, idx) => {
@@ -13176,6 +13376,73 @@ function renderPlanGrid(selectedDay = getCurrentAppDayIndex()) {
 }
 
 function renderPlanDetails(dayIndex) {
+  if (isAthleteRole(getProfile()?.role) && getAthleteLinkedCoachUid()) {
+    const assignments = getAthleteTrainingAssignments({ includeCompleted: true });
+    if (assignments.length) {
+      let selectedAssignment = null;
+      const requestedId = typeof dayIndex === "string" ? String(dayIndex || "").trim() : "";
+      if (requestedId) {
+        selectedAssignment = assignments.find((item) => item.id === requestedId) || null;
+      }
+      if (!selectedAssignment && athleteTrainingSelectedAssignmentId) {
+        selectedAssignment = assignments.find((item) => item.id === athleteTrainingSelectedAssignmentId) || null;
+      }
+      if (!selectedAssignment && Number.isFinite(Number(dayIndex))) {
+        selectedAssignment = assignments[Math.max(0, Math.min(assignments.length - 1, Number(dayIndex)))] || null;
+      }
+      if (!selectedAssignment) selectedAssignment = assignments[0];
+      athleteTrainingSelectedAssignmentId = selectedAssignment?.id || "";
+      if (!selectedAssignment) return;
+
+      const trackLabel = getTrainingTrackLabel(getAssignmentTrainingTrack(selectedAssignment));
+      const dueLabel = selectedAssignment.dueLabel || formatPlanDateLabel(selectedAssignment.dueDateKey || getCurrentAppDateKey());
+      planDayTitle.textContent = `${selectedAssignment.title || defaultPlanTitle(selectedAssignment.planType || "day")} (${trackLabel})`;
+      planDayDetail.innerHTML = "";
+
+      const steps = buildAthleteAssignmentChecklistSteps(selectedAssignment);
+      const progress = getAssignmentChecklistProgress(selectedAssignment, steps);
+      const summary = document.createElement("li");
+      summary.className = "assignment-step-summary";
+      summary.textContent = currentLang === "es"
+        ? `${getAssignmentStatusMeta(selectedAssignment.status).label} • Entrega: ${dueLabel} • Completado: ${progress.done}/${progress.total || 1}`
+        : `${getAssignmentStatusMeta(selectedAssignment.status).label} • Due: ${dueLabel} • Completed: ${progress.done}/${progress.total || 1}`;
+      planDayDetail.appendChild(summary);
+
+      steps.forEach((step) => {
+        const li = document.createElement("li");
+        const checked = Boolean(progress.checklist[step.id]) || normalizeAssignmentStatus(selectedAssignment.status) === "completed";
+        li.className = `assignment-step${checked ? " is-done" : ""}`;
+        const label = document.createElement("label");
+        label.className = "assignment-step-row";
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = checked;
+        checkbox.addEventListener("change", async () => {
+          checkbox.disabled = true;
+          try {
+            await updateAthleteAssignmentChecklistStep(selectedAssignment, step.id, checkbox.checked);
+            toast(currentLang === "es" ? "Progreso actualizado." : "Progress updated.");
+            renderPlanGrid(0);
+            renderToday(getCurrentAppDayIndex());
+          } catch (err) {
+            console.warn("Athlete checklist update failed", err);
+            toast(currentLang === "es" ? "No se pudo actualizar." : "Could not update progress.");
+          } finally {
+            checkbox.disabled = false;
+          }
+        });
+        const text = document.createElement("span");
+        text.className = "assignment-step-label";
+        text.textContent = step.label;
+        label.appendChild(checkbox);
+        label.appendChild(text);
+        li.appendChild(label);
+        planDayDetail.appendChild(li);
+      });
+      return;
+    }
+  }
+
   if (isAthleteRole(getProfile()?.role) && getAthleteLivePlanRecords().length) {
     const plan = getAthleteLivePlanRecords()[dayIndex];
     if (!plan) return;
@@ -17451,6 +17718,7 @@ function clearAthletePortalDataListeners() {
 function resetAthletePortalCaches() {
   athletePortalAthleteCache = null;
   athletePortalAssignmentsCache = [];
+  athleteTrainingSelectedAssignmentId = "";
   athletePortalPlansCache = [];
   athletePortalJournalCache = [];
   athletePortalNotesCache = [];
