@@ -4155,6 +4155,76 @@
     };
   }
 
+  async function resolveAthleteRecipientUserDocId(recipient = null) {
+    const usersRef = getPlannerUsersCollectionRef();
+    if (!usersRef || !recipient) return "";
+    const directUid = String(recipient.recipientUid || "").trim();
+    if (directUid) return directUid;
+
+    const byEmail = String(recipient.recipientEmail || "").trim().toLowerCase();
+    if (byEmail) {
+      try {
+        const emailSnap = await usersRef.where("email", "==", byEmail).limit(3).get();
+        if (!emailSnap.empty) {
+          const athleteDoc = emailSnap.docs.find((doc) => String(doc.data()?.role || "").trim().toLowerCase() === "athlete");
+          return String((athleteDoc || emailSnap.docs[0])?.id || "").trim();
+        }
+      } catch {
+        // ignore lookup errors and continue with id fallback
+      }
+    }
+
+    const athleteId = String(recipient.id || "").trim();
+    if (athleteId) {
+      try {
+        const idSnap = await usersRef.where("linkedAthleteId", "==", athleteId).limit(3).get();
+        if (!idSnap.empty) {
+          const athleteDoc = idSnap.docs.find((doc) => String(doc.data()?.role || "").trim().toLowerCase() === "athlete");
+          return String((athleteDoc || idSnap.docs[0])?.id || "").trim();
+        }
+      } catch {
+        // ignore fallback lookup errors
+      }
+    }
+    return "";
+  }
+
+  async function ensureAthleteRecipientLinks(recipients = []) {
+    const safeRecipients = Array.isArray(recipients) ? recipients : [];
+    if (!safeRecipients.length || typeof firebaseFirestoreInstance === "undefined" || !firebaseFirestoreInstance) {
+      return 0;
+    }
+    const usersRef = getPlannerUsersCollectionRef();
+    const authUser = getPlannerAuthUser();
+    const profile = getPlannerProfile();
+    if (!usersRef || !authUser?.id) return 0;
+
+    const coachUid = String(authUser.id || "").trim();
+    const coachName = String(profile?.name || authUser?.email || "Coach").trim();
+    const coachEmail = String(authUser?.email || profile?.email || "").trim().toLowerCase();
+    if (!coachUid) return 0;
+
+    const batch = firebaseFirestoreInstance.batch();
+    let updates = 0;
+    for (const recipient of safeRecipients) {
+      const userDocId = await resolveAthleteRecipientUserDocId(recipient);
+      if (!userDocId) continue;
+      const athleteId = String(recipient.id || "").trim();
+      batch.set(usersRef.doc(userDocId), stripUndefinedDeep({
+        linkedCoachUid: coachUid,
+        linkedCoachName: coachName,
+        linkedCoachEmail: coachEmail,
+        linkedAthleteId: athleteId || undefined,
+        linkedAthleteUid: userDocId,
+        updatedAt: new Date().toISOString()
+      }), { merge: true });
+      updates += 1;
+    }
+    if (!updates) return 0;
+    await batch.commit();
+    return updates;
+  }
+
   function renderAssignAthleteList() {
     if (!els.assignList) return;
     const filter = String(state.assignSearch || "").trim().toLowerCase();
@@ -4447,6 +4517,8 @@
     const audienceMode = selected.length > 1 ? "multi" : "single";
 
     try {
+      await ensureAthleteRecipientLinks(athleteRecipients);
+
       let planId = "";
       let assignmentTitle = getPlannerTitle();
       let assignmentType = tr({ en: "Daily Plan", es: "Plan Diario" });

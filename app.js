@@ -9989,6 +9989,78 @@ function getAssignmentTargetsFromPlan(plan) {
   });
 }
 
+async function ensureCoachAthleteLinksForTargets(targets = []) {
+  if (!isCoachWorkspaceActive() || !firebaseFirestoreInstance) return 0;
+  const usersRef = getUsersCollectionRef();
+  const authUser = getAuthUser();
+  const profile = getProfile();
+  if (!usersRef || !authUser?.id) return 0;
+
+  const coachUid = String(authUser.id || "").trim();
+  const coachName = String(profile?.name || authUser?.email || "Coach").trim();
+  const coachEmail = normalizeEmail(authUser?.email || profile?.email || "");
+  if (!coachUid) return 0;
+
+  const uniqueAthleteUids = new Set();
+  const uniqueAthleteIds = new Set();
+  (Array.isArray(targets) ? targets : []).forEach((target) => {
+    (target?.athleteUids || []).forEach((uid) => {
+      const safe = normalizeUid(uid);
+      if (safe) uniqueAthleteUids.add(safe);
+    });
+    (target?.athleteIds || []).forEach((athleteId) => {
+      const safe = normalizeAthleteId(athleteId);
+      if (safe) uniqueAthleteIds.add(safe);
+    });
+  });
+
+  const resolvedUserIds = new Set(uniqueAthleteUids);
+  const unresolvedAthleteIds = Array.from(uniqueAthleteIds).filter((athleteId) => {
+    if (!athleteId) return false;
+    return !Array.from(resolvedUserIds).some((uid) => uid === athleteId);
+  });
+
+  for (const athleteId of unresolvedAthleteIds) {
+    try {
+      const snap = await withTimeout(
+        usersRef.where("linkedAthleteId", "==", athleteId).limit(4).get(),
+        FIREBASE_OP_TIMEOUT_MS,
+        "firestore_assignment_link_lookup_timeout"
+      );
+      if (snap.empty) continue;
+      const athleteDoc = snap.docs.find((doc) => normalizeAuthRole(doc.data()?.role || "") === "athlete");
+      const resolvedDoc = athleteDoc || snap.docs[0];
+      const resolvedId = normalizeUid(resolvedDoc?.id);
+      if (resolvedId) resolvedUserIds.add(resolvedId);
+    } catch (err) {
+      console.warn("Assignment recipient link lookup failed", err);
+    }
+  }
+
+  if (!resolvedUserIds.size) return 0;
+
+  const batch = firebaseFirestoreInstance.batch();
+  let updates = 0;
+  resolvedUserIds.forEach((uid) => {
+    if (!uid) return;
+    batch.set(usersRef.doc(uid), stripUndefinedDeep({
+      linkedCoachUid: coachUid,
+      linkedCoachName: coachName,
+      linkedCoachEmail: coachEmail,
+      linkedAthleteUid: uid,
+      updatedAt: new Date().toISOString()
+    }), { merge: true });
+    updates += 1;
+  });
+  if (!updates) return 0;
+  await withTimeout(
+    batch.commit(),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_assignment_link_commit_timeout"
+  );
+  return updates;
+}
+
 async function replaceAssignmentsForPlan(plan) {
   const assignmentsRef = getCoachWorkspaceCollectionRef("assignments");
   if (!assignmentsRef || !plan?.id) return [];
@@ -9996,6 +10068,8 @@ async function replaceAssignmentsForPlan(plan) {
   if (!targets.length) {
     throw new Error("plan_assignment_target_required");
   }
+
+  await ensureCoachAthleteLinksForTargets(targets);
 
   const existingSnap = await withTimeout(
     assignmentsRef.where("planId", "==", plan.id).get(),
