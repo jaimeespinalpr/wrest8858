@@ -13152,7 +13152,7 @@ function buildAthletePlanDetailLines(plan) {
 }
 
 function getAthleteTrainingAssignments({ includeCompleted = true } = {}) {
-  if (!isAthleteRole(getProfile()?.role) || !getAthleteLinkedCoachUid()) return [];
+  if (!isAthleteRole(getProfile()?.role)) return [];
   const list = sortAthleteAssignmentsForDisplay(athletePortalAssignmentsCache).filter((assignment) => {
     const track = getAssignmentTrainingTrack(assignment);
     if (!["wrestling", "lifting", "mental"].includes(track)) return false;
@@ -13160,6 +13160,12 @@ function getAthleteTrainingAssignments({ includeCompleted = true } = {}) {
     return normalizeAssignmentStatus(assignment.status) !== "completed";
   });
   return list;
+}
+
+function getAthleteNoSharedTrainingMessage() {
+  return currentLang === "es"
+    ? "Tu entrenador aun no ha compartido un plan de entrenamiento contigo."
+    : "Your coach has not shared a training plan with you yet.";
 }
 
 function normalizeAthleteTrainingTrackSelection(value = "") {
@@ -14315,7 +14321,7 @@ function renderTodayActionQueue() {
 }
 
 function renderToday(dayIndex = getCurrentAppDayIndex()) {
-  if (isAthleteRole(getProfile()?.role) && getAthleteLinkedCoachUid()) {
+  if (isAthleteRole(getProfile()?.role)) {
     const live = buildAthletePortalTodayPlan();
     const primaryAssignment = live.assignment;
     const nextAssignment = live.nextAssignment;
@@ -14348,7 +14354,7 @@ function renderToday(dayIndex = getCurrentAppDayIndex()) {
         sessionBlocks.appendChild(row);
       });
     } else {
-      sessionBlocks.innerHTML = `<div class="session-block"><strong>${currentLang === "es" ? "Hoy" : "Today"}</strong><span>${currentLang === "es" ? "Aun no hay tareas asignadas por el coach." : "No coach assignment is linked yet."}</span></div>`;
+      sessionBlocks.innerHTML = `<div class="session-block"><strong>${currentLang === "es" ? "Hoy" : "Today"}</strong><span>${escapeHtml(getAthleteNoSharedTrainingMessage())}</span></div>`;
     }
     if (startSessionBtn) startSessionBtn.disabled = !primaryAssignment;
     if (watchFilmBtn) watchFilmBtn.disabled = !mediaContext?.assetPath;
@@ -14406,8 +14412,12 @@ function renderFeelingScale() {
 }
 
 startSessionBtn.addEventListener("click", async () => {
-  if (isAthleteRole(getProfile()?.role) && getAthleteLinkedCoachUid()) {
+  if (isAthleteRole(getProfile()?.role)) {
     const live = buildAthletePortalTodayPlan();
+    if (!live.assignment) {
+      toast(getAthleteNoSharedTrainingMessage());
+      return;
+    }
     const intro = currentLang === "es"
       ? `Sesion de ${live.focus}. ${live.blocks[0]?.label || ""}.`
       : `${live.focus} session. ${live.blocks[0]?.label || ""}.`;
@@ -14434,10 +14444,10 @@ startSessionBtn.addEventListener("click", async () => {
 });
 
 watchFilmBtn.addEventListener("click", () => {
-  if (isAthleteRole(getProfile()?.role) && getAthleteLinkedCoachUid()) {
+  if (isAthleteRole(getProfile()?.role)) {
     const mediaContext = getAthletePortalMediaContext();
     if (!mediaContext?.assetPath) {
-      toast(currentLang === "es" ? "No hay film asignado todavia." : "No assigned film is available yet.");
+      toast(getAthleteNoSharedTrainingMessage());
       return;
     }
     window.open(mediaContext.assetPath, "_blank", "noopener,noreferrer");
@@ -14448,10 +14458,10 @@ watchFilmBtn.addEventListener("click", () => {
 });
 
 logCompletionBtn.addEventListener("click", async () => {
-  if (isAthleteRole(getProfile()?.role) && getAthleteLinkedCoachUid()) {
+  if (isAthleteRole(getProfile()?.role)) {
     const assignment = getAthletePortalPrimaryAssignment();
     if (!assignment) {
-      toast(currentLang === "es" ? "No hay assignment activo para completar." : "There is no active assignment to complete.");
+      toast(getAthleteNoSharedTrainingMessage());
       return;
     }
     try {
@@ -14476,7 +14486,7 @@ logCompletionBtn.addEventListener("click", async () => {
 });
 
 function renderPlanGrid(selectedDay = getCurrentAppDayIndex()) {
-  if (isAthleteRole(getProfile()?.role) && getAthleteLinkedCoachUid()) {
+  if (isAthleteRole(getProfile()?.role)) {
     const assignments = getAthleteTrainingAssignments({ includeCompleted: true });
     renderAthleteTrainingTrackSwitch(assignments);
     athleteTrainingSelectedTrack = normalizeAthleteTrainingTrackSelection(athleteTrainingSelectedTrack);
@@ -14500,9 +14510,9 @@ function renderPlanGrid(selectedDay = getCurrentAppDayIndex()) {
     if (!assignments.length || !filteredAssignments.length) {
       const empty = document.createElement("div");
       empty.className = "small muted";
-      empty.textContent = currentLang === "es"
-        ? "No hay tareas en esta seccion todavia."
-        : "No tasks in this section yet.";
+      empty.textContent = assignments.length
+        ? (currentLang === "es" ? "No hay tareas en esta seccion todavia." : "No tasks in this section yet.")
+        : getAthleteNoSharedTrainingMessage();
       planGrid.appendChild(empty);
       renderPlanDetails("");
       return;
@@ -14536,7 +14546,7 @@ function renderPlanGrid(selectedDay = getCurrentAppDayIndex()) {
     renderPlanDetails(athleteTrainingSelectedAssignmentId);
     return;
   }
-  if (!(isAthleteRole(getProfile()?.role) && getAthleteLinkedCoachUid())) {
+  if (!isAthleteRole(getProfile()?.role)) {
     if (athleteTrainingTrackSwitch) athleteTrainingTrackSwitch.classList.add("hidden");
     if (athleteTrainingTrackHint) athleteTrainingTrackHint.classList.add("hidden");
   }
@@ -14586,7 +14596,7 @@ function renderPlanGrid(selectedDay = getCurrentAppDayIndex()) {
 }
 
 function renderPlanDetails(dayIndex) {
-  if (isAthleteRole(getProfile()?.role) && getAthleteLinkedCoachUid()) {
+  if (isAthleteRole(getProfile()?.role)) {
     const assignments = getAthleteTrainingAssignments({ includeCompleted: true });
     const selectedTrack = normalizeAthleteTrainingTrackSelection(athleteTrainingSelectedTrack);
     const trackAssignments = assignments.filter((item) => getAssignmentTrainingTrack(item) === selectedTrack);
@@ -14595,9 +14605,9 @@ function renderPlanDetails(dayIndex) {
       planDayDetail.innerHTML = "";
       const emptyRow = document.createElement("li");
       emptyRow.className = "small muted";
-      emptyRow.textContent = currentLang === "es"
-        ? "No hay tareas en esta seccion todavia."
-        : "No tasks in this section yet.";
+      emptyRow.textContent = assignments.length
+        ? (currentLang === "es" ? "No hay tareas en esta seccion todavia." : "No tasks in this section yet.")
+        : getAthleteNoSharedTrainingMessage();
       planDayDetail.appendChild(emptyRow);
       return;
     }
