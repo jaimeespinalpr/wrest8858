@@ -14405,7 +14405,7 @@ function renderAthleteTrackTaskList(container, records = [], { track = "wrestlin
             return;
           }
           toast(currentLang === "es" ? "Juego completado y enviado al coach." : "Game completed and sent to coach.");
-          renderToday(getCurrentAppDayIndex());
+          refreshAthleteAssignmentUI();
         } catch (err) {
           console.warn("Athlete mental task play failed", err);
           toast(currentLang === "es" ? "No se pudo completar el juego." : "Could not complete the game.");
@@ -14419,12 +14419,14 @@ function renderAthleteTrackTaskList(container, records = [], { track = "wrestlin
         const startBtn = document.createElement("button");
         startBtn.type = "button";
         startBtn.className = "ghost";
-        startBtn.textContent = currentLang === "es" ? "Iniciar" : "Start";
+        startBtn.textContent = track === "lifting"
+          ? (currentLang === "es" ? "Iniciar entrenamiento" : "Start workout")
+          : (currentLang === "es" ? "Iniciar tarea" : "Start task");
         startBtn.addEventListener("click", async () => {
           try {
             await updateAthleteAssignmentStatus(record, "in_progress");
             toast(currentLang === "es" ? "Tarea iniciada." : "Task started.");
-            renderToday(getCurrentAppDayIndex());
+            refreshAthleteAssignmentUI();
           } catch (err) {
             console.warn("Athlete track task start failed", err);
             toast(currentLang === "es" ? "No se pudo iniciar la tarea." : "Could not start task.");
@@ -14436,12 +14438,14 @@ function renderAthleteTrackTaskList(container, records = [], { track = "wrestlin
         const completeBtn = document.createElement("button");
         completeBtn.type = "button";
         completeBtn.className = "primary";
-        completeBtn.textContent = currentLang === "es" ? "Completar" : "Complete";
+        completeBtn.textContent = track === "lifting"
+          ? (currentLang === "es" ? "Marcar entrenamiento completado" : "Mark workout completed")
+          : (currentLang === "es" ? "Marcar tarea completada" : "Mark task completed");
         completeBtn.addEventListener("click", async () => {
           try {
             await updateAthleteAssignmentStatus(record, "completed");
             toast(currentLang === "es" ? "Tarea completada." : "Task completed.");
-            renderToday(getCurrentAppDayIndex());
+            refreshAthleteAssignmentUI();
           } catch (err) {
             console.warn("Athlete track task complete failed", err);
             toast(currentLang === "es" ? "No se pudo completar la tarea." : "Could not complete task.");
@@ -14557,7 +14561,7 @@ function renderTodayActionQueue() {
             return;
           }
           toast(currentLang === "es" ? "Juego completado y enviado al coach." : "Game completed and sent to coach.");
-          renderToday(getCurrentAppDayIndex());
+          refreshAthleteAssignmentUI();
         } catch (err) {
           console.warn("Today queue mental task failed", err);
           toast(currentLang === "es" ? "No se pudo completar el juego." : "Could not complete the game.");
@@ -14571,13 +14575,15 @@ function renderTodayActionQueue() {
         const startBtn = document.createElement("button");
         startBtn.type = "button";
         startBtn.className = "ghost";
-        startBtn.textContent = currentLang === "es" ? "Iniciar" : "Start";
+        startBtn.textContent = getAssignmentTrainingTrack(assignment) === "lifting"
+          ? (currentLang === "es" ? "Iniciar entrenamiento" : "Start workout")
+          : (currentLang === "es" ? "Iniciar tarea" : "Start task");
         startBtn.addEventListener("click", async () => {
           startBtn.disabled = true;
           try {
             await updateAthleteAssignmentStatus(assignment, "in_progress");
             toast(currentLang === "es" ? "Tarea iniciada." : "Task started.");
-            renderToday(getCurrentAppDayIndex());
+            refreshAthleteAssignmentUI();
           } catch (err) {
             console.warn("Today queue start failed", err);
             toast(currentLang === "es" ? "No se pudo iniciar la tarea." : "Could not start task.");
@@ -14591,13 +14597,15 @@ function renderTodayActionQueue() {
         const completeBtn = document.createElement("button");
         completeBtn.type = "button";
         completeBtn.className = "primary";
-        completeBtn.textContent = currentLang === "es" ? "Completar" : "Complete";
+        completeBtn.textContent = getAssignmentTrainingTrack(assignment) === "lifting"
+          ? (currentLang === "es" ? "Marcar entrenamiento completado" : "Mark workout completed")
+          : (currentLang === "es" ? "Marcar tarea completada" : "Mark task completed");
         completeBtn.addEventListener("click", async () => {
           completeBtn.disabled = true;
           try {
             await updateAthleteAssignmentStatus(assignment, "completed");
             toast(currentLang === "es" ? "Tarea completada." : "Task completed.");
-            renderToday(getCurrentAppDayIndex());
+            refreshAthleteAssignmentUI();
           } catch (err) {
             console.warn("Today queue complete failed", err);
             toast(currentLang === "es" ? "No se pudo completar la tarea." : "Could not complete task.");
@@ -14731,6 +14739,13 @@ function renderToday(dayIndex = getCurrentAppDayIndex()) {
   });
   renderAthleteTrackTaskAreas();
   renderTodayActionQueue();
+}
+
+function refreshAthleteAssignmentUI() {
+  renderToday(getCurrentAppDayIndex());
+  if (isAthleteRole(getProfile()?.role)) {
+    renderPlanGrid(0);
+  }
 }
 
 function renderFeelingScale() {
@@ -15023,7 +15038,7 @@ function renderPlanDetails(dayIndex) {
                 return;
               }
               toast(currentLang === "es" ? "Juego completado y enviado al coach." : "Game completed and sent to coach.");
-              renderToday(getCurrentAppDayIndex());
+              refreshAthleteAssignmentUI();
             } catch (err) {
               console.warn("Plan details mental task failed", err);
               toast(currentLang === "es" ? "No se pudo completar el juego." : "Could not complete the game.");
@@ -15037,13 +15052,15 @@ function renderPlanDetails(dayIndex) {
             const startBtn = document.createElement("button");
             startBtn.type = "button";
             startBtn.className = "ghost";
-            startBtn.textContent = currentLang === "es" ? "Iniciar" : "Start";
+            startBtn.textContent = getAssignmentTrainingTrack(selectedAssignment) === "lifting"
+              ? (currentLang === "es" ? "Iniciar entrenamiento" : "Start workout")
+              : (currentLang === "es" ? "Iniciar tarea" : "Start task");
             startBtn.addEventListener("click", async () => {
               startBtn.disabled = true;
               try {
                 await updateAthleteAssignmentStatus(selectedAssignment, "in_progress");
                 toast(currentLang === "es" ? "Tarea iniciada." : "Task started.");
-                renderToday(getCurrentAppDayIndex());
+                refreshAthleteAssignmentUI();
               } catch (err) {
                 console.warn("Plan details assignment start failed", err);
                 toast(currentLang === "es" ? "No se pudo iniciar la tarea." : "Could not start task.");
@@ -15056,13 +15073,15 @@ function renderPlanDetails(dayIndex) {
           const completeBtn = document.createElement("button");
           completeBtn.type = "button";
           completeBtn.className = "primary";
-          completeBtn.textContent = currentLang === "es" ? "Completar" : "Complete";
+          completeBtn.textContent = getAssignmentTrainingTrack(selectedAssignment) === "lifting"
+            ? (currentLang === "es" ? "Marcar entrenamiento completado" : "Mark workout completed")
+            : (currentLang === "es" ? "Marcar tarea completada" : "Mark task completed");
           completeBtn.addEventListener("click", async () => {
             completeBtn.disabled = true;
             try {
               await updateAthleteAssignmentStatus(selectedAssignment, "completed");
               toast(currentLang === "es" ? "Tarea completada." : "Task completed.");
-              renderToday(getCurrentAppDayIndex());
+              refreshAthleteAssignmentUI();
             } catch (err) {
               console.warn("Plan details assignment complete failed", err);
               toast(currentLang === "es" ? "No se pudo completar la tarea." : "Could not complete task.");
