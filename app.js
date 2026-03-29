@@ -14830,7 +14830,8 @@ logCompletionBtn.addEventListener("click", async () => {
 
 function renderPlanGrid(selectedDay = getCurrentAppDayIndex()) {
   if (isAthleteRole(getProfile()?.role)) {
-    const assignments = getAthleteTrainingAssignments({ includeCompleted: true });
+    const allAssignments = getAthleteTrainingAssignments({ includeCompleted: true });
+    const assignments = getAthleteTrainingAssignments({ includeCompleted: false });
     renderAthleteTrainingTrackSwitch(assignments);
     athleteTrainingSelectedTrack = normalizeAthleteTrainingTrackSelection(athleteTrainingSelectedTrack);
     const trackLabel = getAthleteTrainingTrackSectionLabel(athleteTrainingSelectedTrack);
@@ -14854,8 +14855,10 @@ function renderPlanGrid(selectedDay = getCurrentAppDayIndex()) {
       const empty = document.createElement("div");
       empty.className = "small muted";
       empty.textContent = assignments.length
-        ? (currentLang === "es" ? "No hay tareas en esta seccion todavia." : "No tasks in this section yet.")
-        : getAthleteNoSharedTrainingMessage();
+        ? (currentLang === "es" ? "No hay tareas pendientes en esta seccion." : "No pending tasks in this section.")
+        : (allAssignments.length
+          ? (currentLang === "es" ? "Excelente. Ya completaste todas las tareas asignadas." : "Great job. You already completed all assigned tasks.")
+          : getAthleteNoSharedTrainingMessage());
       planGrid.appendChild(empty);
       renderPlanDetails("");
       return;
@@ -14940,7 +14943,8 @@ function renderPlanGrid(selectedDay = getCurrentAppDayIndex()) {
 
 function renderPlanDetails(dayIndex) {
   if (isAthleteRole(getProfile()?.role)) {
-    const assignments = getAthleteTrainingAssignments({ includeCompleted: true });
+    const allAssignments = getAthleteTrainingAssignments({ includeCompleted: true });
+    const assignments = getAthleteTrainingAssignments({ includeCompleted: false });
     const selectedTrack = normalizeAthleteTrainingTrackSelection(athleteTrainingSelectedTrack);
     const trackAssignments = assignments.filter((item) => getAssignmentTrainingTrack(item) === selectedTrack);
     if (!assignments.length || !trackAssignments.length) {
@@ -14949,8 +14953,10 @@ function renderPlanDetails(dayIndex) {
       const emptyRow = document.createElement("li");
       emptyRow.className = "small muted";
       emptyRow.textContent = assignments.length
-        ? (currentLang === "es" ? "No hay tareas en esta seccion todavia." : "No tasks in this section yet.")
-        : getAthleteNoSharedTrainingMessage();
+        ? (currentLang === "es" ? "No hay tareas pendientes en esta seccion." : "No pending tasks in this section.")
+        : (allAssignments.length
+          ? (currentLang === "es" ? "Excelente. Ya completaste todas las tareas asignadas." : "Great job. You already completed all assigned tasks.")
+          : getAthleteNoSharedTrainingMessage());
       planDayDetail.appendChild(emptyRow);
       return;
     }
