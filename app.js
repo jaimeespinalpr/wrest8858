@@ -13226,8 +13226,21 @@ function getTrainingTrackLabel(track = "wrestling") {
 }
 
 const MENTAL_ASSIGNMENT_GAME_KEYS = {
-  GO_NO_GO: "go_no_go"
+  GO_NO_GO: "go_no_go",
+  MEMORY: "memory_sequence",
+  DECISION: "quick_decision",
+  SCORE: "score_awareness",
+  SWITCH: "rule_switch"
 };
+
+const SUPPORTED_MENTAL_ASSIGNMENT_KEYS = new Set(Object.values(MENTAL_ASSIGNMENT_GAME_KEYS));
+
+function shuffleArray(values = []) {
+  return [...(Array.isArray(values) ? values : [])]
+    .map((value) => ({ value, sort: Math.random() }))
+    .sort((left, right) => left.sort - right.sort)
+    .map((entry) => entry.value);
+}
 
 function getAssignmentMentalGameKey(assignment = null) {
   return String(assignment?.mentalGameKey || "").trim().toLowerCase();
@@ -13235,7 +13248,7 @@ function getAssignmentMentalGameKey(assignment = null) {
 
 function isPlayableAthleteMentalAssignment(assignment = null) {
   return getAssignmentTrainingTrack(assignment) === "mental"
-    && getAssignmentMentalGameKey(assignment) === MENTAL_ASSIGNMENT_GAME_KEYS.GO_NO_GO;
+    && SUPPORTED_MENTAL_ASSIGNMENT_KEYS.has(getAssignmentMentalGameKey(assignment));
 }
 
 function formatAssignmentResultReactionSeconds(reactionMs = 0) {
@@ -13700,6 +13713,334 @@ function buildGoNoGoMentalAssignmentResult(session = {}) {
   };
 }
 
+function getMentalSpeedScoreFromReactionMs(reactionMs = 0) {
+  const safe = Number.isFinite(Number(reactionMs)) ? Number(reactionMs) : 0;
+  return clampNumber(Math.round(100 - ((safe - 700) / 10)), 15, 100);
+}
+
+function buildMentalAssignmentResultFromQuiz({
+  assignment = null,
+  label = "",
+  correct = 0,
+  total = 0,
+  reactionTimes = []
+} = {}) {
+  const safeTotal = Math.max(1, Number(total) || 1);
+  const safeCorrect = Math.max(0, Math.min(safeTotal, Number(correct) || 0));
+  const accuracy = Math.round((safeCorrect / safeTotal) * 100);
+  const avgReactionMs = reactionTimes.length
+    ? Math.round(reactionTimes.reduce((sum, value) => sum + value, 0) / reactionTimes.length)
+    : 0;
+  const speedScore = getMentalSpeedScoreFromReactionMs(avgReactionMs || 1200);
+  const mentalScore = Math.round((accuracy * 0.65) + (speedScore * 0.35));
+  return normalizeAssignmentCompletionResult({
+    type: "mental_game",
+    label: label || assignment?.mentalGameTitle || assignment?.title || "Mental Game",
+    score: mentalScore,
+    reactionMs: avgReactionMs,
+    accuracy,
+    summary: buildAssignmentCompletionResultSummary(assignment, {
+      type: "mental_game",
+      label: label || assignment?.mentalGameTitle || assignment?.title || "Mental Game",
+      score: mentalScore,
+      reactionMs: avgReactionMs,
+      accuracy
+    })
+  }, assignment);
+}
+
+function buildAthleteMemoryRounds(roundCount = 5) {
+  const colorPool = ["Red", "Blue", "Green", "Yellow"];
+  const rounds = [];
+  for (let index = 0; index < roundCount; index += 1) {
+    const length = 3 + Math.floor(Math.random() * 2);
+    const sequence = Array.from({ length }, () => colorPool[Math.floor(Math.random() * colorPool.length)]);
+    const targetIdx = Math.floor(Math.random() * sequence.length);
+    const answer = sequence[targetIdx];
+    const options = Array.from(new Set([answer, ...colorPool])).slice(0, 4);
+    const shuffled = shuffleArray(options);
+    rounds.push({
+      prompt: currentLang === "es"
+        ? `Memoriza: ${sequence.join(" - ")}. ¿Color #${targetIdx + 1}?`
+        : `Memorize: ${sequence.join(" - ")}. Color #${targetIdx + 1}?`,
+      options: shuffled,
+      answerIndex: Math.max(0, shuffled.indexOf(answer))
+    });
+  }
+  return rounds;
+}
+
+function buildAthleteDecisionRounds() {
+  const scenarios = [
+    {
+      prompt: currentLang === "es"
+        ? "Vas perdiendo por 1 con 15s en neutral."
+        : "You are losing by 1 with 15s left in neutral.",
+      options: currentLang === "es"
+        ? ["Ataca single limpio", "Retrocede", "Espera sin atacar", "Lanza sin setup"]
+        : ["Attack a clean single", "Back away", "Hold and wait", "Force a throw"],
+      answerIndex: 0
+    },
+    {
+      prompt: currentLang === "es"
+        ? "Vas ganando por 2 con 12s y te presionan."
+        : "You are up by 2 with 12s left and under pressure.",
+      options: currentLang === "es"
+        ? ["Tiro arriesgado", "Controla posicion y circula", "Upper body forzado", "Te quedas quieto"]
+        : ["Take a risky shot", "Control position and circle", "Force upper body", "Stand still"],
+      answerIndex: 1
+    },
+    {
+      prompt: currentLang === "es"
+        ? "El rival carga pesado con la cabeza."
+        : "Opponent is heavy on your head.",
+      options: currentLang === "es"
+        ? ["Snap + go behind", "Te enderezas", "Alcance largo", "Esperar"]
+        : ["Snap and go behind", "Stand upright", "Reach from far", "Wait"],
+      answerIndex: 0
+    },
+    {
+      prompt: currentLang === "es"
+        ? "Bottom, empate al final del combate."
+        : "Bottom position, tied late in the match.",
+      options: currentLang === "es"
+        ? ["Stand-up rapido", "Quedarte plano", "Roll lento", "Mirar el reloj"]
+        : ["Fast stand-up", "Stay flat", "Slow roll", "Watch the clock"],
+      answerIndex: 0
+    }
+  ];
+  return shuffleArray(scenarios).slice(0, 4);
+}
+
+function buildAthleteScoreRounds(roundCount = 4) {
+  const events = [
+    { text: currentLang === "es" ? "Rojo takedown (+3)" : "Red takedown (+3)", red: 3, green: 0 },
+    { text: currentLang === "es" ? "Verde escape (+1)" : "Green escape (+1)", red: 0, green: 1 },
+    { text: currentLang === "es" ? "Rojo escape (+1)" : "Red escape (+1)", red: 1, green: 0 },
+    { text: currentLang === "es" ? "Verde reversal (+2)" : "Green reversal (+2)", red: 0, green: 2 },
+    { text: currentLang === "es" ? "Rojo stall (+1)" : "Red stall (+1)", red: 1, green: 0 },
+    { text: currentLang === "es" ? "Verde takedown (+3)" : "Green takedown (+3)", red: 0, green: 3 }
+  ];
+  const rounds = [];
+  for (let index = 0; index < roundCount; index += 1) {
+    const picks = shuffleArray(events).slice(0, 3);
+    let red = 0;
+    let green = 0;
+    picks.forEach((event) => {
+      red += event.red;
+      green += event.green;
+    });
+    const answer = red === green
+      ? (currentLang === "es" ? "Empate" : "Tied")
+      : red > green
+        ? (currentLang === "es" ? `Rojo por ${red - green}` : `Red by ${red - green}`)
+        : (currentLang === "es" ? `Verde por ${green - red}` : `Green by ${green - red}`);
+    const options = shuffleArray([
+      answer,
+      currentLang === "es" ? "Empate" : "Tied",
+      currentLang === "es" ? "Rojo por 1" : "Red by 1",
+      currentLang === "es" ? "Verde por 1" : "Green by 1"
+    ]).slice(0, 4);
+    if (!options.includes(answer)) options[0] = answer;
+    rounds.push({
+      prompt: `${currentLang === "es" ? "Secuencia" : "Sequence"}: ${picks.map((event) => event.text).join(" • ")}\n${currentLang === "es" ? "¿Quien va ganando?" : "Who is leading?"}`,
+      options,
+      answerIndex: Math.max(0, options.indexOf(answer))
+    });
+  }
+  return rounds;
+}
+
+function buildAthleteSwitchRounds(roundCount = 5) {
+  const rounds = [];
+  const rules = [
+    {
+      label: currentLang === "es" ? "Toca el numero mayor" : "Tap the higher number",
+      pick: (left, right) => (left > right ? 0 : 1)
+    },
+    {
+      label: currentLang === "es" ? "Toca el numero menor" : "Tap the lower number",
+      pick: (left, right) => (left < right ? 0 : 1)
+    },
+    {
+      label: currentLang === "es" ? "Toca el numero par" : "Tap the even number",
+      pick: (left, right) => (left % 2 === 0 ? 0 : 1)
+    }
+  ];
+  for (let index = 0; index < roundCount; index += 1) {
+    const left = 1 + Math.floor(Math.random() * 9);
+    let right = 1 + Math.floor(Math.random() * 9);
+    while (right === left) right = 1 + Math.floor(Math.random() * 9);
+    const rule = rules[Math.floor(Math.random() * rules.length)];
+    rounds.push({
+      prompt: `${rule.label}: ${left} | ${right}`,
+      options: [currentLang === "es" ? "Izquierda" : "Left", currentLang === "es" ? "Derecha" : "Right"],
+      answerIndex: rule.pick(left, right)
+    });
+  }
+  return rounds;
+}
+
+function getMentalAssignmentQuizConfig(assignment = null) {
+  const key = getAssignmentMentalGameKey(assignment);
+  if (key === MENTAL_ASSIGNMENT_GAME_KEYS.MEMORY) {
+    return {
+      title: assignment?.mentalGameTitle || "Memory Sequence",
+      subtitle: currentLang === "es" ? "Memoriza y responde rapido." : "Memorize and answer fast.",
+      rounds: buildAthleteMemoryRounds(5),
+      duration: Math.max(20, Number(assignment?.mentalGameDuration) || 45)
+    };
+  }
+  if (key === MENTAL_ASSIGNMENT_GAME_KEYS.DECISION) {
+    return {
+      title: assignment?.mentalGameTitle || "Quick Decision",
+      subtitle: currentLang === "es" ? "Elige la mejor decision tactica." : "Pick the best tactical decision.",
+      rounds: buildAthleteDecisionRounds(),
+      duration: Math.max(20, Number(assignment?.mentalGameDuration) || 45)
+    };
+  }
+  if (key === MENTAL_ASSIGNMENT_GAME_KEYS.SCORE) {
+    return {
+      title: assignment?.mentalGameTitle || "Score Awareness",
+      subtitle: currentLang === "es" ? "Lee la secuencia y detecta quien lidera." : "Track sequence and identify the leader.",
+      rounds: buildAthleteScoreRounds(4),
+      duration: Math.max(20, Number(assignment?.mentalGameDuration) || 45)
+    };
+  }
+  if (key === MENTAL_ASSIGNMENT_GAME_KEYS.SWITCH) {
+    return {
+      title: assignment?.mentalGameTitle || "Rule Switch",
+      subtitle: currentLang === "es" ? "Cambia de regla y responde rapido." : "Switch rules and respond quickly.",
+      rounds: buildAthleteSwitchRounds(5),
+      duration: Math.max(20, Number(assignment?.mentalGameDuration) || 40)
+    };
+  }
+  return null;
+}
+
+function openAthleteMentalQuizGame(assignment = null) {
+  return new Promise((resolve) => {
+    const config = getMentalAssignmentQuizConfig(assignment);
+    if (!config || !Array.isArray(config.rounds) || !config.rounds.length) {
+      resolve(null);
+      return;
+    }
+    const overlay = document.createElement("div");
+    overlay.className = "athlete-game-modal-overlay";
+    overlay.innerHTML = `
+      <div class="athlete-game-modal-card" role="dialog" aria-modal="true" aria-label="${escapeHtml(config.title)}">
+        <div class="athlete-game-modal-head">
+          <div>
+            <h3>${escapeHtml(config.title)}</h3>
+            <p>${escapeHtml(config.subtitle)}</p>
+          </div>
+          <button type="button" class="athlete-game-close-btn" data-action="close" aria-label="${escapeHtml(currentLang === "es" ? "Cerrar" : "Close")}">×</button>
+        </div>
+        <div class="athlete-game-modal-body">
+          <div class="athlete-game-modal-meta">
+            <span class="chip" id="athleteQuizRoundChip">1/${escapeHtml(String(config.rounds.length))}</span>
+            <span class="chip" id="athleteQuizTimeChip">${escapeHtml(`${config.duration}s`)}</span>
+          </div>
+          <div class="athlete-game-quiz-prompt" id="athleteQuizPrompt"></div>
+          <div class="athlete-game-quiz-options" id="athleteQuizOptions"></div>
+          <div class="athlete-game-result hidden" id="athleteQuizResult"></div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    window.scrollTo({ top: 0, behavior: "auto" });
+
+    const roundChip = overlay.querySelector("#athleteQuizRoundChip");
+    const timeChip = overlay.querySelector("#athleteQuizTimeChip");
+    const promptEl = overlay.querySelector("#athleteQuizPrompt");
+    const optionsEl = overlay.querySelector("#athleteQuizOptions");
+    const resultEl = overlay.querySelector("#athleteQuizResult");
+    const closeBtn = overlay.querySelector("[data-action='close']");
+
+    let settled = false;
+    let roundIndex = 0;
+    let correct = 0;
+    const reactionTimes = [];
+    let roundStartAt = performance.now();
+    let timeLeft = config.duration;
+    let timerId = null;
+
+    const settle = (value) => {
+      if (settled) return;
+      settled = true;
+      if (timerId) window.clearInterval(timerId);
+      overlay.remove();
+      resolve(value);
+    };
+
+    const finishQuiz = () => {
+      const result = buildMentalAssignmentResultFromQuiz({
+        assignment,
+        label: config.title,
+        correct,
+        total: config.rounds.length,
+        reactionTimes
+      });
+      if (resultEl) {
+        resultEl.classList.remove("hidden");
+        resultEl.innerHTML = `
+          <h4>${escapeHtml(currentLang === "es" ? "Resultado del juego" : "Game result")}</h4>
+          <p>${escapeHtml(currentLang === "es" ? "Puntaje mental" : "Mental score")}: <strong>${escapeHtml(result.score)}</strong></p>
+          <p>${escapeHtml(currentLang === "es" ? "Precision" : "Accuracy")}: <strong>${escapeHtml(result.accuracy)}%</strong></p>
+          <p>${escapeHtml(currentLang === "es" ? "Reaccion promedio" : "Average reaction")}: <strong>${escapeHtml(result.reactionMs ? formatAssignmentResultReactionSeconds(result.reactionMs) : "-")}</strong></p>
+        `;
+      }
+      if (optionsEl) optionsEl.innerHTML = "";
+      window.setTimeout(() => settle(result), 850);
+    };
+
+    const renderRound = () => {
+      const round = config.rounds[roundIndex];
+      if (!round) {
+        finishQuiz();
+        return;
+      }
+      if (roundChip) roundChip.textContent = `${roundIndex + 1}/${config.rounds.length}`;
+      if (promptEl) promptEl.textContent = String(round.prompt || "");
+      if (!optionsEl) return;
+      optionsEl.innerHTML = "";
+      roundStartAt = performance.now();
+      round.options.forEach((option, optionIdx) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "ghost";
+        btn.textContent = option;
+        btn.addEventListener("click", () => {
+          const reaction = Math.round(performance.now() - roundStartAt);
+          if (Number.isFinite(reaction) && reaction > 0) {
+            reactionTimes.push(reaction);
+          }
+          if (optionIdx === round.answerIndex) {
+            correct += 1;
+          }
+          roundIndex += 1;
+          renderRound();
+        });
+        optionsEl.appendChild(btn);
+      });
+    };
+
+    timerId = window.setInterval(() => {
+      timeLeft -= 1;
+      if (timeChip) timeChip.textContent = `${Math.max(0, timeLeft)}s`;
+      if (timeLeft <= 0) {
+        finishQuiz();
+      }
+    }, 1000);
+
+    closeBtn?.addEventListener("click", () => settle(null));
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) settle(null);
+    });
+    renderRound();
+  });
+}
+
 function openAthleteGoNoGoAssignmentGame(assignment = null) {
   return new Promise((resolve) => {
     const safeDuration = Math.max(12, Number.isFinite(Number(assignment?.mentalGameDuration)) ? Number(assignment.mentalGameDuration) : 30);
@@ -13863,9 +14204,9 @@ function openAthleteGoNoGoAssignmentGame(assignment = null) {
       if (timeChip) {
         timeChip.textContent = currentLang === "es" ? "Completado" : "Completed";
       }
-      if (submitBtn) submitBtn.classList.remove("hidden");
+      if (submitBtn) submitBtn.classList.add("hidden");
       if (cancelBtn) cancelBtn.textContent = currentLang === "es" ? "Cerrar" : "Close";
-      submitBtn?.addEventListener("click", () => settle(result), { once: true });
+      window.setTimeout(() => settle(result), 900);
     };
 
     const startSession = () => {
@@ -13926,12 +14267,14 @@ async function runAthleteMentalAssignmentTask(assignment = null) {
   }
 
   const gameKey = getAssignmentMentalGameKey(assignment);
-  if (gameKey !== MENTAL_ASSIGNMENT_GAME_KEYS.GO_NO_GO) {
+  if (!SUPPORTED_MENTAL_ASSIGNMENT_KEYS.has(gameKey)) {
     await updateAthleteAssignmentStatus(assignment, "completed");
     return true;
   }
 
-  const rawResult = await openAthleteGoNoGoAssignmentGame(assignment);
+  const rawResult = gameKey === MENTAL_ASSIGNMENT_GAME_KEYS.GO_NO_GO
+    ? await openAthleteGoNoGoAssignmentGame(assignment)
+    : await openAthleteMentalQuizGame(assignment);
   if (!rawResult) return false;
   const completionResult = normalizeAssignmentCompletionResult({
     ...rawResult,
