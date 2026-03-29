@@ -1951,10 +1951,10 @@ const TAB_COPY = {
     ru: "Сводка спортсмена"
   },
   plans: {
-    en: "Create Plan",
-    es: "Crear plan",
-    uz: "Rejalar yaratish",
-    ru: "Создать планы"
+    en: "Training and Tasks to Do",
+    es: "Entrenamiento y tareas por hacer",
+    uz: "Rejalar va topshiriqlar",
+    ru: "Планы и задания к выполнению"
   },
   templates: {
     en: "Templates",
