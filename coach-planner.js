@@ -711,6 +711,9 @@
     liftingPlans: [],
     liftingPlansUnsub: null,
     liftingLibraryUnsub: null,
+    liftingLibraryRetryTimer: null,
+    liftingLibraryRetryAttempt: 0,
+    liftingAuthUnsub: null,
     liftingBusy: false,
     lastSavedTemplateId: "",
     lastSentPlanId: "",
@@ -3480,7 +3483,43 @@
     renderLiftingOverview();
   }
 
+  function hasPlannerAuthSession() {
+    return Boolean(String(getPlannerAuthUser()?.id || "").trim());
+  }
+
+  function clearLiftingRealtimeRetry() {
+    if (!state.liftingLibraryRetryTimer) return;
+    window.clearTimeout(state.liftingLibraryRetryTimer);
+    state.liftingLibraryRetryTimer = null;
+  }
+
+  function scheduleLiftingRealtimeRetry() {
+    if (state.liftingLibraryRetryTimer) return;
+    state.liftingLibraryRetryAttempt = Math.min(100, (state.liftingLibraryRetryAttempt || 0) + 1);
+    const delay = state.liftingLibraryRetryAttempt <= 6 ? 700 : 1800;
+    state.liftingLibraryRetryTimer = window.setTimeout(() => {
+      state.liftingLibraryRetryTimer = null;
+      setupLiftingRealtimeSync();
+    }, delay);
+  }
+
+  function ensureLiftingAuthWatcher() {
+    if (state.liftingAuthUnsub) return;
+    try {
+      if (typeof firebase === "undefined" || !firebase?.auth) return;
+      state.liftingAuthUnsub = firebase.auth().onAuthStateChanged(() => {
+        if (!hasPlannerAuthSession()) return;
+        state.liftingLibraryRetryAttempt = 0;
+        clearLiftingRealtimeRetry();
+        setupLiftingRealtimeSync();
+      });
+    } catch {
+      // ignore auth watcher errors
+    }
+  }
+
   function setupLiftingRealtimeSync() {
+    ensureLiftingAuthWatcher();
     if (state.liftingPlansUnsub) {
       try { state.liftingPlansUnsub(); } catch {}
       state.liftingPlansUnsub = null;
@@ -3489,6 +3528,18 @@
       try { state.liftingLibraryUnsub(); } catch {}
       state.liftingLibraryUnsub = null;
     }
+
+    if (!hasPlannerAuthSession()) {
+      setLiftingStatus(tr({
+        en: "Waiting for sign-in to sync the shared lifting library...",
+        es: "Esperando inicio de sesion para sincronizar la libreria compartida de lifting..."
+      }));
+      scheduleLiftingRealtimeRetry();
+      return;
+    }
+
+    state.liftingLibraryRetryAttempt = 0;
+    clearLiftingRealtimeRetry();
 
     const protocolsRef = getLiftingProtocolsRef();
     if (protocolsRef?.onSnapshot) {
@@ -3558,9 +3609,23 @@
         syncLiftingLibraryToCloud(state.liftingLibrary).catch(() => {});
       }, (err) => {
         console.warn("Lifting library snapshot failed", err);
+        const errorCode = String(err?.code || "").trim().toLowerCase();
+        if (errorCode.includes("permission-denied") && !hasPlannerAuthSession()) {
+          setLiftingStatus(tr({
+            en: "Waiting for sign-in to sync the shared lifting library...",
+            es: "Esperando inicio de sesion para sincronizar la libreria compartida de lifting..."
+          }));
+          scheduleLiftingRealtimeRetry();
+          return;
+        }
+        const projectId = String((typeof window !== "undefined" && window.FIREBASE_CONFIG?.projectId) || "").trim();
         setLiftingStatus(tr({
-          en: "Shared lifting library sync failed. Check Firebase connection/rules.",
-          es: "Fallo la sincronizacion de la libreria compartida. Revisa Firebase/reglas."
+          en: projectId
+            ? `Shared lifting library sync failed (${projectId}). Check Firestore rules for /shared_app/uwc_lifting_library.`
+            : "Shared lifting library sync failed. Check Firebase connection/rules.",
+          es: projectId
+            ? `Fallo la sincronizacion de la libreria compartida (${projectId}). Revisa las reglas de Firestore para /shared_app/uwc_lifting_library.`
+            : "Fallo la sincronizacion de la libreria compartida. Revisa Firebase/reglas."
         }), true);
       });
     }
@@ -5977,7 +6042,14 @@
   persistSettings();
   persistMentalScores();
   if (typeof window !== "undefined") {
-    window.addEventListener("beforeunload", stopMentalLeaderboardSync);
+    window.addEventListener("beforeunload", () => {
+      stopMentalLeaderboardSync();
+      clearLiftingRealtimeRetry();
+      if (state.liftingAuthUnsub) {
+        try { state.liftingAuthUnsub(); } catch {}
+        state.liftingAuthUnsub = null;
+      }
+    });
   }
   hydratePlannerSettingsFromCloud().catch(() => {});
 })();
