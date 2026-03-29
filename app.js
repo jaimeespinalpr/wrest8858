@@ -6289,13 +6289,14 @@ async function handleSuccessfulAuth(result) {
     console.warn("Failed to hydrate shared media after auth", err);
   }
   startCoachWorkspaceRealtimeSync();
-  hideOnboarding();
   try {
     await applyProfile(profile);
+    hideOnboarding();
   } catch (err) {
     console.warn("Failed to apply profile after auth", err);
     setView(targetView);
     refreshLanguageUI();
+    hideOnboarding();
   }
   questionnairePromptShownForUserId = authUser?.id || "";
   questionnairePromptShownThisSession = false;
