@@ -2937,7 +2937,17 @@
   }
 
   function formatLiftingUpdatedAt(value) {
-    const date = new Date(String(value || ""));
+    let date = null;
+    if (value && typeof value.toDate === "function") {
+      try {
+        date = value.toDate();
+      } catch {
+        date = null;
+      }
+    }
+    if (!(date instanceof Date)) {
+      date = new Date(String(value || ""));
+    }
     if (Number.isNaN(date.getTime())) return tr({ en: "No date", es: "Sin fecha" });
     return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
   }
@@ -3455,6 +3465,10 @@
       updatedByUid: String(authUser?.id || "").trim(),
       updatedByName: String(profile?.name || authUser?.email || "Coach").trim()
     }, { merge: true });
+    setLiftingStatus(tr({
+      en: "Shared lifting library updated for all coaches.",
+      es: "Libreria de lifting actualizada para todos los entrenadores."
+    }));
   }
 
   function syncLiftingPlansFromSnapshot(snapshot) {
@@ -3489,14 +3503,26 @@
     if (libraryDoc?.onSnapshot) {
       state.liftingLibraryUnsub = libraryDoc.onSnapshot(async (docSnap) => {
         if (docSnap.exists()) {
+          const payload = docSnap.data() || {};
           state.liftingLibrary = mergeLiftingLibraryMaps(
             DEFAULT_LIFTING_LIBRARY,
-            docSnap.data()?.data || {}
+            payload.data || {}
           );
           persistLiftingLibraryLocal();
           renderLiftingCategorySelect();
           renderLiftingLibraryGroups();
           renderLiftingOverview();
+          const updatedBy = String(payload.updatedByName || "").trim();
+          const updatedAt = formatLiftingUpdatedAt(payload.updatedAt);
+          setLiftingStatus(updatedBy
+            ? tr({
+              en: `Shared library synced (${updatedBy} • ${updatedAt}).`,
+              es: `Libreria compartida sincronizada (${updatedBy} • ${updatedAt}).`
+            })
+            : tr({
+              en: `Shared library synced (${updatedAt}).`,
+              es: `Libreria compartida sincronizada (${updatedAt}).`
+            }));
           return;
         }
 
@@ -3532,6 +3558,10 @@
         syncLiftingLibraryToCloud(state.liftingLibrary).catch(() => {});
       }, (err) => {
         console.warn("Lifting library snapshot failed", err);
+        setLiftingStatus(tr({
+          en: "Shared lifting library sync failed. Check Firebase connection/rules.",
+          es: "Fallo la sincronizacion de la libreria compartida. Revisa Firebase/reglas."
+        }), true);
       });
     }
   }
