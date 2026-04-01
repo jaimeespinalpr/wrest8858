@@ -8,6 +8,7 @@ window.FIREBASE_CONFIG = {
   measurementId: "G-8VGT08KXVZ"
 };
 
+// User profiles are always stored in the canonical "users" collection.
 window.FIREBASE_USERS_COLLECTION = "users";
 window.FIREBASE_SHARED_COLLECTION = "shared_app";
 window.FIREBASE_MEDIA_TREE_DOC = "media_tree";

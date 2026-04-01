@@ -14,9 +14,11 @@
       "public": ".",
       "ignore": [
         "firebase.json",
+        ".git/**",
         "**/.*",
         "**/node_modules/**",
         ".github/**",
+        ".vscode/**",
         "functions/**",
         "api/**",
         "**/*.php"
@@ -27,9 +29,11 @@
       "public": ".",
       "ignore": [
         "firebase.json",
+        ".git/**",
         "**/.*",
         "**/node_modules/**",
         ".github/**",
+        ".vscode/**",
         "functions/**",
         "api/**",
         "**/*.php"

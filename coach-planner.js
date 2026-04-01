@@ -4799,9 +4799,7 @@
   function getPlannerUsersCollectionRef() {
     try {
       if (typeof firebaseFirestoreInstance === "undefined" || !firebaseFirestoreInstance) return null;
-      const collectionName = typeof FIREBASE_USERS_COLLECTION === "string" && FIREBASE_USERS_COLLECTION
-        ? FIREBASE_USERS_COLLECTION
-        : "users";
+      const collectionName = "users";
       return firebaseFirestoreInstance.collection(collectionName);
     } catch {
       return null;

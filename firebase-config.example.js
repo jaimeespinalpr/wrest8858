@@ -8,7 +8,7 @@ window.FIREBASE_CONFIG = {
   measurementId: "YOUR_MEASUREMENT_ID"
 };
 
-// Optional Firestore collection for user profiles.
+// User profiles are always stored in the canonical "users" collection.
 window.FIREBASE_USERS_COLLECTION = "users";
 window.FIREBASE_SHARED_COLLECTION = "shared_app";
 window.FIREBASE_MEDIA_TREE_DOC = "media_tree";

@@ -36,7 +36,17 @@ let storageHydrated = false;
 let suppressStorageSync = false;
 let storageSyncAttached = false;
 
-const FIREBASE_USERS_COLLECTION = window.FIREBASE_USERS_COLLECTION || "users";
+const CANONICAL_FIREBASE_USERS_COLLECTION = "users";
+const FIREBASE_USERS_COLLECTION = CANONICAL_FIREBASE_USERS_COLLECTION;
+const FIREBASE_LEGACY_USERS_COLLECTION = (() => {
+  const configured = String(window.FIREBASE_USERS_COLLECTION || "").trim();
+  if (!configured) return "";
+  if (configured === CANONICAL_FIREBASE_USERS_COLLECTION) return "";
+  console.warn(
+    `Ignoring non-canonical FIREBASE_USERS_COLLECTION="${configured}". Using "${CANONICAL_FIREBASE_USERS_COLLECTION}" for all user reads/writes.`
+  );
+  return configured;
+})();
 const FIREBASE_SHARED_COLLECTION = window.FIREBASE_SHARED_COLLECTION || "shared_app";
 const FIREBASE_MEDIA_TREE_DOC = window.FIREBASE_MEDIA_TREE_DOC || "media_tree";
 const FIREBASE_MESSAGE_THREADS_COLLECTION = "message_threads";
@@ -125,6 +135,9 @@ let parentScoutingStream = null;
 let parentScoutingAudioChunks = [];
 let parentScoutingAudioBlob = null;
 let parentScoutingAudioUrl = "";
+const COACH_HOME_ALERT_STATE_KEY = "wpl_coach_home_alert_state_v2";
+const COACH_OPERATIONAL_ALERT_MAX = 12;
+let coachOperationalAlertQueue = [];
 const PARENT_INLINE_MEDIA_MAX_BYTES = 240 * 1024;
 const MEDIA_THUMBNAIL_MAX_EDGE = 640;
 
@@ -176,7 +189,24 @@ function withTimeout(promise, ms, code = "operation_timeout") {
 }
 
 function shouldSyncKey(key) {
-  return typeof key === "string" && key.startsWith(STORAGE_PREFIX);
+  if (typeof key !== "string" || !key.startsWith(STORAGE_PREFIX)) return false;
+  // Account identity/profile data must stay in Firebase Auth + Firestore only.
+  if (key === AUTH_USER_KEY || key === PROFILE_KEY) return false;
+  if (key.startsWith("wpl_profile_user_")) return false;
+  return true;
+}
+
+async function purgeServerStorageKey(key) {
+  if (!storageSyncEnabled || typeof key !== "string" || !key.startsWith(STORAGE_PREFIX)) return;
+  try {
+    await fetch(STORAGE_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete", key })
+    });
+  } catch {
+    // Ignore purge failures to avoid blocking app startup.
+  }
 }
 
 function syncStorageSet(key, value) {
@@ -247,21 +277,24 @@ async function initServerStorage() {
     if (!res.ok) throw new Error("storage_fetch_failed");
     const payload = await res.json();
     const serverData = payload && payload.data && typeof payload.data === "object" ? payload.data : {};
-    const hasServerData = Object.keys(serverData).length > 0;
+    const serverSensitiveKeys = Object.keys(serverData).filter((key) => !shouldSyncKey(key) && key.startsWith(STORAGE_PREFIX));
+    const syncableServerEntries = Object.entries(serverData).filter(([key]) => shouldSyncKey(key));
+    const hasServerData = syncableServerEntries.length > 0;
+    if (serverSensitiveKeys.length) {
+      await Promise.all(serverSensitiveKeys.map((key) => purgeServerStorageKey(key)));
+    }
 
     if (hasServerData) {
       suppressStorageSync = true;
-      const serverKeys = new Set(Object.keys(serverData));
+      const serverKeys = new Set(syncableServerEntries.map(([key]) => key));
       for (let i = localStorage.length - 1; i >= 0; i -= 1) {
         const key = localStorage.key(i);
         if (shouldSyncKey(key) && !serverKeys.has(key)) {
           localStorage.removeItem(key);
         }
       }
-      Object.entries(serverData).forEach(([key, value]) => {
-        if (shouldSyncKey(key)) {
-          localStorage.setItem(key, value);
-        }
+      syncableServerEntries.forEach(([key, value]) => {
+        localStorage.setItem(key, value);
       });
     } else {
       await syncAllLocalToServer();
@@ -3656,6 +3689,22 @@ async function fetchFirebaseProfile(uid) {
     return doc.data();
   } catch (err) {
     console.warn("Failed to load Firebase profile", err);
+  }
+  if (!FIREBASE_LEGACY_USERS_COLLECTION) return null;
+  try {
+    const legacyDoc = await withTimeout(
+      firebaseFirestoreInstance.collection(FIREBASE_LEGACY_USERS_COLLECTION).doc(uid).get(),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_profile_legacy_read_timeout"
+    );
+    if (!legacyDoc.exists) return null;
+    const legacyData = legacyDoc.data() || null;
+    if (legacyData) {
+      await persistFirebaseProfile(uid, legacyData, { required: false });
+    }
+    return legacyData;
+  } catch (err) {
+    console.warn("Failed to load legacy Firebase profile", err);
     return null;
   }
 }
@@ -3676,6 +3725,13 @@ async function persistFirebaseProfile(uid, data, { required = false } = {}) {
       FIREBASE_OP_TIMEOUT_MS,
       "firestore_profile_write_timeout"
     );
+    if (FIREBASE_LEGACY_USERS_COLLECTION) {
+      await withTimeout(
+        firebaseFirestoreInstance.collection(FIREBASE_LEGACY_USERS_COLLECTION).doc(uid).set(payload, { merge: true }),
+        FIREBASE_OP_TIMEOUT_MS,
+        "firestore_profile_legacy_write_timeout"
+      );
+    }
   } catch (err) {
     if (required) throw err;
     console.warn("Failed to persist Firebase profile", err);
@@ -3702,6 +3758,26 @@ function isCoachWorkspaceActive() {
     && authUser?.id
     && isCoachRole(profile?.role || authUser.role)
   );
+}
+
+function reportCoachOperationalAlert(label = "", err = null) {
+  if (!isCoachWorkspaceActive()) return;
+  const safeLabel = String(label || "").trim();
+  if (!safeLabel) return;
+  const detail = String(err?.code || err?.message || "").trim().slice(0, 80);
+  const fingerprint = `${safeLabel}:${detail}`;
+  const now = Date.now();
+  const recent = coachOperationalAlertQueue.find((item) => item.fingerprint === fingerprint);
+  if (recent && (now - recent.createdAtMs) < 15000) return;
+  coachOperationalAlertQueue.push({
+    fingerprint,
+    label: safeLabel,
+    detail,
+    createdAtMs: now
+  });
+  if (coachOperationalAlertQueue.length > COACH_OPERATIONAL_ALERT_MAX) {
+    coachOperationalAlertQueue = coachOperationalAlertQueue.slice(-COACH_OPERATIONAL_ALERT_MAX);
+  }
 }
 
 function coachWorkspaceSortByUpdated(items = []) {
@@ -5905,14 +5981,20 @@ async function startCoachWorkspaceRealtimeSync() {
       renderAthleteNotes();
       renderCompetitionPreview(getSelectedCoachAthleteRecord());
       scheduleCoachCompletionSync();
-    }, (err) => console.warn("Plan sync failed", err)),
+    }, (err) => {
+      console.warn("Plan sync failed", err);
+      reportCoachOperationalAlert("Plan sync failed", err);
+    }),
     templatesRef.onSnapshot((snapshot) => {
       coachTemplatesCache = coachWorkspaceSortByUpdated(
         snapshot.docs.map((doc) => normalizeCoachTemplateRecord(doc.id, doc.data()))
       );
       renderPlanSourceControls();
       renderTemplatesPanel();
-    }, (err) => console.warn("Template sync failed", err)),
+    }, (err) => {
+      console.warn("Template sync failed", err);
+      reportCoachOperationalAlert("Template sync failed", err);
+    }),
     assignmentsRef.onSnapshot((snapshot) => {
       coachAssignmentsCache = coachWorkspaceSortByUpdated(
         snapshot.docs.map((doc) => normalizeCoachAssignmentRecord(doc.id, doc.data()))
@@ -5926,7 +6008,10 @@ async function startCoachWorkspaceRealtimeSync() {
       renderCompetitionPreview(getSelectedCoachAthleteRecord());
       scheduleCoachAssignmentStatusSync();
       scheduleCoachCompletionSync();
-    }, (err) => console.warn("Assignment sync failed", err)),
+    }, (err) => {
+      console.warn("Assignment sync failed", err);
+      reportCoachOperationalAlert("Assignment sync failed", err);
+    }),
     groupsRef.onSnapshot((snapshot) => {
       coachGroupsCache = coachWorkspaceSortByUpdated(
         snapshot.docs.map((doc) => normalizeCoachGroupRecord(doc.id, doc.data()))
@@ -5939,14 +6024,20 @@ async function startCoachWorkspaceRealtimeSync() {
       renderAthleteNotes();
       renderMedia();
       scheduleCoachCompletionSync();
-    }, (err) => console.warn("Group sync failed", err)),
+    }, (err) => {
+      console.warn("Group sync failed", err);
+      reportCoachOperationalAlert("Group sync failed", err);
+    }),
     competitionsRef.onSnapshot((snapshot) => {
       coachCompetitionsCache = coachWorkspaceSortByUpdated(
         snapshot.docs.map((doc) => normalizeCoachCompetitionRecord(doc.id, doc.data() || {}))
       );
       renderCompetitionPreview(getSelectedCoachAthleteRecord());
       renderDashboard();
-    }, (err) => console.warn("Competition sync failed", err)),
+    }, (err) => {
+      console.warn("Competition sync failed", err);
+      reportCoachOperationalAlert("Competition sync failed", err);
+    }),
     calendarRef.onSnapshot((snapshot) => {
       const next = {};
       snapshot.docs.forEach((doc) => {
@@ -5957,7 +6048,10 @@ async function startCoachWorkspaceRealtimeSync() {
       renderCalendar(calendarSelectedKey);
       renderCalendarManager();
       renderDashboard();
-    }, (err) => console.warn("Calendar sync failed", err)),
+    }, (err) => {
+      console.warn("Calendar sync failed", err);
+      reportCoachOperationalAlert("Calendar sync failed", err);
+    }),
     athletesRef.onSnapshot((snapshot) => {
       coachAthletesCache = coachWorkspaceSortByUpdated(
         snapshot.docs.map((doc) => normalizeCoachAthleteRecord(doc.id, doc.data()))
@@ -5971,7 +6065,10 @@ async function startCoachWorkspaceRealtimeSync() {
       renderDashboard();
       renderCompetitionPreview(getSelectedCoachAthleteRecord());
       scheduleCoachCompletionSync();
-    }, (err) => console.warn("Athlete sync failed", err)),
+    }, (err) => {
+      console.warn("Athlete sync failed", err);
+      reportCoachOperationalAlert("Athlete sync failed", err);
+    }),
     notesRef.onSnapshot((snapshot) => {
       coachNotesCache = coachWorkspaceSortByUpdated(
         snapshot.docs.map((doc) => normalizeCoachNoteRecord(doc.id, doc.data()))
@@ -5981,7 +6078,10 @@ async function startCoachWorkspaceRealtimeSync() {
       renderCoachAthleteProfile(getSelectedCoachAthleteName());
       renderCoachMatchView(getSelectedCoachAthleteName());
       renderCompetitionPreview(getSelectedCoachAthleteRecord());
-    }, (err) => console.warn("Coach note sync failed", err)),
+    }, (err) => {
+      console.warn("Coach note sync failed", err);
+      reportCoachOperationalAlert("Coach note sync failed", err);
+    }),
     journalRef.onSnapshot((snapshot) => {
       coachJournalEntriesCache = coachWorkspaceSortByUpdated(
         snapshot.docs.map((doc) => normalizeCoachJournalRecord(doc.id, doc.data()))
@@ -5995,7 +6095,10 @@ async function startCoachWorkspaceRealtimeSync() {
       renderCompletionTracking();
       renderDashboard();
       scheduleCoachCompletionSync();
-    }, (err) => console.warn("Journal sync failed", err)),
+    }, (err) => {
+      console.warn("Journal sync failed", err);
+      reportCoachOperationalAlert("Journal sync failed", err);
+    }),
     completionRef.onSnapshot((snapshot) => {
       coachCompletionCache = coachWorkspaceSortByUpdated(
         snapshot.docs.map((doc) => normalizeCoachCompletionRecord(doc.id, doc.data()))
@@ -6004,7 +6107,10 @@ async function startCoachWorkspaceRealtimeSync() {
       renderCompletionTracking();
       renderDashboard();
       renderAthleteManagement();
-    }, (err) => console.warn("Completion sync failed", err)),
+    }, (err) => {
+      console.warn("Completion sync failed", err);
+      reportCoachOperationalAlert("Completion sync failed", err);
+    }),
     matchAnalysisRef.onSnapshot((snapshot) => {
       coachMatchAnalysisCache = coachWorkspaceSortByUpdated(
         snapshot.docs.map((doc) => normalizeCoachMatchAnalysisRecord(doc.id, doc.data()))
@@ -6013,21 +6119,34 @@ async function startCoachWorkspaceRealtimeSync() {
       renderMedia();
       renderCoachMatchView(getSelectedCoachAthleteName());
       renderCompetitionPreview(getSelectedCoachAthleteRecord());
-    }, (err) => console.warn("Match analysis sync failed", err)),
+    }, (err) => {
+      console.warn("Match analysis sync failed", err);
+      reportCoachOperationalAlert("Match analysis sync failed", err);
+    }),
     parentScoutingRef.onSnapshot((snapshot) => {
       coachParentScoutingCache = coachWorkspaceSortByUpdated(
         snapshot.docs.map((doc) => normalizeParentScoutingRecord(doc.id, doc.data() || {}))
       );
       renderDashboard();
-    }, (err) => console.warn("Parent scouting feed sync failed", err))
+    }, (err) => {
+      console.warn("Parent scouting feed sync failed", err);
+      reportCoachOperationalAlert("Parent scouting feed sync failed", err);
+    })
   );
 
   if (usersRef) {
     coachWorkspaceUnsubs.push(
-      usersRef.where("role", "==", "athlete").onSnapshot((snapshot) => {
-        coachAthleteDirectoryCache = snapshot.docs
+      usersRef.onSnapshot((snapshot) => {
+        const rows = snapshot.docs
           .map((doc) => normalizeManagedUserRecord(doc.id, doc.data() || {}))
-          .filter((record) => Boolean(record.uid) && normalizeAuthRole(record.role) === "athlete")
+          .filter((record) => Boolean(record.uid));
+        coachAthleteDirectoryCache = rows
+          .filter((record) => normalizeAuthRole(record.role) === "athlete")
+          .sort((a, b) => a.name.localeCompare(b.name || "", undefined, { sensitivity: "base" }));
+        coachParentApprovalsCache = rows
+          .filter((record) => normalizeAuthRole(record.role) === "parent");
+        coachDirectoryCache = rows
+          .filter((record) => isCoachRole(record.role))
           .sort((a, b) => a.name.localeCompare(b.name || "", undefined, { sensitivity: "base" }));
         scheduleCoachWorkspaceRelationshipSync();
         syncCoachMatchAthleteSelect();
@@ -6037,18 +6156,10 @@ async function startCoachWorkspaceRealtimeSync() {
         renderCompletionTracking();
         renderDashboard();
         renderCompetitionPreview(getSelectedCoachAthleteRecord());
-      }, (err) => console.warn("Athlete directory sync failed", err)),
-      usersRef.where("role", "==", "parent").onSnapshot((snapshot) => {
-        coachParentApprovalsCache = snapshot.docs.map((doc) => normalizeManagedUserRecord(doc.id, doc.data() || {}));
-        renderDashboard();
-      }, (err) => console.warn("Parent approval sync failed", err)),
-      usersRef.where("role", "==", "coach").onSnapshot((snapshot) => {
-        coachDirectoryCache = snapshot.docs
-          .map((doc) => normalizeManagedUserRecord(doc.id, doc.data() || {}))
-          .filter((record) => Boolean(record.uid))
-          .sort((a, b) => a.name.localeCompare(b.name || "", undefined, { sensitivity: "base" }));
-        renderDashboard();
-      }, (err) => console.warn("Coach directory sync failed", err))
+      }, (err) => {
+        console.warn("Users directory sync failed", err);
+        reportCoachOperationalAlert("Users directory sync failed", err);
+      })
     );
   }
 }
@@ -17832,17 +17943,297 @@ function getCoachRecentTrainingRows(limit = 3) {
   return getHomeRecentTrainingsData();
 }
 
-function getCoachHomeAlerts(limit = 4) {
-  const alerts = [];
-  getAthletesData().forEach((athlete) => {
-    const row = getCoachCompletionRow(athlete);
-    if (row.status !== "ontrack") {
-      alerts.push(`${athlete.name}: ${row.followUp}`);
-    }
-    getAthleteAlerts(athlete).forEach((alert) => {
-      alerts.push(`${athlete.name}: ${alert}`);
-    });
+function normalizeCoachHomeAlertState(raw = {}) {
+  const safe = raw && typeof raw === "object" ? raw : {};
+  return {
+    initialized: Boolean(safe.initialized),
+    availabilityByAthlete: safe.availabilityByAthlete && typeof safe.availabilityByAthlete === "object" ? safe.availabilityByAthlete : {},
+    overdueAssignmentIds: Array.isArray(safe.overdueAssignmentIds) ? safe.overdueAssignmentIds : [],
+    journalStaleByAthlete: safe.journalStaleByAthlete && typeof safe.journalStaleByAthlete === "object" ? safe.journalStaleByAthlete : {},
+    weightOutlierByAthlete: safe.weightOutlierByAthlete && typeof safe.weightOutlierByAthlete === "object" ? safe.weightOutlierByAthlete : {},
+    competitionChecklistMissingById: safe.competitionChecklistMissingById && typeof safe.competitionChecklistMissingById === "object" ? safe.competitionChecklistMissingById : {},
+    criticalAnnouncementIds: Array.isArray(safe.criticalAnnouncementIds) ? safe.criticalAnnouncementIds : [],
+    overloadByAthlete: safe.overloadByAthlete && typeof safe.overloadByAthlete === "object" ? safe.overloadByAthlete : {},
+    travelByAthlete: safe.travelByAthlete && typeof safe.travelByAthlete === "object" ? safe.travelByAthlete : {},
+    pendingParentRequestUids: Array.isArray(safe.pendingParentRequestUids) ? safe.pendingParentRequestUids : [],
+    athleteIdentityKeys: Array.isArray(safe.athleteIdentityKeys) ? safe.athleteIdentityKeys : [],
+    registeredUserUids: Array.isArray(safe.registeredUserUids) ? safe.registeredUserUids : []
+  };
+}
+
+function loadCoachHomeAlertState() {
+  const key = `${COACH_HOME_ALERT_STATE_KEY}_${String(getAuthUser()?.id || "guest").trim() || "guest"}`;
+  return normalizeCoachHomeAlertState(parseStoredJson(key));
+}
+
+function persistCoachHomeAlertState(state = {}) {
+  const key = `${COACH_HOME_ALERT_STATE_KEY}_${String(getAuthUser()?.id || "guest").trim() || "guest"}`;
+  try {
+    localStorage.setItem(key, JSON.stringify(normalizeCoachHomeAlertState({
+      ...state,
+      initialized: true
+    })));
+  } catch {
+    // Ignore local persistence issues for alerts.
+  }
+}
+
+function getWeightDeltaLbs(rawValue = "") {
+  const text = String(rawValue || "").trim().toLowerCase();
+  const match = text.match(/(-?\d+(?:\.\d+)?)\s*lb/);
+  if (!match) return 0;
+  const magnitude = Math.abs(Number(match[1] || 0));
+  if (!Number.isFinite(magnitude)) return 0;
+  return magnitude;
+}
+
+function isChecklistAssignment(assignment = {}) {
+  const blob = [
+    assignment.title,
+    assignment.type,
+    assignment.note,
+    assignment.source
+  ].join(" ").toLowerCase();
+  const keywords = ["checklist", "travel", "weigh", "gear", "logistic", "logistica", "equip"];
+  return keywords.some((keyword) => blob.includes(keyword));
+}
+
+function isCriticalAnnouncement(row = {}) {
+  const text = `${row.title || ""} ${row.detail || ""}`.toLowerCase();
+  const criticalWords = ["urgent", "alert", "schedule change", "cambio", "urgente", "critico"];
+  return criticalWords.some((word) => text.includes(word));
+}
+
+function buildCoachHomeAlertSnapshot() {
+  const athletes = getAthletesData();
+  const assignments = getCoachAssignmentRecords();
+  const competitions = getCompetitionRecordsForContext();
+  const timeline = getCompetitionTimeline(competitions);
+  const upcomingCompetitions = [...timeline.current, ...timeline.future].slice(0, 6);
+  const announcements = getAnnouncementsData();
+  const pendingParents = coachParentApprovalsCache.filter((request) => (
+    normalizeParentVerificationStatus(request.status) !== "verified"
+  ));
+  const registeredUserUids = Array.from(new Set(
+    [
+      ...coachAthleteDirectoryCache,
+      ...coachParentApprovalsCache,
+      ...coachDirectoryCache
+    ]
+      .map((user) => String(user?.uid || "").trim())
+      .filter(Boolean)
+  )).sort();
+
+  const availabilityByAthlete = {};
+  const journalStaleByAthlete = {};
+  const weightOutlierByAthlete = {};
+  const overloadByAthlete = {};
+  const travelByAthlete = {};
+  const athleteIdentityKeys = [];
+
+  athletes.forEach((athlete) => {
+    const athleteName = String(athlete?.name || "").trim();
+    if (!athleteName) return;
+    const availabilityKey = normalizeAvailabilityKey(athlete.availability);
+    const rawJournal = getRawJournalEntry(athleteName);
+    const soreness = parseScoreValue(rawJournal?.soreness);
+    const sleep = parseHoursValue(rawJournal?.sleep);
+    const weightDelta = getWeightDeltaLbs(rawJournal?.weight || "");
+    const weightText = String(rawJournal?.weight || "").toLowerCase();
+    const weightOutlier = weightDelta >= 1.5 || weightText.includes("cut");
+    const staleJournal = getCoachJournalState(athleteName) === "stale";
+
+    availabilityByAthlete[athleteName] = availabilityKey;
+    journalStaleByAthlete[athleteName] = staleJournal;
+    weightOutlierByAthlete[athleteName] = weightOutlier;
+    overloadByAthlete[athleteName] = sleep > 0 && sleep < 6.5 && soreness >= 4;
+    travelByAthlete[athleteName] = availabilityKey === "travel";
+    athleteIdentityKeys.push(normalizeAthleteId(athlete.id, athleteName));
   });
+
+  const overdueAssignmentIds = assignments
+    .filter((assignment) => normalizeAssignmentStatus(assignment.status) === "overdue")
+    .map((assignment) => String(assignment.id || "").trim())
+    .filter(Boolean);
+
+  const competitionChecklistMissingById = {};
+  upcomingCompetitions.forEach((competition) => {
+    const competitionId = String(competition.id || "").trim();
+    if (!competitionId) return;
+    const roster = getCompetitionAthleteRoster(competition);
+    if (!roster.length) return;
+    const missingCount = roster.filter((entry) => {
+      const athleteName = String(entry?.name || "").trim();
+      if (!athleteName) return true;
+      return !getPlanAssignmentsForAthlete(athleteName).some((assignment) => (
+        isChecklistAssignment(assignment)
+        && normalizeAssignmentStatus(assignment.status) === "completed"
+      ));
+    }).length;
+    competitionChecklistMissingById[competitionId] = {
+      name: competition.name || (currentLang === "es" ? "Competencia" : "Competition"),
+      missingCount
+    };
+  });
+
+  const criticalAnnouncementIds = announcements
+    .filter((row) => isCriticalAnnouncement(row))
+    .map((row) => `${String(row.title || "").trim()}|${String(row.detail || "").trim()}|${String(row.time || "").trim()}`);
+
+  return normalizeCoachHomeAlertState({
+    initialized: true,
+    availabilityByAthlete,
+    overdueAssignmentIds,
+    journalStaleByAthlete,
+    weightOutlierByAthlete,
+    competitionChecklistMissingById,
+    criticalAnnouncementIds,
+    overloadByAthlete,
+    travelByAthlete,
+    pendingParentRequestUids: pendingParents.map((request) => String(request.uid || "").trim()).filter(Boolean),
+    athleteIdentityKeys: athleteIdentityKeys.filter(Boolean),
+    registeredUserUids
+  });
+}
+
+function getCoachHomeAlerts(limit = 10) {
+  const nextState = buildCoachHomeAlertSnapshot();
+  const previousState = loadCoachHomeAlertState();
+  if (!previousState.initialized) {
+    persistCoachHomeAlertState(nextState);
+    coachOperationalAlertQueue = [];
+    return [];
+  }
+
+  const alerts = [];
+  const prevOverdue = new Set(previousState.overdueAssignmentIds);
+  const nextOverdue = new Set(nextState.overdueAssignmentIds);
+  const prevCriticalAnnouncements = new Set(previousState.criticalAnnouncementIds);
+  const prevPendingParents = new Set(previousState.pendingParentRequestUids);
+  const prevAthleteKeys = new Set(previousState.athleteIdentityKeys);
+  const prevRegisteredUsers = new Set(previousState.registeredUserUids);
+
+  Object.entries(nextState.availabilityByAthlete).forEach(([athleteName, nextAvailability]) => {
+    const previousAvailability = previousState.availabilityByAthlete[athleteName];
+    if (previousAvailability && previousAvailability !== nextAvailability) {
+      alerts.push(currentLang === "es"
+        ? `${athleteName}: cambio de disponibilidad a ${nextAvailability}.`
+        : `${athleteName}: availability changed to ${nextAvailability}.`);
+    }
+  });
+
+  nextOverdue.forEach((assignmentId) => {
+    if (prevOverdue.has(assignmentId)) return;
+    const assignment = getCoachAssignmentRecords().find((item) => String(item.id || "").trim() === assignmentId);
+    if (!assignment) return;
+    alerts.push(currentLang === "es"
+      ? `${assignment.assigneeName || "Atleta"}: nueva asignacion vencida (${assignment.title || assignment.type || "tarea"}).`
+      : `${assignment.assigneeName || "Athlete"}: new overdue assignment (${assignment.title || assignment.type || "task"}).`);
+  });
+
+  Object.entries(nextState.journalStaleByAthlete).forEach(([athleteName, isStale]) => {
+    const wasStale = Boolean(previousState.journalStaleByAthlete[athleteName]);
+    if (isStale && !wasStale) {
+      alerts.push(currentLang === "es"
+        ? `${athleteName}: journal atrasado.`
+        : `${athleteName}: journal is now stale.`);
+    }
+  });
+
+  Object.entries(nextState.weightOutlierByAthlete).forEach(([athleteName, isOutlier]) => {
+    const wasOutlier = Boolean(previousState.weightOutlierByAthlete[athleteName]);
+    if (isOutlier && !wasOutlier) {
+      alerts.push(currentLang === "es"
+        ? `${athleteName}: cambio de peso fuera de rango.`
+        : `${athleteName}: weight change outside range.`);
+    }
+  });
+
+  Object.entries(nextState.competitionChecklistMissingById).forEach(([competitionId, row]) => {
+    const previousRow = previousState.competitionChecklistMissingById[competitionId];
+    const previousMissing = Number(previousRow?.missingCount || 0);
+    const nextMissing = Number(row?.missingCount || 0);
+    if (!nextMissing) return;
+    if (!previousMissing || nextMissing > previousMissing) {
+      alerts.push(currentLang === "es"
+        ? `${row.name}: checklist incompleto (${nextMissing} atleta(s) pendiente(s)).`
+        : `${row.name}: checklist incomplete (${nextMissing} athlete(s) pending).`);
+    }
+  });
+
+  nextState.criticalAnnouncementIds.forEach((announcementId) => {
+    if (prevCriticalAnnouncements.has(announcementId)) return;
+    const [title = ""] = announcementId.split("|");
+    alerts.push(currentLang === "es"
+      ? `Nuevo aviso critico del staff: ${title}.`
+      : `New critical staff announcement: ${title}.`);
+  });
+
+  Object.entries(nextState.overloadByAthlete).forEach(([athleteName, isHighRisk]) => {
+    const wasHighRisk = Boolean(previousState.overloadByAthlete[athleteName]);
+    if (isHighRisk && !wasHighRisk) {
+      alerts.push(currentLang === "es"
+        ? `${athleteName}: riesgo de sobrecarga (sueno + dolor).`
+        : `${athleteName}: overload risk (sleep + soreness).`);
+    }
+  });
+
+  Object.entries(nextState.travelByAthlete).forEach(([athleteName, isTravel]) => {
+    const wasTravel = Boolean(previousState.travelByAthlete[athleteName]);
+    if (wasTravel !== isTravel) {
+      alerts.push(currentLang === "es"
+        ? `${athleteName}: cambio en estado de viaje/ausencia.`
+        : `${athleteName}: travel/away status changed.`);
+    }
+  });
+
+  nextState.pendingParentRequestUids.forEach((uid) => {
+    if (prevPendingParents.has(uid)) return;
+    const request = coachParentApprovalsCache.find((row) => String(row.uid || "").trim() === uid);
+    const requestName = request?.name || request?.email || (currentLang === "es" ? "padre/madre" : "parent");
+    alerts.push(currentLang === "es"
+      ? `Nueva solicitud pendiente de acceso de padres: ${requestName}.`
+      : `New pending parent access request: ${requestName}.`);
+  });
+
+  nextState.athleteIdentityKeys.forEach((athleteKey) => {
+    if (prevAthleteKeys.has(athleteKey)) return;
+    const athlete = getAthletesData().find((entry) => normalizeAthleteId(entry.id, entry.name) === athleteKey);
+    if (!athlete?.name) return;
+    alerts.push(currentLang === "es"
+      ? `Nuevo atleta detectado en el roster: ${athlete.name}.`
+      : `New athlete detected in roster: ${athlete.name}.`);
+  });
+
+  nextState.registeredUserUids.forEach((uid) => {
+    if (prevRegisteredUsers.has(uid)) return;
+    const user = [
+      ...coachAthleteDirectoryCache,
+      ...coachParentApprovalsCache,
+      ...coachDirectoryCache
+    ].find((row) => String(row?.uid || "").trim() === uid) || null;
+    const role = normalizeAuthRole(user?.role || "");
+    const roleLabel = role === "parent"
+      ? (currentLang === "es" ? "padre/madre" : "parent")
+      : (role === "coach"
+        ? (currentLang === "es" ? "coach" : "coach")
+        : (currentLang === "es" ? "atleta" : "athlete"));
+    const userName = String(user?.name || user?.email || (currentLang === "es" ? "Usuario" : "User")).trim();
+    alerts.push(currentLang === "es"
+      ? `Nuevo registro en la app: ${userName} (${roleLabel}).`
+      : `New app registration: ${userName} (${roleLabel}).`);
+  });
+
+  if (coachOperationalAlertQueue.length) {
+    coachOperationalAlertQueue.forEach((item) => {
+      alerts.push(currentLang === "es"
+        ? `Error operativo detectado: ${item.label}.`
+        : `Operational error detected: ${item.label}.`);
+    });
+    coachOperationalAlertQueue = [];
+  }
+
+  persistCoachHomeAlertState(nextState);
   return Array.from(new Set(alerts)).slice(0, limit);
 }
 
@@ -18790,13 +19181,7 @@ function renderDashboard() {
   }
 
   alertList.innerHTML = "";
-  const alerts = isCoachWorkspaceActive() ? getCoachHomeAlerts() : getAlertsData();
-  if (!alerts.length) {
-    const div = document.createElement("div");
-    div.className = "alert";
-    div.textContent = currentLang === "es" ? "Sin alertas criticas por ahora." : "No critical alerts right now.";
-    alertList.appendChild(div);
-  }
+  const alerts = getCoachHomeAlerts();
   alerts.forEach((alert) => {
     const div = document.createElement("div");
     div.className = "alert";
@@ -21021,7 +21406,42 @@ function isValidEmailAddress(value = "") {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-function openCoachAthleteInviteEmail(initialEmail = "") {
+async function sendCoachAthleteInviteEmailDirect(inviteEmail = "", coachName = "") {
+  const currentUser = firebaseAuthInstance?.currentUser || null;
+  if (!currentUser?.getIdToken) {
+    throw new Error("invite_auth_required");
+  }
+  const token = await currentUser.getIdToken();
+  const projectId = String(window.FIREBASE_CONFIG?.projectId || "").trim();
+  const fallbackEndpoint = projectId
+    ? `https://us-central1-${projectId}.cloudfunctions.net/sendInviteEmail`
+    : "";
+  const endpoint = String(window.WPL_INVITE_EMAIL_ENDPOINT || fallbackEndpoint).trim();
+  if (!endpoint) {
+    throw new Error("invite_endpoint_missing");
+  }
+  const appUrl = `${window.location.origin}${window.location.pathname}`;
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      toEmail: inviteEmail,
+      coachName,
+      appUrl,
+      lang: currentLang
+    })
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload?.ok !== true) {
+    const errorMessage = String(payload?.message || payload?.error || "").trim();
+    throw new Error(errorMessage || "invite_send_failed");
+  }
+}
+
+async function openCoachAthleteInviteEmail(initialEmail = "") {
   if (typeof window === "undefined") return;
   const promptLabel = currentLang === "es"
     ? "Escribe el correo del atleta para enviar la invitacion:"
@@ -21036,16 +21456,15 @@ function openCoachAthleteInviteEmail(initialEmail = "") {
 
   const profile = getProfile();
   const coachName = String(profile?.name || "").trim() || "United Wrestling Club Coach";
-  const appUrl = `${window.location.origin}${window.location.pathname}`;
-  const subject = currentLang === "es"
-    ? "Invitacion a Wrestling Performance Lab"
-    : "Invitation to Wrestling Performance Lab";
-  const body = currentLang === "es"
-    ? `Hola,\n\n${coachName} te invita a registrarte en Wrestling Performance Lab para recibir entrenamientos y mensajes.\n\nRegistrate aqui:\n${appUrl}\n\nCuando abras la pagina, selecciona \"Create account\" y elige el rol de atleta.\n\nNos vemos en el mat!`
-    : `Hi,\n\n${coachName} invited you to join Wrestling Performance Lab to receive training plans and coach messaging.\n\nRegister here:\n${appUrl}\n\nWhen you open the page, choose "Create account" and select the athlete role.\n\nSee you on the mat!`;
-  const mailtoUrl = `mailto:${encodeURIComponent(inviteEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  window.location.href = mailtoUrl;
-  toast(currentLang === "es" ? "Invitacion lista para enviar por email." : "Invite email draft opened.");
+  try {
+    await sendCoachAthleteInviteEmailDirect(inviteEmail, coachName);
+    toast(currentLang === "es" ? "Invitacion enviada desde la app." : "Invite email sent from the app.");
+  } catch (err) {
+    console.warn("Direct invite email send failed", err);
+    toast(currentLang === "es"
+      ? "No se pudo enviar la invitacion desde la app."
+      : "Could not send invite from the app.");
+  }
 }
 
 function renderCoachAthleteQuickActions(selectedAthleteName = "") {
@@ -21063,7 +21482,7 @@ function renderCoachAthleteQuickActions(selectedAthleteName = "") {
       </div>
     `;
     document.getElementById("coachAthleteInviteBtn")?.addEventListener("click", () => {
-      openCoachAthleteInviteEmail();
+      openCoachAthleteInviteEmail().catch(() => {});
     });
     return;
   }
@@ -21127,7 +21546,7 @@ function renderCoachAthleteQuickActions(selectedAthleteName = "") {
     messageCoachAthlete(athlete.name);
   });
   document.getElementById("coachAthleteInviteBtn")?.addEventListener("click", () => {
-    openCoachAthleteInviteEmail();
+    openCoachAthleteInviteEmail().catch(() => {});
   });
 }
 
@@ -23823,6 +24242,264 @@ function getMessageThreadDocRef(threadId = "") {
   return threadsRef.doc(safeThreadId);
 }
 
+function buildDeleteThreadConfirmText(thread = null, current = getMessagesCurrentUser()) {
+  if (!thread || !current?.uid) return pickCopy(MESSAGES_COPY.deleteThreadConfirmGeneric);
+  const other = getMessageOtherParticipant(thread, current.uid);
+  const otherName = String(other?.name || "").trim();
+  if (!otherName) return pickCopy(MESSAGES_COPY.deleteThreadConfirmGeneric);
+  return pickCopy(MESSAGES_COPY.deleteThreadConfirmWithName).replace("{name}", otherName);
+}
+
+function omitThreadKeyFromMap(source = {}, threadId = "") {
+  const safeThreadId = String(threadId || "").trim();
+  if (!safeThreadId || !source || typeof source !== "object") return source;
+  if (!Object.prototype.hasOwnProperty.call(source, safeThreadId)) return source;
+  const next = { ...source };
+  delete next[safeThreadId];
+  return next;
+}
+
+function removeMessageThreadLocalState(threadId = "") {
+  const safeThreadId = String(threadId || "").trim();
+  if (!safeThreadId) return;
+  messagesThreadRows = messagesThreadRows.filter((thread) => thread.id !== safeThreadId);
+  messagesSeenByThread = omitThreadKeyFromMap(messagesSeenByThread, safeThreadId);
+  const current = getMessagesCurrentUser();
+  if (current?.uid) persistMessageSeenState(current.uid, messagesSeenByThread);
+  messagesNotifiedByThread = omitThreadKeyFromMap(messagesNotifiedByThread, safeThreadId);
+  messagesLastSendByThread = omitThreadKeyFromMap(messagesLastSendByThread, safeThreadId);
+  messagesPendingEntriesByThread = omitThreadKeyFromMap(messagesPendingEntriesByThread, safeThreadId);
+  messagesReadSyncInFlight = omitThreadKeyFromMap(messagesReadSyncInFlight, safeThreadId);
+  messagesAnimatedEntryState = omitThreadKeyFromMap(messagesAnimatedEntryState, safeThreadId);
+
+  if (messagesSelectedThreadId === safeThreadId) {
+    if (messagesFeedUnsub) {
+      messagesFeedUnsub();
+      messagesFeedUnsub = null;
+    }
+    messagesSelectedThreadId = "";
+    messagesFeedRows = [];
+    clearMessagesTypingTimer();
+    messagesTypingState = false;
+    messagesCompactThreadVisible = false;
+  }
+  if (messagesThreadOpeningId === safeThreadId) {
+    messagesThreadOpeningId = "";
+    messagesThreadOpeningRequestId = 0;
+  }
+  updateMessagesUnreadIndicators();
+}
+
+async function deleteMessageThreadDocuments(threadId = "") {
+  const safeThreadId = String(threadId || "").trim();
+  const threadRef = getMessageThreadDocRef(safeThreadId);
+  if (!threadRef || !firebaseFirestoreInstance) {
+    throw new Error("firestore_not_configured");
+  }
+  while (true) {
+    const batchSnap = await withTimeout(
+      threadRef.collection("messages").limit(200).get(),
+      FIREBASE_OP_TIMEOUT_MS * 2,
+      "firestore_thread_messages_delete_read_timeout"
+    );
+    const docs = batchSnap?.docs || [];
+    if (!docs.length) break;
+    const batch = firebaseFirestoreInstance.batch();
+    docs.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+    await withTimeout(
+      batch.commit(),
+      FIREBASE_OP_TIMEOUT_MS * 2,
+      "firestore_thread_messages_delete_commit_timeout"
+    );
+  }
+  await withTimeout(
+    threadRef.delete(),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_thread_delete_timeout"
+  );
+}
+
+async function deleteSelectedMessageThread() {
+  const selectedThread = getSelectedMessageThread();
+  await deleteMessageThreadById(selectedThread?.id || "", selectedThread);
+}
+
+async function deleteMessageThreadById(threadIdInput = "", threadOverride = null) {
+  const current = getMessagesCurrentUser();
+  const threadId = String(threadIdInput || "").trim();
+  const selectedThread = threadOverride
+    || messagesThreadRows.find((thread) => thread.id === threadId)
+    || null;
+  if (!current?.uid || !selectedThread || !threadId) {
+    toast(pickCopy(MESSAGES_COPY.deleteThreadNoSelection));
+    setMessagesStatus(MESSAGES_COPY.deleteThreadNoSelection, "error");
+    renderMessages();
+    return;
+  }
+  const confirmText = buildDeleteThreadConfirmText(selectedThread, current);
+  if (typeof window !== "undefined" && typeof window.confirm === "function") {
+    if (!window.confirm(confirmText)) return;
+  }
+  setMessagesStatus(MESSAGES_COPY.deletingThread, "");
+  renderMessages();
+  try {
+    clearMessagesTypingTimer();
+    await setThreadTypingState(threadId, false);
+    await deleteMessageThreadDocuments(threadId);
+    removeMessageThreadLocalState(threadId);
+    ensureSelectedMessageThread();
+    setMessagesStatus(MESSAGES_COPY.deletedThread, "ok");
+    renderMessages();
+  } catch (err) {
+    console.warn("Failed to delete message thread", err);
+    const code = String(err?.code || err?.message || "").toLowerCase();
+    if (code.includes("permission-denied")) {
+      setMessagesStatus(MESSAGES_COPY.deletePermissionDenied, "error");
+      renderMessages();
+      return;
+    }
+    setMessagesStatus(MESSAGES_COPY.deleteThreadError, "error");
+    renderMessages();
+  }
+}
+
+function applyDeletedMessageLocally(threadId = "", messageId = "") {
+  const safeThreadId = String(threadId || "").trim();
+  const safeMessageId = String(messageId || "").trim();
+  if (!safeThreadId || !safeMessageId) return;
+  messagesFeedRows = dedupeMessageEntries(
+    messagesFeedRows.filter((entry) => String(entry.id || "").trim() !== safeMessageId)
+  );
+  messagesThreadRows = sortMessageThreads(messagesThreadRows.map((thread) => {
+    if (thread.id !== safeThreadId) return thread;
+    const nextHistory = dedupeMessageEntries(
+      (Array.isArray(thread.messageHistory) ? thread.messageHistory : [])
+        .filter((entry) => String(entry.id || "").trim() !== safeMessageId)
+    );
+    const last = nextHistory[nextHistory.length - 1] || null;
+    return {
+      ...thread,
+      messageHistory: nextHistory,
+      lastMessageText: String(last?.text || "").trim(),
+      lastSenderUid: String(last?.senderUid || "").trim(),
+      lastMessageAt: last?.createdAt || thread.lastMessageAt || "",
+      updatedAt: last?.createdAt || thread.updatedAt || ""
+    };
+  }));
+}
+
+async function touchThreadSummaryAfterMessageDelete(threadId = "", selectedThread = null, remainingRows = []) {
+  const safeThreadId = String(threadId || "").trim();
+  const threadRef = getMessageThreadDocRef(safeThreadId);
+  const current = getMessagesCurrentUser();
+  if (!safeThreadId || !threadRef || !current?.uid) return;
+  let threadContext = selectedThread || getSelectedMessageThread() || null;
+  if (!threadContext || String(threadContext.id || "").trim() !== safeThreadId) {
+    const threadSnapshot = await withTimeout(
+      threadRef.get(),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_thread_read_after_message_delete_timeout"
+    );
+    if (threadSnapshot?.exists) {
+      threadContext = normalizeMessageThreadRecord(threadSnapshot);
+    }
+  }
+  const participants = getMessageThreadParticipantsForSend(threadContext, current);
+  if (!Array.isArray(participants) || participants.length < 2) return;
+  let normalizedHistory = dedupeMessageEntries(Array.isArray(remainingRows) ? remainingRows : []);
+  try {
+    const feedSnapshot = await withTimeout(
+      threadRef.collection("messages").orderBy("createdAt", "asc").get(),
+      FIREBASE_OP_TIMEOUT_MS * 2,
+      "firestore_thread_feed_rebuild_after_delete_timeout"
+    );
+    normalizedHistory = dedupeMessageEntries(feedSnapshot.docs.map((doc) => normalizeMessageEntry(doc)));
+  } catch (err) {
+    console.warn("Failed to rebuild thread history after delete; using local rows", err);
+  }
+  const last = normalizedHistory.length ? normalizedHistory[normalizedHistory.length - 1] : null;
+  const nowIso = new Date().toISOString();
+  const summaryStamp = String(
+    last?.createdAt
+      || nowIso
+  ).trim();
+  const payload = buildMessageThreadPayload(participants, {
+    updatedAt: summaryStamp,
+    lastMessageAt: last ? summaryStamp : "",
+    serverUpdatedAt: getFirestoreServerTimestamp(),
+    serverLastMessageAt: last ? getFirestoreServerTimestamp() : undefined,
+    lastMessageText: String(last?.text || "").trim(),
+    lastSenderUid: String(last?.senderUid || "").trim(),
+    messageHistory: normalizedHistory
+  });
+  await withTimeout(
+    threadRef.set(payload, { merge: true }),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_thread_delete_summary_touch_timeout"
+  );
+}
+
+function getMessageAttachmentStoragePaths(entry = null) {
+  const attachments = Array.isArray(entry?.attachments) ? entry.attachments : [];
+  const byPath = new Set();
+  attachments.forEach((attachment) => {
+    const assetPath = String(attachment?.assetStoragePath || "").trim();
+    const thumbPath = String(attachment?.thumbnailStoragePath || "").trim();
+    if (assetPath) byPath.add(assetPath);
+    if (thumbPath) byPath.add(thumbPath);
+  });
+  return Array.from(byPath.values());
+}
+
+async function purgeMessageAttachmentStorage(entry = null) {
+  const paths = getMessageAttachmentStoragePaths(entry);
+  if (!paths.length || !firebaseStorageInstance?.ref) return;
+  await Promise.allSettled(paths.map((path) => withTimeout(
+    firebaseStorageInstance.ref().child(path).delete(),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firebase_storage_message_attachment_delete_timeout"
+  )));
+}
+
+async function deleteMessageEntryFromSelectedThread(entry = null) {
+  const current = getMessagesCurrentUser();
+  const selectedThread = getSelectedMessageThread();
+  const threadId = String(selectedThread?.id || "").trim();
+  const messageId = String(entry?.id || "").trim();
+  if (!current?.uid || !threadId || !messageId) return;
+  if (typeof window !== "undefined" && typeof window.confirm === "function") {
+    if (!window.confirm(pickCopy(MESSAGES_COPY.deleteMessageConfirm))) return;
+  }
+  setMessagesStatus(MESSAGES_COPY.deletingMessage, "");
+  renderMessages();
+  try {
+    const threadRef = getMessageThreadDocRef(threadId);
+    if (!threadRef) throw new Error("firestore_not_configured");
+    await withTimeout(
+      threadRef.collection("messages").doc(messageId).delete(),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_message_delete_timeout"
+    );
+    await purgeMessageAttachmentStorage(entry);
+    applyDeletedMessageLocally(threadId, messageId);
+    await touchThreadSummaryAfterMessageDelete(threadId, selectedThread, messagesFeedRows);
+    setMessagesStatus(MESSAGES_COPY.deletedMessage, "ok");
+    renderMessages();
+  } catch (err) {
+    console.warn("Failed to delete message entry", err);
+    const code = String(err?.code || err?.message || "").toLowerCase();
+    if (code.includes("permission-denied")) {
+      setMessagesStatus(MESSAGES_COPY.deletePermissionDenied, "error");
+      renderMessages();
+      return;
+    }
+    setMessagesStatus(MESSAGES_COPY.deleteMessageError, "error");
+    renderMessages();
+  }
+}
+
 function getMessageReadEntryKey(entry = {}) {
   return String(entry.id || entry.clientMessageId || "").trim();
 }
@@ -24044,6 +24721,15 @@ function formatMessageTimestamp(value) {
 
 function buildDirectMessageThreadId(uidA, uidB) {
   return [String(uidA || "").trim(), String(uidB || "").trim()].filter(Boolean).sort().join("__");
+}
+
+function getDirectMessageThreadParticipantIds(threadId = "") {
+  return uniqueMessageIds(
+    String(threadId || "")
+      .split("__")
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+  ).sort();
 }
 
 function uniqueMessageIds(values = []) {
@@ -24559,26 +25245,18 @@ async function loadMessageContactsDirectory() {
 
   const usersRef = firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION);
   try {
-    const queries = [
-      withTimeout(usersRef.where("role", "==", "coach").get(), FIREBASE_OP_TIMEOUT_MS * 2, "firestore_message_coaches_timeout"),
-      withTimeout(usersRef.where("email", "==", "gmunch@united-wc.com").get(), FIREBASE_OP_TIMEOUT_MS * 2, "firestore_message_admin_timeout")
-    ];
-    if (!isParentRole(current.role)) {
-      queries.push(withTimeout(usersRef.where("role", "==", "athlete").get(), FIREBASE_OP_TIMEOUT_MS * 2, "firestore_message_athletes_timeout"));
-      queries.push(withTimeout(usersRef.where("role", "==", "parent").get(), FIREBASE_OP_TIMEOUT_MS * 2, "firestore_message_parents_timeout"));
-    }
-    const snapshots = await Promise.all(queries);
-    const byUid = new Map();
-    snapshots.forEach((snapshot) => {
-      (snapshot?.docs || []).forEach((doc) => {
-        const normalized = normalizeMessageContactRecord(doc.id, doc.data() || {});
-        if (!normalized.uid) return;
-        byUid.set(normalized.uid, normalized);
-      });
-    });
-    messagesContactRows = sortMessageContacts(
-      dedupeMessageContacts(Array.from(byUid.values()).filter((contact) => canMessageContact(current, contact)), current)
+    const snapshot = await withTimeout(
+      usersRef.get(),
+      FIREBASE_OP_TIMEOUT_MS * 2,
+      "firestore_message_contacts_timeout"
     );
+    const contacts = snapshot.docs
+      .map((doc) => normalizeMessageContactRecord(doc.id, doc.data() || {}))
+      .filter((contact) => Boolean(contact.uid));
+    messagesContactRows = sortMessageContacts(dedupeMessageContacts(
+      contacts.filter((contact) => canMessageContact(current, contact)),
+      current
+    ));
   } catch (err) {
     console.warn("Failed to load message contacts", err);
     messagesContactRows = [];
@@ -24590,27 +25268,16 @@ function subscribeToMessageContacts(current) {
   if (!current || !firebaseFirestoreInstance) return;
   clearMessageContactSubscriptions();
   const usersRef = firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION);
-  const sources = [
-    { key: "coaches", query: usersRef.where("role", "==", "coach") },
-    { key: "admin", query: usersRef.where("email", "==", "gmunch@united-wc.com") }
-  ];
-  if (!isParentRole(current.role)) {
-    sources.push({ key: "athletes", query: usersRef.where("role", "==", "athlete") });
-    sources.push({ key: "parents", query: usersRef.where("role", "==", "parent") });
-  }
-
-  sources.forEach(({ key, query }) => {
-    const unsubscribe = query.onSnapshot((snapshot) => {
+  const unsubscribe = usersRef.onSnapshot((snapshot) => {
       messagesContactSourceRows.set(
-        key,
+        "all",
         snapshot.docs.map((doc) => normalizeMessageContactRecord(doc.id, doc.data() || {}))
       );
       rebuildMessageContactsDirectory(current);
     }, (err) => {
-      console.warn(`Failed to subscribe to ${key} contacts`, err);
+      console.warn("Failed to subscribe to contacts", err);
     });
-    messagesContactUnsubs.push(unsubscribe);
-  });
+  messagesContactUnsubs.push(unsubscribe);
 }
 
 function subscribeToMessageFeed(threadId) {
@@ -24859,6 +25526,10 @@ async function ensureDirectMessageThread(contact) {
   }
 
   const participantProfiles = buildMessageParticipantProfiles([current, contact]);
+  const expectedParticipantIds = uniqueMessageIds(participantProfiles.map((participant) => participant.uid)).sort();
+  if (expectedParticipantIds.length < 2) {
+    throw new Error("firestore_not_configured");
+  }
   const threadId = buildDirectMessageThreadId(current.uid, contact.uid);
   const threadRef = threadsRef.doc(threadId);
   let existing = null;
@@ -24870,18 +25541,45 @@ async function ensureDirectMessageThread(contact) {
       throw err;
     }
   }
-  if (!existing?.exists) {
-    const createdAt = new Date().toISOString();
+  const existingData = existing?.exists ? (existing.data() || {}) : {};
+  const existingParticipantIds = uniqueMessageIds(
+    Array.isArray(existingData.participantIds) ? existingData.participantIds : []
+  ).sort();
+  const sameParticipants = existingParticipantIds.length === expectedParticipantIds.length
+    && expectedParticipantIds.every((uid, index) => uid === existingParticipantIds[index]);
+  const existingProfileUidSet = new Set(
+    buildMessageParticipantProfiles(
+      Array.isArray(existingData.participantProfiles) ? existingData.participantProfiles : []
+    ).map((participant) => participant.uid)
+  );
+  const missingParticipantProfiles = expectedParticipantIds.some((uid) => !existingProfileUidSet.has(uid));
+  const needsParticipantRepair = Boolean(existing?.exists) && (!sameParticipants || missingParticipantProfiles);
+
+  if (!existing?.exists || needsParticipantRepair) {
+    const now = new Date().toISOString();
+    const createdAt = existingData.createdAt || now;
+    const updatedAt = existingData.updatedAt || existingData.lastMessageAt || now;
+    const payload = !existing?.exists
+      ? buildMessageThreadPayload(participantProfiles, {
+          createdAt,
+          updatedAt,
+          serverCreatedAt: getFirestoreServerTimestamp(),
+          serverUpdatedAt: getFirestoreServerTimestamp(),
+          lastMessageAt: "",
+          lastMessageText: "",
+          lastSenderUid: "",
+          messageHistory: []
+        })
+      : buildMessageThreadPayload(participantProfiles, {
+          createdAt,
+          updatedAt,
+          serverUpdatedAt: getFirestoreServerTimestamp(),
+          lastMessageAt: existingData.lastMessageAt || updatedAt,
+          lastMessageText: String(existingData.lastMessageText || "").trim(),
+          lastSenderUid: String(existingData.lastSenderUid || "").trim()
+        });
     await withTimeout(
-      threadRef.set(buildMessageThreadPayload(participantProfiles, {
-        createdAt,
-        updatedAt: createdAt,
-        serverCreatedAt: getFirestoreServerTimestamp(),
-        serverUpdatedAt: getFirestoreServerTimestamp(),
-        lastMessageText: "",
-        lastSenderUid: "",
-        messageHistory: []
-      }), { merge: true }),
+      threadRef.set(payload, { merge: true }),
       FIREBASE_OP_TIMEOUT_MS,
       "firestore_thread_write_timeout"
     );
@@ -25670,6 +26368,7 @@ function renderMessagesThreadHeaderActions(current, selectedThread) {
   setTextContent(messagesShareProgressBtn, MESSAGES_COPY.shareProgressBtn);
   setTextContent(messagesThreadVoiceBtn, MESSAGES_COPY.threadVoiceBtn);
   setTextContent(messagesThreadVideoBtn, MESSAGES_COPY.threadVideoBtn);
+  setTextContent(messagesThreadMoreBtn, MESSAGES_COPY.threadMoreBtn);
   if (messagesThreadMoreBtn) {
     messagesThreadMoreBtn.title = pickCopy(MESSAGES_COPY.threadMoreBtn);
     messagesThreadMoreBtn.setAttribute("aria-label", pickCopy(MESSAGES_COPY.threadMoreBtn));
@@ -25716,6 +26415,7 @@ function getMessageThreadParticipantsForSend(selectedThread, current) {
   const thread = selectedThread || {};
   const sender = normalizeMessageParticipantProfile(current || {});
   const byUid = new Map();
+  const participantIdsFromThreadId = getDirectMessageThreadParticipantIds(thread.id);
   const addParticipant = (candidate) => {
     const normalized = normalizeMessageParticipantProfile(candidate || {});
     if (!normalized.uid) return;
@@ -25725,6 +26425,7 @@ function getMessageThreadParticipantsForSend(selectedThread, current) {
   (Array.isArray(thread.participantProfiles) ? thread.participantProfiles : []).forEach(addParticipant);
 
   uniqueMessageIds([
+    ...participantIdsFromThreadId,
     ...(Array.isArray(thread.participantIds) ? thread.participantIds : []),
     thread.coachUid,
     thread.userUid
@@ -25742,10 +26443,27 @@ function getMessageThreadParticipantsForSend(selectedThread, current) {
     const fallback = getMessageOtherParticipantProfile(thread, sender.uid);
     if (fallback?.uid === uid) {
       addParticipant(fallback);
+      return;
     }
+    addParticipant({
+      uid,
+      role: uid === String(thread.coachUid || "").trim()
+        ? "coach"
+        : (uid === String(thread.userUid || "").trim()
+          ? normalizeMessageParticipantRole(thread.userRole || "athlete")
+          : "athlete"),
+      name: uid === String(thread.coachUid || "").trim()
+        ? String(thread.coachName || "").trim()
+        : (uid === String(thread.userUid || "").trim()
+          ? String(thread.userName || "").trim()
+          : "")
+    });
   });
 
   if (byUid.size < 2) {
+    participantIdsFromThreadId.forEach((uid) => {
+      addParticipant({ uid });
+    });
     addParticipant(getSelectedThreadContact(sender, thread));
     addParticipant(getMessageOtherParticipantProfile(thread, sender.uid));
   }
@@ -26066,11 +26784,27 @@ function renderMessagesThreadList(current) {
           ${unreadCount ? `<span class="message-thread-unread-count">${unreadCount}</span>` : ""}
         </span>
       </span>
+      <button type="button" class="ghost message-thread-delete-trigger" aria-label="${escapeHtml(pickCopy(MESSAGES_COPY.threadMoreBtn))}" title="${escapeHtml(pickCopy(MESSAGES_COPY.threadMoreBtn))}">${escapeHtml(pickCopy(MESSAGES_COPY.messageDeleteBtn))}</button>
       ${unread ? '<span class="message-thread-unread-badge"></span>' : ""}
     `;
     card.addEventListener("click", () => {
       selectMessageThread(thread.id, { openInCompact: true });
     });
+    const deleteTrigger = card.querySelector(".message-thread-delete-trigger");
+    if (deleteTrigger) {
+      const runDelete = () => {
+        deleteMessageThreadById(thread.id, thread).catch((err) => {
+          console.warn("Thread delete from list failed", err);
+          setMessagesStatus(MESSAGES_COPY.deleteThreadError, "error");
+          renderMessages();
+        });
+      };
+      deleteTrigger.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        runDelete();
+      });
+    }
     messageList.appendChild(card);
   });
 }
@@ -26478,6 +27212,7 @@ function renderMessagesFeed(current) {
       role.textContent = getRoleLabelEnglish(entry.senderRole);
       senderBlock.appendChild(role);
     }
+
     const time = document.createElement("span");
     time.className = "message-bubble-time-wrap";
     const timeText = document.createElement("span");
@@ -27602,3 +28337,4 @@ async function startApp() {
 }
 
 startApp();
+
