@@ -1482,17 +1482,21 @@ button:active{
   outline: none;
 }
 
-.messages-coach-list,
-.message-thread-list{
+.messages-coach-list{
   display: grid;
   gap: 10px;
 }
 
 .message-thread-list{
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
   margin-top: 6px;
   max-height: 60vh;
   overflow-y: auto;
   padding-right: 4px;
+  gap: 10px;
 }
 
 .messages-recent-title{
@@ -1850,6 +1854,7 @@ button:active{
 .messages-feed{
   display: flex;
   flex-direction: column;
+  justify-content: flex-start;
   gap: 16px;
   margin-top: 16px;
   flex: 1;
@@ -1872,6 +1877,7 @@ button:active{
 }
 
 .message-bubble{
+  flex: 0 0 auto;
   max-width: min(100%, 500px);
   padding: 14px 18px;
   border-radius: 20px;
@@ -7257,6 +7263,9 @@ svg{
   padding: 6px 10px 12px;
   max-height: none;
   height: calc(100% - 112px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
   gap: 8px;
 }
 
@@ -7290,6 +7299,44 @@ svg{
 .messages-whatsapp-card .message-thread-card.active .message-thread-preview,
 .messages-whatsapp-card .message-thread-card.active .message-thread-time{
   color: #cad6eb;
+}
+
+.messages-whatsapp-card .message-thread-delete-trigger{
+  flex: 0 0 auto;
+  align-self: flex-start;
+  margin-left: 8px;
+  margin-top: 2px;
+  font-size: 0.68rem;
+  line-height: 1;
+  font-weight: 700;
+  color: #6e809f;
+  background: rgba(236, 243, 255, 0.9);
+  border: 1px solid rgba(179, 196, 223, 0.85);
+  border-radius: 999px;
+  min-width: 56px;
+  height: 26px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.messages-whatsapp-card .message-thread-delete-trigger:hover{
+  color: #d03434;
+  border-color: rgba(208, 52, 52, 0.45);
+  background: rgba(255, 236, 236, 0.95);
+}
+
+@media (max-width: 640px){
+  .messages-whatsapp-card .message-thread-delete-trigger{
+    min-width: 52px;
+    height: 24px;
+    padding: 0 8px;
+    font-size: 0.64rem;
+  }
 }
 
 .messages-whatsapp-card .message-thread-avatar{
@@ -7384,8 +7431,7 @@ svg{
   padding-bottom: 2px;
 }
 
-.messages-whatsapp-card .messages-thread-actions .tag-pill,
-.messages-whatsapp-card #messagesThreadMoreBtn{
+.messages-whatsapp-card .messages-thread-actions .tag-pill{
   display: none;
 }
 
@@ -7411,6 +7457,7 @@ svg{
   max-height: none;
   min-height: 0;
   height: 100%;
+  justify-content: flex-start;
   padding: 14px 16px;
   gap: 12px;
 }
@@ -8439,6 +8486,18 @@ svg{
 .messages-whatsapp-card .message-bubble-time-wrap{
   flex: 0 0 auto;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.messages-whatsapp-card .message-bubble-delete-btn{
+  min-width: auto;
+  min-height: 26px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 0.67rem;
+  line-height: 1.2;
 }
 
 .messages-whatsapp-card .message-bubble-sender{

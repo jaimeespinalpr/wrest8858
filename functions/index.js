@@ -2,6 +2,8 @@
 
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+const { getAuth } = require("firebase-admin/auth");
+const { onRequest } = require("firebase-functions/v2/https");
 const { onDocumentCreated, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const logger = require("firebase-functions/logger");
 
@@ -13,6 +15,7 @@ const USERS_COLLECTION = "users";
 const DELIVERY_LOG_COLLECTION = "_system_registration_email_events";
 const ALERT_EMAIL_TO = "jaimeespinalpr@gmail.com";
 const ALERT_EMAIL_FROM = "WPL Alerts <onboarding@resend.dev>";
+const INVITE_EMAIL_FROM = "United Wrestling Club <noreply@united-wc.com>";
 const COACH_WORKSPACES_COLLECTION = "coach_workspaces";
 const SYSTEM_GROUP_DEFS = [
   { id: "all-registered-athletes", name: "All Registered Athletes" },
@@ -92,6 +95,10 @@ function normalizeRole(value) {
   const role = normalizeText(value).toLowerCase();
   if (role === "coach" || role === "parent" || role === "admin") return role;
   return "athlete";
+}
+
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
 }
 
 function slugifyKey(value) {
@@ -380,6 +387,139 @@ async function sendWithResend(apiKey, profile, userId) {
   }
   return payload;
 }
+
+async function sendInviteWithResend(apiKey, {
+  toEmail = "",
+  coachName = "",
+  appUrl = "",
+  lang = "en"
+} = {}) {
+  const inviteLink = normalizeText(appUrl || "");
+  const safeCoach = normalizeText(coachName || "United Wrestling Club Coach");
+  const safeLang = normalizeText(lang).toLowerCase() === "es" ? "es" : "en";
+  const subject = safeLang === "es"
+    ? "Invitacion a Wrestling Performance Lab"
+    : "Invitation to Wrestling Performance Lab";
+  const text = safeLang === "es"
+    ? `Hola,\n\n${safeCoach} te invita a registrarte en Wrestling Performance Lab para recibir entrenamientos y mensajes.\n\nRegistrate aqui:\n${inviteLink}\n\nCuando abras la pagina, selecciona "Create account" y elige el rol de atleta.\n\nNos vemos en el mat!`
+    : `Hi,\n\n${safeCoach} invited you to join Wrestling Performance Lab to receive training plans and coach messaging.\n\nRegister here:\n${inviteLink}\n\nWhen you open the page, choose "Create account" and select the athlete role.\n\nSee you on the mat!`;
+  const html = safeLang === "es"
+    ? [
+        `<p>Hola,</p>`,
+        `<p><strong>${safeCoach}</strong> te invita a registrarte en Wrestling Performance Lab para recibir entrenamientos y mensajes.</p>`,
+        `<p><a href="${inviteLink}">Registrate aqui</a></p>`,
+        `<p>Cuando abras la pagina, selecciona <strong>Create account</strong> y elige el rol de atleta.</p>`,
+        `<p>Nos vemos en el mat!</p>`
+      ].join("")
+    : [
+        `<p>Hi,</p>`,
+        `<p><strong>${safeCoach}</strong> invited you to join Wrestling Performance Lab to receive training plans and coach messaging.</p>`,
+        `<p><a href="${inviteLink}">Register here</a></p>`,
+        `<p>When you open the page, choose <strong>Create account</strong> and select the athlete role.</p>`,
+        `<p>See you on the mat!</p>`
+      ].join("");
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from: INVITE_EMAIL_FROM,
+      to: [toEmail],
+      subject,
+      text,
+      html
+    })
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const err = new Error(payload?.message || `resend_${response.status}`);
+    err.status = response.status;
+    err.payload = payload;
+    throw err;
+  }
+  return payload;
+}
+
+exports.sendInviteEmail = onRequest({ region: "us-central1" }, async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  if (req.method === "OPTIONS") {
+    res.status(204).send("");
+    return;
+  }
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "method_not_allowed" });
+    return;
+  }
+
+  const authHeader = String(req.headers.authorization || "").trim();
+  const idToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+  if (!idToken) {
+    res.status(401).json({ error: "missing_auth_token" });
+    return;
+  }
+
+  let decodedToken = null;
+  try {
+    decodedToken = await getAuth().verifyIdToken(idToken);
+  } catch (err) {
+    logger.warn("Invalid invite auth token", { message: err?.message || String(err) });
+    res.status(401).json({ error: "invalid_auth_token" });
+    return;
+  }
+
+  const senderUid = normalizeText(decodedToken?.uid);
+  const senderSnap = senderUid
+    ? await firestore.collection(USERS_COLLECTION).doc(senderUid).get()
+    : null;
+  const senderData = senderSnap?.exists ? (senderSnap.data() || {}) : {};
+  const senderRole = normalizeRole(senderData.role || decodedToken?.role || "");
+  if (!(senderRole === "coach" || senderRole === "admin")) {
+    res.status(403).json({ error: "invite_not_allowed" });
+    return;
+  }
+
+  const toEmail = normalizeEmail(req.body?.toEmail || "");
+  const coachName = normalizeText(req.body?.coachName || senderData.name || senderData.email || "United Wrestling Club Coach");
+  const appUrl = normalizeText(req.body?.appUrl || "");
+  const lang = normalizeText(req.body?.lang || "en");
+  if (!isValidEmail(toEmail) || !appUrl) {
+    res.status(400).json({ error: "invalid_invite_payload" });
+    return;
+  }
+
+  const apiKey = normalizeText(process.env.RESEND_API_KEY);
+  if (!apiKey) {
+    res.status(500).json({ error: "missing_resend_api_key" });
+    return;
+  }
+
+  try {
+    const result = await sendInviteWithResend(apiKey, {
+      toEmail,
+      coachName,
+      appUrl,
+      lang
+    });
+    res.status(200).json({ ok: true, id: String(result?.id || "") });
+  } catch (err) {
+    logger.error("Invite email send failed", {
+      senderUid,
+      toEmail,
+      status: err?.status || null,
+      message: err?.message || String(err),
+      payload: err?.payload || null
+    });
+    res.status(502).json({
+      error: "invite_send_failed",
+      message: String(err?.message || "Could not send invite email.")
+    });
+  }
+});
 
 exports.notifyRegistrationByEmail = onDocumentCreated({
   document: `${USERS_COLLECTION}/{userId}`,

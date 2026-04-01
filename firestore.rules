@@ -147,6 +147,21 @@ service cloud.firestore {
         && athleteId == currentUserLinkedAthleteId();
     }
 
+    function canAccessMessageThread(data) {
+      return signedIn()
+        && data.participantIds is list
+        && request.auth.uid in data.participantIds;
+    }
+
+    function canRepairLegacyMessageThread(data) {
+      return signedIn()
+        && (
+          canAccessMessageThread(data)
+          || data.coachUid == request.auth.uid
+          || data.userUid == request.auth.uid
+        );
+    }
+
     function assignmentTargetsCurrentAthlete(data) {
       return signedIn()
         && currentUserRole() == "athlete"
@@ -202,11 +217,8 @@ service cloud.firestore {
     }
 
     match /message_threads/{threadId} {
-      allow get: if isAdminEmail() || (
-        signedIn()
-        && request.auth.uid in resource.data.participantIds
-      );
-      allow list: if signedIn();
+      allow get: if isAdminEmail() || canAccessMessageThread(resource.data);
+      allow list: if isAdminEmail() || canAccessMessageThread(resource.data);
       allow create: if signedIn()
         && request.resource.data.participantIds is list
         && request.resource.data.participantIds.size() == 2
@@ -216,10 +228,9 @@ service cloud.firestore {
         && request.resource.data.participantIds is list
         && request.resource.data.participantIds.size() == 2
         && request.resource.data.participantIds[0] != request.resource.data.participantIds[1]
-        && resource.data.participantIds is list
-        && request.auth.uid in resource.data.participantIds
-        && request.auth.uid in request.resource.data.participantIds;
-      allow delete: if isAdminEmail();
+        && request.auth.uid in request.resource.data.participantIds
+        && (isAdminEmail() || canRepairLegacyMessageThread(resource.data));
+      allow delete: if isAdminEmail() || canAccessMessageThread(resource.data);
 
       match /messages/{messageId} {
         allow get: if isAdminEmail() || (
