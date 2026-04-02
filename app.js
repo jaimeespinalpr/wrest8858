@@ -663,12 +663,6 @@ function setView(view) {
       // ignore cross-context dispatch issues
     }
   }
-  const activeAuthId = String(getAuthUser()?.id || "").trim();
-  if (normalized === "athlete" && activeAuthId && isAthleteRole(getProfile()?.role)) {
-    window.setTimeout(() => {
-      maybePromptAthleteQuestionnaireAfterLogin(getProfile(), { source: "view-switch" });
-    }, 220);
-  }
 }
 
 function toggleParentViewNotice(view) {
@@ -6290,7 +6284,7 @@ async function handleSuccessfulAuth(result) {
   const promptProfile = () => getProfile() || profile;
   window.setTimeout(() => {
     maybePromptAthleteQuestionnaireAfterLogin(promptProfile(), { source: "login" });
-  }, 420);
+  }, 120);
 }
 
 if (pRole) {
