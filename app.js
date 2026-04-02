@@ -6349,7 +6349,8 @@ if (questionnaireReminderLaterBtn) {
 
 if (questionnaireReminderModal) {
   questionnaireReminderModal.addEventListener("click", (event) => {
-    if (event.target !== questionnaireReminderModal) return;
+    if (event.target?.closest?.("#questionnaireReminderContinueBtn")) return;
+    if (event.target?.closest?.("#questionnaireReminderLaterBtn")) return;
     hideQuestionnaireReminderModal();
     toast(currentLang === "es"
       ? "Puedes continuar el cuestionario luego desde Profile."
