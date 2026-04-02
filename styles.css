@@ -2493,6 +2493,52 @@ button:active{
   width: min(560px, 100%);
 }
 
+#questionnaireReminderModal{
+  background: transparent;
+  pointer-events: none;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 14px;
+  z-index: 95;
+}
+
+#questionnaireReminderModal .questionnaire-reminder-card{
+  width: min(420px, calc(100vw - 28px));
+  margin: 0;
+  pointer-events: auto;
+  border-radius: 20px;
+  background: linear-gradient(160deg, rgba(6, 18, 46, 0.98), rgba(10, 32, 78, 0.95));
+  border: 1px solid rgba(120, 172, 255, 0.35);
+  box-shadow: 0 24px 46px rgba(3, 10, 27, 0.52);
+}
+
+#questionnaireReminderModal .questionnaire-reminder-copy{
+  max-height: 180px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+#questionnaireReminderModal .row{
+  justify-content: flex-end;
+}
+
+@media (max-width: 640px){
+  #questionnaireReminderModal{
+    align-items: flex-end;
+    justify-content: center;
+    padding: 10px 10px calc(var(--safe-bottom) + 10px);
+  }
+
+  #questionnaireReminderModal .questionnaire-reminder-card{
+    width: min(100%, 520px);
+    border-radius: 18px;
+  }
+
+  #questionnaireReminderModal .row{
+    gap: 8px;
+  }
+}
+
 .questionnaire-reminder-copy{
   margin-top: 4px;
 }
