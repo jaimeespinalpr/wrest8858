@@ -3516,6 +3516,7 @@
         state.liftingLibraryRetryAttempt = 0;
         clearLiftingRealtimeRetry();
         setupLiftingRealtimeSync();
+        startPlannerAssignDirectorySync({ force: true });
       });
     } catch {
       // ignore auth watcher errors
@@ -4254,8 +4255,20 @@
     const candidateId = String(id || "").trim();
     const name = normalizeRecipientDisplayName(data, candidateId);
     if (!name) return null;
-    const recipientEmail = String(data?.athleteEmail || data?.email || "").trim().toLowerCase();
-    const recipientUid = String(data?.athleteUid || data?.uid || candidateId).trim();
+    const recipientEmail = String(
+      data?.athleteEmail
+      || data?.email
+      || data?.contactEmail
+      || data?.linkedCoachEmail
+      || ""
+    ).trim().toLowerCase();
+    const recipientUid = String(
+      data?.athleteUid
+      || data?.uid
+      || data?.user_id
+      || data?.linkedAthleteUid
+      || candidateId
+    ).trim();
     return {
       id: candidateId || toSimpleSlug(name),
       name,
@@ -4442,38 +4455,73 @@
   }
 
   async function loadPlannerRecipientsFallback({ apply = true } = {}) {
+    const usersRef = getPlannerUsersCollectionRef();
     const athletesRef = getPlannerWorkspaceCollectionRef("athletes");
-    if (!athletesRef) {
-      state.assignFallbackRecipients = [];
-      if (apply) applyAssignRecipients([], { fromRealtime: false });
-      return [];
-    }
-    try {
-      const snap = await athletesRef.get();
-      const records = snap.docs
-        .map((doc) => normalizeRecipientRecord(doc.id, doc.data() || {}, "athlete"))
-        .filter(Boolean)
-        .filter((record) => record.recipientType === "athlete");
-      state.assignFallbackRecipients = records;
-      if (apply) applyAssignRecipients(records, { fromRealtime: false });
-      return records;
-    } catch (err) {
-      console.warn("Planner fallback recipients load failed", err);
-      state.assignFallbackRecipients = [];
-      if (apply) applyAssignRecipients([], { fromRealtime: false });
-      if (!els.assignModal?.classList.contains("hidden")) {
-        setAssignStatus(tr({ en: "Could not load recipients. Try again.", es: "No se pudieron cargar los destinatarios. Intenta de nuevo." }), true);
+    const sources = [];
+    let hadAtLeastOneSource = false;
+
+    if (usersRef) {
+      hadAtLeastOneSource = true;
+      try {
+        const usersSnap = await usersRef.get();
+        const usersRecords = usersSnap.docs
+          .map((doc) => normalizeRecipientRecord(doc.id, doc.data() || {}, "athlete"))
+          .filter(Boolean)
+          .filter((record) => record.role !== "parent");
+        sources.push(...usersRecords);
+      } catch (err) {
+        console.warn("Planner fallback users directory load failed", err);
       }
+    }
+
+    if (athletesRef) {
+      hadAtLeastOneSource = true;
+      try {
+        const athletesSnap = await athletesRef.get();
+        const athleteRecords = athletesSnap.docs
+          .map((doc) => normalizeRecipientRecord(doc.id, doc.data() || {}, "athlete"))
+          .filter(Boolean)
+          .filter((record) => record.recipientType === "athlete");
+        sources.push(...athleteRecords);
+      } catch (err) {
+        console.warn("Planner fallback athletes load failed", err);
+      }
+    }
+
+    if (!hadAtLeastOneSource) {
+      state.assignFallbackRecipients = [];
+      if (apply) applyAssignRecipients([], { fromRealtime: false });
       return [];
     }
+
+    const records = mergeRecipientCollections(sources, [])
+      .filter((record) => record.recipientType === "athlete" || record.recipientType === "coach");
+
+    state.assignFallbackRecipients = records;
+    if (apply) applyAssignRecipients(records, { fromRealtime: false });
+    return records;
   }
 
   function startPlannerAssignDirectorySync({ force = false } = {}) {
     if (Array.isArray(state.assignDirectoryUnsubs) && state.assignDirectoryUnsubs.length && !force) {
-      renderAssignAthleteList();
-      return;
+      if (state.assignDirectoryReady) {
+        renderAssignAthleteList();
+        return;
+      }
+      stopPlannerAssignDirectorySync();
     }
     if (force) stopPlannerAssignDirectorySync();
+    if (!hasPlannerAuthSession()) {
+      state.assignDirectoryReady = false;
+      if (!els.assignModal?.classList.contains("hidden")) {
+        setAssignStatus(tr({
+          en: "Waiting for sign-in to load recipients...",
+          es: "Esperando inicio de sesion para cargar destinatarios..."
+        }), true);
+      }
+      loadPlannerRecipientsFallback().catch(() => {});
+      return;
+    }
     const sharedDirectoryRef = getPlannerSharedUserDirectoryRef();
     if (!sharedDirectoryRef?.onSnapshot) {
       state.assignDirectoryReady = false;
@@ -4515,6 +4563,7 @@
         );
       }, async (err) => {
         console.warn("Planner shared users directory sync failed", err);
+        stopPlannerAssignDirectorySync();
         if (!els.assignModal?.classList.contains("hidden")) {
           setAssignStatus(tr({
             en: "Shared users sync failed. Loading fallback recipients...",
