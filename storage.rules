@@ -7,8 +7,7 @@ service firebase.storage {
     }
 
     match /media_uploads/{uid}/{allPaths=**} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && request.auth.uid == uid;
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
     }
   }
 }

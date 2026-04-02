@@ -203,6 +203,12 @@ service cloud.firestore {
         && request.resource.data.role == "athlete"
         && request.resource.data.user_id == resource.data.user_id
         && request.resource.data.email == resource.data.email
+        && (
+          isAdminEmail()
+          || currentUserRole() == "admin"
+          || resource.data.linkedCoachUid == request.auth.uid
+          || request.resource.data.linkedCoachUid == request.auth.uid
+        )
       ) || (
         isSelf(uid)
         && isSelfAllowedRole(request.resource.data.role)
