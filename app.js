@@ -11751,14 +11751,17 @@ function showQuestionnaireReminderModal(progress) {
 function maybePromptAthleteQuestionnaire(profile = getProfile()) {
   if (!isAthleteRole(profile?.role)) return;
   const currentUserId = String(getAuthUser()?.id || profile?.user_id || "").trim();
-  if (questionnairePromptShownThisSession && currentUserId && questionnairePromptShownForUserId === currentUserId) {
-    return;
+  if (questionnairePromptShownThisSession) {
+    const hasKnownSessionUser = !!questionnairePromptShownForUserId;
+    if (!currentUserId || !hasKnownSessionUser || questionnairePromptShownForUserId === currentUserId) {
+      return;
+    }
   }
   const progress = getAthleteQuestionnaireProgress(profile, { useDom: true });
   if (!progress.missingFields.length) return;
 
   if (showQuestionnaireReminderModal(progress)) {
-    questionnairePromptShownForUserId = currentUserId || questionnairePromptShownForUserId;
+    questionnairePromptShownForUserId = currentUserId || questionnairePromptShownForUserId || "__session__";
     questionnairePromptShownThisSession = true;
     return;
   }
@@ -11773,7 +11776,7 @@ function maybePromptAthleteQuestionnaire(profile = getProfile()) {
     ? `Tu cuestionario del atleta sigue incompleto (${progress.completed}/${progress.total}). Es MUY importante responder todas las preguntas para que tu coach tenga datos correctos.\n\nPendientes: ${missingLabels}${hasMore ? ", ..." : ""}\n\nQuieres continuar el cuestionario ahora?`
     : `Your athlete questionnaire is still incomplete (${progress.completed}/${progress.total}). It is VERY important to answer every question so your coach has accurate data.\n\nMissing: ${missingLabels}${hasMore ? ", ..." : ""}\n\nDo you want to continue now?`;
 
-  questionnairePromptShownForUserId = currentUserId || questionnairePromptShownForUserId;
+  questionnairePromptShownForUserId = currentUserId || questionnairePromptShownForUserId || "__session__";
   questionnairePromptShownThisSession = true;
   if (window.confirm(promptMessage)) {
     const nextFieldId = getNextUnansweredAthleteQuestionnaireFieldId(profile, { useDom: true }) || progress.missingFields[0]?.id || "";
