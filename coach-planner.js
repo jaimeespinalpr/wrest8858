@@ -3553,7 +3553,8 @@
     const libraryDoc = getLiftingLibraryDocRef();
     if (libraryDoc?.onSnapshot) {
       state.liftingLibraryUnsub = libraryDoc.onSnapshot(async (docSnap) => {
-        if (docSnap.exists()) {
+        const hasSnapshotData = typeof docSnap?.exists === "function" ? docSnap.exists() : !!docSnap?.exists;
+        if (hasSnapshotData) {
           const payload = docSnap.data() || {};
           state.liftingLibrary = mergeLiftingLibraryMaps(
             DEFAULT_LIFTING_LIBRARY,

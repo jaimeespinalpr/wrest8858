@@ -6286,12 +6286,10 @@ async function handleSuccessfulAuth(result) {
   }
   questionnairePromptShownForUserId = authUser?.id || "";
   questionnairePromptShownThisSession = false;
+  const promptProfile = () => getProfile() || profile;
   window.setTimeout(() => {
-    maybePromptAthleteQuestionnaireAfterLogin(getProfile() || profile, { source: "login" });
-  }, 260);
-  window.setTimeout(() => {
-    maybePromptAthleteQuestionnaireAfterLogin(getProfile() || profile, { source: "login-retry" });
-  }, 1300);
+    maybePromptAthleteQuestionnaireAfterLogin(promptProfile(), { source: "login" });
+  }, 420);
 }
 
 if (pRole) {
@@ -6353,6 +6351,22 @@ if (questionnaireReminderLaterBtn) {
       : "You can continue the questionnaire later from Profile.");
   });
 }
+
+if (questionnaireReminderModal) {
+  questionnaireReminderModal.addEventListener("click", (event) => {
+    if (event.target !== questionnaireReminderModal) return;
+    hideQuestionnaireReminderModal();
+    toast(currentLang === "es"
+      ? "Puedes continuar el cuestionario luego desde Profile."
+      : "You can continue the questionnaire later from Profile.");
+  });
+}
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  if (!questionnaireReminderModal || questionnaireReminderModal.classList.contains("hidden")) return;
+  hideQuestionnaireReminderModal();
+});
 
 if (profileForm) {
   profileForm.addEventListener("submit", async (e) => {
@@ -8858,6 +8872,9 @@ function resolveTabPanelForCurrentView(tabKey) {
 
 async function showTab(name) {
   const resolved = resolveRouteTabRequest(name);
+  if (questionnaireReminderModal && !questionnaireReminderModal.classList.contains("hidden") && resolved.tab !== "athlete-profile") {
+    hideQuestionnaireReminderModal();
+  }
   const targetBtn = tabBtns.find((btn) => btn.dataset.tab === resolved.tab && !btn.hidden);
   const fallbackTab = tabBtns.find((btn) => !btn.hidden)?.dataset.tab;
   const hasContent = Boolean(COACH_ROUTE_PANELS[resolved.tab] || panels[resolved.tab]);
