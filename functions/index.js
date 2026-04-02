@@ -16,6 +16,9 @@ const DELIVERY_LOG_COLLECTION = "_system_registration_email_events";
 const ALERT_EMAIL_TO = "jaimeespinalpr@gmail.com";
 const ALERT_EMAIL_FROM = "WPL Alerts <onboarding@resend.dev>";
 const INVITE_EMAIL_FROM = "United Wrestling Club <noreply@united-wc.com>";
+const SHARED_COLLECTION = "shared_app";
+const SHARED_USER_DIRECTORY_DOC = "global_user_directory";
+const SHARED_USER_DIRECTORY_ITEMS = "items";
 const COACH_WORKSPACES_COLLECTION = "coach_workspaces";
 const SYSTEM_GROUP_DEFS = [
   { id: "all-registered-athletes", name: "All Registered Athletes" },
@@ -165,6 +168,68 @@ function buildAthleteWorkspaceRecordFromUser(user = {}, coachMeta = {}) {
   });
 }
 
+function buildSharedUserDirectoryEntry(user = {}) {
+  const uid = normalizeText(user.uid || "");
+  if (!uid) return null;
+  const role = normalizeRole(user.role);
+  const name = normalizeText(user.name || user.athleteName || user.email || "");
+  const email = normalizeEmail(user.email || "");
+  const status = role === "parent" ? normalizeText(user.status || "pending_verification") : "";
+  const view = normalizeText(user.view || (
+    role === "coach" || role === "admin" ? "coach" : role === "parent" ? "parent" : "athlete"
+  ));
+  return {
+    uid,
+    name,
+    email,
+    role,
+    view,
+    status,
+    athleteName: normalizeText(user.athleteName || user.linkedAthleteName || ""),
+    linkedAthleteId: normalizeText(user.linkedAthleteId || ""),
+    linkedAthleteUid: normalizeText(user.linkedAthleteUid || ""),
+    linkedCoachUid: normalizeText(user.linkedCoachUid || ""),
+    linkedCoachName: normalizeText(user.linkedCoachName || ""),
+    linkedCoachEmail: normalizeEmail(user.linkedCoachEmail || ""),
+    createdAt: user.createdAt || FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp()
+  };
+}
+
+async function syncSharedUserDirectory(allUsers = [], { deletedUid = "" } = {}) {
+  const directoryRef = firestore
+    .collection(SHARED_COLLECTION)
+    .doc(SHARED_USER_DIRECTORY_DOC)
+    .collection(SHARED_USER_DIRECTORY_ITEMS);
+
+  let batch = firestore.batch();
+  let writes = 0;
+  const flush = async () => {
+    if (!writes) return;
+    await batch.commit();
+    batch = firestore.batch();
+    writes = 0;
+  };
+
+  for (const user of allUsers) {
+    const payload = buildSharedUserDirectoryEntry(user);
+    if (!payload || !payload.uid) continue;
+    batch.set(directoryRef.doc(payload.uid), payload, { merge: true });
+    writes += 1;
+    if (writes >= 420) {
+      await flush();
+    }
+  }
+
+  const safeDeletedUid = normalizeText(deletedUid);
+  if (safeDeletedUid) {
+    batch.delete(directoryRef.doc(safeDeletedUid));
+    writes += 1;
+  }
+
+  await flush();
+}
+
 function groupMatchesAthlete(groupId, athlete = {}) {
   const experienceYears = parseExperienceYears(athlete.experienceYears);
   const textBlob = [
@@ -297,7 +362,7 @@ async function syncCoachWorkspaceFromUsers(coachUser, allUsers = []) {
   }
 }
 
-async function syncUserRegistrationState(snapshot) {
+async function syncUserRegistrationState(snapshot, triggerUserId = "") {
   const usersSnapshot = await firestore.collection(USERS_COLLECTION).get();
   const allUsers = usersSnapshot.docs.map((doc) => ({
     uid: doc.id,
@@ -360,6 +425,10 @@ async function syncUserRegistrationState(snapshot) {
   for (const coachUser of coachUsers) {
     await syncCoachWorkspaceFromUsers(coachUser, allUsers);
   }
+
+  await syncSharedUserDirectory(allUsers, {
+    deletedUid: snapshot?.exists ? "" : triggerUserId
+  });
 }
 
 async function sendWithResend(apiKey, profile, userId) {
@@ -594,15 +663,16 @@ exports.syncRegistrationGroups = onDocumentWritten({
   region: "us-central1"
 }, async (event) => {
   const snapshot = event.data?.after || null;
+  const triggerUserId = normalizeText(event.params.userId || snapshot?.id || "");
   try {
-    await syncUserRegistrationState(snapshot);
+    await syncUserRegistrationState(snapshot, triggerUserId);
     logger.info("Registration sync completed", {
-      userId: normalizeText(event.params.userId || snapshot?.id || ""),
+      userId: triggerUserId,
       exists: Boolean(snapshot?.exists)
     });
   } catch (err) {
     logger.error("Registration sync failed", {
-      userId: normalizeText(event.params.userId || snapshot?.id || ""),
+      userId: triggerUserId,
       message: err?.message || String(err)
     });
     throw err;

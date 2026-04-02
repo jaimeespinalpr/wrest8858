@@ -4318,8 +4318,8 @@
     const athletesCount = filtered.filter((record) => record.recipientType === "athlete").length;
     const coachesCount = filtered.filter((record) => record.recipientType === "coach").length;
     setAssignStatus(tr({
-      en: `${athletesCount} athletes + ${coachesCount} coaches (live users directory).`,
-      es: `${athletesCount} atletas + ${coachesCount} entrenadores (directorio de usuarios en vivo).`
+      en: `${athletesCount} athletes + ${coachesCount} coaches (shared users directory).`,
+      es: `${athletesCount} atletas + ${coachesCount} entrenadores (directorio compartido de usuarios).`
     }));
   }
 
@@ -4468,13 +4468,13 @@
       return;
     }
     if (force) stopPlannerAssignDirectorySync();
-    const usersRef = getPlannerUsersCollectionRef();
-    if (!usersRef?.onSnapshot) {
+    const sharedDirectoryRef = getPlannerSharedUserDirectoryRef();
+    if (!sharedDirectoryRef?.onSnapshot) {
       state.assignDirectoryReady = false;
       if (!els.assignModal?.classList.contains("hidden")) {
         setAssignStatus(tr({
-          en: "Live users directory unavailable. Loading fallback recipients...",
-          es: "Directorio de usuarios en vivo no disponible. Cargando destinatarios de respaldo..."
+          en: "Shared users directory unavailable. Loading fallback recipients...",
+          es: "Directorio compartido de usuarios no disponible. Cargando destinatarios de respaldo..."
         }), true);
       }
       loadPlannerRecipientsFallback().catch(() => {});
@@ -4483,52 +4483,28 @@
 
     state.assignDirectoryReady = false;
     if (!els.assignModal?.classList.contains("hidden")) {
-      setAssignStatus(tr({ en: "Loading recipients from users directory...", es: "Cargando destinatarios desde el directorio de usuarios..." }));
+      setAssignStatus(tr({ en: "Loading recipients from shared users directory...", es: "Cargando destinatarios desde el directorio compartido..." }));
     }
 
-    const roleQueries = [
-      "athlete",
-      "Athlete",
-      "coach",
-      "Coach",
-      "admin",
-      "administrator",
-      "head_coach"
-    ];
-    const erroredRoles = new Set();
-    const updateFromRoleBuckets = () => {
-      const buckets = state.assignDirectoryRoleRecords || {};
-      const allRecords = Object.values(buckets).flat();
-      const records = mergeRecipientCollections(allRecords, []);
-      applyAssignRecipients(records, { fromRealtime: true });
-    };
-
-    state.assignDirectoryUnsubs = roleQueries.map((roleValue) => (
-      usersRef.where("role", "==", roleValue).onSnapshot((snapshot) => {
-        state.assignDirectoryRoleRecords[roleValue] = snapshot.docs
+    state.assignDirectoryUnsubs = [
+      sharedDirectoryRef.onSnapshot((snapshot) => {
+        const records = snapshot.docs
           .map((doc) => normalizeRecipientRecord(doc.id, doc.data() || {}, "athlete"))
           .filter(Boolean)
           .filter((record) => record.role !== "parent");
-        erroredRoles.delete(roleValue);
-        updateFromRoleBuckets();
+        applyAssignRecipients(mergeRecipientCollections(records, []), { fromRealtime: true });
       }, async (err) => {
-        console.warn(`Planner users directory sync failed for role "${roleValue}"`, err);
-        delete state.assignDirectoryRoleRecords[roleValue];
-        erroredRoles.add(roleValue);
-        if (erroredRoles.size >= roleQueries.length) {
-          if (!els.assignModal?.classList.contains("hidden")) {
-            setAssignStatus(tr({
-              en: "Live users sync failed. Loading fallback recipients...",
-              es: "Fallo la sincronizacion en vivo. Cargando destinatarios de respaldo..."
-            }), true);
-          }
-          state.assignDirectoryReady = false;
-          await loadPlannerRecipientsFallback();
-          return;
+        console.warn("Planner shared users directory sync failed", err);
+        if (!els.assignModal?.classList.contains("hidden")) {
+          setAssignStatus(tr({
+            en: "Shared users sync failed. Loading fallback recipients...",
+            es: "Fallo la sincronizacion de usuarios compartidos. Cargando destinatarios de respaldo..."
+          }), true);
         }
-        updateFromRoleBuckets();
+        state.assignDirectoryReady = false;
+        await loadPlannerRecipientsFallback();
       })
-    ));
+    ];
   }
 
   function openAssignModal(options = {}) {
@@ -4565,7 +4541,7 @@
     setAssignStatus(getAssignContextMeta().statusHint);
     startPlannerAssignDirectorySync();
     if (!state.assignDirectoryReady && !state.assignAthletes.length) {
-      setAssignStatus(tr({ en: "Loading recipients from users directory...", es: "Cargando destinatarios desde el directorio de usuarios..." }));
+      setAssignStatus(tr({ en: "Loading recipients from shared users directory...", es: "Cargando destinatarios desde el directorio compartido..." }));
     }
     renderAssignAthleteList();
   }
@@ -4937,6 +4913,18 @@
       if (typeof firebaseFirestoreInstance === "undefined" || !firebaseFirestoreInstance) return null;
       const collectionName = "users";
       return firebaseFirestoreInstance.collection(collectionName);
+    } catch {
+      return null;
+    }
+  }
+
+  function getPlannerSharedUserDirectoryRef() {
+    try {
+      if (typeof firebaseFirestoreInstance === "undefined" || !firebaseFirestoreInstance) return null;
+      return firebaseFirestoreInstance
+        .collection(getPlannerSharedCollectionName())
+        .doc("global_user_directory")
+        .collection("items");
     } catch {
       return null;
     }

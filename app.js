@@ -44,6 +44,8 @@ const FIREBASE_LEGACY_USERS_COLLECTION = (() => {
 })();
 const FIREBASE_SHARED_COLLECTION = window.FIREBASE_SHARED_COLLECTION || "shared_app";
 const FIREBASE_MEDIA_TREE_DOC = window.FIREBASE_MEDIA_TREE_DOC || "media_tree";
+const FIREBASE_SHARED_USER_DIRECTORY_DOC = "global_user_directory";
+const FIREBASE_SHARED_USER_DIRECTORY_ITEMS = "items";
 const FIREBASE_MESSAGE_THREADS_COLLECTION = "message_threads";
 const FIREBASE_COACH_WORKSPACES_COLLECTION = "coach_workspaces";
 const WPL_MEDIA_UPLOADS_ROOT = String(window.WPL_MEDIA_UPLOADS_ROOT || "media_uploads").trim().replace(/^\/+|\/+$/g, "");
@@ -3602,9 +3604,65 @@ async function persistFirebaseProfile(uid, data, { required = false } = {}) {
         "firestore_profile_legacy_write_timeout"
       );
     }
+    await persistSharedUserDirectoryEntry(uid, payload, { required: false });
   } catch (err) {
     if (required) throw err;
     console.warn("Failed to persist Firebase profile", err);
+  }
+}
+
+function getSharedUserDirectoryCollectionRef() {
+  if (!firebaseFirestoreInstance) return null;
+  return firebaseFirestoreInstance
+    .collection(FIREBASE_SHARED_COLLECTION)
+    .doc(FIREBASE_SHARED_USER_DIRECTORY_DOC)
+    .collection(FIREBASE_SHARED_USER_DIRECTORY_ITEMS);
+}
+
+function buildSharedUserDirectoryPayload(uid, data = {}) {
+  const role = normalizeAuthRole(data?.role);
+  const name = String(data?.name || "").trim();
+  const email = String(data?.email || "").trim().toLowerCase();
+  const view = resolveViewForRole(role, data?.view || getDefaultViewForRole(role));
+  return stripUndefinedDeep({
+    uid: String(uid || "").trim(),
+    name,
+    email,
+    role,
+    view,
+    status: normalizeParentVerificationStatus(data?.status),
+    athleteName: String(data?.athleteName || data?.linkedAthleteName || "").trim(),
+    linkedAthleteId: String(data?.linkedAthleteId || "").trim(),
+    linkedAthleteUid: String(data?.linkedAthleteUid || "").trim(),
+    linkedCoachUid: String(data?.linkedCoachUid || "").trim(),
+    linkedCoachName: String(data?.linkedCoachName || "").trim(),
+    linkedCoachEmail: String(data?.linkedCoachEmail || "").trim().toLowerCase(),
+    createdAt: data?.createdAt || new Date().toISOString(),
+    updatedAt: data?.updatedAt || new Date().toISOString()
+  });
+}
+
+async function persistSharedUserDirectoryEntry(uid, data = {}, { required = false } = {}) {
+  const ref = getSharedUserDirectoryCollectionRef();
+  const safeUid = String(uid || "").trim();
+  if (!ref || !safeUid) {
+    if (required) {
+      const err = new Error("firestore_shared_user_directory_unavailable");
+      err.code = "firestore_shared_user_directory_unavailable";
+      throw err;
+    }
+    return;
+  }
+  try {
+    const payload = buildSharedUserDirectoryPayload(safeUid, data || {});
+    await withTimeout(
+      ref.doc(safeUid).set(payload, { merge: true }),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_shared_user_directory_write_timeout"
+    );
+  } catch (err) {
+    if (required) throw err;
+    console.warn("Failed to persist shared users directory entry", err);
   }
 }
 
