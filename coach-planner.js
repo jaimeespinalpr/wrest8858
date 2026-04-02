@@ -684,7 +684,8 @@
     assignScheduleMode: "day",
     assignWeekCount: 1,
     assignModalBusy: false,
-    assignDirectoryUnsub: null,
+    assignDirectoryUnsubs: [],
+    assignDirectoryRoleRecords: {},
     assignDirectoryReady: false,
     assignContext: {
       track: "wrestling",
@@ -4426,13 +4427,17 @@
   }
 
   function stopPlannerAssignDirectorySync() {
-    if (!state.assignDirectoryUnsub) return;
-    try {
-      state.assignDirectoryUnsub();
-    } catch {
-      // ignore unsubscribe errors
+    if (Array.isArray(state.assignDirectoryUnsubs) && state.assignDirectoryUnsubs.length) {
+      state.assignDirectoryUnsubs.forEach((unsubscribe) => {
+        try {
+          unsubscribe();
+        } catch {
+          // ignore unsubscribe errors
+        }
+      });
     }
-    state.assignDirectoryUnsub = null;
+    state.assignDirectoryUnsubs = [];
+    state.assignDirectoryRoleRecords = {};
   }
 
   async function loadPlannerRecipientsFallback() {
@@ -4458,7 +4463,7 @@
   }
 
   function startPlannerAssignDirectorySync({ force = false } = {}) {
-    if (state.assignDirectoryUnsub && !force) {
+    if (Array.isArray(state.assignDirectoryUnsubs) && state.assignDirectoryUnsubs.length && !force) {
       renderAssignAthleteList();
       return;
     }
@@ -4481,24 +4486,49 @@
       setAssignStatus(tr({ en: "Loading recipients from users directory...", es: "Cargando destinatarios desde el directorio de usuarios..." }));
     }
 
-    state.assignDirectoryUnsub = usersRef.onSnapshot((snapshot) => {
-      const userRecords = snapshot.docs
-        .map((doc) => normalizeRecipientRecord(doc.id, doc.data() || {}, "athlete"))
-        .filter(Boolean)
-        .filter((record) => record.role !== "parent");
-      const records = mergeRecipientCollections(userRecords, []);
+    const roleQueries = [
+      "athlete",
+      "Athlete",
+      "coach",
+      "Coach",
+      "admin",
+      "administrator",
+      "head_coach"
+    ];
+    const erroredRoles = new Set();
+    const updateFromRoleBuckets = () => {
+      const buckets = state.assignDirectoryRoleRecords || {};
+      const allRecords = Object.values(buckets).flat();
+      const records = mergeRecipientCollections(allRecords, []);
       applyAssignRecipients(records, { fromRealtime: true });
-    }, async (err) => {
-      console.warn("Planner users directory sync failed", err);
-      if (!els.assignModal?.classList.contains("hidden")) {
-        setAssignStatus(tr({
-          en: "Live users sync failed. Loading fallback recipients...",
-          es: "Fallo la sincronizacion en vivo. Cargando destinatarios de respaldo..."
-        }), true);
-      }
-      state.assignDirectoryReady = false;
-      await loadPlannerRecipientsFallback();
-    });
+    };
+
+    state.assignDirectoryUnsubs = roleQueries.map((roleValue) => (
+      usersRef.where("role", "==", roleValue).onSnapshot((snapshot) => {
+        state.assignDirectoryRoleRecords[roleValue] = snapshot.docs
+          .map((doc) => normalizeRecipientRecord(doc.id, doc.data() || {}, "athlete"))
+          .filter(Boolean)
+          .filter((record) => record.role !== "parent");
+        erroredRoles.delete(roleValue);
+        updateFromRoleBuckets();
+      }, async (err) => {
+        console.warn(`Planner users directory sync failed for role "${roleValue}"`, err);
+        delete state.assignDirectoryRoleRecords[roleValue];
+        erroredRoles.add(roleValue);
+        if (erroredRoles.size >= roleQueries.length) {
+          if (!els.assignModal?.classList.contains("hidden")) {
+            setAssignStatus(tr({
+              en: "Live users sync failed. Loading fallback recipients...",
+              es: "Fallo la sincronizacion en vivo. Cargando destinatarios de respaldo..."
+            }), true);
+          }
+          state.assignDirectoryReady = false;
+          await loadPlannerRecipientsFallback();
+          return;
+        }
+        updateFromRoleBuckets();
+      })
+    ));
   }
 
   function openAssignModal(options = {}) {
