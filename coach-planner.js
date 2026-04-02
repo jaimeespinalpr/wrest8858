@@ -678,6 +678,7 @@
     activeTemplateName: "",
     templateSaveBusy: false,
     assignAthletes: [],
+    assignFallbackRecipients: [],
     selectedAthleteIds: [],
     assignSearch: "",
     assignDueDate: "",
@@ -4440,11 +4441,12 @@
     state.assignDirectoryRoleRecords = {};
   }
 
-  async function loadPlannerRecipientsFallback() {
+  async function loadPlannerRecipientsFallback({ apply = true } = {}) {
     const athletesRef = getPlannerWorkspaceCollectionRef("athletes");
     if (!athletesRef) {
-      applyAssignRecipients([], { fromRealtime: false });
-      return;
+      state.assignFallbackRecipients = [];
+      if (apply) applyAssignRecipients([], { fromRealtime: false });
+      return [];
     }
     try {
       const snap = await athletesRef.get();
@@ -4452,13 +4454,17 @@
         .map((doc) => normalizeRecipientRecord(doc.id, doc.data() || {}, "athlete"))
         .filter(Boolean)
         .filter((record) => record.recipientType === "athlete");
-      applyAssignRecipients(records, { fromRealtime: false });
+      state.assignFallbackRecipients = records;
+      if (apply) applyAssignRecipients(records, { fromRealtime: false });
+      return records;
     } catch (err) {
       console.warn("Planner fallback recipients load failed", err);
-      applyAssignRecipients([], { fromRealtime: false });
+      state.assignFallbackRecipients = [];
+      if (apply) applyAssignRecipients([], { fromRealtime: false });
       if (!els.assignModal?.classList.contains("hidden")) {
         setAssignStatus(tr({ en: "Could not load recipients. Try again.", es: "No se pudieron cargar los destinatarios. Intenta de nuevo." }), true);
       }
+      return [];
     }
   }
 
@@ -4486,13 +4492,27 @@
       setAssignStatus(tr({ en: "Loading recipients from shared users directory...", es: "Cargando destinatarios desde el directorio compartido..." }));
     }
 
+    loadPlannerRecipientsFallback({ apply: false }).then((fallbackRecords) => {
+      state.assignFallbackRecipients = fallbackRecords;
+      const sharedRecords = Array.isArray(state.assignDirectoryRoleRecords?.shared)
+        ? state.assignDirectoryRoleRecords.shared
+        : [];
+      if (sharedRecords.length || fallbackRecords.length) {
+        applyAssignRecipients(mergeRecipientCollections(sharedRecords, fallbackRecords), { fromRealtime: true });
+      }
+    }).catch(() => {});
+
     state.assignDirectoryUnsubs = [
       sharedDirectoryRef.onSnapshot((snapshot) => {
         const records = snapshot.docs
           .map((doc) => normalizeRecipientRecord(doc.id, doc.data() || {}, "athlete"))
           .filter(Boolean)
           .filter((record) => record.role !== "parent");
-        applyAssignRecipients(mergeRecipientCollections(records, []), { fromRealtime: true });
+        state.assignDirectoryRoleRecords.shared = records;
+        applyAssignRecipients(
+          mergeRecipientCollections(records, state.assignFallbackRecipients || []),
+          { fromRealtime: true }
+        );
       }, async (err) => {
         console.warn("Planner shared users directory sync failed", err);
         if (!els.assignModal?.classList.contains("hidden")) {
@@ -4502,7 +4522,7 @@
           }), true);
         }
         state.assignDirectoryReady = false;
-        await loadPlannerRecipientsFallback();
+        await loadPlannerRecipientsFallback({ apply: true });
       })
     ];
   }
