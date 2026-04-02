@@ -30,8 +30,9 @@ let profileTagState = new Set();
 
 // ---------- STORAGE SYNC ----------
 const STORAGE_PREFIX = "wpl_";
-const STORAGE_API = "api/storage.php";
-let storageSyncEnabled = true;
+const LEGACY_STORAGE_SYNC_ENABLED = String(window.WPL_ENABLE_LEGACY_STORAGE_SYNC || "false").toLowerCase() === "true";
+const STORAGE_API = LEGACY_STORAGE_SYNC_ENABLED ? "api/storage.php" : "";
+let storageSyncEnabled = LEGACY_STORAGE_SYNC_ENABLED;
 let storageHydrated = false;
 let suppressStorageSync = false;
 let storageSyncAttached = false;
@@ -197,7 +198,7 @@ function shouldSyncKey(key) {
 }
 
 async function purgeServerStorageKey(key) {
-  if (!storageSyncEnabled || typeof key !== "string" || !key.startsWith(STORAGE_PREFIX)) return;
+  if (!storageSyncEnabled || !STORAGE_API || typeof key !== "string" || !key.startsWith(STORAGE_PREFIX)) return;
   try {
     await fetch(STORAGE_API, {
       method: "POST",
@@ -210,7 +211,7 @@ async function purgeServerStorageKey(key) {
 }
 
 function syncStorageSet(key, value) {
-  if (!storageSyncEnabled || !storageHydrated || suppressStorageSync || !shouldSyncKey(key)) return;
+  if (!storageSyncEnabled || !STORAGE_API || !storageHydrated || suppressStorageSync || !shouldSyncKey(key)) return;
   fetch(STORAGE_API, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -219,7 +220,7 @@ function syncStorageSet(key, value) {
 }
 
 function syncStorageDelete(key) {
-  if (!storageSyncEnabled || !storageHydrated || suppressStorageSync || !shouldSyncKey(key)) return;
+  if (!storageSyncEnabled || !STORAGE_API || !storageHydrated || suppressStorageSync || !shouldSyncKey(key)) return;
   fetch(STORAGE_API, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -228,7 +229,7 @@ function syncStorageDelete(key) {
 }
 
 async function syncAllLocalToServer() {
-  if (!storageSyncEnabled) return;
+  if (!storageSyncEnabled || !STORAGE_API) return;
   const entries = {};
   for (let i = 0; i < localStorage.length; i += 1) {
     const key = localStorage.key(i);
@@ -266,11 +267,11 @@ function attachStorageSync() {
 }
 
 async function initServerStorage() {
-  attachStorageSync();
-  if (!storageSyncEnabled) {
+  if (!storageSyncEnabled || !STORAGE_API) {
     storageHydrated = true;
     return;
   }
+  attachStorageSync();
 
   try {
     const res = await fetch(`${STORAGE_API}?all=1`, { cache: "no-store" });
@@ -28375,4 +28376,3 @@ async function startApp() {
 }
 
 startApp();
-

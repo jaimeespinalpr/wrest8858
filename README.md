@@ -52,6 +52,7 @@ This project uses Firebase as the only security and identity layer:
 - Cloud Function secrets (`firebase functions:secrets:set ...`) for private API keys.
 
 No local PHP auth API is required.
+Legacy `api/storage.php` sync is disabled by default. Keep `WPL_ENABLE_LEGACY_STORAGE_SYNC` unset/false.
 
 ## Firebase Auth onboarding
 
