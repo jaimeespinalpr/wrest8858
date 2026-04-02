@@ -684,6 +684,8 @@
     assignScheduleMode: "day",
     assignWeekCount: 1,
     assignModalBusy: false,
+    assignDirectoryUnsub: null,
+    assignDirectoryReady: false,
     assignContext: {
       track: "wrestling",
       mentalGameKey: ""
@@ -4204,21 +4206,120 @@
     };
   }
 
+  function normalizeRecipientRole(value = "", fallbackType = "athlete") {
+    const raw = String(value || fallbackType || "").trim().toLowerCase();
+    if (!raw) return fallbackType;
+    if (raw === "administrator" || raw === "head_coach") return "coach";
+    if (raw === "admin" || raw === "coach" || raw === "athlete" || raw === "parent") return raw;
+    if (raw.includes("coach")) return "coach";
+    return "athlete";
+  }
+
+  function normalizeRecipientDisplayName(data = {}, fallbackId = "") {
+    let name = String(data?.name || "").trim();
+    if (!name) {
+      const first = String(data?.firstName || data?.first_name || "").trim();
+      const last = String(data?.lastName || data?.last_name || "").trim();
+      name = [first, last].filter(Boolean).join(" ").trim();
+    }
+    if (!name) {
+      name = String(data?.athleteName || data?.linkedAthleteName || "").trim();
+    }
+    const email = String(data?.email || data?.athleteEmail || "").trim().toLowerCase();
+    if (!name && email.includes("@")) {
+      const local = email.split("@")[0].replace(/[._-]+/g, " ").trim();
+      if (local) {
+        name = local.replace(/\b\w/g, (char) => char.toUpperCase());
+      }
+    }
+    if (!name) {
+      const suffix = String(fallbackId || "").trim().slice(0, 6) || "User";
+      name = `${tr({ en: "User", es: "Usuario" })} ${suffix}`;
+    }
+    if (typeof stripUserDisplayNumber === "function") {
+      try {
+        name = stripUserDisplayNumber(name);
+      } catch {
+        // keep sanitized fallback
+      }
+    }
+    return String(name || "").trim();
+  }
+
   function normalizeRecipientRecord(id, data = {}, fallbackType = "athlete") {
-    const name = String(data?.name || "").trim();
-    if (!name) return null;
-    const role = String(data?.role || fallbackType).trim().toLowerCase();
+    const role = normalizeRecipientRole(data?.role, fallbackType);
     const recipientType = isCoachLikeRole(role) ? "coach" : "athlete";
-    const recipientUid = String(data?.athleteUid || data?.uid || "").trim();
-    const recipientEmail = String(data?.athleteEmail || data?.email || "").trim();
+    const candidateId = String(id || "").trim();
+    const name = normalizeRecipientDisplayName(data, candidateId);
+    if (!name) return null;
+    const recipientEmail = String(data?.athleteEmail || data?.email || "").trim().toLowerCase();
+    const recipientUid = String(data?.athleteUid || data?.uid || candidateId).trim();
     return {
-      id: String(id || toSimpleSlug(name)).trim() || toSimpleSlug(name),
+      id: candidateId || toSimpleSlug(name),
       name,
       recipientType,
       role,
       recipientUid,
       recipientEmail
     };
+  }
+
+  function mergeRecipientCollections(primary = [], fallback = []) {
+    const merged = new Map();
+    const pushRecord = (record = {}) => {
+      if (!record || !record.name) return;
+      const key = record.recipientUid
+        ? `uid:${record.recipientUid}`
+        : (record.recipientEmail ? `email:${record.recipientEmail}` : `id:${record.id}`);
+      if (!key) return;
+      const previous = merged.get(key);
+      if (!previous) {
+        merged.set(key, { ...record });
+        return;
+      }
+      merged.set(key, {
+        ...previous,
+        ...record,
+        id: String(record.id || previous.id || "").trim(),
+        name: String(record.name || previous.name || "").trim(),
+        recipientUid: String(record.recipientUid || previous.recipientUid || "").trim(),
+        recipientEmail: String(record.recipientEmail || previous.recipientEmail || "").trim().toLowerCase()
+      });
+    };
+
+    fallback.forEach(pushRecord);
+    primary.forEach(pushRecord);
+    return Array.from(merged.values());
+  }
+
+  function applyAssignRecipients(records = [], { fromRealtime = false } = {}) {
+    const safe = Array.isArray(records) ? records : [];
+    const filtered = safe
+      .filter((record) => record && record.name && (record.recipientType === "athlete" || record.recipientType === "coach"))
+      .sort((left, right) => {
+        if (left.recipientType !== right.recipientType) {
+          return left.recipientType === "athlete" ? -1 : 1;
+        }
+        return String(left.name || "").localeCompare(String(right.name || ""), undefined, { sensitivity: "base" });
+      });
+    state.assignAthletes = filtered;
+    state.assignDirectoryReady = true;
+    state.selectedAthleteIds = state.selectedAthleteIds.filter((athleteId) => filtered.some((entry) => entry.id === athleteId));
+    renderAssignAthleteList();
+    if (els.assignModal?.classList.contains("hidden")) return;
+    if (!filtered.length) {
+      setAssignStatus(tr({
+        en: "No athletes or coaches found in the users directory yet.",
+        es: "Aun no hay atletas o entrenadores en el directorio de usuarios."
+      }), !fromRealtime);
+      return;
+    }
+    const athletesCount = filtered.filter((record) => record.recipientType === "athlete").length;
+    const coachesCount = filtered.filter((record) => record.recipientType === "coach").length;
+    setAssignStatus(tr({
+      en: `${athletesCount} athletes + ${coachesCount} coaches (live users directory).`,
+      es: `${athletesCount} atletas + ${coachesCount} entrenadores (directorio de usuarios en vivo).`
+    }));
   }
 
   async function resolveAthleteRecipientUserDocId(recipient = null) {
@@ -4324,80 +4425,80 @@
     els.assignList.innerHTML = html;
   }
 
-  async function loadPlannerAthletesForAssignment() {
+  function stopPlannerAssignDirectorySync() {
+    if (!state.assignDirectoryUnsub) return;
+    try {
+      state.assignDirectoryUnsub();
+    } catch {
+      // ignore unsubscribe errors
+    }
+    state.assignDirectoryUnsub = null;
+  }
+
+  async function loadPlannerRecipientsFallback() {
     const athletesRef = getPlannerWorkspaceCollectionRef("athletes");
     if (!athletesRef) {
-      state.assignAthletes = [];
-      state.selectedAthleteIds = [];
+      applyAssignRecipients([], { fromRealtime: false });
+      return;
+    }
+    try {
+      const snap = await athletesRef.get();
+      const records = snap.docs
+        .map((doc) => normalizeRecipientRecord(doc.id, doc.data() || {}, "athlete"))
+        .filter(Boolean)
+        .filter((record) => record.recipientType === "athlete");
+      applyAssignRecipients(records, { fromRealtime: false });
+    } catch (err) {
+      console.warn("Planner fallback recipients load failed", err);
+      applyAssignRecipients([], { fromRealtime: false });
+      if (!els.assignModal?.classList.contains("hidden")) {
+        setAssignStatus(tr({ en: "Could not load recipients. Try again.", es: "No se pudieron cargar los destinatarios. Intenta de nuevo." }), true);
+      }
+    }
+  }
+
+  function startPlannerAssignDirectorySync({ force = false } = {}) {
+    if (state.assignDirectoryUnsub && !force) {
       renderAssignAthleteList();
-      setAssignStatus(tr({ en: "Planner recipients are not available right now.", es: "Los destinatarios del planificador no estan disponibles ahora." }), true);
+      return;
+    }
+    if (force) stopPlannerAssignDirectorySync();
+    const usersRef = getPlannerUsersCollectionRef();
+    if (!usersRef?.onSnapshot) {
+      state.assignDirectoryReady = false;
+      if (!els.assignModal?.classList.contains("hidden")) {
+        setAssignStatus(tr({
+          en: "Live users directory unavailable. Loading fallback recipients...",
+          es: "Directorio de usuarios en vivo no disponible. Cargando destinatarios de respaldo..."
+        }), true);
+      }
+      loadPlannerRecipientsFallback().catch(() => {});
       return;
     }
 
-    try {
-      setAssignStatus(tr({ en: "Loading recipients...", es: "Cargando destinatarios..." }));
-      const snap = await athletesRef.get();
-      let athleteRecords = snap.docs
+    state.assignDirectoryReady = false;
+    if (!els.assignModal?.classList.contains("hidden")) {
+      setAssignStatus(tr({ en: "Loading recipients from users directory...", es: "Cargando destinatarios desde el directorio de usuarios..." }));
+    }
+
+    state.assignDirectoryUnsub = usersRef.onSnapshot((snapshot) => {
+      const userRecords = snapshot.docs
         .map((doc) => normalizeRecipientRecord(doc.id, doc.data() || {}, "athlete"))
         .filter(Boolean)
-        .filter((record) => record.recipientType === "athlete")
-        .sort((left, right) => left.name.localeCompare(right.name));
-
-      const usersRef = getPlannerUsersCollectionRef();
-      let coachRecords = [];
-      if (usersRef) {
-        const usersSnap = await usersRef.get();
-        const seenCoachUid = new Set();
-        usersSnap.docs.forEach((doc) => {
-          const record = normalizeRecipientRecord(doc.id, doc.data() || {}, "athlete");
-          if (!record || record.recipientType !== "coach") return;
-          const uidKey = String(record.recipientUid || record.id).trim();
-          if (!uidKey || seenCoachUid.has(uidKey)) return;
-          seenCoachUid.add(uidKey);
-          coachRecords.push(record);
-        });
-
-        if (!athleteRecords.length) {
-          athleteRecords = usersSnap.docs
-            .map((doc) => normalizeRecipientRecord(doc.id, doc.data() || {}, "athlete"))
-            .filter(Boolean)
-            .filter((record) => record.recipientType === "athlete")
-            .sort((left, right) => left.name.localeCompare(right.name));
-        }
-      }
-
-      const records = [...athleteRecords, ...coachRecords]
-        .reduce((acc, record) => {
-          if (!acc.some((entry) => entry.id === record.id)) acc.push(record);
-          return acc;
-        }, [])
-        .sort((left, right) => {
-          if (left.recipientType !== right.recipientType) {
-            return left.recipientType === "athlete" ? -1 : 1;
-          }
-          return left.name.localeCompare(right.name);
-        });
-
-      state.assignAthletes = records;
-      state.selectedAthleteIds = state.selectedAthleteIds.filter((athleteId) => records.some((item) => item.id === athleteId));
-      renderAssignAthleteList();
-      if (!records.length) {
-        setAssignStatus(tr({ en: "No recipients available yet. Register users first.", es: "Aun no hay destinatarios. Registra usuarios primero." }));
-      } else {
-        const athletesCount = records.filter((record) => record.recipientType === "athlete").length;
-        const coachesCount = records.filter((record) => record.recipientType === "coach").length;
+        .filter((record) => record.role !== "parent");
+      const records = mergeRecipientCollections(userRecords, []);
+      applyAssignRecipients(records, { fromRealtime: true });
+    }, async (err) => {
+      console.warn("Planner users directory sync failed", err);
+      if (!els.assignModal?.classList.contains("hidden")) {
         setAssignStatus(tr({
-          en: `${athletesCount} athletes + ${coachesCount} coaches available.`,
-          es: `${athletesCount} atletas + ${coachesCount} entrenadores disponibles.`
-        }));
+          en: "Live users sync failed. Loading fallback recipients...",
+          es: "Fallo la sincronizacion en vivo. Cargando destinatarios de respaldo..."
+        }), true);
       }
-    } catch (err) {
-      console.warn("Failed to load recipients for planner assignment", err);
-      state.assignAthletes = [];
-      state.selectedAthleteIds = [];
-      renderAssignAthleteList();
-      setAssignStatus(tr({ en: "Could not load recipients. Try again.", es: "No se pudieron cargar los destinatarios. Intenta de nuevo." }), true);
-    }
+      state.assignDirectoryReady = false;
+      await loadPlannerRecipientsFallback();
+    });
   }
 
   function openAssignModal(options = {}) {
@@ -4432,7 +4533,11 @@
     els.assignModal?.classList.remove("hidden");
     focusPlannerWindow(els.assignModal, { smooth: true });
     setAssignStatus(getAssignContextMeta().statusHint);
-    loadPlannerAthletesForAssignment().catch(() => {});
+    startPlannerAssignDirectorySync();
+    if (!state.assignDirectoryReady && !state.assignAthletes.length) {
+      setAssignStatus(tr({ en: "Loading recipients from users directory...", es: "Cargando destinatarios desde el directorio de usuarios..." }));
+    }
+    renderAssignAthleteList();
   }
 
   function closeAssignModal() {
@@ -6034,6 +6139,7 @@
   persistLiftingLibraryLocal();
   persistLiftingUiLocal();
   setupLiftingRealtimeSync();
+  startPlannerAssignDirectorySync();
   startMentalLeaderboardSync();
   fillTrackDraftInputs("lifting");
   fillTrackDraftInputs("mental");
@@ -6048,6 +6154,7 @@
         try { state.liftingAuthUnsub(); } catch {}
         state.liftingAuthUnsub = null;
       }
+      stopPlannerAssignDirectorySync();
     });
   }
   hydratePlannerSettingsFromCloud().catch(() => {});
