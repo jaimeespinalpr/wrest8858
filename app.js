@@ -28,14 +28,8 @@ let currentLang = DEFAULT_LANG;
 let langChangeLocked = false;
 let profileTagState = new Set();
 
-// ---------- STORAGE SYNC ----------
-const STORAGE_PREFIX = "wpl_";
-const LEGACY_STORAGE_SYNC_ENABLED = String(window.WPL_ENABLE_LEGACY_STORAGE_SYNC || "false").toLowerCase() === "true";
-const STORAGE_API = LEGACY_STORAGE_SYNC_ENABLED ? "api/storage.php" : "";
-let storageSyncEnabled = LEGACY_STORAGE_SYNC_ENABLED;
-let storageHydrated = false;
-let suppressStorageSync = false;
-let storageSyncAttached = false;
+// ---------- STORAGE ----------
+// Firebase is the only remote data/auth layer. LocalStorage is local-only cache.
 
 const CANONICAL_FIREBASE_USERS_COLLECTION = "users";
 const FIREBASE_USERS_COLLECTION = CANONICAL_FIREBASE_USERS_COLLECTION;
@@ -187,126 +181,6 @@ function withTimeout(promise, ms, code = "operation_timeout") {
   return Promise.race([promise, timeout]).finally(() => {
     if (timeoutId) clearTimeout(timeoutId);
   });
-}
-
-function shouldSyncKey(key) {
-  if (typeof key !== "string" || !key.startsWith(STORAGE_PREFIX)) return false;
-  // Account identity/profile data must stay in Firebase Auth + Firestore only.
-  if (key === AUTH_USER_KEY || key === PROFILE_KEY) return false;
-  if (key.startsWith("wpl_profile_user_")) return false;
-  return true;
-}
-
-async function purgeServerStorageKey(key) {
-  if (!storageSyncEnabled || !STORAGE_API || typeof key !== "string" || !key.startsWith(STORAGE_PREFIX)) return;
-  try {
-    await fetch(STORAGE_API, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "delete", key })
-    });
-  } catch {
-    // Ignore purge failures to avoid blocking app startup.
-  }
-}
-
-function syncStorageSet(key, value) {
-  if (!storageSyncEnabled || !STORAGE_API || !storageHydrated || suppressStorageSync || !shouldSyncKey(key)) return;
-  fetch(STORAGE_API, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ key, value })
-  }).catch(() => {});
-}
-
-function syncStorageDelete(key) {
-  if (!storageSyncEnabled || !STORAGE_API || !storageHydrated || suppressStorageSync || !shouldSyncKey(key)) return;
-  fetch(STORAGE_API, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "delete", key })
-  }).catch(() => {});
-}
-
-async function syncAllLocalToServer() {
-  if (!storageSyncEnabled || !STORAGE_API) return;
-  const entries = {};
-  for (let i = 0; i < localStorage.length; i += 1) {
-    const key = localStorage.key(i);
-    if (!shouldSyncKey(key)) continue;
-    entries[key] = localStorage.getItem(key);
-  }
-  if (!Object.keys(entries).length) return;
-  try {
-    await fetch(STORAGE_API, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entries })
-    });
-  } catch {
-    storageSyncEnabled = false;
-  }
-}
-
-function attachStorageSync() {
-  if (storageSyncAttached || typeof localStorage === "undefined") return;
-  const rawSetItem = localStorage.setItem.bind(localStorage);
-  const rawRemoveItem = localStorage.removeItem.bind(localStorage);
-
-  localStorage.setItem = (key, value) => {
-    rawSetItem(key, value);
-    syncStorageSet(key, value);
-  };
-
-  localStorage.removeItem = (key) => {
-    rawRemoveItem(key);
-    syncStorageDelete(key);
-  };
-
-  storageSyncAttached = true;
-}
-
-async function initServerStorage() {
-  if (!storageSyncEnabled || !STORAGE_API) {
-    storageHydrated = true;
-    return;
-  }
-  attachStorageSync();
-
-  try {
-    const res = await fetch(`${STORAGE_API}?all=1`, { cache: "no-store" });
-    if (!res.ok) throw new Error("storage_fetch_failed");
-    const payload = await res.json();
-    const serverData = payload && payload.data && typeof payload.data === "object" ? payload.data : {};
-    const serverSensitiveKeys = Object.keys(serverData).filter((key) => !shouldSyncKey(key) && key.startsWith(STORAGE_PREFIX));
-    const syncableServerEntries = Object.entries(serverData).filter(([key]) => shouldSyncKey(key));
-    const hasServerData = syncableServerEntries.length > 0;
-    if (serverSensitiveKeys.length) {
-      await Promise.all(serverSensitiveKeys.map((key) => purgeServerStorageKey(key)));
-    }
-
-    if (hasServerData) {
-      suppressStorageSync = true;
-      const serverKeys = new Set(syncableServerEntries.map(([key]) => key));
-      for (let i = localStorage.length - 1; i >= 0; i -= 1) {
-        const key = localStorage.key(i);
-        if (shouldSyncKey(key) && !serverKeys.has(key)) {
-          localStorage.removeItem(key);
-        }
-      }
-      syncableServerEntries.forEach(([key, value]) => {
-        localStorage.setItem(key, value);
-      });
-    } else {
-      await syncAllLocalToServer();
-    }
-  } catch (err) {
-    storageSyncEnabled = false;
-    console.warn("Storage sync disabled:", err);
-  } finally {
-    suppressStorageSync = false;
-    storageHydrated = true;
-  }
 }
 
 const onboarding = document.getElementById("onboarding");
@@ -26259,7 +26133,7 @@ function getResolvedMessagesShareUrl() {
 function getSocialShareTarget(platform = "", mediaUrl = "") {
   const encodedUrl = encodeURIComponent(mediaUrl);
   if (platform === "facebook") {
-    return `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
+    return `https://www.facebook.com/sharer/sharer/?u=${encodedUrl}`;
   }
   if (platform === "instagram") {
     return "https://www.instagram.com/";

@@ -19,9 +19,7 @@
         "**/node_modules/**",
         ".github/**",
         ".vscode/**",
-        "functions/**",
-        "api/**",
-        "**/*.php"
+        "functions/**"
       ]
     },
     {
@@ -34,9 +32,7 @@
         "**/node_modules/**",
         ".github/**",
         ".vscode/**",
-        "functions/**",
-        "api/**",
-        "**/*.php"
+        "functions/**"
       ]
     }
   ]
