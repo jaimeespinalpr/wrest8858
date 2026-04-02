@@ -663,7 +663,8 @@ function setView(view) {
       // ignore cross-context dispatch issues
     }
   }
-  if (normalized === "athlete" && isAthleteRole(getProfile()?.role)) {
+  const activeAuthId = String(getAuthUser()?.id || "").trim();
+  if (normalized === "athlete" && activeAuthId && isAthleteRole(getProfile()?.role)) {
     window.setTimeout(() => {
       maybePromptAthleteQuestionnaireAfterLogin(getProfile(), { source: "view-switch" });
     }, 220);
