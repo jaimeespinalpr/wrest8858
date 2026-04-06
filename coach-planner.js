@@ -438,7 +438,6 @@
 
   const TRACKS = ["wrestling", "lifting", "mental"];
   const LIFTING_TABS = ["overview", "editor", "program"];
-  let state = null;
 
   function normalizeTrack(value) {
     const raw = String(value || "").trim().toLowerCase();
@@ -792,7 +791,7 @@
   runtimeWrestlingCategories = persistedWrestlingCategories.map((category) => ({ ...category }));
   const persistedCategoryNames = readJson(STORAGE_KEYS.categoryNames, {}) || {};
 
-  state = {
+  const state = {
     activeTrack: normalizeTrack(readJson(STORAGE_KEYS.track, "wrestling")),
     lastRenderedTrack: normalizeTrack(readJson(STORAGE_KEYS.track, "wrestling")),
     docInfo: {
@@ -1137,6 +1136,327 @@
       const total = Math.max(1, parseTimeValue(state.docInfo.totalTime || "90"));
       els.totalTimePrintValue.textContent = `${total} min`;
     }
+  }
+
+  function escapePrintHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function buildWrestlingBasicPrintMarkup() {
+    const plannedTotalInput = String(els.totalTimeInput?.value || state.docInfo.totalTime || "90").trim();
+    const plannedTotal = Math.max(1, parseTimeValue(plannedTotalInput || "90"));
+    const dateRaw = String(els.dateInput?.value || state.docInfo.date || "").trim();
+    const dateLabel = formatDateForPrint(dateRaw || "");
+    const title = tr({ en: "Wrestling Training Plan", es: "Plan de Entrenamiento de Lucha" });
+    const generatedLabel = tr({ en: "Generated", es: "Generado" });
+    const plannedLabel = tr({ en: "Planned", es: "Planificado" });
+    const usedLabel = tr({ en: "Used", es: "Usado" });
+    const clubLabel = tr({ en: "Club", es: "Club" });
+    const coachLabel = tr({ en: "Coach", es: "Entrenador" });
+    const seasonLabel = tr({ en: "Season", es: "Temporada" });
+    const minutesLabel = tr({ en: "min", es: "min" });
+    const noItemsLabel = tr({ en: "No activities added.", es: "No hay actividades agregadas." });
+    const planSheetLabel = tr({ en: "Training Plan Sheet", es: "Hoja de Plan de Entrenamiento" });
+
+    const snapshotCategories = getPlannerCategories().map((category) => {
+      const categoryId = category.id;
+      const nameInput = root.querySelector(`input[data-action="edit-category-name"][data-category="${categoryId}"]`);
+      const timeInput = root.querySelector(`input[data-action="time-input"][data-category="${categoryId}"]`);
+      const textareas = Array.from(root.querySelectorAll(`textarea[data-action="item-input"][data-category="${categoryId}"]`));
+      const liveItems = textareas
+        .map((node) => String(node.value || "").replace(/\s+/g, " ").trim())
+        .filter(Boolean);
+      const fallbackItems = (state.schedule[categoryId] || [])
+        .map((item) => String(item?.name || "").replace(/\s+/g, " ").trim())
+        .filter(Boolean);
+      const safeItems = liveItems.length ? liveItems : fallbackItems;
+      const safeName = String(nameInput?.value || getCategoryNameById(categoryId) || category.name || "").trim()
+        || String(category.name || "").trim()
+        || categoryId;
+      const safeMinutes = Math.max(0, parseTimeValue(String(timeInput?.value || state.categoryTimes[categoryId] || "0")));
+      return {
+        id: categoryId,
+        name: safeName,
+        minutes: safeMinutes,
+        items: safeItems
+      };
+    });
+
+    const usedTotal = snapshotCategories.reduce((sum, row) => sum + row.minutes, 0);
+
+    const sections = snapshotCategories.map((category, index) => {
+      const itemsMarkup = category.items.length
+        ? `<ul>${category.items.map((item) => `<li>${escapePrintHtml(item)}</li>`).join("")}</ul>`
+        : `<p class="muted">${escapePrintHtml(noItemsLabel)}</p>`;
+      return `
+        <section class="section">
+          <div class="section-head">
+            <h2>${index + 1}. ${escapePrintHtml(category.name)}</h2>
+            <span>${category.minutes} ${escapePrintHtml(minutesLabel)}</span>
+          </div>
+          ${itemsMarkup}
+        </section>
+      `;
+    }).join("");
+    const safeSections = sections || `<p class="muted">${escapePrintHtml(noItemsLabel)}</p>`;
+
+    const clubName = String(state.settings?.clubName || "").trim();
+    const coachName = String(state.settings?.coach || "").trim();
+    const seasonName = String(state.settings?.season || "").trim();
+
+    return `
+      <header>
+        <h1>${escapePrintHtml(title)}</h1>
+        <p>${escapePrintHtml(dateLabel || "--")}</p>
+      </header>
+      <section class="meta">
+        <div><strong>${escapePrintHtml(planSheetLabel)}:</strong> ${escapePrintHtml(dateLabel || "--")}</div>
+        <div><strong>${escapePrintHtml(clubLabel)}:</strong> ${escapePrintHtml(clubName || "-")}</div>
+        <div><strong>${escapePrintHtml(coachLabel)}:</strong> ${escapePrintHtml(coachName || "-")}</div>
+        <div><strong>${escapePrintHtml(seasonLabel)}:</strong> ${escapePrintHtml(seasonName || "-")}</div>
+        <div><strong>${escapePrintHtml(plannedLabel)}:</strong> ${plannedTotal} ${escapePrintHtml(minutesLabel)}</div>
+        <div><strong>${escapePrintHtml(usedLabel)}:</strong> ${usedTotal} ${escapePrintHtml(minutesLabel)}</div>
+        <div><strong>${escapePrintHtml(generatedLabel)}:</strong> ${escapePrintHtml(new Date().toLocaleString())}</div>
+      </section>
+      ${safeSections}
+    `;
+  }
+
+  function captureLiveLiftingPlanSnapshot() {
+    const snapshot = normalizeLiftingPlan(state.liftingPlan || buildDefaultLiftingPlan());
+    snapshot.name = String(els.liftingPlanNameInput?.value || snapshot.name || "").trim() || snapshot.name;
+    snapshot.weeks = String(els.liftingPlanWeeksInput?.value || snapshot.weeks || "").trim() || snapshot.weeks;
+    snapshot.purpose = String(els.liftingPlanPurposeInput?.value || snapshot.purpose || "").trim();
+    snapshot.benefits = String(els.liftingPlanBenefitsInput?.value || snapshot.benefits || "").trim();
+
+    const activeIndex = Math.max(0, Math.min(6, parseInt(String(state.liftingActiveDay || 0), 10) || 0));
+    const activeDay = snapshot.days[activeIndex];
+    if (activeDay && els.liftingActiveDayNameInput) {
+      activeDay.name = String(els.liftingActiveDayNameInput.value || activeDay.name || "").trim() || activeDay.name;
+    }
+
+    const rowNodes = Array.from(root.querySelectorAll("#plannerLiftingExerciseList .planner-lifting-exercise-row"));
+    if (activeDay && rowNodes.length) {
+      const liveExercises = rowNodes.map((row) => {
+        const name = String(row.querySelector("strong")?.textContent || "").replace(/\s+/g, " ").trim();
+        const sets = String(
+          row.querySelector("input[data-action='lifting-update-exercise-field'][data-field='sets']")?.value || ""
+        ).trim();
+        const reps = String(
+          row.querySelector("input[data-action='lifting-update-exercise-field'][data-field='reps']")?.value || ""
+        ).trim();
+        const intensity = String(
+          row.querySelector("input[data-action='lifting-update-exercise-field'][data-field='intensity']")?.value || ""
+        ).trim();
+        if (!name) return null;
+        return {
+          id: makeId(),
+          name,
+          sets: sets || "0",
+          reps: reps || "-",
+          intensity: intensity || "-"
+        };
+      }).filter(Boolean);
+      if (liveExercises.length) {
+        activeDay.exercises = liveExercises;
+      }
+    }
+
+    return snapshot;
+  }
+
+  function buildLiftingBasicPrintMarkup() {
+    const title = tr({ en: "Lifting & Conditioning Plan", es: "Plan de Lifting y Conditioning" });
+    const generatedLabel = tr({ en: "Generated", es: "Generado" });
+    const noItemsLabel = tr({ en: "No exercises added.", es: "No hay ejercicios agregados." });
+    const weeksLabel = tr({ en: "Weeks", es: "Semanas" });
+    const purposeLabel = tr({ en: "Purpose", es: "Objetivo" });
+    const benefitsLabel = tr({ en: "Benefits", es: "Beneficios" });
+    const dayLabel = tr({ en: "Day", es: "Dia" });
+    const setsLabel = tr({ en: "Sets", es: "Series" });
+    const repsLabel = tr({ en: "Reps", es: "Reps" });
+    const intensityLabel = tr({ en: "% RM", es: "% RM" });
+    const totalExercisesLabel = tr({ en: "Total exercises", es: "Ejercicios totales" });
+    const totalSetsLabel = tr({ en: "Total sets", es: "Series totales" });
+    const dateRaw = String(els.dateInput?.value || state.docInfo.date || "").trim();
+    const dateLabel = formatDateForPrint(dateRaw || "");
+
+    const plan = captureLiveLiftingPlanSnapshot();
+    const days = Array.isArray(plan.days) ? plan.days.slice(0, 7) : [];
+    const totalExercises = days.reduce((sum, day) => sum + ((Array.isArray(day.exercises) ? day.exercises.length : 0)), 0);
+    const totalSets = days.reduce((sum, day) => {
+      const exercises = Array.isArray(day.exercises) ? day.exercises : [];
+      return sum + exercises.reduce((inner, exercise) => inner + Math.max(0, parseLiftingNumber(exercise.sets, 0)), 0);
+    }, 0);
+
+    const daySections = days.map((day, index) => {
+      const exercises = Array.isArray(day.exercises) ? day.exercises : [];
+      const safeDayName = String(day?.name || "").trim() || `${dayLabel} ${index + 1}`;
+      const rows = exercises.length
+        ? `<ul>${exercises.map((exercise, exerciseIndex) => {
+            const safeName = String(exercise?.name || "").trim() || `${tr({ en: "Exercise", es: "Ejercicio" })} ${exerciseIndex + 1}`;
+            const sets = String(exercise?.sets || "").trim() || "0";
+            const reps = String(exercise?.reps || "").trim() || "-";
+            const intensity = String(exercise?.intensity || "").trim() || "-";
+            return `<li><strong>${escapePrintHtml(safeName)}</strong> • ${escapePrintHtml(setsLabel)}: ${escapePrintHtml(sets)} • ${escapePrintHtml(repsLabel)}: ${escapePrintHtml(reps)} • ${escapePrintHtml(intensityLabel)}: ${escapePrintHtml(intensity)}</li>`;
+          }).join("")}</ul>`
+        : `<p class="muted">${escapePrintHtml(noItemsLabel)}</p>`;
+      return `
+        <section class="section">
+          <div class="section-head">
+            <h2>${index + 1}. ${escapePrintHtml(safeDayName)}</h2>
+            <span>${exercises.length}</span>
+          </div>
+          ${rows}
+        </section>
+      `;
+    }).join("");
+
+    return `
+      <header>
+        <h1>${escapePrintHtml(title)}</h1>
+        <p>${escapePrintHtml(dateLabel || "--")}</p>
+      </header>
+      <section class="meta">
+        <div><strong>${escapePrintHtml(tr({ en: "Plan", es: "Plan" }))}:</strong> ${escapePrintHtml(plan.name || "-")}</div>
+        <div><strong>${escapePrintHtml(weeksLabel)}:</strong> ${escapePrintHtml(plan.weeks || "-")}</div>
+        <div><strong>${escapePrintHtml(purposeLabel)}:</strong> ${escapePrintHtml(plan.purpose || "-")}</div>
+        <div><strong>${escapePrintHtml(benefitsLabel)}:</strong> ${escapePrintHtml(plan.benefits || "-")}</div>
+        <div><strong>${escapePrintHtml(totalExercisesLabel)}:</strong> ${escapePrintHtml(String(totalExercises))}</div>
+        <div><strong>${escapePrintHtml(totalSetsLabel)}:</strong> ${escapePrintHtml(String(Math.round(totalSets)))}</div>
+        <div><strong>${escapePrintHtml(generatedLabel)}:</strong> ${escapePrintHtml(new Date().toLocaleString())}</div>
+      </section>
+      ${daySections || `<p class="muted">${escapePrintHtml(noItemsLabel)}</p>`}
+    `;
+  }
+
+  function isLikelyMobilePrintFlow() {
+    const ua = String(window.navigator?.userAgent || "").toLowerCase();
+    const mobileUa = /iphone|ipad|ipod|android|mobile/.test(ua);
+    const narrowViewport = window.matchMedia?.("(max-width: 900px)")?.matches;
+    return Boolean(mobileUa || narrowViewport);
+  }
+
+  function requestNativePrintIfAvailable(html, title) {
+    const nativeHandler = window.webkit?.messageHandlers?.nativePrint;
+    if (!nativeHandler || typeof nativeHandler.postMessage !== "function") return false;
+    try {
+      nativeHandler.postMessage({
+        html: String(html || ""),
+        title: String(title || "")
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function ensureInlinePrintHost() {
+    let host = document.getElementById("plannerBasicPrintHost");
+    if (!host) {
+      host = document.createElement("div");
+      host.id = "plannerBasicPrintHost";
+      host.setAttribute("aria-hidden", "true");
+      document.body.appendChild(host);
+    }
+    return host;
+  }
+
+  function clearInlinePrintMode() {
+    document.body.removeAttribute("data-basic-print");
+    const host = document.getElementById("plannerBasicPrintHost");
+    if (host) {
+      host.innerHTML = "";
+      host.setAttribute("aria-hidden", "true");
+    }
+  }
+
+  function printInlineBasicDocument(bodyMarkup, documentTitle) {
+    const host = ensureInlinePrintHost();
+    host.innerHTML = `
+      <article class="planner-basic-print-paper">
+        <h1 class="planner-basic-print-doc-title">${escapePrintHtml(documentTitle)}</h1>
+        ${bodyMarkup}
+      </article>
+    `;
+    host.setAttribute("aria-hidden", "false");
+    document.body.setAttribute("data-basic-print", "true");
+    try {
+      // Keep print call inside the same user gesture turn for iOS Safari/WebView reliability.
+      void host.offsetHeight;
+      window.print();
+    } catch {
+      clearInlinePrintMode();
+    }
+    return true;
+  }
+
+  function openBasicPrintWindow(track = "wrestling") {
+    const safeTrack = normalizeTrack(track);
+    const bodyMarkup = safeTrack === "lifting"
+      ? buildLiftingBasicPrintMarkup()
+      : buildWrestlingBasicPrintMarkup();
+    const documentTitle = safeTrack === "lifting"
+      ? tr({ en: "Lifting Plan - Print", es: "Plan Lifting - Imprimir" })
+      : tr({ en: "Wrestling Plan - Print", es: "Plan de Lucha - Imprimir" });
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>${escapePrintHtml(documentTitle)}</title>
+          <style>
+            @page { margin: 10mm; size: auto; }
+            html, body { margin: 0; padding: 0; background: #fff; color: #111; font-family: Arial, Helvetica, sans-serif; font-size: 12px; line-height: 1.35; }
+            body { padding: 8px; -webkit-print-color-adjust: economy; print-color-adjust: economy; }
+            header { border-bottom: 1px solid #111; padding-bottom: 6px; margin-bottom: 8px; }
+            h1 { margin: 0; font-size: 18px; }
+            h2 { margin: 0; font-size: 14px; }
+            p { margin: 4px 0; }
+            .meta { border: 1px solid #111; padding: 6px; margin-bottom: 8px; display: grid; gap: 2px; }
+            .section { border: 1px solid #111; padding: 6px; margin-bottom: 8px; break-inside: avoid; page-break-inside: avoid; }
+            .section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+            ul { margin: 0; padding-left: 18px; }
+            li { margin: 0 0 2px 0; }
+            .muted { color: #444; font-style: italic; }
+          </style>
+        </head>
+        <body>${bodyMarkup}</body>
+      </html>
+    `;
+
+    if (requestNativePrintIfAvailable(html, documentTitle)) {
+      return true;
+    }
+
+    if (isLikelyMobilePrintFlow()) {
+      return printInlineBasicDocument(bodyMarkup, documentTitle);
+    }
+
+    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=980,height=1200");
+    if (!printWindow) {
+      triggerToast(tr({ en: "Popup blocked. Allow popups to print.", es: "Popup bloqueado. Permite popups para imprimir." }));
+      return printInlineBasicDocument(bodyMarkup, documentTitle);
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    window.setTimeout(() => {
+      try {
+        printWindow.print();
+      } catch {
+        window.print();
+      }
+    }, 180);
+    return true;
   }
 
   function setTotalTime(nextValue) {
@@ -6579,7 +6899,11 @@
       });
     });
 
-    els.liftingPrintBtn?.addEventListener("click", () => window.print());
+    els.liftingPrintBtn?.addEventListener("click", () => {
+      if (!openBasicPrintWindow("lifting")) {
+        window.print();
+      }
+    });
     els.liftingSaveProtocolBtn?.addEventListener("click", () => {
       saveLiftingProtocol().catch(() => {});
     });
@@ -6600,7 +6924,11 @@
       addLiftingExerciseToLibrary();
     });
 
-    els.printBtn?.addEventListener("click", () => window.print());
+    els.printBtn?.addEventListener("click", () => {
+      if (!openBasicPrintWindow("wrestling")) {
+        window.print();
+      }
+    });
 
     els.totalTimeDownBtn?.addEventListener("click", () => {
       const current = normalizeTotalTime(state.docInfo.totalTime);
@@ -6698,6 +7026,9 @@
       window.addEventListener("beforeprint", () => {
         updatePrintMetaValues();
         renderRows();
+      });
+      window.addEventListener("afterprint", () => {
+        clearInlinePrintMode();
       });
       window.addEventListener("wpl:view-changed", () => {
         applyPlannerAccessMode();

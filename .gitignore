@@ -5,3 +5,7 @@ firebase-config.js
 .firebase/
 .vscode/
 .security-backups/
+
+# Xcode user state
+*.xcuserstate
+xcuserdata/

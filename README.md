@@ -48,10 +48,29 @@ This project uses Firebase as the only security and identity layer:
 
 - Firebase Auth for sign-in and credential handling.
 - Firestore/Storage rules for access control.
-- Cloud Functions for trusted server-side actions.
-- Cloud Function secrets (`firebase functions:secrets:set ...`) for private API keys.
+- Client app + Firestore rules as the default trusted path (Spark-compatible).
 
 No local backend auth/storage API is required.
+
+## Spark-safe deploy flow (no Functions)
+
+Use the scripts in `/Users/jaimeespinalpr/Documents/wrestling-coaching-experience/scripts`:
+
+```bash
+./scripts/check-spark-ready.sh
+./scripts/deploy-spark.sh
+```
+
+Optional:
+
+- Deploy to a specific project:
+  ```bash
+  ./scripts/deploy-spark.sh wrestling-app-dev
+  ```
+- Try Storage rules too (if a bucket exists):
+  ```bash
+  DEPLOY_STORAGE_RULES=1 ./scripts/deploy-spark.sh
+  ```
 
 ## Firebase Auth onboarding
 
@@ -101,20 +120,12 @@ Notes:
 - Social apps differ in web share APIs. Facebook supports direct URL share links; Instagram/TikTok/YouTube flows open their upload/app entry and the app can copy the media URL for paste.
 - Message media upload is optimized for mobile performance (lite video preview on smaller/low-memory devices).
 
-## Registration email alerts
+## Invite email behavior (Spark-compatible)
 
-New registrations can trigger an email alert to `jaimeespinalpr@gmail.com` through a Firebase Cloud Function.
-
-1. Create a Resend API key.
-2. Set the function secret:
-   ```bash
-   firebase functions:secrets:set RESEND_API_KEY
-   ```
-3. Deploy the function:
-   ```bash
-   firebase deploy --only functions
-   ```
-
-Notes:
-- The function listens for new documents in the `users` collection.
-- The current implementation uses `WPL Alerts <onboarding@resend.dev>` as the sender. For setup/testing, Resend allows that sender when you are sending to your own inbox. If you want production delivery beyond that, switch to a verified sender/domain in `/Users/jaimeespinalpr/Documents/wrestling-coaching-experience/functions/index.js`.
+- Default behavior is client-side and does not require Cloud Functions:
+  - Coach taps Invite Athlete.
+  - App opens device mail composer (`mailto:`) with a prefilled invite.
+  - App URL is included automatically.
+- Optional server endpoint:
+  - If you explicitly set `window.WPL_INVITE_EMAIL_ENDPOINT`, the app will attempt direct API delivery first.
+  - If it fails, it automatically falls back to `mailto:`.

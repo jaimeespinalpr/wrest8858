@@ -20,6 +20,10 @@ const SHARED_COLLECTION = "shared_app";
 const SHARED_USER_DIRECTORY_DOC = "global_user_directory";
 const SHARED_USER_DIRECTORY_ITEMS = "items";
 const COACH_WORKSPACES_COLLECTION = "coach_workspaces";
+const ASSIGNMENTS_COLLECTION = "assignments";
+const ASSIGNMENT_INSTANCES_COLLECTION = "assignment_instances";
+const ASSIGNMENT_EVENTS_COLLECTION = "assignment_events";
+const NOTIFICATIONS_COLLECTION = "notifications";
 const SYSTEM_GROUP_DEFS = [
   { id: "all-registered-athletes", name: "All Registered Athletes" },
   { id: "varsity", name: "Varsity" },
@@ -98,6 +102,207 @@ function normalizeRole(value) {
   const role = normalizeText(value).toLowerCase();
   if (role === "coach" || role === "parent" || role === "admin") return role;
   return "athlete";
+}
+
+function normalizeDateIso(value) {
+  if (!value) return "";
+  if (typeof value?.toDate === "function") {
+    try {
+      return value.toDate().toISOString();
+    } catch {
+      return "";
+    }
+  }
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  if (typeof value === "string") return value;
+  return "";
+}
+
+function normalizeArray(values = []) {
+  return uniqueStrings(values);
+}
+
+function normalizeAssignmentStatus(value) {
+  const raw = normalizeText(value).toLowerCase();
+  if (raw === "in_progress" || raw === "in-progress" || raw === "progress" || raw === "review") {
+    return "in_progress";
+  }
+  if (raw === "completed" || raw === "complete") {
+    return "completed";
+  }
+  if (raw === "overdue") return "overdue";
+  if (raw === "shared" || raw === "share" || raw === "shared_with_coach") return "shared";
+  return "not_started";
+}
+
+function buildNotificationId(eventId = "", recipientUid = "", kind = "") {
+  const safeEvent = slugifyKey(eventId) || "event";
+  const safeRecipient = slugifyKey(recipientUid) || "user";
+  const safeKind = slugifyKey(kind) || "notification";
+  return `${safeKind}-${safeRecipient}-${safeEvent}`;
+}
+
+function getAssignmentAudienceFromData(data = {}) {
+  const assigneeType = normalizeText(data.assigneeType).toLowerCase() || "athlete";
+  const assigneeId = normalizeText(data.assigneeId || "");
+  const assigneeName = normalizeText(data.assigneeName || "");
+  const athleteUids = normalizeArray(data.athleteUids || []);
+  const athleteIds = normalizeArray(data.athleteIds || []);
+  return {
+    assigneeType,
+    assigneeId,
+    assigneeName,
+    athleteUids,
+    athleteIds
+  };
+}
+
+async function getLinkedParentRecipients({
+  coachUid = "",
+  athleteUids = [],
+  athleteIds = []
+} = {}) {
+  const safeCoachUid = normalizeText(coachUid);
+  if (!safeCoachUid) return [];
+  const parentSnap = await firestore
+    .collection(USERS_COLLECTION)
+    .where("role", "==", "parent")
+    .where("linkedCoachUid", "==", safeCoachUid)
+    .where("status", "==", "verified")
+    .get();
+
+  const uidSet = new Set(normalizeArray(athleteUids));
+  const idSet = new Set(normalizeArray(athleteIds));
+  const recipients = [];
+  parentSnap.docs.forEach((doc) => {
+    const data = doc.data() || {};
+    const linkedAthleteUid = normalizeText(data.linkedAthleteUid || "");
+    const linkedAthleteId = normalizeText(data.linkedAthleteId || "");
+    if (
+      (linkedAthleteUid && uidSet.has(linkedAthleteUid))
+      || (linkedAthleteId && idSet.has(linkedAthleteId))
+    ) {
+      recipients.push({
+        uid: normalizeText(doc.id),
+        name: normalizeText(data.name || data.email || "Parent"),
+        role: "parent"
+      });
+    }
+  });
+  return recipients;
+}
+
+async function getAthleteRecipientsForAudience({
+  coachUid = "",
+  athleteUids = [],
+  athleteIds = []
+} = {}) {
+  const safeCoachUid = normalizeText(coachUid);
+  const recipientMap = new Map();
+  normalizeArray(athleteUids).forEach((uid) => {
+    if (!uid) return;
+    recipientMap.set(uid, {
+      uid,
+      role: "athlete"
+    });
+  });
+
+  const safeAthleteIds = normalizeArray(athleteIds);
+  if (!safeCoachUid || !safeAthleteIds.length) {
+    return Array.from(recipientMap.values());
+  }
+
+  for (let index = 0; index < safeAthleteIds.length; index += 10) {
+    const chunk = safeAthleteIds.slice(index, index + 10);
+    if (!chunk.length) continue;
+    const idSet = new Set(chunk);
+    const snap = await firestore
+      .collection(USERS_COLLECTION)
+      .where("linkedCoachUid", "==", safeCoachUid)
+      .get()
+      .catch(() => null);
+    if (!snap) continue;
+    snap.docs.forEach((doc) => {
+      const data = doc.data() || {};
+      if (normalizeRole(data.role) !== "athlete") return;
+      const linkedAthleteId = normalizeText(data.linkedAthleteId || "");
+      if (!linkedAthleteId || !idSet.has(linkedAthleteId)) return;
+      const safeUid = normalizeText(doc.id);
+      if (!safeUid) return;
+      recipientMap.set(safeUid, {
+        uid: safeUid,
+        role: "athlete"
+      });
+    });
+  }
+  return Array.from(recipientMap.values());
+}
+
+async function writeAssignmentEvent({
+  coachUid = "",
+  eventId = "",
+  assignmentId = "",
+  planId = "",
+  type = "",
+  prevStatus = "",
+  nextStatus = "",
+  actorUid = "",
+  actorName = ""
+} = {}) {
+  const workspaceRef = firestore.collection(COACH_WORKSPACES_COLLECTION).doc(coachUid);
+  const eventsRef = workspaceRef.collection(ASSIGNMENT_EVENTS_COLLECTION).doc(normalizeText(eventId || `${assignmentId}-${type}`));
+  await eventsRef.set({
+    eventId: normalizeText(eventId || ""),
+    assignmentId: normalizeText(assignmentId),
+    planId: normalizeText(planId),
+    type: normalizeText(type),
+    prevStatus: normalizeText(prevStatus),
+    nextStatus: normalizeText(nextStatus),
+    actorUid: normalizeText(actorUid),
+    actorName: normalizeText(actorName),
+    createdAtIso: new Date().toISOString(),
+    createdAt: FieldValue.serverTimestamp()
+  }, { merge: true });
+}
+
+async function writeWorkspaceNotification({
+  coachUid = "",
+  eventId = "",
+  kind = "",
+  recipientUid = "",
+  recipientRole = "",
+  assignmentId = "",
+  planId = "",
+  title = "",
+  body = "",
+  actorUid = "",
+  actorName = "",
+  dueDateKey = ""
+} = {}) {
+  const safeCoachUid = normalizeText(coachUid);
+  const safeRecipientUid = normalizeText(recipientUid);
+  if (!safeCoachUid || !safeRecipientUid) return;
+  const notificationId = buildNotificationId(eventId, safeRecipientUid, kind);
+  const workspaceRef = firestore.collection(COACH_WORKSPACES_COLLECTION).doc(safeCoachUid);
+  await workspaceRef.collection(NOTIFICATIONS_COLLECTION).doc(notificationId).set({
+    id: notificationId,
+    kind: normalizeText(kind),
+    recipientUids: [safeRecipientUid],
+    recipientRoles: [normalizeText(recipientRole)],
+    readByUids: [],
+    assignmentId: normalizeText(assignmentId),
+    planId: normalizeText(planId),
+    dueDateKey: normalizeText(dueDateKey),
+    title: normalizeText(title),
+    body: normalizeText(body),
+    actorUid: normalizeText(actorUid),
+    actorName: normalizeText(actorName),
+    createdAtIso: new Date().toISOString(),
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp()
+  }, { merge: true });
 }
 
 function isValidEmail(value) {
@@ -676,5 +881,176 @@ exports.syncRegistrationGroups = onDocumentWritten({
       message: err?.message || String(err)
     });
     throw err;
+  }
+});
+
+exports.syncAssignmentLifecycle = onDocumentWritten({
+  document: `${COACH_WORKSPACES_COLLECTION}/{coachUid}/${ASSIGNMENTS_COLLECTION}/{assignmentId}`,
+  region: "us-central1"
+}, async (event) => {
+  const coachUid = normalizeText(event.params.coachUid || "");
+  const assignmentId = normalizeText(event.params.assignmentId || "");
+  if (!coachUid || !assignmentId) return;
+
+  const beforeSnap = event.data?.before || null;
+  const afterSnap = event.data?.after || null;
+  const beforeExists = Boolean(beforeSnap?.exists);
+  const afterExists = Boolean(afterSnap?.exists);
+  const beforeData = beforeExists ? (beforeSnap.data() || {}) : {};
+  const afterData = afterExists ? (afterSnap.data() || {}) : {};
+  const workspaceRef = firestore.collection(COACH_WORKSPACES_COLLECTION).doc(coachUid);
+
+  if (!afterExists) {
+    await workspaceRef.collection(ASSIGNMENT_INSTANCES_COLLECTION).doc(assignmentId).delete().catch(() => {});
+    await writeAssignmentEvent({
+      coachUid,
+      eventId: event.id,
+      assignmentId,
+      planId: normalizeText(beforeData.planId || ""),
+      type: "deleted",
+      prevStatus: normalizeAssignmentStatus(beforeData.status),
+      nextStatus: "",
+      actorUid: normalizeText(beforeData.athleteLogUid || ""),
+      actorName: normalizeText(beforeData.athleteLogName || "")
+    });
+    return;
+  }
+
+  const status = normalizeAssignmentStatus(afterData.status);
+  const prevStatus = normalizeAssignmentStatus(beforeData.status);
+  const audience = getAssignmentAudienceFromData(afterData);
+  const actorUid = normalizeText(afterData.athleteLogUid || afterData.updatedByUid || afterData.authorUid || "");
+  const actorName = normalizeText(afterData.athleteLogName || afterData.updatedByName || afterData.authorName || "");
+  const createdAtIso = normalizeDateIso(afterData.createdAt) || new Date().toISOString();
+  const updatedAtIso = normalizeDateIso(afterData.updatedAt) || new Date().toISOString();
+
+  const instancePayload = {
+    assignmentId,
+    planId: normalizeText(afterData.planId || ""),
+    title: normalizeText(afterData.title || ""),
+    type: normalizeText(afterData.type || ""),
+    status,
+    assigneeType: audience.assigneeType,
+    assigneeId: audience.assigneeId,
+    assigneeName: audience.assigneeName,
+    athleteUids: audience.athleteUids,
+    athleteIds: audience.athleteIds,
+    startDateKey: normalizeText(afterData.startDateKey || ""),
+    endDateKey: normalizeText(afterData.endDateKey || ""),
+    dueDateKey: normalizeText(afterData.dueDateKey || ""),
+    dueLabel: normalizeText(afterData.dueLabel || ""),
+    note: normalizeText(afterData.note || ""),
+    source: normalizeText(afterData.source || ""),
+    trainingTrack: normalizeText(afterData.trainingTrack || ""),
+    mediaAssetId: normalizeText(afterData.mediaAssetId || ""),
+    mediaId: normalizeText(afterData.mediaId || ""),
+    mediaAssetPath: normalizeText(afterData.mediaAssetPath || ""),
+    mediaAssetStoragePath: normalizeText(afterData.mediaAssetStoragePath || ""),
+    mediaThumbnailPath: normalizeText(afterData.mediaThumbnailPath || ""),
+    mediaThumbnailStoragePath: normalizeText(afterData.mediaThumbnailStoragePath || ""),
+    completionResultType: normalizeText(afterData.completionResultType || ""),
+    completionResultScore: Number.isFinite(Number(afterData.completionResultScore))
+      ? Number(afterData.completionResultScore)
+      : null,
+    completionResultReactionMs: Number.isFinite(Number(afterData.completionResultReactionMs))
+      ? Number(afterData.completionResultReactionMs)
+      : null,
+    completionResultAccuracy: Number.isFinite(Number(afterData.completionResultAccuracy))
+      ? Number(afterData.completionResultAccuracy)
+      : null,
+    actorUid,
+    actorName,
+    createdAtIso,
+    updatedAtIso,
+    syncedAt: FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp()
+  };
+  if (beforeExists) {
+    delete instancePayload.createdAt;
+  }
+  await workspaceRef.collection(ASSIGNMENT_INSTANCES_COLLECTION).doc(assignmentId).set(instancePayload, { merge: true });
+
+  const eventType = !beforeExists
+    ? "created"
+    : (status !== prevStatus ? "status_changed" : "updated");
+  await writeAssignmentEvent({
+    coachUid,
+    eventId: event.id,
+    assignmentId,
+    planId: normalizeText(afterData.planId || ""),
+    type: eventType,
+    prevStatus,
+    nextStatus: status,
+    actorUid,
+    actorName
+  });
+
+  if (!beforeExists) {
+    const assignmentTitle = normalizeText(afterData.title || "Assignment");
+    const dueDateKey = normalizeText(afterData.dueDateKey || "");
+    const athleteRecipients = await getAthleteRecipientsForAudience({
+      coachUid,
+      athleteUids: audience.athleteUids,
+      athleteIds: audience.athleteIds
+    });
+    for (const athlete of athleteRecipients) {
+      const athleteUid = normalizeText(athlete.uid);
+      if (!athleteUid) continue;
+      await writeWorkspaceNotification({
+        coachUid,
+        eventId: `${event.id}-athlete-${athleteUid}`,
+        kind: "assignment_assigned",
+        recipientUid: athleteUid,
+        recipientRole: athlete.role || "athlete",
+        assignmentId,
+        planId: normalizeText(afterData.planId || ""),
+        title: assignmentTitle,
+        body: dueDateKey
+          ? `New assignment scheduled for ${dueDateKey}.`
+          : "New assignment scheduled.",
+        actorUid: coachUid,
+        actorName: normalizeText(afterData.createdBy || "")
+      });
+    }
+
+    const linkedParents = await getLinkedParentRecipients({
+      coachUid,
+      athleteUids: athleteRecipients.map((entry) => entry.uid),
+      athleteIds: audience.athleteIds
+    });
+    for (const parent of linkedParents) {
+      await writeWorkspaceNotification({
+        coachUid,
+        eventId: `${event.id}-parent-${parent.uid}`,
+        kind: "assignment_assigned_parent",
+        recipientUid: parent.uid,
+        recipientRole: "parent",
+        assignmentId,
+        planId: normalizeText(afterData.planId || ""),
+        title: assignmentTitle,
+        body: dueDateKey
+          ? `New athlete assignment scheduled for ${dueDateKey}.`
+          : "New athlete assignment scheduled.",
+        actorUid: coachUid,
+        actorName: normalizeText(afterData.createdBy || "")
+      });
+    }
+  }
+
+  if (status === "completed" && prevStatus !== "completed") {
+    await writeWorkspaceNotification({
+      coachUid,
+      eventId: `${event.id}-coach-completed`,
+      kind: "assignment_completed",
+      recipientUid: coachUid,
+      recipientRole: "coach",
+      assignmentId,
+      planId: normalizeText(afterData.planId || ""),
+      title: normalizeText(afterData.title || "Assignment completed"),
+      body: normalizeText(afterData.completionResultSummary || "An athlete completed this assignment."),
+      actorUid,
+      actorName
+    });
   }
 });

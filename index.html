@@ -941,6 +941,42 @@
             <h2>Competition Summary Preview</h2>
             <div class="chip">Coach view</div>
           </div>
+          <div class="competition-shared-layout">
+            <aside class="mini-card competition-athlete-list-card hidden" id="competitionAthleteListCard">
+              <h3 id="competitionAthleteListTitle">Athletes</h3>
+              <p class="small muted" id="competitionAthleteListHint">Pick an athlete to load competition summary.</p>
+              <div class="competition-athlete-quick-nav">
+                <button type="button" class="ghost" id="competitionAthletePrevBtn">Previous</button>
+                <select id="competitionAthleteQuickSelect"></select>
+                <button type="button" class="ghost" id="competitionAthleteNextBtn">Next</button>
+              </div>
+              <div class="competition-athlete-quick-add">
+                <button type="button" class="primary" id="competitionAthleteAddToEventBtn">Add to selected competition</button>
+                <span class="small muted" id="competitionAthleteQuickStatus"></span>
+              </div>
+              <div class="competition-athlete-list" id="competitionAthleteList"></div>
+            </aside>
+            <section class="mini-card competition-shared-editor-card" id="competitionSharedEditorCard">
+              <h3 id="competitionSharedEditorTitle">Competition Focus Summary</h3>
+              <p class="small muted" id="competitionSharedEditorHint">Editable by athlete and coach. Keep this concise and actionable.</p>
+              <label>
+                <span id="competitionSummaryProfileLabel">Profile Snapshot</span>
+                <textarea id="competitionSummaryProfileInput" rows="3" placeholder="Style, weight class, key strengths, current readiness"></textarea>
+              </label>
+              <label>
+                <span id="competitionSummaryWorkOnsLabel">What They Are Working On</span>
+                <textarea id="competitionSummaryWorkOnsInput" rows="3" placeholder="2-4 concrete priorities currently being trained"></textarea>
+              </label>
+              <label>
+                <span id="competitionSummaryCuesLabel">Performance Cues</span>
+                <textarea id="competitionSummaryCuesInput" rows="3" placeholder="Short corner cues and reset triggers"></textarea>
+              </label>
+              <div class="form-actions">
+                <button type="button" class="primary" id="competitionSummarySaveBtn">Save competition summary</button>
+                <span class="small muted" id="competitionSummaryStatus"></span>
+              </div>
+            </section>
+          </div>
           <div class="competition-manager" id="competitionManager">
             <div class="mini-card competition-current-card" id="competitionCurrentCard"></div>
             <div class="competition-timeline-grid">
@@ -1359,6 +1395,10 @@
             <div class="onepager-grid">
               <div class="mini-card" id="summarySafetyBoard"></div>
               <div class="mini-card" id="summaryMentalBoard"></div>
+            </div>
+            <div class="onepager-grid">
+              <div class="mini-card" id="summaryCompetitionFocusBoard"></div>
+              <div class="mini-card" id="summaryCornerScriptBoard"></div>
             </div>
             <div class="quick-actions">
               <button type="button" id="messageAthleteBtn">Message Athlete</button>
@@ -2407,7 +2447,7 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260405-qa16"></script>
-  <script src="coach-planner.js?v=20260405-qa16"></script>
+  <script src="app.js?v=20260405-qa14"></script>
+  <script src="coach-planner.js?v=20260405-qa14"></script>
 </body>
 </html>
