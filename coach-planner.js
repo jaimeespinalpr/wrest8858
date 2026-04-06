@@ -11,6 +11,8 @@
     { id: "cool_down", name: "Cool Down Closing and Visualization" },
     { id: "announcements", name: "Announcements" }
   ];
+  const BASE_WRESTLING_CATEGORIES = CATEGORIES.map((category) => ({ ...category }));
+  const SHARED_WRESTLING_PLANNER_DOC_ID = "uwc_wrestling_planner_catalog";
 
   const CATEGORY_NAME_TRANSLATIONS = {
     roll_call: { en: "Roll Call and Announcements", es: "Lista y anuncios" },
@@ -21,6 +23,64 @@
     cool_down: { en: "Cool Down Closing and Visualization", es: "Vuelta a la calma, cierre y visualizacion" },
     announcements: { en: "Announcements", es: "Anuncios" }
   };
+
+  let runtimeWrestlingCategories = BASE_WRESTLING_CATEGORIES.map((category) => ({ ...category }));
+
+  function slugifyPlannerCategoryId(value) {
+    const raw = String(value || "").trim().toLowerCase();
+    if (!raw) return "";
+    return raw
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 42);
+  }
+
+  function makeUniquePlannerCategoryId(seed, used = new Set()) {
+    const base = slugifyPlannerCategoryId(seed) || "section";
+    let next = base;
+    let suffix = 2;
+    while (used.has(next)) {
+      next = `${base}_${suffix}`;
+      suffix += 1;
+    }
+    return next;
+  }
+
+  function normalizePlannerCategoryCollection(value = []) {
+    const source = Array.isArray(value) ? value : [];
+    const used = new Set();
+    const normalized = [];
+    source.forEach((entry, index) => {
+      const safeEntry = entry && typeof entry === "object" ? entry : {};
+      const fallbackName = String(BASE_WRESTLING_CATEGORIES[index]?.name || "").trim() || `Section ${index + 1}`;
+      const name = String(safeEntry.name || safeEntry.label || fallbackName).trim() || fallbackName;
+      const seed = String(safeEntry.id || name || `section_${index + 1}`).trim();
+      const id = makeUniquePlannerCategoryId(seed, used);
+      used.add(id);
+      normalized.push({ id, name });
+    });
+    if (normalized.length) return normalized;
+    return BASE_WRESTLING_CATEGORIES.map((category) => ({ ...category }));
+  }
+
+  function mergePlannerCategoryCollections(...sources) {
+    const merged = [];
+    const seenIds = new Set();
+    sources.forEach((source) => {
+      const rawList = Array.isArray(source) ? source : [];
+      if (!rawList.length) return;
+      normalizePlannerCategoryCollection(rawList).forEach((category) => {
+        const id = String(category?.id || "").trim();
+        if (!id || seenIds.has(id)) return;
+        seenIds.add(id);
+        merged.push({
+          id,
+          name: String(category?.name || "").trim() || id
+        });
+      });
+    });
+    return normalizePlannerCategoryCollection(merged);
+  }
 
   const INITIAL_LIBRARY = [
     { id: "1", name: "Jogging & Dynamic Stretching", categoryId: "warm_up" },
@@ -135,6 +195,7 @@
       cueEs: "Lee la regla antes de tocar."
     }
   };
+  const GLOBAL_MENTAL_LEADERBOARD_LIMIT = 10;
 
   const MENTAL_COLORS = [
     { key: "red", name: "Red", nameEs: "Rojo" },
@@ -363,6 +424,7 @@
     library: "archmere_exercise_library",
     daily: "planner_daily_state",
     categoryNames: "planner_category_names",
+    categories: "planner_wrestling_categories",
     track: "planner_active_track",
     liftingDraft: "planner_lifting_draft",
     mentalDraft: "planner_mental_draft",
@@ -433,8 +495,22 @@
     return copy;
   }
 
+  function getPlannerCategories() {
+    if (state && Array.isArray(state.wrestlingCategories) && state.wrestlingCategories.length) {
+      return state.wrestlingCategories;
+    }
+    if (Array.isArray(runtimeWrestlingCategories) && runtimeWrestlingCategories.length) {
+      return runtimeWrestlingCategories;
+    }
+    return BASE_WRESTLING_CATEGORIES;
+  }
+
+  function getFirstPlannerCategoryId() {
+    return getPlannerCategories()[0]?.id || BASE_WRESTLING_CATEGORIES[0]?.id || "section";
+  }
+
   function getDefaultCategoryNames() {
-    return CATEGORIES.reduce((acc, category) => {
+    return getPlannerCategories().reduce((acc, category) => {
       const localized = CATEGORY_NAME_TRANSLATIONS[category.id] || { en: category.name, es: category.name };
       acc[category.id] = getPlannerLang() === "es" ? localized.es : localized.en;
       return acc;
@@ -444,7 +520,7 @@
   function syncCategoryNamesForLanguage() {
     const lang = getPlannerLang();
     let changed = false;
-    CATEGORIES.forEach((category) => {
+    getPlannerCategories().forEach((category) => {
       const localized = CATEGORY_NAME_TRANSLATIONS[category.id] || { en: category.name, es: category.name };
       const target = lang === "es" ? localized.es : localized.en;
       const current = String(state.categoryNames?.[category.id] || "").trim();
@@ -460,15 +536,20 @@
 
   function normalizeCategoryId(value) {
     const raw = String(value || "").trim();
-    return CATEGORIES.some((category) => category.id === raw) ? raw : CATEGORIES[0].id;
+    return getPlannerCategories().some((category) => category.id === raw) ? raw : getFirstPlannerCategoryId();
   }
 
-  function normalizeLibraryEntries(entries = []) {
+  function normalizeLibraryEntries(entries = [], { dropUnknownCategory = false, categories = null } = {}) {
     if (!Array.isArray(entries)) return [];
+    const baseCategories = Array.isArray(categories) && categories.length ? categories : getPlannerCategories();
+    const validIds = new Set(baseCategories.map((category) => category.id));
+    const fallbackCategoryId = baseCategories[0]?.id || getFirstPlannerCategoryId();
     return entries
       .map((entry) => {
         const name = String(entry?.name || "").trim();
-        const categoryId = normalizeCategoryId(entry?.categoryId);
+        const rawCategoryId = String(entry?.categoryId || "").trim();
+        if (dropUnknownCategory && rawCategoryId && !validIds.has(rawCategoryId)) return null;
+        const categoryId = validIds.has(rawCategoryId) ? rawCategoryId : fallbackCategoryId;
         if (!name) return null;
         return {
           id: String(entry?.id || makeId()),
@@ -477,6 +558,68 @@
         };
       })
       .filter(Boolean);
+  }
+
+  function mergePlannerLibraryEntries(...sources) {
+    const merged = [];
+    const seen = new Set();
+    sources.forEach((source) => {
+      normalizeLibraryEntries(source || []).forEach((entry) => {
+        const key = `${entry.categoryId}::${String(entry.name || "").trim().toLowerCase()}`;
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        merged.push({
+          id: String(entry.id || makeId()),
+          name: String(entry.name || "").trim(),
+          categoryId: normalizeCategoryId(entry.categoryId)
+        });
+      });
+    });
+    return merged;
+  }
+
+  function normalizePlannerScheduleState(value = {}, categories = getPlannerCategories()) {
+    const source = value && typeof value === "object" ? value : {};
+    const next = {};
+    (Array.isArray(categories) ? categories : []).forEach((category) => {
+      const list = Array.isArray(source?.[category.id]) ? source[category.id] : [];
+      next[category.id] = list
+        .map((item) => {
+          if (typeof item === "string") {
+            const name = item.trim();
+            return name ? { id: makeId(), name } : null;
+          }
+          const name = String(item?.name || "").trim();
+          if (!name) return null;
+          return {
+            id: String(item?.id || makeId()),
+            name
+          };
+        })
+        .filter(Boolean);
+    });
+    return next;
+  }
+
+  function normalizePlannerCategoryTimesState(value = {}, categories = getPlannerCategories()) {
+    const source = value && typeof value === "object" ? value : {};
+    const next = {};
+    (Array.isArray(categories) ? categories : []).forEach((category) => {
+      const raw = String(source?.[category.id] ?? "").trim();
+      next[category.id] = raw || INITIAL_TIMES[category.id] || "0";
+    });
+    return next;
+  }
+
+  function normalizePlannerCategoryNamesState(value = {}, categories = getPlannerCategories()) {
+    const source = value && typeof value === "object" ? value : {};
+    const next = {};
+    (Array.isArray(categories) ? categories : []).forEach((category) => {
+      const localized = CATEGORY_NAME_TRANSLATIONS[category.id] || { en: category.name, es: category.name };
+      const fallback = getPlannerLang() === "es" ? localized.es : localized.en;
+      next[category.id] = String(source?.[category.id] || "").trim() || fallback || category.name || category.id;
+    });
+    return next;
   }
 
   function normalizeLiftingLibraryMap(raw = {}) {
@@ -642,6 +785,11 @@
   })();
 
   const dailyState = readJson(STORAGE_KEYS.daily, {});
+  const persistedWrestlingCategories = normalizePlannerCategoryCollection(
+    readJson(STORAGE_KEYS.categories, runtimeWrestlingCategories)
+  );
+  runtimeWrestlingCategories = persistedWrestlingCategories.map((category) => ({ ...category }));
+  const persistedCategoryNames = readJson(STORAGE_KEYS.categoryNames, {}) || {};
 
   const state = {
     activeTrack: normalizeTrack(readJson(STORAGE_KEYS.track, "wrestling")),
@@ -655,24 +803,27 @@
       ...profilePlannerSettings
     }, { migrateLegacy: true }),
     tempSettings: null,
+    wrestlingCategories: persistedWrestlingCategories,
     categoryNames: {
       ...getDefaultCategoryNames(),
-      ...(readJson(STORAGE_KEYS.categoryNames, {}) || {})
+      ...persistedCategoryNames
     },
     exerciseLibrary: normalizeLibraryEntries(readJson(STORAGE_KEYS.library, INITIAL_LIBRARY)),
-    schedule: dailyState.schedule && typeof dailyState.schedule === "object" ? dailyState.schedule : {},
-    categoryTimes: {
-      ...INITIAL_TIMES,
-      ...(dailyState.categoryTimes && typeof dailyState.categoryTimes === "object" ? dailyState.categoryTimes : {})
-    },
+    schedule: normalizePlannerScheduleState(dailyState.schedule || {}, persistedWrestlingCategories),
+    categoryTimes: normalizePlannerCategoryTimesState(dailyState.categoryTimes || {}, persistedWrestlingCategories),
     coachLibraries: [],
     coachLibrariesStatus: tr({ en: "Loading coach libraries...", es: "Cargando librerias de entrenadores..." }),
     coachLibrariesUnsub: null,
     coachLibrariesReady: false,
     librarySyncTimer: null,
+    plannerCatalogSyncTimer: null,
+    plannerCatalogUnsub: null,
+    plannerCatalogReady: false,
+    plannerCatalogStatus: "",
     settingsSyncTimer: null,
     categoryDrafts: {},
     pendingLibraryFocus: "",
+    pendingCategoryFocus: "",
     templateRecords: [],
     activeTemplateId: "",
     activeTemplateName: "",
@@ -726,14 +877,7 @@
     readOnly: false
   };
 
-  CATEGORIES.forEach((category) => {
-    if (!Array.isArray(state.schedule[category.id])) {
-      state.schedule[category.id] = [];
-    }
-    if (state.categoryTimes[category.id] == null) {
-      state.categoryTimes[category.id] = INITIAL_TIMES[category.id] || "0";
-    }
-  });
+  reconcilePlannerDataForCategories();
 
   const els = {
     headerTitle: document.getElementById("plannerHeaderTitle"),
@@ -757,6 +901,7 @@
     totalTimeUpBtn: document.getElementById("plannerTotalTimeUpBtn"),
     totalTimePrintValue: document.getElementById("plannerTotalTimePrintValue"),
     rows: document.getElementById("plannerRows"),
+    addSectionBtn: document.getElementById("plannerAddSectionBtn"),
     footerClub: document.getElementById("plannerFooterClub"),
     footerCoach: document.getElementById("plannerFooterCoach"),
     footerSeason: document.getElementById("plannerFooterSeason"),
@@ -782,6 +927,7 @@
     libraryCancelBtn: document.getElementById("plannerLibraryCancelBtn"),
     newExerciseNameInput: document.getElementById("plannerNewExerciseNameInput"),
     newExerciseCategorySelect: document.getElementById("plannerNewExerciseCategorySelect"),
+    addCategoryBtn: document.getElementById("plannerAddCategoryBtn"),
     saveLibraryItemBtn: document.getElementById("plannerSaveLibraryItemBtn"),
     libraryGroups: document.getElementById("plannerLibraryGroups"),
     coachLibrariesStatus: document.getElementById("plannerCoachLibrariesStatus"),
@@ -896,15 +1042,42 @@
     writeJson(STORAGE_KEYS.library, state.exerciseLibrary);
   }
 
+  function persistCategories() {
+    runtimeWrestlingCategories = normalizePlannerCategoryCollection(state.wrestlingCategories || []);
+    state.wrestlingCategories = runtimeWrestlingCategories.map((category) => ({ ...category }));
+    writeJson(STORAGE_KEYS.categories, state.wrestlingCategories);
+  }
+
   function persistCategoryNames() {
     writeJson(STORAGE_KEYS.categoryNames, state.categoryNames);
+  }
+
+  function reconcilePlannerDataForCategories({ keepLibraryUnknown = false } = {}) {
+    const categories = normalizePlannerCategoryCollection(state.wrestlingCategories || []);
+    state.wrestlingCategories = categories;
+    runtimeWrestlingCategories = categories.map((category) => ({ ...category }));
+    state.schedule = normalizePlannerScheduleState(state.schedule || {}, categories);
+    state.categoryTimes = normalizePlannerCategoryTimesState(state.categoryTimes || {}, categories);
+    state.categoryNames = normalizePlannerCategoryNamesState(state.categoryNames || {}, categories);
+    state.exerciseLibrary = normalizeLibraryEntries(
+      state.exerciseLibrary || [],
+      { dropUnknownCategory: !keepLibraryUnknown }
+    );
+
+    const validIds = new Set(categories.map((category) => category.id));
+    const nextDrafts = {};
+    Object.entries(state.categoryDrafts || {}).forEach(([categoryId, draftValue]) => {
+      if (!validIds.has(categoryId)) return;
+      nextDrafts[categoryId] = String(draftValue || "");
+    });
+    state.categoryDrafts = nextDrafts;
   }
 
   function getCategoryNameById(categoryId) {
     const fallback = (CATEGORY_NAME_TRANSLATIONS[categoryId] && (getPlannerLang() === "es"
       ? CATEGORY_NAME_TRANSLATIONS[categoryId].es
       : CATEGORY_NAME_TRANSLATIONS[categoryId].en))
-      || CATEGORIES.find((category) => category.id === categoryId)?.name
+      || getPlannerCategories().find((category) => category.id === categoryId)?.name
       || tr({ en: "Category", es: "Categoria" });
     return String(state.categoryNames?.[categoryId] || fallback).trim() || fallback;
   }
@@ -946,7 +1119,7 @@
   }
 
   function getUsedTime() {
-    return CATEGORIES.reduce((total, category) => total + parseTimeValue(state.categoryTimes[category.id]), 0);
+    return getPlannerCategories().reduce((total, category) => total + parseTimeValue(state.categoryTimes[category.id]), 0);
   }
 
   function normalizeTotalTime(rawValue) {
@@ -1235,7 +1408,7 @@
       .map((item) => normalizeMentalLeaderboardEntry(item))
       .filter(Boolean)
       .sort((left, right) => right.bestScore - left.bestScore)
-      .slice(0, 3);
+      .slice(0, GLOBAL_MENTAL_LEADERBOARD_LIMIT);
   }
 
   function upsertLocalMentalLeaderboardEntry(gameKey, entry = {}) {
@@ -1250,7 +1423,7 @@
     nextRows.push(normalized);
     state.mentalLeaderboard[safeKey] = nextRows
       .sort((left, right) => right.bestScore - left.bestScore)
-      .slice(0, 3);
+      .slice(0, GLOBAL_MENTAL_LEADERBOARD_LIMIT);
   }
 
   function renderMentalLeaderboardRows(gameKey) {
@@ -1289,9 +1462,9 @@
         <div class="planner-mental-game-header">
           <div>
             <h4>${escapeHtml(tr({ en: "Global Leaderboard", es: "Leaderboard Global" }))}</h4>
-            <p class="small muted">${escapeHtml(tr({ en: "Top 3 records per game across all users.", es: "Top 3 por juego entre todos los usuarios." }))}</p>
+            <p class="small muted">${escapeHtml(tr({ en: "Top 10 records per game across all users.", es: "Top 10 por juego entre todos los usuarios." }))}</p>
           </div>
-          <span class="planner-mental-game-badge">${escapeHtml(tr({ en: "Top 3", es: "Top 3" }))}</span>
+          <span class="planner-mental-game-badge">${escapeHtml(tr({ en: "Top 10", es: "Top 10" }))}</span>
         </div>
         <p class="small muted planner-mental-leader-status">${escapeHtml(status)}</p>
         <div class="planner-mental-leader-grid">${cards}</div>
@@ -1351,13 +1524,13 @@
       }
       const unsub = entriesRef
         .orderBy("bestScore", "desc")
-        .limit(3)
+        .limit(GLOBAL_MENTAL_LEADERBOARD_LIMIT)
         .onSnapshot((snapshot) => {
           const rows = snapshot.docs
             .map((doc) => normalizeMentalLeaderboardEntry({ id: doc.id, ...(doc.data() || {}) }))
             .filter(Boolean)
             .sort((left, right) => right.bestScore - left.bestScore)
-            .slice(0, 3);
+            .slice(0, GLOBAL_MENTAL_LEADERBOARD_LIMIT);
           state.mentalLeaderboard[gameKey] = rows;
           markLoaded(gameKey);
           const totalRows = gameKeys.reduce((sum, key) => sum + getMentalLeaderboardRows(key).length, 0);
@@ -3516,6 +3689,7 @@
         state.liftingLibraryRetryAttempt = 0;
         clearLiftingRealtimeRetry();
         setupLiftingRealtimeSync();
+        startSharedPlannerCatalogSync({ force: true });
         startPlannerAssignDirectorySync({ force: true });
       });
     } catch {
@@ -3844,7 +4018,9 @@
   }
 
   function getScheduleItemsByCategory(categoryId) {
-    return (state.schedule[normalizeCategoryId(categoryId)] || [])
+    const safeCategoryId = String(categoryId || "").trim();
+    if (!getPlannerCategories().some((category) => category.id === safeCategoryId)) return [];
+    return (state.schedule[safeCategoryId] || [])
       .map((entry) => String(entry?.name || "").trim())
       .filter(Boolean);
   }
@@ -3874,7 +4050,7 @@
 
   function serializePlannerSchedule() {
     const next = {};
-    CATEGORIES.forEach((category) => {
+    getPlannerCategories().forEach((category) => {
       next[category.id] = (state.schedule[category.id] || [])
         .map((entry) => String(entry?.name || "").trim())
         .filter(Boolean);
@@ -3882,9 +4058,9 @@
     return next;
   }
 
-  function normalizeTemplateScheduleValue(value) {
+  function normalizeTemplateScheduleValue(value, categories = getPlannerCategories()) {
     const next = {};
-    CATEGORIES.forEach((category) => {
+    (Array.isArray(categories) ? categories : []).forEach((category) => {
       const list = Array.isArray(value?.[category.id]) ? value[category.id] : [];
       next[category.id] = list
         .map((item) => {
@@ -3910,20 +4086,23 @@
     return normalizeTemplateScheduleValue(categoryLists);
   }
 
-  function normalizeTemplateTimesValue(value) {
-    const base = { ...INITIAL_TIMES };
+  function normalizeTemplateTimesValue(value, categories = getPlannerCategories()) {
+    const base = {};
+    (Array.isArray(categories) ? categories : []).forEach((category) => {
+      base[category.id] = INITIAL_TIMES[category.id] || "0";
+    });
     if (!value || typeof value !== "object") return base;
-    CATEGORIES.forEach((category) => {
+    (Array.isArray(categories) ? categories : []).forEach((category) => {
       const raw = String(value?.[category.id] ?? "").trim();
       if (raw) base[category.id] = raw;
     });
     return base;
   }
 
-  function normalizeTemplateCategoryNamesValue(value) {
-    const base = getDefaultCategoryNames();
+  function normalizeTemplateCategoryNamesValue(value, categories = getPlannerCategories()) {
+    const base = normalizePlannerCategoryNamesState({}, categories);
     if (!value || typeof value !== "object") return base;
-    CATEGORIES.forEach((category) => {
+    (Array.isArray(categories) ? categories : []).forEach((category) => {
       const label = String(value?.[category.id] || "").trim();
       if (label) base[category.id] = label;
     });
@@ -3961,21 +4140,38 @@
     return date.toISOString();
   }
 
+  function normalizeTemplateCategoriesValue(value, fallbackSchedule = {}) {
+    const scheduleSource = fallbackSchedule && typeof fallbackSchedule === "object" ? fallbackSchedule : {};
+    const scheduleKeys = Object.keys(scheduleSource);
+    const fromSchedule = scheduleKeys.map((categoryId) => ({
+      id: categoryId,
+      name: String(state.categoryNames?.[categoryId] || getCategoryNameById(categoryId) || categoryId).trim() || categoryId
+    }));
+    if (!Array.isArray(value) || !value.length) {
+      if (fromSchedule.length) return normalizePlannerCategoryCollection(fromSchedule);
+      return normalizePlannerCategoryCollection(getPlannerCategories());
+    }
+    return normalizePlannerCategoryCollection(value);
+  }
+
   function normalizePlannerTemplateRecord(id, data = {}) {
     const name = String(data?.name || "").trim();
     if (!name) return null;
     const items = normalizeTemplateItemsValue(data?.items || {});
-    const schedule = data?.plannerSchedule && typeof data.plannerSchedule === "object"
-      ? normalizeTemplateScheduleValue(data.plannerSchedule)
+    const rawSchedule = data?.plannerSchedule && typeof data.plannerSchedule === "object"
+      ? data.plannerSchedule
       : mapTemplateItemsToSchedule(items);
+    const categories = normalizeTemplateCategoriesValue(data?.plannerCategories || [], rawSchedule);
+    const schedule = normalizeTemplateScheduleValue(rawSchedule, categories);
     return {
       id: String(id || "").trim(),
       name,
       type: String(data?.type || "day").trim(),
+      categories,
       items,
       schedule,
-      categoryTimes: normalizeTemplateTimesValue(data?.plannerCategoryTimes || {}),
-      categoryNames: normalizeTemplateCategoryNamesValue(data?.plannerCategoryNames || {}),
+      categoryTimes: normalizeTemplateTimesValue(data?.plannerCategoryTimes || {}, categories),
+      categoryNames: normalizeTemplateCategoryNamesValue(data?.plannerCategoryNames || {}, categories),
       totalTime: String(data?.plannerTotalTime || "").trim(),
       savedDate: String(data?.plannerDate || "").trim(),
       updatedAt: normalizeTemplateDateValue(data?.updatedAt),
@@ -4079,15 +4275,20 @@
     }
     state.activeTemplateId = template.id;
     state.activeTemplateName = template.name;
-    state.schedule = normalizeTemplateScheduleValue(template.schedule || {});
-    state.categoryTimes = normalizeTemplateTimesValue(template.categoryTimes || {});
-    state.categoryNames = normalizeTemplateCategoryNamesValue(template.categoryNames || {});
+    state.wrestlingCategories = normalizePlannerCategoryCollection(template.categories || getPlannerCategories());
+    state.schedule = normalizeTemplateScheduleValue(template.schedule || {}, state.wrestlingCategories);
+    state.categoryTimes = normalizeTemplateTimesValue(template.categoryTimes || {}, state.wrestlingCategories);
+    state.categoryNames = normalizeTemplateCategoryNamesValue(template.categoryNames || {}, state.wrestlingCategories);
+    reconcilePlannerDataForCategories({ keepLibraryUnknown: false });
     if (template.totalTime) {
       state.docInfo.totalTime = String(template.totalTime).trim();
     }
     persistDaily();
+    persistCategories();
+    persistLibrary();
     persistCategoryNames();
     render();
+    queuePlannerLibrarySync();
     closeTemplatesModal();
     triggerToast(tr({ en: `Template loaded: ${template.name}`, es: `Plantilla cargada: ${template.name}` }));
     setBottomStatus(tr({ en: `Loaded template: ${template.name}`, es: `Plantilla cargada: ${template.name}` }));
@@ -4664,6 +4865,7 @@
       focus: `${Math.max(1, parseTimeValue(state.docInfo.totalTime || "90"))} min practice flow`,
       coachNotes: "Saved from Coach Planner.",
       items: buildPlanItemsFromPlanner(),
+      plannerCategories: getPlannerCategories().map((category) => ({ id: category.id, name: getCategoryNameById(category.id) })),
       plannerSchedule: serializePlannerSchedule(),
       plannerCategoryTimes: { ...state.categoryTimes },
       plannerCategoryNames: { ...state.categoryNames },
@@ -4775,6 +4977,12 @@
       let assignmentSource = tr({ en: "Coach Planner", es: "Planificador del Entrenador" });
       let assignmentPlanType = "day";
       let trackPayload = { trainingTrack: "wrestling" };
+      const wrestlingPlanPayloadDetails = {
+        plannerCategories: getPlannerCategories().map((category) => ({ id: category.id, name: getCategoryNameById(category.id) })),
+        plannerSchedule: serializePlannerSchedule(),
+        plannerCategoryTimes: { ...state.categoryTimes },
+        plannerCategoryNames: { ...state.categoryNames }
+      };
 
       if (contextTrack === "lifting") {
         const activeDay = getActiveLiftingDay();
@@ -4879,6 +5087,7 @@
             endKey: weeklyMode && wrestlingWindow ? wrestlingWindow.endKey : dueDateKey
           },
           items: buildPlanItemsFromPlanner(),
+          ...wrestlingPlanPayloadDetails,
           monthlyNotes: "",
           seasonYear: String(state.settings?.season || "").trim(),
           audience: {
@@ -4940,6 +5149,7 @@
           planId,
           planType: assignmentPlanType,
           ...trackPayload,
+          ...(contextTrack === "wrestling" ? wrestlingPlanPayloadDetails : {}),
           ...(contextTrack === "wrestling" ? wrestlingSchedulePayload : {}),
           notificationStatus: "assignment_only",
           createdAt: timestamp,
@@ -5136,14 +5346,20 @@
     const role = String(data?.role || "").trim().toLowerCase();
     if (!isCoachLikeRole(role)) return null;
     const entries = normalizeLibraryEntries(data?.plannerLibrary || data?.coachPlannerLibrary || []);
+    const incomingCategories = Array.isArray(data?.plannerCategories) ? normalizePlannerCategoryCollection(data.plannerCategories) : [];
     const incomingCategoryNames = data?.plannerCategoryNames && typeof data.plannerCategoryNames === "object"
       ? data.plannerCategoryNames
       : {};
-    const categoryNames = CATEGORIES.reduce((acc, category) => {
+    const categoryNames = getPlannerCategories().reduce((acc, category) => {
       const candidate = String(incomingCategoryNames?.[category.id] || "").trim();
       if (candidate) acc[category.id] = candidate;
       return acc;
     }, {});
+    incomingCategories.forEach((category) => {
+      const id = String(category?.id || "").trim();
+      if (!id || categoryNames[id]) return;
+      categoryNames[id] = String(category?.name || id).trim() || id;
+    });
     return {
       uid: String(uid || "").trim(),
       name: String(data?.name || "").trim() || String(data?.email || "").trim() || tr({ en: "Coach", es: "Entrenador" }),
@@ -5161,7 +5377,7 @@
       return;
     }
     const cardsHtml = state.coachLibraries.map((coach) => {
-      const grouped = CATEGORIES.map((category) => {
+      const grouped = getPlannerCategories().map((category) => {
         const entries = coach.entries.filter((entry) => normalizeCategoryId(entry.categoryId) === category.id);
         if (!entries.length) return "";
         const label = String(coach.categoryNames?.[category.id] || getCategoryNameById(category.id)).trim() || getCategoryNameById(category.id);
@@ -5222,6 +5438,7 @@
     if (!usersRef || !uid) return;
     try {
       await usersRef.doc(uid).set({
+        plannerCategories: getPlannerCategories().map((category) => ({ id: category.id, name: getCategoryNameById(category.id) })),
         plannerLibrary: normalizeLibraryEntries(state.exerciseLibrary),
         plannerCategoryNames: { ...state.categoryNames },
         plannerLibraryUpdatedAt: new Date().toISOString()
@@ -5231,6 +5448,154 @@
     }
   }
 
+  function getSharedPlannerCatalogDocRef() {
+    try {
+      if (typeof firebaseFirestoreInstance === "undefined" || !firebaseFirestoreInstance) return null;
+      return firebaseFirestoreInstance
+        .collection(getPlannerSharedCollectionName())
+        .doc(SHARED_WRESTLING_PLANNER_DOC_ID);
+    } catch {
+      return null;
+    }
+  }
+
+  function canWriteSharedPlannerCatalog() {
+    if (state.readOnly) return false;
+    const authUser = getPlannerAuthUser();
+    if (!String(authUser?.id || "").trim()) return false;
+    return isCoachLikeRole(getPlannerProfile()?.role || authUser?.role || "");
+  }
+
+  function buildSharedPlannerCatalogPayload() {
+    return {
+      categories: getPlannerCategories().map((category) => ({
+        id: category.id,
+        name: getCategoryNameById(category.id)
+      })),
+      categoryNames: { ...state.categoryNames },
+      categoryTimes: { ...state.categoryTimes },
+      exerciseLibrary: normalizeLibraryEntries(state.exerciseLibrary || []),
+      updatedAt: getPlannerTimestamp(),
+      updatedByUid: String(getPlannerAuthUser()?.id || "").trim(),
+      updatedByName: String(getPlannerProfile()?.name || getPlannerAuthUser()?.email || "Coach").trim()
+    };
+  }
+
+  function applySharedPlannerCatalogData(rawData = {}, { mergeLocal = true } = {}) {
+    const payload = rawData && typeof rawData === "object" ? rawData : {};
+    const hasIncomingCategories = Array.isArray(payload.categories) && payload.categories.length > 0;
+    const incomingCategories = hasIncomingCategories
+      ? normalizePlannerCategoryCollection(payload.categories)
+      : [];
+    const mergedCategories = hasIncomingCategories
+      ? (mergeLocal
+        ? mergePlannerCategoryCollections(incomingCategories, getPlannerCategories())
+        : incomingCategories)
+      : normalizePlannerCategoryCollection(getPlannerCategories());
+    state.wrestlingCategories = mergedCategories;
+    runtimeWrestlingCategories = mergedCategories.map((category) => ({ ...category }));
+    const hasSharedNames = payload.categoryNames && typeof payload.categoryNames === "object";
+    const incomingNames = payload.categoryNames && typeof payload.categoryNames === "object" ? payload.categoryNames : {};
+    const mergedNames = {
+      ...(mergeLocal || !hasSharedNames ? state.categoryNames : {}),
+      ...incomingNames
+    };
+    const hasSharedTimes = payload.categoryTimes && typeof payload.categoryTimes === "object";
+    const incomingTimes = payload.categoryTimes && typeof payload.categoryTimes === "object" ? payload.categoryTimes : {};
+    const mergedTimes = {
+      ...(mergeLocal || !hasSharedTimes ? state.categoryTimes : {}),
+      ...incomingTimes
+    };
+    const hasSharedLibrary = Array.isArray(payload.exerciseLibrary);
+    const incomingLibrary = normalizeLibraryEntries(payload.exerciseLibrary || [], { dropUnknownCategory: false });
+    const mergedLibrary = (mergeLocal || !hasSharedLibrary)
+      ? mergePlannerLibraryEntries(incomingLibrary, state.exerciseLibrary || [])
+      : incomingLibrary;
+    state.categoryNames = mergedNames;
+    state.categoryTimes = mergedTimes;
+    state.exerciseLibrary = mergedLibrary;
+    reconcilePlannerDataForCategories({ keepLibraryUnknown: false });
+    persistCategories();
+    persistCategoryNames();
+    persistDaily();
+    persistLibrary();
+  }
+
+  async function syncSharedPlannerCatalogNow() {
+    if (!canWriteSharedPlannerCatalog()) return;
+    const docRef = getSharedPlannerCatalogDocRef();
+    if (!docRef) return;
+    try {
+      await docRef.set(buildSharedPlannerCatalogPayload(), { merge: true });
+      state.plannerCatalogReady = true;
+      state.plannerCatalogStatus = tr({
+        en: "Shared planner catalog synced.",
+        es: "Catalogo compartido del planificador sincronizado."
+      });
+    } catch (err) {
+      console.warn("Shared planner catalog sync failed", err);
+      state.plannerCatalogStatus = tr({
+        en: "Shared planner catalog sync failed.",
+        es: "Fallo la sincronizacion del catalogo compartido."
+      });
+    }
+  }
+
+  function stopSharedPlannerCatalogSync() {
+    if (state.plannerCatalogSyncTimer) {
+      clearTimeout(state.plannerCatalogSyncTimer);
+      state.plannerCatalogSyncTimer = null;
+    }
+    if (typeof state.plannerCatalogUnsub === "function") {
+      try {
+        state.plannerCatalogUnsub();
+      } catch {
+        // ignore unsubscribe errors
+      }
+    }
+    state.plannerCatalogUnsub = null;
+  }
+
+  function startSharedPlannerCatalogSync({ force = false } = {}) {
+    if (force) stopSharedPlannerCatalogSync();
+    if (state.plannerCatalogUnsub) return;
+    const docRef = getSharedPlannerCatalogDocRef();
+    if (!docRef?.onSnapshot) return;
+    state.plannerCatalogStatus = tr({
+      en: "Loading shared planner catalog...",
+      es: "Cargando catalogo compartido del planificador..."
+    });
+    state.plannerCatalogUnsub = docRef.onSnapshot((docSnap) => {
+      const exists = typeof docSnap?.exists === "function" ? docSnap.exists() : Boolean(docSnap?.exists);
+      if (!exists) {
+        state.plannerCatalogReady = false;
+        if (canWriteSharedPlannerCatalog()) {
+          syncSharedPlannerCatalogNow().catch(() => {});
+        }
+        return;
+      }
+      const data = docSnap.data() || {};
+      const hasSharedCategories = Array.isArray(data?.categories) && data.categories.length > 0;
+      applySharedPlannerCatalogData(data, { mergeLocal: !hasSharedCategories });
+      state.plannerCatalogReady = true;
+      state.plannerCatalogStatus = tr({
+        en: "Shared planner catalog loaded.",
+        es: "Catalogo compartido del planificador cargado."
+      });
+      renderCategorySelectOptions();
+      renderRows();
+      renderLibraryGroups();
+      renderCoachLibraries();
+      updateTimeStatus();
+    }, (err) => {
+      console.warn("Shared planner catalog snapshot failed", err);
+      state.plannerCatalogStatus = tr({
+        en: "Shared planner catalog unavailable.",
+        es: "Catalogo compartido no disponible."
+      });
+    });
+  }
+
   function queuePlannerLibrarySync() {
     if (state.librarySyncTimer) {
       clearTimeout(state.librarySyncTimer);
@@ -5238,6 +5603,7 @@
     }
     state.librarySyncTimer = window.setTimeout(() => {
       syncPlannerLibraryNow().catch(() => {});
+      syncSharedPlannerCatalogNow().catch(() => {});
     }, 650);
   }
 
@@ -5322,22 +5688,25 @@
   }
 
   function addToSchedule(categoryId, exerciseName) {
+    const safeCategoryId = normalizeCategoryId(categoryId);
     const cleanName = String(exerciseName || "");
     const nextItem = { id: makeId(), name: cleanName };
-    state.schedule[categoryId] = [...(state.schedule[categoryId] || []), nextItem];
-    state.pendingFocus = cleanName.trim() ? null : { categoryId, itemId: nextItem.id };
+    state.schedule[safeCategoryId] = [...(state.schedule[safeCategoryId] || []), nextItem];
+    state.pendingFocus = cleanName.trim() ? null : { categoryId: safeCategoryId, itemId: nextItem.id };
     persistDaily();
     renderRows();
   }
 
   function removeFromSchedule(categoryId, itemId) {
-    state.schedule[categoryId] = (state.schedule[categoryId] || []).filter((item) => item.id !== itemId);
+    const safeCategoryId = normalizeCategoryId(categoryId);
+    state.schedule[safeCategoryId] = (state.schedule[safeCategoryId] || []).filter((item) => item.id !== itemId);
     persistDaily();
     renderRows();
   }
 
   function updateScheduleItem(categoryId, itemId, nextName) {
-    state.schedule[categoryId] = (state.schedule[categoryId] || []).map((item) => {
+    const safeCategoryId = normalizeCategoryId(categoryId);
+    state.schedule[safeCategoryId] = (state.schedule[safeCategoryId] || []).map((item) => {
       if (item.id !== itemId) return item;
       return { ...item, name: nextName };
     });
@@ -5355,7 +5724,7 @@
 
   function saveExerciseToLibrary() {
     const name = String(els.newExerciseNameInput?.value || "").trim();
-    const categoryId = normalizeCategoryId(els.newExerciseCategorySelect?.value || CATEGORIES[0].id);
+    const categoryId = normalizeCategoryId(els.newExerciseCategorySelect?.value || getFirstPlannerCategoryId());
     if (!name) {
       triggerToast(tr({ en: "Write an exercise name first.", es: "Escribe primero el nombre del ejercicio." }));
       els.newExerciseNameInput?.focus();
@@ -5390,13 +5759,93 @@
     const cleanName = String(name || "").trim();
     const defaults = CATEGORY_NAME_TRANSLATIONS[safeCategoryId] || { en: safeCategoryId, es: safeCategoryId };
     const fallback = getPlannerLang() === "es" ? defaults.es : defaults.en;
-    state.categoryNames[safeCategoryId] = cleanName || fallback || safeCategoryId;
+    const resolved = cleanName || fallback || safeCategoryId;
+    state.categoryNames[safeCategoryId] = resolved;
+    state.wrestlingCategories = getPlannerCategories().map((category) => {
+      if (category.id !== safeCategoryId) return { ...category };
+      return { ...category, name: resolved };
+    });
+    persistCategories();
     persistCategoryNames();
     queuePlannerLibrarySync();
     renderCategorySelectOptions();
     renderRows();
     renderLibraryGroups();
     renderCoachLibraries();
+  }
+
+  function getNextPlannerCategoryName() {
+    const baseName = tr({ en: "New Section", es: "Nueva seccion" });
+    const existing = new Set(
+      getPlannerCategories().map((category) => String(getCategoryNameById(category.id) || "").trim().toLowerCase())
+    );
+    if (!existing.has(baseName.toLowerCase())) return baseName;
+    let index = 2;
+    while (existing.has(`${baseName.toLowerCase()} ${index}`)) {
+      index += 1;
+    }
+    return `${baseName} ${index}`;
+  }
+
+  function addPlannerCategory(name = "") {
+    const categories = getPlannerCategories();
+    const cleanName = String(name || "").trim() || getNextPlannerCategoryName();
+    const usedIds = new Set(categories.map((category) => category.id));
+    const categoryId = makeUniquePlannerCategoryId(cleanName, usedIds);
+    state.wrestlingCategories = [...categories, { id: categoryId, name: cleanName }];
+    state.categoryNames[categoryId] = cleanName;
+    state.schedule[categoryId] = [];
+    state.categoryTimes[categoryId] = "0";
+    state.categoryDrafts[categoryId] = "";
+    state.pendingCategoryFocus = categoryId;
+    reconcilePlannerDataForCategories({ keepLibraryUnknown: false });
+    persistCategories();
+    persistCategoryNames();
+    persistDaily();
+    persistLibrary();
+    queuePlannerLibrarySync();
+    renderCategorySelectOptions();
+    renderRows();
+    renderLibraryGroups();
+    renderCoachLibraries();
+    triggerToast(tr({ en: "Section added.", es: "Seccion agregada." }));
+  }
+
+  function removePlannerCategory(categoryId) {
+    const safeCategoryId = String(categoryId || "").trim();
+    if (!safeCategoryId) return;
+    const categories = getPlannerCategories();
+    const target = categories.find((category) => category.id === safeCategoryId);
+    if (!target) return;
+    if (categories.length <= 1) {
+      triggerToast(tr({
+        en: "At least one section is required.",
+        es: "Se requiere al menos una seccion."
+      }));
+      return;
+    }
+    const confirmed = window.confirm(tr({
+      en: `Delete section "${getCategoryNameById(safeCategoryId)}" and its exercises?`,
+      es: `Eliminar la seccion "${getCategoryNameById(safeCategoryId)}" y sus ejercicios?`
+    }));
+    if (!confirmed) return;
+    state.wrestlingCategories = categories.filter((category) => category.id !== safeCategoryId);
+    state.exerciseLibrary = (state.exerciseLibrary || []).filter((entry) => String(entry?.categoryId || "").trim() !== safeCategoryId);
+    delete state.schedule[safeCategoryId];
+    delete state.categoryTimes[safeCategoryId];
+    delete state.categoryNames[safeCategoryId];
+    delete state.categoryDrafts[safeCategoryId];
+    reconcilePlannerDataForCategories({ keepLibraryUnknown: false });
+    persistCategories();
+    persistCategoryNames();
+    persistDaily();
+    persistLibrary();
+    queuePlannerLibrarySync();
+    renderCategorySelectOptions();
+    renderRows();
+    renderLibraryGroups();
+    renderCoachLibraries();
+    triggerToast(tr({ en: "Section removed.", es: "Seccion eliminada." }));
   }
 
   function updateLibraryDraft(categoryId, value) {
@@ -5514,20 +5963,25 @@
 
   function renderCategorySelectOptions() {
     if (!els.newExerciseCategorySelect) return;
-    els.newExerciseCategorySelect.innerHTML = CATEGORIES
+    const categories = getPlannerCategories();
+    els.newExerciseCategorySelect.innerHTML = categories
       .map((category) => `<option value="${category.id}">${escapeHtml(getCategoryNameById(category.id))}</option>`)
       .join("");
+    const current = normalizeCategoryId(els.newExerciseCategorySelect.value || getFirstPlannerCategoryId());
+    els.newExerciseCategorySelect.value = current;
   }
 
   function renderLibraryGroups() {
     if (!els.libraryGroups) return;
+    const categories = getPlannerCategories();
     const addToPlanLabel = tr({ en: "Add to plan", es: "Agregar al plan" });
     const deleteLabel = tr({ en: "Delete", es: "Eliminar" });
+    const deleteCategoryLabel = tr({ en: "Delete section", es: "Eliminar seccion" });
     const noExercisesLabel = tr({ en: "No exercises saved yet.", es: "Aun no hay ejercicios guardados." });
     const addExerciseTitle = tr({ en: "Add exercise", es: "Agregar ejercicio" });
     const addExercisePlaceholder = tr({ en: "Add new movement/exercise", es: "Agregar nuevo movimiento/ejercicio" });
     const addLabel = tr({ en: "Add +", es: "Agregar +" });
-    const groupsHtml = CATEGORIES.map((category) => {
+    const groupsHtml = categories.map((category) => {
       const items = state.exerciseLibrary.filter((entry) => entry.categoryId === category.id);
       const draft = String(state.categoryDrafts[category.id] || "");
       const itemsHtml = items.length
@@ -5563,6 +6017,7 @@
             >
             <div class="planner-library-header-actions">
               <button type="button" class="ghost planner-library-plus" data-action="quick-add-library-item" data-category="${category.id}" title="${escapeHtml(addExerciseTitle)}">+</button>
+              <button type="button" class="ghost planner-library-trash" data-action="delete-category" data-category="${category.id}" title="${escapeHtml(deleteCategoryLabel)}">X</button>
               <span>${items.length}</span>
             </div>
           </header>
@@ -5589,6 +6044,14 @@
       }
       state.pendingLibraryFocus = "";
     }
+    if (state.pendingCategoryFocus) {
+      const categoryInput = els.libraryGroups.querySelector(`input[data-action="edit-category-name"][data-category="${state.pendingCategoryFocus}"]`);
+      if (categoryInput && categoryInput instanceof HTMLInputElement) {
+        categoryInput.focus();
+        categoryInput.select();
+      }
+      state.pendingCategoryFocus = "";
+    }
   }
 
   function autoResizeAllTextareas() {
@@ -5600,12 +6063,14 @@
 
   function renderRows() {
     if (!els.rows) return;
+    const categories = getPlannerCategories();
     const activityLabel = tr({ en: "Activity", es: "Actividad" });
     const timeLabel = tr({ en: "Time", es: "Tiempo" });
     const chooseDrillLabel = tr({ en: "Choose saved drill...", es: "Elige ejercicio guardado..." });
     const addTypeLabel = tr({ en: "+ Type", es: "+ Escribir" });
     const typeDrillPlaceholder = tr({ en: "Type drill here...", es: "Escribe el ejercicio aqui..." });
     const deleteLabel = tr({ en: "Delete", es: "Eliminar" });
+    const deleteSectionLabel = tr({ en: "Delete section", es: "Eliminar seccion" });
     if (els.rows?.previousElementSibling?.tagName === "THEAD") {
       const ths = Array.from(els.rows.previousElementSibling.querySelectorAll("th"));
       if (ths[0]) ths[0].textContent = activityLabel;
@@ -5616,7 +6081,7 @@
       if (ths[0]) ths[0].textContent = activityLabel;
       if (ths[1]) ths[1].textContent = timeLabel;
     }
-    const rowsHtml = CATEGORIES.map((category) => {
+    const rowsHtml = categories.map((category) => {
       const items = state.schedule[category.id] || [];
       const options = state.exerciseLibrary
         .filter((entry) => entry.categoryId === category.id)
@@ -5643,7 +6108,16 @@
       return `
         <tr>
           <td>
-            <div class="planner-category-title">${escapeHtml(getCategoryNameById(category.id))}</div>
+            <div class="planner-category-title">
+              <input
+                type="text"
+                class="planner-library-category-input planner-row-category-input"
+                value="${escapeHtml(getCategoryNameById(category.id))}"
+                data-action="edit-category-name"
+                data-category="${category.id}"
+              >
+              <button type="button" class="ghost planner-row-category-delete" data-action="delete-category" data-category="${category.id}" title="${escapeHtml(deleteSectionLabel)}">X</button>
+            </div>
             <div class="planner-row-controls">
               <select data-action="pick-library" data-category="${category.id}">
                 <option value="">${escapeHtml(chooseDrillLabel)}</option>
@@ -5677,6 +6151,15 @@
       }
       state.pendingFocus = null;
     }
+    if (state.pendingCategoryFocus) {
+      const selector = `input[data-action='edit-category-name'][data-category='${state.pendingCategoryFocus}']`;
+      const categoryInput = root.querySelector(selector);
+      if (categoryInput && categoryInput instanceof HTMLInputElement) {
+        categoryInput.focus();
+        categoryInput.select();
+      }
+      state.pendingCategoryFocus = "";
+    }
   }
 
   function applyPlannerLanguageToStaticDom() {
@@ -5685,6 +6168,7 @@
     if (els.loadTemplateBtn) els.loadTemplateBtn.textContent = tr({ en: "Load template", es: "Cargar plantilla" });
     if (els.saveTemplateTopBtn) els.saveTemplateTopBtn.textContent = tr({ en: "Save template", es: "Guardar plantilla" });
     if (els.sendAthletesTopBtn) els.sendAthletesTopBtn.textContent = tr({ en: "Share plan", es: "Compartir plan" });
+    if (els.addSectionBtn) els.addSectionBtn.textContent = tr({ en: "+ Add section", es: "+ Agregar seccion" });
     if (els.printBtn) els.printBtn.textContent = tr({ en: "Print", es: "Imprimir" });
     if (els.saveTemplateBtn) els.saveTemplateBtn.textContent = tr({ en: "Save as template", es: "Guardar como plantilla" });
     if (els.sendAthletesBtn) els.sendAthletesBtn.textContent = tr({ en: "Share plan", es: "Compartir plan" });
@@ -5699,6 +6183,7 @@
     if (els.libraryCloseBtn) els.libraryCloseBtn.textContent = tr({ en: "Close", es: "Cerrar" });
     if (els.libraryCancelBtn) els.libraryCancelBtn.textContent = tr({ en: "Close", es: "Cerrar" });
     if (els.saveLibraryItemBtn) els.saveLibraryItemBtn.textContent = tr({ en: "Save", es: "Guardar" });
+    if (els.addCategoryBtn) els.addCategoryBtn.textContent = tr({ en: "+ Add section", es: "+ Agregar seccion" });
     if (els.newExerciseNameInput) els.newExerciseNameInput.placeholder = tr({ en: "Exercise name", es: "Nombre del ejercicio" });
     if (els.settingsCloseBtn) els.settingsCloseBtn.textContent = tr({ en: "Close", es: "Cerrar" });
     if (els.settingsCancelBtn) els.settingsCancelBtn.textContent = tr({ en: "Cancel", es: "Cancelar" });
@@ -5785,6 +6270,14 @@
     }
     if (action === "add-manual") {
       addToSchedule(trigger.dataset.category, "");
+      return;
+    }
+    if (action === "add-category") {
+      addPlannerCategory("");
+      return;
+    }
+    if (action === "delete-category") {
+      removePlannerCategory(trigger.dataset.category);
       return;
     }
     if (action === "remove-item") {
@@ -6141,6 +6634,7 @@
     });
 
     els.openLibraryBtn?.addEventListener("click", openLibraryModal);
+    els.addSectionBtn?.addEventListener("click", () => addPlannerCategory(""));
     els.loadTemplateBtn?.addEventListener("click", openTemplatesModal);
     els.libraryCloseBtn?.addEventListener("click", closeLibraryModal);
     els.libraryCancelBtn?.addEventListener("click", closeLibraryModal);
@@ -6150,6 +6644,7 @@
       loadPlannerTemplates().catch(() => {});
     });
     els.saveLibraryItemBtn?.addEventListener("click", saveExerciseToLibrary);
+    els.addCategoryBtn?.addEventListener("click", () => addPlannerCategory(""));
     els.newExerciseNameInput?.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;
       event.preventDefault();
@@ -6220,11 +6715,16 @@
   }
 
   bindStaticEvents();
+  persistCategories();
+  persistCategoryNames();
+  persistDaily();
+  persistLibrary();
   state.liftingPlan = normalizeLiftingPlan(state.liftingPlan || buildDefaultLiftingPlan());
   state.liftingLibrary = normalizeLiftingLibraryMap(state.liftingLibrary || DEFAULT_LIFTING_LIBRARY);
   persistLiftingPlanLocal();
   persistLiftingLibraryLocal();
   persistLiftingUiLocal();
+  startSharedPlannerCatalogSync();
   setupLiftingRealtimeSync();
   startPlannerAssignDirectorySync();
   startMentalLeaderboardSync();
@@ -6242,6 +6742,7 @@
         state.liftingAuthUnsub = null;
       }
       stopPlannerAssignDirectorySync();
+      stopSharedPlannerCatalogSync();
     });
   }
   hydratePlannerSettingsFromCloud().catch(() => {});

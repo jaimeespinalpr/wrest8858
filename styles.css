@@ -3077,6 +3077,99 @@ textarea:focus{
   margin-bottom: 12px;
 }
 
+.athlete-global-leaderboard{
+  margin-bottom: 14px;
+  border: 1px solid rgba(141, 188, 255, 0.32);
+  background: linear-gradient(145deg, rgba(9, 24, 48, 0.72), rgba(9, 23, 44, 0.48));
+}
+
+.athlete-global-leaderboard-grid{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.athlete-global-leaderboard-game{
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 14px;
+  padding: 10px;
+}
+
+.athlete-global-leaderboard-game header{
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.athlete-global-leaderboard-game h4{
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.athlete-global-leaderboard-game header span{
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.athlete-global-leaderboard-list{
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.athlete-global-leaderboard-row{
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 6px 8px;
+  background: rgba(255,255,255,0.03);
+}
+
+.athlete-global-leaderboard-rank{
+  font-weight: 800;
+  font-size: 0.78rem;
+  color: rgba(193, 220, 255, 0.9);
+}
+
+.athlete-global-leaderboard-name{
+  font-weight: 700;
+  font-size: 0.8rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.athlete-global-leaderboard-role{
+  font-size: 0.68rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.athlete-global-leaderboard-score{
+  font-size: 0.88rem;
+  color: rgba(194, 236, 255, 0.94);
+}
+
+.athlete-global-leaderboard-empty{
+  list-style: none;
+  border: 1px dashed rgba(255,255,255,0.2);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  background: rgba(255,255,255,0.04);
+}
+
 #todayActionQueueCard{
   margin-top: 14px;
 }
@@ -5038,6 +5131,7 @@ textarea:focus{
   .grid,
   .checkin-grid,
   .plan-grid,
+  .athlete-global-leaderboard-grid,
   .media-grid,
   .messages-shell,
   .section-grid,
@@ -10065,8 +10159,24 @@ svg{
 }
 
 .planner-category-title{
-  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 6px;
+}
+
+.planner-row-category-input{
+  flex: 1;
+  min-height: 36px;
+}
+
+.planner-row-category-delete{
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
 }
 
 .planner-row-controls{
@@ -10312,6 +10422,12 @@ svg{
   margin: 0;
 }
 
+.planner-library-section-tools{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .planner-library-groups{
   display: grid;
   gap: 10px;
@@ -10357,6 +10473,18 @@ svg{
   font-size: 1.05rem;
   font-weight: 800;
   line-height: 1;
+}
+
+.planner-library-trash{
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 800;
 }
 
 .planner-library-group ul{
@@ -10864,6 +10992,7 @@ body.viewport-mobile .app{
   .planner-toolbar,
   .planner-bottom-actions,
   .planner-row-controls,
+  .planner-row-category-delete,
   .planner-items-list button,
   .planner-toast,
   .planner-alert,
@@ -10920,6 +11049,14 @@ body.viewport-mobile .app{
     color: #111 !important;
     padding: 0 !important;
   }
+  .planner-row-category-input{
+    border: 0 !important;
+    background: transparent !important;
+    color: #111 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    font-weight: 700 !important;
+  }
   .planner-meta-boxes input,
   .planner-total-time-editor button,
   .planner-time-cell input{
@@ -10963,6 +11100,7 @@ body.viewport-mobile .app{
 /* Athlete read-only planner view */
 .coach-planner-card.planner-readonly .planner-toolbar-actions button,
 .coach-planner-card.planner-readonly .planner-row-controls,
+.coach-planner-card.planner-readonly .planner-row-category-delete,
 .coach-planner-card.planner-readonly .planner-bottom-actions,
 .coach-planner-card.planner-readonly #plannerLiftingSaveProtocolBtn,
 .coach-planner-card.planner-readonly #plannerLiftingShareBtn,
@@ -11218,5 +11356,122 @@ body.viewport-mobile .app{
   }
   .athlete-game-modal-actions button{
     flex: 1;
+  }
+}
+
+/* Swipe delete + undo */
+.swipe-delete-item{
+  position: relative;
+  overflow: hidden;
+  will-change: transform;
+  transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+}
+.swipe-delete-item.swipe-delete-active{
+  transition: none;
+}
+.swipe-delete-item::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(239, 68, 68, 0.12), rgba(239, 68, 68, 0.04));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+.swipe-delete-item.swipe-delete-active::before,
+.swipe-delete-item.swipe-delete-ready::before{
+  opacity: 1;
+}
+.swipe-delete-item.swipe-delete-left::before{
+  background: linear-gradient(270deg, rgba(239, 68, 68, 0.14), rgba(239, 68, 68, 0.02));
+}
+.swipe-delete-item.swipe-delete-right::before{
+  background: linear-gradient(90deg, rgba(239, 68, 68, 0.14), rgba(239, 68, 68, 0.02));
+}
+.swipe-delete-indicator{
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%) scale(0.82);
+  opacity: 0;
+  font-size: 1.1rem;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+  filter: drop-shadow(0 2px 6px rgba(239, 68, 68, 0.35));
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+.swipe-delete-item.swipe-delete-left .swipe-delete-indicator{
+  left: 12px;
+  right: auto;
+}
+.swipe-delete-item.swipe-delete-ready .swipe-delete-indicator{
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+
+.swipe-delete-undo-toast{
+  position: fixed;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 2200;
+  transform: translate(-50%, 20px);
+  opacity: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(94vw, 520px);
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(30, 41, 59, 0.22);
+  background: rgba(2, 6, 23, 0.94);
+  color: #f8fafc;
+  box-shadow: 0 14px 34px rgba(2, 6, 23, 0.34);
+  transition: transform 200ms ease, opacity 200ms ease;
+}
+.swipe-delete-undo-toast.show{
+  transform: translate(-50%, 0);
+  opacity: 1;
+}
+.swipe-delete-undo-icon{
+  font-size: 1.05rem;
+  line-height: 1;
+}
+.swipe-delete-undo-label{
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.2;
+  flex: 1;
+  min-width: 0;
+}
+.swipe-delete-undo-btn{
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  background: rgba(30, 41, 59, 0.68);
+  color: #e2e8f0;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: transform 120ms ease, background 120ms ease, color 120ms ease;
+}
+.swipe-delete-undo-btn:hover{
+  background: rgba(59, 130, 246, 0.28);
+  color: #ffffff;
+}
+.swipe-delete-undo-btn:active{
+  transform: scale(0.97);
+}
+@media (max-width: 700px){
+  .swipe-delete-undo-toast{
+    width: calc(100% - 18px);
+    left: 9px;
+    transform: translate(0, 20px);
+    max-width: none;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+  .swipe-delete-undo-toast.show{
+    transform: translate(0, 0);
   }
 }
