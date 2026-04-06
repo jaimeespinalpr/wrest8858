@@ -438,6 +438,7 @@
 
   const TRACKS = ["wrestling", "lifting", "mental"];
   const LIFTING_TABS = ["overview", "editor", "program"];
+  let state = null;
 
   function normalizeTrack(value) {
     const raw = String(value || "").trim().toLowerCase();
@@ -791,7 +792,7 @@
   runtimeWrestlingCategories = persistedWrestlingCategories.map((category) => ({ ...category }));
   const persistedCategoryNames = readJson(STORAGE_KEYS.categoryNames, {}) || {};
 
-  const state = {
+  state = {
     activeTrack: normalizeTrack(readJson(STORAGE_KEYS.track, "wrestling")),
     lastRenderedTrack: normalizeTrack(readJson(STORAGE_KEYS.track, "wrestling")),
     docInfo: {
