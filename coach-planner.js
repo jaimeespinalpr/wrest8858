@@ -821,6 +821,8 @@
     plannerCatalogReady: false,
     plannerCatalogStatus: "",
     settingsSyncTimer: null,
+    dailySyncTimer: null,
+    dailyDraftUpdatedAt: String(dailyState.updatedAt || ""),
     categoryDrafts: {},
     pendingLibraryFocus: "",
     pendingCategoryFocus: "",
@@ -1014,13 +1016,19 @@
     liftingProgramIntensity: document.getElementById("plannerLiftingProgramIntensity")
   };
 
-  function persistDaily() {
+  function persistDaily({ syncCloud = true, updatedAt = "" } = {}) {
+    const safeUpdatedAt = String(updatedAt || "").trim() || new Date().toISOString();
+    state.dailyDraftUpdatedAt = safeUpdatedAt;
     writeJson(STORAGE_KEYS.daily, {
       date: state.docInfo.date,
       totalTime: state.docInfo.totalTime,
       schedule: state.schedule,
-      categoryTimes: state.categoryTimes
+      categoryTimes: state.categoryTimes,
+      updatedAt: safeUpdatedAt
     });
+    if (syncCloud) {
+      queuePlannerDailySync();
+    }
   }
 
   function persistSettings() {
@@ -5540,6 +5548,83 @@
     }, 650);
   }
 
+  function queuePlannerDailySync() {
+    if (state.dailySyncTimer) {
+      clearTimeout(state.dailySyncTimer);
+      state.dailySyncTimer = null;
+    }
+    state.dailySyncTimer = window.setTimeout(() => {
+      syncPlannerDailyNow().catch(() => {});
+    }, 700);
+  }
+
+  async function syncPlannerDailyNow() {
+    const usersRef = getPlannerUsersCollectionRef();
+    const authUser = getPlannerAuthUser();
+    const uid = String(authUser?.id || "").trim();
+    if (!usersRef || !uid) return;
+    const payload = {
+      date: String(state.docInfo.date || "").trim(),
+      totalTime: String(state.docInfo.totalTime || "90").trim(),
+      schedule: normalizePlannerScheduleState(state.schedule || {}, getPlannerCategories()),
+      categoryTimes: normalizePlannerCategoryTimesState(state.categoryTimes || {}, getPlannerCategories())
+    };
+    const updatedAt = String(state.dailyDraftUpdatedAt || "").trim() || new Date().toISOString();
+    try {
+      await usersRef.doc(uid).set({
+        plannerDailyDraft: payload,
+        plannerDailyDraftUpdatedAt: updatedAt
+      }, { merge: true });
+    } catch (err) {
+      console.warn("Planner daily draft sync failed", err);
+    }
+  }
+
+  async function hydratePlannerDailyFromCloud() {
+    const usersRef = getPlannerUsersCollectionRef();
+    const authUser = getPlannerAuthUser();
+    const uid = String(authUser?.id || "").trim();
+    if (!usersRef || !uid) {
+      persistDaily();
+      return;
+    }
+    try {
+      const doc = await usersRef.doc(uid).get();
+      const raw = doc.exists ? (doc.data() || {}) : {};
+      const remoteDraft = raw?.plannerDailyDraft && typeof raw.plannerDailyDraft === "object"
+        ? raw.plannerDailyDraft
+        : {};
+      const remoteUpdatedAt = String(
+        raw?.plannerDailyDraftUpdatedAt || remoteDraft?.updatedAt || ""
+      ).trim();
+      const localUpdatedAt = String(state.dailyDraftUpdatedAt || "").trim();
+      const remoteMs = remoteUpdatedAt ? Date.parse(remoteUpdatedAt) : 0;
+      const localMs = localUpdatedAt ? Date.parse(localUpdatedAt) : 0;
+      const remoteHasData = Boolean(
+        String(remoteDraft?.date || "").trim()
+        || String(remoteDraft?.totalTime || "").trim()
+        || Object.keys(remoteDraft?.schedule || {}).length
+      );
+      if (!remoteHasData) {
+        persistDaily({ syncCloud: true });
+        return;
+      }
+      if (remoteMs > localMs + 1000) {
+        state.docInfo.date = String(remoteDraft?.date || "").trim();
+        state.docInfo.totalTime = String(remoteDraft?.totalTime || "90").trim() || "90";
+        state.schedule = normalizePlannerScheduleState(remoteDraft?.schedule || {}, getPlannerCategories());
+        state.categoryTimes = normalizePlannerCategoryTimesState(remoteDraft?.categoryTimes || {}, getPlannerCategories());
+        persistDaily({ syncCloud: false, updatedAt: remoteUpdatedAt || new Date().toISOString() });
+        render();
+      } else {
+        persistDaily({ syncCloud: true });
+      }
+    } catch (err) {
+      console.warn("Planner daily draft cloud hydrate failed", err);
+      persistDaily({ syncCloud: true });
+    }
+  }
+
   async function syncPlannerSettingsNow() {
     const usersRef = getPlannerUsersCollectionRef();
     const authUser = getPlannerAuthUser();
@@ -7075,7 +7160,12 @@
       }
       stopPlannerAssignDirectorySync();
       stopSharedPlannerCatalogSync();
+      if (state.dailySyncTimer) {
+        clearTimeout(state.dailySyncTimer);
+        state.dailySyncTimer = null;
+      }
     });
   }
   hydratePlannerSettingsFromCloud().catch(() => {});
+  hydratePlannerDailyFromCloud().catch(() => {});
 })();
