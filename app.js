@@ -585,6 +585,7 @@ let viewMenuOpen = false;
 let currentView = "athlete";
 let selectedCompetitionId = "";
 let competitionCreateOpen = false;
+let competitionPreviewGroup = "summary";
 let responsiveViewportEventsBound = false;
 const headerViewButtons = Array.from(document.querySelectorAll("#headerMenu button[data-action^='view-']"));
 
@@ -13698,31 +13699,31 @@ function buildCompetitionPreview(profile) {
   if (!profile) return [];
   const athleteIdentity = resolveAthleteIdentity(profile);
   const na = currentLang === "es" ? "N/D" : "N/A";
-  const none = currentLang === "es" ? "Ninguna" : "None";
-  const unknown = currentLang === "es" ? "Desconocido" : "Unknown";
+  const none = currentLang === "es" ? "Ninguno" : "None";
   const yearsLabel = currentLang === "es" ? "anos" : "years";
   const style = profile.style
     ? translateOptionValue("aStyle", profile.style) || translateValue(profile.style)
     : na;
-  const weight = profile.currentWeight || na;
+  const weight = profile.currentWeight || profile.weight || na;
   const weightClass = profile.weightClass || na;
   const years = profile.years || profile.experienceYears || na;
   const level = getLevelLabel(profile.level) || na;
-  const position = profile.position ? translateOptionValue("pPosition", profile.position) : na;
-  const strategy = profile.strategy ? translateOptionValue("pStrategy", profile.strategy) : na;
+  const position = translateOptionValue("aFavoritePosition", profile.favoritePosition || profile.position) || profile.favoritePosition || profile.position || na;
+  const strategy = profile.strategy ? (translateOptionValue("pStrategy", profile.strategy) || translateValue(profile.strategy)) : na;
   const intl = profile.international ? translateOptionValue("pInternational", profile.international) : na;
-  const coachCues = profile.coachCues ? translateOptionValue("pCoachCues", profile.coachCues) : na;
-  const neutralList = translateTechniqueList(profile.techniques?.neutral);
-  const topList = translateTechniqueList(profile.techniques?.top);
-  const bottomList = translateTechniqueList(profile.techniques?.bottom);
-  const defenseList = translateTechniqueList(profile.techniques?.defense);
+  const coachCues = profile.coachCues ? (translateOptionValue("pCoachCues", profile.coachCues) || translateValue(profile.coachCues)) : na;
   const tendencyKey = profile.psychTendency || tendencyFallback(profile.strategy);
   const tendency = translateOptionValue("aPsychTendency", tendencyKey) || translateValue(tendencyKey) || na;
-  const favoritePosition = translateOptionValue("aFavoritePosition", profile.favoritePosition || profile.position) || na;
-  const offense = translateTechniqueList(profile.offenseTop3 || []).join(", ") || na;
-  const defense = translateTechniqueList(profile.defenseTop3 || []).join(", ") || na;
-  const tags = normalizeSmartTags(profile.tags).map((tag) => formatSmartTag(tag)).join(" • ") || na;
-  const strategyPlans = [profile.strategyA, profile.strategyB, profile.strategyC].filter(Boolean);
+  const offense = translateTechniqueList(profile.offenseTop3 || []).join(", ") || none;
+  const defense = translateTechniqueList(profile.defenseTop3 || []).join(", ") || none;
+  const setups = translateTechniqueList(profile.setupsTop3 || []).join(", ") || none;
+  const strategyPlans = [profile.strategyA, profile.strategyB, profile.strategyC].filter(Boolean).join(" | ") || none;
+  const reminders = (Array.isArray(profile.mentalReminders) ? profile.mentalReminders : []).filter(Boolean).join(" | ") || none;
+  const safetyWarnings = (Array.isArray(profile.safetyWarnings) ? profile.safetyWarnings : []).filter(Boolean).join(" | ") || none;
+  const limitations = (Array.isArray(profile.physicalLimitations) ? profile.physicalLimitations : []).filter(Boolean).join(" | ") || none;
+  const summaryProfile = String(profile.competitionSummaryProfile || "").trim();
+  const summaryWorkOns = String(profile.competitionSummaryWorkOns || "").trim();
+  const summaryCues = String(profile.competitionSummaryCues || "").trim();
   const latestPlan = athleteIdentity.athleteId || athleteIdentity.athleteUid || athleteIdentity.athleteName
     ? getLatestCoachPlanForAthlete(athleteIdentity)
     : null;
@@ -13754,45 +13755,26 @@ function buildCompetitionPreview(profile) {
             mediaType: latestAssignmentMedia.mediaType || "Video"
           }
         : null);
-  const cornerPlan = getAthleteCornerPlan(getRawAthleteRecord(profile.name) || profile);
+  const latestAnalysisLabel = latestAnalysis?.summary || none;
+  const latestJournalLabel = latestJournal?.entryDate
+    ? `${formatPlanDateLabel(latestJournal.entryDate)} - ${latestJournal.energy || na}`
+    : none;
+  const currentFocusLabel = (latestNotes?.nextFocus || []).slice(0, 2).join(" | ") || none;
+  const summaryProfileFallback = [style, `${weight} (${weightClass})`, position].filter(Boolean).join(" • ");
+  const summaryWorkOnsFallback = [profile.trainingFocus, profile.strategyA, currentFocusLabel].filter(Boolean).join(" | ");
+  const summaryCuesFallback = [profile.competitionCue, profile.coachSignal, reminders].filter(Boolean).join(" | ");
+
   return [
     {
-      title: currentLang === "es" ? "Datos del atleta" : "Athlete Basics",
+      group: "summary",
+      title: currentLang === "es" ? "Resumen competitivo" : "Competition Summary",
       lines: [
-        `${currentLang === "es" ? "Nombre" : "Name"}: ${profile.name || unknown}`,
-        `${currentLang === "es" ? "Estilo" : "Style"}: ${style}`,
-        `${currentLang === "es" ? "Peso" : "Weight"}: ${weight} (${weightClass})`,
-        `${currentLang === "es" ? "Experiencia" : "Experience"}: ${years} ${yearsLabel} - ${level}`,
-        `${currentLang === "es" ? "Posicion preferida" : "Preferred position"}: ${position}`,
-        `${currentLang === "es" ? "Estrategia" : "Strategy"}: ${strategy}`
-      ]
-    },
-    {
-      title: currentLang === "es" ? "Entrenamiento" : "Training",
-      lines: [
-        `${currentLang === "es" ? "Rutinas" : "Routines"}: ${profile.trainingRoutines || na}`,
-        `${currentLang === "es" ? "Volumen" : "Volume"}: ${profile.trainingVolume || na}`,
-        `${currentLang === "es" ? "Tecnica foco" : "Technique focus"}: ${profile.trainingFocus || na}`
-      ]
-    },
-    {
-      title: currentLang === "es" ? "Plan de competencia" : "Competition Plan",
-      lines: [
-        `${currentLang === "es" ? "Estrategia A/B/C" : "Strategy A/B/C"}: ${strategyPlans.join(" | ") || na}`,
-        `${currentLang === "es" ? "Seguros" : "Safe moves"}: ${profile.safeMoves || na}`,
-        `${currentLang === "es" ? "Arriesgados" : "Risky moves"}: ${profile.riskyMoves || na}`,
-        `${currentLang === "es" ? "Resultados" : "Results"}: ${profile.resultsHistory || na}`
-      ]
-    },
-    {
-      title: currentLang === "es" ? "Resumen de torneo" : "Tournament Snapshot",
-      lines: [
-        `${currentLang === "es" ? "Plan activo" : "Active plan"}: ${latestPlan?.title || na}`,
-        `${currentLang === "es" ? "Siguiente tarea" : "Next assignment"}: ${liveAssignments[0]?.title || na}`,
-        `${currentLang === "es" ? "Film mas reciente" : "Latest film"}: ${competitionMedia?.title || na}`,
-        `${currentLang === "es" ? "Competition cue" : "Competition cue"}: ${cornerPlan?.competitionCue || profile.coachSignal || na}`,
-        `${currentLang === "es" ? "Advertencia principal" : "Primary warning"}: ${cornerPlan?.safetyWarnings?.[0] || profile.injuryNotes || none}`,
-        `${currentLang === "es" ? "Journal" : "Journal"}: ${latestJournal?.entryDate ? `${formatPlanDateLabel(latestJournal.entryDate)} - ${latestJournal.energy || na}` : na}`
+        `${currentLang === "es" ? "Perfil" : "Profile"}: ${summaryProfile || summaryProfileFallback || na}`,
+        `${currentLang === "es" ? "Trabajo actual" : "Current work-ons"}: ${summaryWorkOns || summaryWorkOnsFallback || none}`,
+        `${currentLang === "es" ? "Cues de rendimiento" : "Performance cues"}: ${summaryCues || summaryCuesFallback || none}`,
+        `${currentLang === "es" ? "Plan activo" : "Active plan"}: ${latestPlan?.title || none}`,
+        `${currentLang === "es" ? "Siguiente tarea" : "Next assignment"}: ${liveAssignments[0]?.title || none}`,
+        `${currentLang === "es" ? "Ultimo match analysis" : "Latest match analysis"}: ${latestAnalysisLabel}`
       ],
       actions: competitionMedia?.assetPath ? [{
         label: currentLang === "es" ? "Abrir film" : "Open film",
@@ -13800,43 +13782,41 @@ function buildCompetitionPreview(profile) {
       }] : []
     },
     {
-      title: currentLang === "es" ? "Tecnicas predeterminadas" : "Default Techniques",
+      group: "strategy",
+      title: currentLang === "es" ? "Estrategia de combate" : "Match Strategy",
       lines: [
-        `${currentLang === "es" ? "Neutral" : "Neutral"}: ${neutralList.join(", ") || na}`,
-        `${currentLang === "es" ? "Arriba" : "Top"}: ${topList.join(", ") || na}`,
-        `${currentLang === "es" ? "Abajo" : "Bottom"}: ${bottomList.join(", ") || na}`,
-        `${currentLang === "es" ? "Defensa" : "Defense"}: ${defenseList.join(", ") || na}`,
-        `${currentLang === "es" ? "Otro" : "Other"}: ${[
-          profile.techniques?.neutralOther,
-          profile.techniques?.topOther,
-          profile.techniques?.bottomOther,
-          profile.techniques?.defenseOther
-        ].filter(Boolean).join(" - ") || na}`
-      ]
-    },
-    {
-      title: currentLang === "es" ? "Coaching rapido" : "Coaching Quick",
-      lines: [
-        `${currentLang === "es" ? "Posicion favorita" : "Favorite position"}: ${favoritePosition}`,
-        `${currentLang === "es" ? "Tendencia" : "Tendency"}: ${tendency}`,
-        `${currentLang === "es" ? "Error bajo presion" : "Common error"}: ${profile.pressureError || na}`,
-        `${currentLang === "es" ? "Senal clave" : "Coach signal"}: ${profile.coachSignal || na}`,
+        `${currentLang === "es" ? "Plan A/B/C" : "Plan A/B/C"}: ${strategyPlans}`,
         `${currentLang === "es" ? "Top ofensivo" : "Top offense"}: ${offense}`,
         `${currentLang === "es" ? "Top defensivo" : "Top defense"}: ${defense}`,
-        `Tags: ${tags}`,
-        `${currentLang === "es" ? "Focus actual" : "Current focus"}: ${(latestNotes?.nextFocus || []).slice(0, 2).join(" | ") || na}`,
-        `${currentLang === "es" ? "Ultimo match analysis" : "Latest match analysis"}: ${latestAnalysis?.summary || na}`
+        `${currentLang === "es" ? "Setups clave" : "Key setups"}: ${setups}`,
+        `${currentLang === "es" ? "Posicion + tendencia" : "Position + tendency"}: ${position} • ${tendency}`,
+        `${currentLang === "es" ? "Cue de competencia" : "Competition cue"}: ${profile.competitionCue || profile.coachSignal || none}`
       ]
     },
     {
-      title: currentLang === "es" ? "Experiencia internacional" : "International Experience",
+      group: "safety",
+      title: currentLang === "es" ? "Seguridad y control" : "Safety & Control",
       lines: [
+        `${currentLang === "es" ? "Limitaciones fisicas" : "Physical limitations"}: ${limitations}`,
+        `${currentLang === "es" ? "Advertencias de seguridad" : "Safety warnings"}: ${safetyWarnings}`,
+        `${currentLang === "es" ? "Error bajo presion" : "Pressure error"}: ${profile.pressureError || none}`,
+        `${currentLang === "es" ? "Recordatorios mentales" : "Mental reminders"}: ${reminders}`,
+        `${currentLang === "es" ? "Journal reciente" : "Recent journal"}: ${latestJournalLabel}`,
+        `${currentLang === "es" ? "Alertas/focus" : "Alerts/focus"}: ${currentFocusLabel}`
+      ]
+    },
+    {
+      group: "history",
+      title: currentLang === "es" ? "Contexto del atleta" : "Athlete Context",
+      lines: [
+        `${currentLang === "es" ? "Experiencia" : "Experience"}: ${years} ${yearsLabel} • ${level}`,
+        `${currentLang === "es" ? "Estilo / estrategia" : "Style / strategy"}: ${style} • ${strategy}`,
+        `${currentLang === "es" ? "Peso / categoria" : "Weight / class"}: ${weight} • ${weightClass}`,
+        `${currentLang === "es" ? "Resultados recientes" : "Recent results"}: ${profile.resultsHistory || none}`,
         `${currentLang === "es" ? "Competencia internacional" : "International competition"}: ${intl}`,
         `${currentLang === "es" ? "Paises/eventos" : "Countries/events"}: ${profile.internationalEvents || na}`,
         `${currentLang === "es" ? "Anos" : "Years"}: ${profile.internationalYears || na}`,
-        `${currentLang === "es" ? "Indicaciones" : "Coach cues"}: ${coachCues}`,
-        `${currentLang === "es" ? "Que ayuda" : "What helps"}: ${profile.cueNotes || na}`,
-        `${currentLang === "es" ? "Lesiones/limites" : "Injuries/limits"}: ${profile.injuryNotes || none}`
+        `${currentLang === "es" ? "Indicaciones de coach" : "Coach cues"}: ${coachCues}`
       ]
     }
   ];
@@ -14116,12 +14096,48 @@ function renderCompetitionPreview(profile) {
     competitionPreview.appendChild(card);
     return;
   }
-  sections.forEach((section) => {
+
+  const groupOrder = ["summary", "strategy", "safety", "history"];
+  const groupLabels = {
+    summary: currentLang === "es" ? "Resumen" : "Summary",
+    strategy: currentLang === "es" ? "Estrategia" : "Strategy",
+    safety: currentLang === "es" ? "Seguridad" : "Safety",
+    history: currentLang === "es" ? "Historial" : "History"
+  };
+  const groupsAvailable = groupOrder.filter((group) => sections.some((section) => section.group === group));
+  if (!groupsAvailable.length) {
+    groupsAvailable.push("summary");
+  }
+  if (!groupsAvailable.includes(competitionPreviewGroup)) {
+    competitionPreviewGroup = groupsAvailable[0];
+  }
+
+  const tabsShell = document.createElement("div");
+  tabsShell.className = "competition-preview-tabs";
+  tabsShell.innerHTML = groupsAvailable
+    .map((group) => {
+      const isActive = group === competitionPreviewGroup;
+      return `<button type="button" class="competition-preview-tab${isActive ? " active" : ""}" data-competition-preview-tab="${escapeHtml(group)}">${escapeHtml(groupLabels[group] || group)}</button>`;
+    })
+    .join("");
+  competitionPreview.appendChild(tabsShell);
+  tabsShell.querySelectorAll("[data-competition-preview-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const nextGroup = String(button.dataset.competitionPreviewTab || "").trim();
+      if (!nextGroup || nextGroup === competitionPreviewGroup) return;
+      competitionPreviewGroup = nextGroup;
+      renderCompetitionPreview(profile);
+    });
+  });
+
+  sections
+    .filter((section) => section.group === competitionPreviewGroup)
+    .forEach((section) => {
     const card = document.createElement("div");
-    card.className = "mini-card";
+    card.className = "mini-card competition-preview-card";
     card.innerHTML = `<h3>${section.title}</h3>`;
     const list = document.createElement("ul");
-    list.className = "list";
+    list.className = "list competition-preview-list";
     section.lines.forEach((line) => {
       const li = document.createElement("li");
       li.textContent = line;

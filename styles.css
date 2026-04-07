@@ -4273,6 +4273,42 @@ textarea:focus{
   gap: 8px;
 }
 
+#competitionPreview{
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.competition-preview-tabs{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.competition-preview-tab{
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.competition-preview-tab.active{
+  border-color: rgba(111, 182, 255, 0.6);
+  background: rgba(76, 127, 216, 0.25);
+}
+
+.competition-preview-card{
+  padding: 10px;
+}
+
+.competition-preview-list{
+  display: grid;
+  gap: 4px;
+}
+
 .competition-row{
   width: 100%;
   border: 1px solid rgba(255,255,255,0.14);
