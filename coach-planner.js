@@ -4781,9 +4781,10 @@
   }
 
   async function loadPlannerTemplates() {
-    setTemplatesStatus(tr({ en: "Loading saved plans...", es: "Cargando planes guardados..." }));
-true    if (!result.authReady) {
-      state.templateRecords = [];
+    setTemplatesStatus(tr({ en: "Loading saved plans...", es: "Cargando planes guard
+     const result = await fetchPlannerSavedRecords({ includeTemplates: true, includePlans: true });
+    if (!result.authReady) {
+state.templateRecords = [];
       renderTemplateList();
       setTemplatesStatus(tr({
         en: "Sign in again to load saved plans.",
