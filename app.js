@@ -1479,7 +1479,7 @@ async function applyProfile(profile) {
   setLanguage(profile.lang || getPreferredLang(), { skipConfirm: true, refresh: false });
   setView(view);
   if (view === "coach") {
-    await loadSavedPdfTemplate();
+    clearLegacyCoachPlannerArtifacts();
   }
   if (isCoachRole(role)) {
     startCoachWorkspaceRealtimeSync();
@@ -4063,7 +4063,7 @@ function normalizeCoachPlanRecord(id, data = {}) {
     type,
     focus: String(data.focus || "").trim(),
     coachNotes: String(data.coachNotes || "").trim(),
-    sourceMode: ["scratch", "template", "duplicate"].includes(data.sourceMode) ? data.sourceMode : "scratch",
+    sourceMode: ["scratch", "duplicate"].includes(data.sourceMode) ? data.sourceMode : "scratch",
     sourceRefId: String(data.sourceRefId || "").trim(),
     sourceLabel: String(data.sourceLabel || "").trim(),
     range: {
@@ -5373,7 +5373,7 @@ function getCoachPlanRecords() {
 }
 
 function getCoachTemplateRecords() {
-  return coachWorkspaceSortByUpdated(coachTemplatesCache).filter((record) => !isLegacyCoachTemplateRecord(record));
+  return [];
 }
 
 function getAssignmentStatusCounts(records = getCoachAssignmentRecords()) {
@@ -5526,37 +5526,11 @@ async function syncDerivedAssignmentStatuses() {
 }
 
 function getCoachTemplateOptionsForType(type = planRangeType) {
-  const targetType = normalizePlanType(type);
-  const liveTemplates = getCoachTemplateRecords();
-  const source = liveTemplates.filter((item) => item.type === targetType);
-  const visibleSource = (source.length ? source : liveTemplates).filter((item) => {
-    const templateId = String(item?.id || "").trim();
-    if (!templateId) return true;
-    if (pendingTemplateDeleteById[templateId]) return false;
-    if (isSwipeDeletePending(`coach-template:${templateId}`)) return false;
-    return true;
-  });
-  return visibleSource.map((item) => ({
-    value: item.id,
-    label: { en: item.name, es: item.name },
-    record: item
-  }));
+  return [];
 }
 
 async function deleteCoachTemplateRecordById(templateId = "") {
-  const safeTemplateId = String(templateId || "").trim();
-  if (!safeTemplateId) return false;
-  const templatesRef = getCoachWorkspaceCollectionRef("templates");
-  if (!templatesRef) return false;
-  await withTimeout(
-    templatesRef.doc(safeTemplateId).delete(),
-    FIREBASE_OP_TIMEOUT_MS,
-    "firestore_template_delete_timeout"
-  );
-  coachTemplatesCache = coachTemplatesCache.filter((row) => String(row.id || "").trim() !== safeTemplateId);
-  renderTemplatesPanel();
-  renderPlanSourceControls();
-  return true;
+  return false;
 }
 
 function getDuplicatePlanOptionsForType(type = planRangeType) {
@@ -6127,7 +6101,6 @@ async function cleanupLegacyCoachWorkspaceFixtures(uid = getAuthUser()?.id) {
   const safeUid = String(uid || "").trim();
   if (!safeUid) return;
 
-  const templateIds = getLegacyCoachTemplateIds();
   const groupIds = getLegacyCoachGroupIds();
   const matchAnalysisSeedIds = new Set(
     getSeedCoachMatchAnalysisRecords()
@@ -6138,10 +6111,7 @@ async function cleanupLegacyCoachWorkspaceFixtures(uid = getAuthUser()?.id) {
   const targetCollections = [
     {
       ref: getCoachWorkspaceCollectionRef("templates", safeUid),
-      shouldDelete: (doc) => {
-        const data = doc.data() || {};
-        return templateIds.has(doc.id) || data.system === true;
-      }
+      shouldDelete: () => true
     },
     {
       ref: getCoachWorkspaceCollectionRef("plans", safeUid),
@@ -6240,7 +6210,6 @@ async function startCoachWorkspaceRealtimeSync() {
   }
 
   const plansRef = getCoachWorkspaceCollectionRef("plans", authUser.id);
-  const templatesRef = getCoachWorkspaceCollectionRef("templates", authUser.id);
   const assignmentsRef = getCoachWorkspaceCollectionRef("assignments", authUser.id);
   const groupsRef = getCoachWorkspaceCollectionRef("groups", authUser.id);
   const competitionsRef = getCoachWorkspaceCollectionRef("competitions", authUser.id);
@@ -6255,7 +6224,8 @@ async function startCoachWorkspaceRealtimeSync() {
   const notificationsRef = getCoachWorkspaceCollectionRef(COACH_WORKSPACE_NOTIFICATIONS_COLLECTION, authUser.id);
   const mediaAssetsRef = getCoachWorkspaceCollectionRef(COACH_WORKSPACE_MEDIA_ASSETS_COLLECTION, authUser.id);
   const usersRef = firebaseFirestoreInstance?.collection(FIREBASE_USERS_COLLECTION) || null;
-  if (!plansRef || !templatesRef || !assignmentsRef || !groupsRef || !competitionsRef || !calendarRef || !athletesRef || !notesRef || !journalRef || !completionRef || !matchAnalysisRef || !parentScoutingRef || !announcementsRef || !notificationsRef || !mediaAssetsRef) return;
+  coachTemplatesCache = [];
+  if (!plansRef || !assignmentsRef || !groupsRef || !competitionsRef || !calendarRef || !athletesRef || !notesRef || !journalRef || !completionRef || !matchAnalysisRef || !parentScoutingRef || !announcementsRef || !notificationsRef || !mediaAssetsRef) return;
 
   coachWorkspaceUnsubs.push(
     plansRef.onSnapshot((snapshot) => {
@@ -6271,16 +6241,6 @@ async function startCoachWorkspaceRealtimeSync() {
     }, (err) => {
       console.warn("Plan sync failed", err);
       reportCoachOperationalAlert("Plan sync failed", err);
-    }),
-    templatesRef.onSnapshot((snapshot) => {
-      coachTemplatesCache = coachWorkspaceSortByUpdated(
-        snapshot.docs.map((doc) => normalizeCoachTemplateRecord(doc.id, doc.data()))
-      );
-      renderPlanSourceControls();
-      renderTemplatesPanel();
-    }, (err) => {
-      console.warn("Template sync failed", err);
-      reportCoachOperationalAlert("Template sync failed", err);
     }),
     assignmentsRef.onSnapshot((snapshot) => {
       coachAssignmentsCache = coachWorkspaceSortByUpdated(
@@ -9736,42 +9696,15 @@ let trainingBuilderBound = false;
 
 function createDefaultTrainingBuilderState() {
   return {
-    templates: [
-      { id: "tb-template-monday-neutral-attack", name: "Monday Neutral Attack", blocks: 6, duration: "95 min", level: "Varsity" },
-      { id: "tb-template-top-pressure-series", name: "Top Pressure Series", blocks: 5, duration: "80 min", level: "JV" },
-      { id: "tb-template-pre-match-light-session", name: "Pre-Match Light Session", blocks: 4, duration: "55 min", level: "All Levels" }
-    ],
-    athletes: [
-      { name: "Ethan Cruz", status: "Complete", progress: 100 },
-      { name: "Jayden Morales", status: "In Progress", progress: 68 },
-      { name: "Luis Romero", status: "Not Started", progress: 12 },
-      { name: "Noah Castillo", status: "Complete", progress: 100 }
-    ],
-    library: [
-      { title: "Warm-up Movement Flow", type: "Drill", tag: "Mobility" },
-      { title: "Single Leg Finish Series", type: "Video", tag: "Neutral" },
-      { title: "Top Pressure Spiral Ride", type: "Drill", tag: "Top" },
-      { title: "Live Go x 6", type: "Note", tag: "Conditioning" },
-      { title: "Sled Push + Med Ball", type: "Strength", tag: "Explosive" }
-    ],
-    blocks: [
-      { phase: "Warm-up", title: "Movement Flow", time: "10 min", note: "Raise temperature and activate hips." },
-      { phase: "Technique", title: "Single Leg Finish Series", time: "15 min", note: "Sharp entries and clean finishes." },
-      { phase: "Drill", title: "Top Pressure Spiral Ride", time: "12 min", note: "Heavy hips and forward pressure." },
-      { phase: "Live", title: "Go x 6", time: "12 min", note: "Fast pace, short goes." },
-      { phase: "Conditioning", title: "Sled Push + Med Ball", time: "15 min", note: "Explosive finish to practice." }
-    ],
-    week: [
-      { day: "Mon", title: "Neutral Attack", note: "High pace" },
-      { day: "Tue", title: "Recovery / Film", note: "Light day" },
-      { day: "Wed", title: "Top & Bottom", note: "Technique focus" },
-      { day: "Thu", title: "Live Situations", note: "Competition pace" },
-      { day: "Fri", title: "Pre-Match Session", note: "Short + sharp" }
-    ],
-    brandTitle: "Wrestling Performance Lab",
-    dashboardTitle: "Coach Dashboard",
-    practiceTitle: "Monday Neutral Attack Practice",
-    practiceDescription: "Builder visual para armar una practica usando bloques reutilizables, tiempos, notas y objetivo.",
+    templates: [],
+    athletes: [],
+    library: [],
+    blocks: [],
+    week: [],
+    brandTitle: "",
+    dashboardTitle: "",
+    practiceTitle: "",
+    practiceDescription: "",
     selectedTemplate: 0,
     selectedAthlete: 0,
     selectedLibrary: 0,
@@ -9834,6 +9767,7 @@ function normalizeTrainingBuilderIndex(index, list = []) {
 
 function loadTrainingBuilderState() {
   const fallback = createDefaultTrainingBuilderState();
+  if (hasModernCoachPlanner()) return fallback;
   try {
     const raw = localStorage.getItem(TRAINING_BUILDER_STORAGE_KEY);
     if (!raw) return fallback;
@@ -10216,19 +10150,6 @@ const PLAN_SOURCE_LIBRARY = {
     selectLabel: { en: "", es: "" },
     options: []
   },
-  template: {
-    label: { en: "From template", es: "Desde plantilla" },
-    summary: {
-      en: "Use a reusable template, then edit the plan details here.",
-      es: "Usa una plantilla reutilizable y luego ajusta los detalles aqui."
-    },
-    selectLabel: { en: "Template", es: "Plantilla" },
-    options: [
-      { value: "daily-tech", label: { en: "Daily technical session", es: "Sesion tecnica diaria" } },
-      { value: "high-volume-week", label: { en: "High-volume chain wrestling week", es: "Semana de alto volumen en cadena" } },
-      { value: "competition-taper", label: { en: "Competition taper week", es: "Semana de descarga competitiva" } }
-    ]
-  },
   duplicate: {
     label: { en: "Duplicate previous", es: "Duplicar anterior" },
     summary: {
@@ -10236,11 +10157,7 @@ const PLAN_SOURCE_LIBRARY = {
       es: "Parte de un plan reciente y ajusta fechas, volumen o destinatarios."
     },
     selectLabel: { en: "Previous plan", es: "Plan anterior" },
-    options: [
-      { value: "last-daily", label: { en: "Yesterday - Daily mat session", es: "Ayer - Sesion diaria de mat" } },
-      { value: "last-weekly", label: { en: "Last week - Competition prep", es: "Semana pasada - Preparacion competitiva" } },
-      { value: "last-season", label: { en: "Last season block - Strength phase", es: "Bloque anterior - Fase de fuerza" } }
-    ]
+    options: []
   }
 };
 
@@ -10277,9 +10194,6 @@ function getPlanTargetSummary() {
 
 function getPlanSourceConfig(mode = planSourceMode) {
   const source = PLAN_SOURCE_LIBRARY[mode] || PLAN_SOURCE_LIBRARY.scratch;
-  if (mode === "template") {
-    return { ...source, options: getCoachTemplateOptionsForType(planRangeType) };
-  }
   if (mode === "duplicate") {
     return { ...source, options: getDuplicatePlanOptionsForType(planRangeType) };
   }
@@ -10386,6 +10300,7 @@ function clearPlanSaveStatus() {
 }
 
 function syncPlanSaveButtons() {
+  if (hasModernCoachPlanner()) return;
   const savingLabel = pickCopy({ en: "Saving...", es: "Guardando..." });
   if (savePlanBtn) {
     savePlanBtn.disabled = coachPlanSyncState.saving;
@@ -10412,16 +10327,16 @@ function updatePlanQuickSummary() {
 }
 
 function renderPlanSourceControls() {
+  if (hasModernCoachPlanner()) return;
   if (planBuildTitle) planBuildTitle.textContent = currentLang === "es" ? "Inicia el plan" : "Start the plan";
   if (planBuildSubtitle) {
     planBuildSubtitle.textContent = currentLang === "es"
-      ? "Elige el tipo de plan y si empiezas desde cero, desde plantilla o duplicando uno anterior."
-      : "Choose the plan type, then decide whether to start from zero, a template, or a previous plan.";
+      ? "Elige el tipo de plan y si empiezas desde cero o duplicando uno anterior."
+      : "Choose the plan type, then decide whether to start from zero or duplicate a previous plan.";
   }
   planSourceButtons.forEach((btn) => {
     const copy = {
       scratch: { en: "From scratch", es: "Desde cero" },
-      template: { en: "From template", es: "Desde plantilla" },
       duplicate: { en: "Duplicate previous", es: "Duplicar anterior" }
     };
     btn.textContent = pickCopy(copy[btn.dataset.planSource] || copy.scratch);
@@ -10433,11 +10348,6 @@ function renderPlanSourceControls() {
     const selection = source.options.find((item) => item.value === planSourceSelection);
     if (selection) {
       planSourceSummary.textContent = `${pickCopy(source.summary)} ${pickCopy(selection.label)}.`;
-    } else if (planSourceMode === "template") {
-      planSourceSummary.textContent = pickCopy({
-        en: "No templates are available for this plan type yet. You can still build the plan here and save it.",
-        es: "Todavia no hay plantillas para este tipo de plan. Aun puedes construir el plan aqui y guardarlo."
-      });
     } else if (planSourceMode === "duplicate") {
       planSourceSummary.textContent = pickCopy({
         en: "No previous plans of this type yet. Save one first, then duplicate it here.",
@@ -10470,6 +10380,7 @@ function renderPlanSourceControls() {
 }
 
 function renderPlanAssignControls() {
+  if (hasModernCoachPlanner()) return;
   if (planAssignMode === "single" && planAssignedAthletes.length > 1) {
     planAssignedAthletes = planAssignedAthletes.slice(0, 1);
   }
@@ -10600,6 +10511,7 @@ function setPlanEditorRange(range = {}) {
 }
 
 function resetCoachPlanEditor() {
+  if (hasModernCoachPlanner()) return;
   currentEditingCoachPlanId = "";
   if (planTitleInput) planTitleInput.value = defaultPlanTitle(planRangeType);
   if (planFocusInput) planFocusInput.value = "";
@@ -10637,6 +10549,7 @@ function applyCoachPlanRecordToEditor(record, { clearEditingId = true } = {}) {
 }
 
 function applySelectedPlanSource() {
+  if (hasModernCoachPlanner()) return;
   const record = getSelectedPlanSourceRecord();
   if (!record) {
     if (planSourceMode === "scratch") {
@@ -10920,6 +10833,7 @@ async function replaceAssignmentsForPlan(plan) {
 }
 
 async function saveCoachPlan({ createAssignments = false, navigateAfterSave = false } = {}) {
+  if (hasModernCoachPlanner()) return;
   if (coachPlanSyncState.saving) return;
   if (!isCoachWorkspaceActive()) {
     setPlanSaveStatusMessage(pickCopy({
@@ -11433,6 +11347,22 @@ function getCoachKey() {
   return (profile.name || "coach").toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
 
+function hasModernCoachPlanner() {
+  return Boolean(document.getElementById("coachPlannerApp"));
+}
+
+function clearLegacyCoachPlannerArtifacts() {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.removeItem("wpl_training_builder_state");
+    localStorage.removeItem("wpl_daily_plan");
+    localStorage.removeItem(`wpl_pdf_template_${getCoachKey()}`);
+    localStorage.removeItem(`wpl_custom_options_${getCoachKey()}`);
+  } catch {
+    // ignore storage errors
+  }
+}
+
 function getCustomOptions() {
   const key = `wpl_custom_options_${getCoachKey()}`;
   try { return JSON.parse(localStorage.getItem(key) || "{}"); }
@@ -11550,10 +11480,12 @@ function formatPdfField(items) {
 }
 
 function updateTemplatePrintButton() {
+  if (hasModernCoachPlanner()) return;
   if (printTemplatePlan) printTemplatePlan.disabled = !templatePdfBytes;
 }
 
 function showTemplatePreview(url) {
+  if (hasModernCoachPlanner()) return;
   if (!templatePreview || !templatePreviewFrame) return;
   templatePreviewFrame.src = url;
   templatePreview.classList.remove("hidden");
@@ -11564,6 +11496,7 @@ function getPdfTemplateKey() {
 }
 
 function savePdfTemplate(dataUrl) {
+  if (hasModernCoachPlanner()) return;
   localStorage.setItem(getPdfTemplateKey(), dataUrl);
 }
 
@@ -11577,6 +11510,7 @@ async function dataURLToArrayBuffer(dataUrl) {
 }
 
 async function loadSavedPdfTemplate() {
+  if (hasModernCoachPlanner()) return;
   const savedTemplate = getPdfTemplate();
   if (savedTemplate) {
     try {
@@ -11601,6 +11535,7 @@ async function loadSavedPdfTemplate() {
 }
 
 function handleTemplateFile(file) {
+  if (hasModernCoachPlanner()) return;
   if (!file) {
     if (templateStatus) {
       templateStatus.textContent = pickCopy({
@@ -11651,6 +11586,7 @@ function handleTemplateFile(file) {
 }
 
 async function generateFilledPdf({ download } = {}) {
+  if (hasModernCoachPlanner()) return null;
   if (!templatePdfBytes) {
     if (templateStatus) {
       templateStatus.textContent = pickCopy({
@@ -11738,37 +11674,7 @@ function formatDailyPlanText(data) {
 }
 
 function renderTemplatesPanel() {
-  if (templateLibraryList) {
-    const savedPlans = getCoachPlanRecords().slice(0, 7);
-    templateLibraryList.innerHTML = "";
-    if (!savedPlans.length) {
-      const empty = document.createElement("li");
-      empty.className = "small muted";
-      empty.textContent = currentLang === "es"
-        ? "Sin datos. Guarda planes reales para verlos aqui."
-        : "No data. Save real plans to see them here.";
-      templateLibraryList.appendChild(empty);
-    } else {
-      savedPlans.forEach((plan) => {
-        const typeLabel = getPlanAssignmentTypeLabel(plan.type);
-        const detail = plan.focus || plan.monthlyNotes || "";
-        const item = document.createElement("li");
-        item.className = "template-library-item";
-        item.innerHTML = `<strong>${escapeHtml(plan.title)}</strong> - ${escapeHtml(typeLabel)}${detail ? ` - ${escapeHtml(detail)}` : ""}`;
-        templateLibraryList.appendChild(item);
-      });
-    }
-  }
-
-  if (templateWorkflowList) {
-    const workflowItems = [
-      pickCopy({
-        en: "No data. Coaches can create and edit real plans in Plans & Assignments.",
-        es: "Sin datos. Los entrenadores pueden crear y editar planes reales en Planes y asignaciones."
-      })
-    ];
-    templateWorkflowList.innerHTML = workflowItems.map((item) => `<li>${item}</li>`).join("");
-  }
+  return;
 }
 
 if (saveDailyPlan) {
