@@ -4373,6 +4373,14 @@ textarea:focus{
   color: rgba(255,255,255,0.72);
 }
 
+.competition-athlete-row-actions{
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .competition-athlete-row-athlete{
   border-color: rgba(109, 205, 176, 0.46);
   background: rgba(67, 156, 126, 0.2);

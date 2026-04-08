@@ -13403,10 +13403,30 @@ function renderCompetitionManager(selectedProfile = null) {
   const selectedCompetition = lookup.get(selectedCompetitionId) || null;
   const currentCompetition = timeline.current[0] || null;
   const activeAthlete = selectedProfile || (isAthleteRole(getProfile()?.role) ? (getAthletePortalLinkedAthlete() || getProfile()) : null);
-  const activeAthleteName = String(activeAthlete?.name || "").trim();
   const athleteFromRoster = getSelectedCoachAthleteRecord();
+  const coachSelectedAthleteName = String(selectedCoachAthleteRosterName || athleteFromRoster?.name || "").trim();
+  const activeAthleteName = String(activeAthlete?.name || coachSelectedAthleteName).trim();
   const viewerProfile = getProfile();
   const athleteCoachUid = getAthleteLinkedCoachUid(viewerProfile);
+  const openAthleteCompetitionSummary = (athleteName = "") => {
+    const safeName = String(athleteName || "").trim();
+    if (!safeName || !canEdit) return;
+    if (coachMatchSelect) coachMatchSelect.value = safeName;
+    selectedCoachAthleteRosterName = safeName;
+    const record = getCoachAthleteRecordByIdentity(safeName) || getAthletesData().find((entry) => entry.name === safeName) || null;
+    if (!record) return;
+    renderCompetitionPreview(record);
+    renderCoachMatchView(safeName);
+    renderCoachAthleteProfile(safeName);
+    renderAthleteManagement();
+    renderAthleteNotes();
+    renderJournalMonitor();
+    if (competitionSummaryStatus) {
+      competitionSummaryStatus.textContent = currentLang === "es"
+        ? `Resumen cargado para ${safeName}.`
+        : `Summary loaded for ${safeName}.`;
+    }
+  };
 
   competitionCurrentCard.innerHTML = `
     <div class="competition-current-top">
@@ -13498,7 +13518,15 @@ function renderCompetitionManager(selectedProfile = null) {
               <strong>${escapeHtml(entry.athleteName)}</strong>
               <div class="small">${escapeHtml(metaParts || (currentLang === "es" ? "Registro activo" : "Registered"))}${isActiveAthlete ? ` • ${currentLang === "es" ? "tu" : "you"}` : ""}</div>
             </div>
-            ${canEdit ? `<button type="button" class="ghost competition-remove-athlete-btn" data-athlete-id="${escapeHtml(entry.athleteId)}" data-athlete-uid="${escapeHtml(entry.athleteUid)}" data-athlete-name="${escapeHtml(entry.athleteName)}">${currentLang === "es" ? "Quitar" : "Remove"}</button>` : ""}
+            ${canEdit
+              ? `
+                <div class="competition-athlete-row-actions">
+                  <button type="button" class="ghost competition-view-athlete-btn" data-athlete-name="${escapeHtml(entry.athleteName)}">${currentLang === "es" ? "Ver resumen" : "View summary"}</button>
+                  <button type="button" class="ghost competition-remove-athlete-btn" data-athlete-id="${escapeHtml(entry.athleteId)}" data-athlete-uid="${escapeHtml(entry.athleteUid)}" data-athlete-name="${escapeHtml(entry.athleteName)}">${currentLang === "es" ? "Quitar" : "Remove"}</button>
+                </div>
+              `
+              : ""
+            }
           </div>
         `;
       }).join("")
@@ -13534,6 +13562,7 @@ function renderCompetitionManager(selectedProfile = null) {
       ${selectedCompetition.organizer ? `<p class="small muted">${escapeHtml(selectedCompetition.organizer)}</p>` : ""}
       ${selectedCompetition.description ? `<p class="small">${escapeHtml(selectedCompetition.description)}</p>` : ""}
       ${selectedCompetition.note ? `<p class="small muted">${escapeHtml(selectedCompetition.note)}</p>` : ""}
+      ${canEdit ? `<p class="small muted">${currentLang === "es" ? "Selecciona un atleta para cargar su resumen y puntos de esquina." : "Select an athlete to load their summary and corner cues."}</p>` : ""}
       <div class="competition-athlete-list">${rosterHtml}</div>
       ${canEdit ? `
         <div class="competition-picker-shell">
@@ -13654,6 +13683,11 @@ function renderCompetitionManager(selectedProfile = null) {
           console.warn("Competition selected athlete add failed", err);
           toast(currentLang === "es" ? "No se pudo agregar el atleta." : "Could not add athlete.");
         }
+      });
+      competitionDetailCard.querySelectorAll(".competition-view-athlete-btn").forEach((button) => {
+        button.addEventListener("click", () => {
+          openAthleteCompetitionSummary(button.dataset.athleteName);
+        });
       });
       competitionDetailCard.querySelectorAll(".competition-remove-athlete-btn").forEach((button) => {
         button.addEventListener("click", async () => {
