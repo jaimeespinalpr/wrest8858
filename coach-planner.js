@@ -4156,12 +4156,39 @@
   }
 
   function getPlannerAuthUser() {
+    const normalizePlannerAuthUser = (value = null) => {
+      if (!value || typeof value !== "object") return null;
+      const id = String(value.id || value.uid || "").trim();
+      if (!id) return null;
+      return {
+        id,
+        email: String(value.email || "").trim().toLowerCase(),
+        role: String(value.role || "").trim().toLowerCase()
+      };
+    };
     if (typeof getAuthUser === "function") {
       try {
-        return getAuthUser();
+        const fromApp = normalizePlannerAuthUser(getAuthUser());
+        if (fromApp?.id) return fromApp;
       } catch {
-        return null;
+        // fallback below
       }
+    }
+    try {
+      if (typeof firebaseAuthInstance !== "undefined" && firebaseAuthInstance?.currentUser) {
+        const fromFirebaseInstance = normalizePlannerAuthUser(firebaseAuthInstance.currentUser);
+        if (fromFirebaseInstance?.id) return fromFirebaseInstance;
+      }
+    } catch {
+      // fallback below
+    }
+    try {
+      if (typeof firebase !== "undefined" && firebase?.auth) {
+        const fromFirebase = normalizePlannerAuthUser(firebase.auth().currentUser);
+        if (fromFirebase?.id) return fromFirebase;
+      }
+    } catch {
+      // ignore fallback errors
     }
     return null;
   }
@@ -5225,7 +5252,12 @@
       }
     } catch (err) {
       console.warn("Failed to save planner template", err);
-      setBottomStatus(tr({ en: "Could not save template.", es: "No se pudo guardar la plantilla." }), true);
+      const errorCode = String(err?.code || "").trim();
+      const detail = errorCode ? ` (${errorCode})` : "";
+      setBottomStatus(tr({
+        en: `Could not save template${detail}.`,
+        es: `No se pudo guardar la plantilla${detail}.`
+      }), true);
     } finally {
       state.templateSaveBusy = false;
     }
@@ -5506,7 +5538,12 @@
       closeAssignModal();
     } catch (err) {
       console.warn("Failed to share planner assignments", err);
-      setAssignStatus(tr({ en: "Could not share plan. Try again.", es: "No se pudo compartir el plan. Intenta de nuevo." }), true);
+      const errorCode = String(err?.code || "").trim();
+      const detail = errorCode ? ` (${errorCode})` : "";
+      setAssignStatus(tr({
+        en: `Could not share plan${detail}. Try again.`,
+        es: `No se pudo compartir el plan${detail}. Intenta de nuevo.`
+      }), true);
     } finally {
       state.assignModalBusy = false;
       if (els.assignSendBtn) {
@@ -5585,7 +5622,7 @@
     const authUser = getPlannerAuthUser();
     const uid = String(authUser?.id || "").trim();
     if (!usersRef || !uid) {
-      persistDaily();
+      persistDaily({ syncCloud: false });
       return;
     }
     try {
@@ -5697,8 +5734,10 @@
 
   function isPlannerReadOnlyMode() {
     const view = getPlannerCurrentView();
+    if (view === "coach" || view === "admin") return false;
     if (view === "athlete" || view === "parent") return true;
     const role = String(getPlannerProfile()?.role || "").trim().toLowerCase();
+    if (!role) return false;
     return !isCoachLikeRole(role);
   }
 
