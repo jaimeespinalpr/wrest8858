@@ -4174,6 +4174,19 @@
         // fallback below
       }
     }
+    if (typeof getProfile === "function") {
+      try {
+        const profile = getProfile();
+        const fromProfile = normalizePlannerAuthUser({
+          id: profile?.user_id || "",
+          email: profile?.email || "",
+          role: profile?.role || ""
+        });
+        if (fromProfile?.id) return fromProfile;
+      } catch {
+        // fallback below
+      }
+    }
     try {
       if (typeof firebaseAuthInstance !== "undefined" && firebaseAuthInstance?.currentUser) {
         const fromFirebaseInstance = normalizePlannerAuthUser(firebaseAuthInstance.currentUser);
@@ -4191,6 +4204,38 @@
       // ignore fallback errors
     }
     return null;
+  }
+
+  function waitForPlannerAuthReady(timeoutMs = 2200) {
+    const existing = getPlannerAuthUser();
+    if (existing?.id) return Promise.resolve(existing);
+    return new Promise((resolve) => {
+      let settled = false;
+      let timerId = null;
+      let unsubscribe = null;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        if (timerId) clearTimeout(timerId);
+        if (typeof unsubscribe === "function") {
+          try { unsubscribe(); } catch {}
+        }
+        resolve(getPlannerAuthUser());
+      };
+      timerId = window.setTimeout(finish, timeoutMs);
+      try {
+        if (typeof firebaseAuthInstance !== "undefined" && firebaseAuthInstance?.onAuthStateChanged) {
+          unsubscribe = firebaseAuthInstance.onAuthStateChanged(() => finish());
+          return;
+        }
+        if (typeof firebase !== "undefined" && firebase?.auth) {
+          unsubscribe = firebase.auth().onAuthStateChanged(() => finish());
+          return;
+        }
+      } catch {
+        // fallback to timeout
+      }
+    });
   }
 
   function getPlannerProfile() {
@@ -4582,6 +4627,16 @@
   }
 
   async function loadPlannerTemplates() {
+    const authUser = await waitForPlannerAuthReady(2200);
+    if (!authUser?.id) {
+      state.templateRecords = [];
+      renderTemplateList();
+      setTemplatesStatus(tr({
+        en: "Sign in again to load templates.",
+        es: "Inicia sesion de nuevo para cargar plantillas."
+      }), true);
+      return;
+    }
     const templatesRef = getPlannerWorkspaceCollectionRef("templates");
     if (!templatesRef) {
       state.templateRecords = [];
@@ -5045,6 +5100,26 @@
       }
     }
 
+    if (!sources.length && typeof getAthletesData === "function") {
+      try {
+        const localAthletes = (getAthletesData() || [])
+          .map((athlete) => normalizeRecipientRecord(
+            athlete?.id || athlete?.name || "",
+            {
+              ...athlete,
+              role: "athlete",
+              email: athlete?.athleteEmail || athlete?.email || "",
+              linkedAthleteId: athlete?.id || athlete?.linkedAthleteId || ""
+            },
+            "athlete"
+          ))
+          .filter(Boolean);
+        sources.push(...localAthletes);
+      } catch {
+        // ignore local roster fallback errors
+      }
+    }
+
     if (!hadAtLeastOneSource) {
       state.assignFallbackRecipients = [];
       if (apply) applyAssignRecipients([], { fromRealtime: false });
@@ -5076,6 +5151,11 @@
           es: "Esperando inicio de sesion para cargar destinatarios..."
         }), true);
       }
+      waitForPlannerAuthReady(2500).then((user) => {
+        if (user?.id) {
+          startPlannerAssignDirectorySync({ force: true });
+        }
+      }).catch(() => {});
       loadPlannerRecipientsFallback().catch(() => {});
       return;
     }
@@ -5177,6 +5257,14 @@
   }
 
   async function savePlannerAsTemplate() {
+    const authUser = await waitForPlannerAuthReady(2200);
+    if (!authUser?.id) {
+      setBottomStatus(tr({
+        en: "Session not ready. Sign in again and retry.",
+        es: "La sesion no esta lista. Inicia sesion de nuevo e intenta otra vez."
+      }), true);
+      return;
+    }
     if (state.templateSaveBusy || state.assignModalBusy) return;
     const templatesRef = getPlannerWorkspaceCollectionRef("templates");
     if (!templatesRef) {
@@ -5264,6 +5352,14 @@
   }
 
   async function sendPlannerTrainingToAthletes() {
+    const authUserReady = await waitForPlannerAuthReady(2200);
+    if (!authUserReady?.id) {
+      setAssignStatus(tr({
+        en: "Session not ready. Sign in again and retry.",
+        es: "La sesion no esta lista. Inicia sesion de nuevo e intenta otra vez."
+      }), true);
+      return;
+    }
     if (state.assignModalBusy) return;
     const selected = state.assignAthletes.filter((athlete) => state.selectedAthleteIds.includes(athlete.id));
     if (!selected.length) {
@@ -5277,7 +5373,13 @@
     const assignmentsRef = getPlannerWorkspaceCollectionRef("assignments");
     const needsPlanDoc = contextTrack !== "mental";
     if ((!plansRef && needsPlanDoc) || !assignmentsRef || typeof firebaseFirestoreInstance === "undefined" || !firebaseFirestoreInstance) {
-      setAssignStatus(tr({ en: "Plan/assignment storage is not available.", es: "El almacenamiento de planes/asignaciones no esta disponible." }), true);
+      const projectId = String((typeof window !== "undefined" && window.FIREBASE_CONFIG?.projectId) || "").trim() || "n/a";
+      const uid = String(authUserReady?.id || "").trim() || "n/a";
+      const detail = `[project:${projectId} uid:${uid}]`;
+      setAssignStatus(tr({
+        en: `Plan/assignment storage is not available ${detail}.`,
+        es: `El almacenamiento de planes/asignaciones no esta disponible ${detail}.`
+      }), true);
       return;
     }
 
