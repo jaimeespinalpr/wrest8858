@@ -82,11 +82,7 @@
     return normalizePlannerCategoryCollection(merged);
   }
 
-  const INITIAL_LIBRARY = [
-    { id: "1", name: "Jogging & Dynamic Stretching", categoryId: "warm_up" },
-    { id: "2", name: "Takedown setups", categoryId: "techniques" },
-    { id: "3", name: "3x3 min Live matches", categoryId: "live_wrestling" }
-  ];
+  const INITIAL_LIBRARY = [];
 
   const INITIAL_TIMES = {
     roll_call: "10",
@@ -99,30 +95,12 @@
   };
 
   const DEFAULT_LIFTING_LIBRARY = {
-    "Explosives / Power": [
-      "Clean Pull", "Power Clean", "Hang Clean", "Power Pull", "Snatch",
-      "Clean Pull Jumps", "Push Jerk", "Push Press", "Split Jerk"
-    ],
-    Legs: [
-      "Barbell Squat", "Front Squat", "Pause Squat", "RDL (Romanian Deadlift)",
-      "Dumbbell Lunges", "Dumbbell Step-ups", "Bulgarian Split Squat"
-    ],
-    "Push (Upper Body)": [
-      "Bench Press", "Pause Bench Press", "Dumbbell Bench Press",
-      "Incline Dumbbell Bench Press", "Shoulder Press", "Dumbbell Shoulder Press"
-    ],
-    "Pull (Upper Body)": [
-      "Wide Grip Pull-ups", "Chin-ups", "Explosive Pull-ups",
-      "Barbell Bent Over Rows", "Reverse Grip BB Row", "Dumbbell Rows"
-    ],
-    "Plyometrics / Bodyweight": [
-      "Squat Jumps", "Split Squat Jumps", "Clap Push-ups", "Explosive Push-ups",
-      "Burpees", "Knee Tucks", "Lateral Skater Hops", "Med Ball Slams", "Box Jumps"
-    ],
-    Accessories: [
-      "Calf Raises", "Glute Bridge Holds", "Bicep Curls", "Hammer Curls",
-      "Bench Dips", "Tricep Extensions", "Forearm Curls", "Shrugs"
-    ]
+    "Explosives / Power": [],
+    Legs: [],
+    "Push (Upper Body)": [],
+    "Pull (Upper Body)": [],
+    "Plyometrics / Bodyweight": [],
+    Accessories: []
   };
 
   const MENTAL_GAME_KEYS = {
@@ -402,10 +380,10 @@
   function buildDefaultLiftingPlan() {
     return {
       id: "",
-      name: tr({ en: "New 7-Day Cycle", es: "Nuevo ciclo de 7 dias" }),
-      weeks: "1-4",
-      purpose: tr({ en: "Full week metabolic conditioning and strength base.", es: "Semana completa de base metabolica y fuerza." }),
-      benefits: tr({ en: "Optimized recovery and specific wrestling movements.", es: "Recuperacion optimizada y movimientos especificos de lucha." }),
+      name: "",
+      weeks: "",
+      purpose: "",
+      benefits: "",
       days: Array.from({ length: 7 }, (_, index) => ({
         id: index + 1,
         name: tr({ en: `Day ${index + 1}`, es: `Dia ${index + 1}` }),
@@ -4405,11 +4383,11 @@
 
   function getBottomStatusDefaultMessage() {
     if (state.activeTemplateName) {
-      return `${tr({ en: "Editing template", es: "Editando plantilla" })}: ${state.activeTemplateName}`;
+      return `${tr({ en: "Editing saved plan", es: "Editando plan guardado" })}: ${state.activeTemplateName}`;
     }
     return tr({
-      en: "Save as template or share this plan with athletes and coaches.",
-      es: "Guarda como plantilla o comparte este plan con atletas y entrenadores."
+      en: "Save this plan or share it with athletes and coaches.",
+      es: "Guarda este plan o compartelo con atletas y entrenadores."
     });
   }
 
@@ -4556,8 +4534,8 @@
     return normalizePlannerCategoryCollection(value);
   }
 
-  function getPlannerRecordSourceKey(sourceKind = "template", id = "") {
-    return `${String(sourceKind || "template").trim() || "template"}:${String(id || "").trim()}`;
+  function getPlannerRecordSourceKey(sourceKind = "plan", id = "") {
+    return `${String(sourceKind || "plan").trim() || "plan"}:${String(id || "").trim()}`;
   }
 
   function inferPlannerTotalTimeValue(data = {}) {
@@ -4570,7 +4548,7 @@
     return total > 0 ? String(total) : "";
   }
 
-  function normalizePlannerTemplateRecord(id, data = {}, { sourceKind = "template" } = {}) {
+  function normalizePlannerTemplateRecord(id, data = {}, { sourceKind = "plan" } = {}) {
     const track = String(data?.trainingTrack || data?.track || "").trim().toLowerCase();
     if (track && track !== "wrestling") return null;
     const name = String(data?.name || data?.title || "").trim();
@@ -4583,7 +4561,7 @@
     const schedule = normalizeTemplateScheduleValue(rawSchedule, categories);
     return {
       id: String(id || "").trim(),
-      sourceKind: String(sourceKind || "template").trim() || "template",
+      sourceKind: String(sourceKind || "plan").trim() || "plan",
       sourceKey: getPlannerRecordSourceKey(sourceKind, id),
       name,
       type: String(data?.type || "day").trim(),
@@ -4667,7 +4645,7 @@
   } = {}) {
     if (!record) return false;
     state.activeLoadedSourceKey = String(record.sourceKey || getPlannerRecordSourceKey(record.sourceKind, record.id)).trim();
-    state.activeTemplateId = record.sourceKind === "template" ? String(record.id || "").trim() : "";
+    state.activeTemplateId = record.sourceKind === "plan" ? String(record.id || "").trim() : "";
     state.activeTemplateName = String(record.name || "").trim();
     state.wrestlingCategories = normalizePlannerCategoryCollection(record.categories || getPlannerCategories());
     state.schedule = normalizeTemplateScheduleValue(record.schedule || {}, state.wrestlingCategories);
@@ -4762,15 +4740,15 @@
   }
 
   async function hydratePlannerFromLatestWorkspacePlan({ syncCloud = true } = {}) {
-    const result = await fetchPlannerSavedRecords({ includeTemplates: true, includePlans: true });
+    const result = await fetchPlannerSavedRecords({ includeTemplates: false, includePlans: true });
     if (!result.authReady || !result.records.length) return false;
-    const latestRecord = result.records.find((record) => record.sourceKind === "plan") || result.records[0];
+    const latestRecord = result.records[0];
     if (!latestRecord) return false;
     return applyPlannerRecord(latestRecord, {
       syncCloud,
       statusMessage: tr({
-        en: `Loaded latest saved ${latestRecord.sourceKind === "plan" ? "plan" : "template"}: ${latestRecord.name}`,
-        es: `Se cargo el ultimo ${latestRecord.sourceKind === "plan" ? "plan" : "template"} guardado: ${latestRecord.name}`
+        en: `Loaded latest saved plan: ${latestRecord.name}`,
+        es: `Se cargo el ultimo plan guardado: ${latestRecord.name}`
       })
     });
   }
@@ -4778,14 +4756,12 @@
   function renderTemplateList() {
     if (!els.templatesList) return;
     if (!state.templateRecords.length) {
-      els.templatesList.innerHTML = `<p class="small muted">${escapeHtml(tr({ en: "No templates or saved plans found yet.", es: "Todavia no hay plantillas ni planes guardados." }))}</p>`;
+      els.templatesList.innerHTML = `<p class="small muted">${escapeHtml(tr({ en: "No saved plans found yet.", es: "Todavia no hay planes guardados." }))}</p>`;
       return;
     }
     const html = state.templateRecords.map((template) => {
       const isActive = template.sourceKey && template.sourceKey === state.activeLoadedSourceKey;
-      const sourceLabel = template.sourceKind === "plan"
-        ? tr({ en: "Saved plan", es: "Plan guardado" })
-        : tr({ en: "Template", es: "Plantilla" });
+      const sourceLabel = tr({ en: "Saved plan", es: "Plan guardado" });
       return `
         <article class="planner-template-card${isActive ? " active" : ""}">
           <div>
@@ -4805,14 +4781,14 @@
   }
 
   async function loadPlannerTemplates() {
-    setTemplatesStatus(tr({ en: "Loading saved plans and templates...", es: "Cargando planes y plantillas guardados..." }));
-    const result = await fetchPlannerSavedRecords({ includeTemplates: true, includePlans: true });
+    setTemplatesStatus(tr({ en: "Loading saved plans...", es: "Cargando planes guardados..." }));
+    const result = await fetchPlannerSavedRecords({ includeTemplates: false, includePlans: true });
     if (!result.authReady) {
       state.templateRecords = [];
       renderTemplateList();
       setTemplatesStatus(tr({
-        en: "Sign in again to load saved plans and templates.",
-        es: "Inicia sesion de nuevo para cargar planes y plantillas guardados."
+        en: "Sign in again to load saved plans.",
+        es: "Inicia sesion de nuevo para cargar planes guardados."
       }), true);
       return;
     }
@@ -4820,8 +4796,8 @@
       state.templateRecords = [];
       renderTemplateList();
       setTemplatesStatus(tr({
-        en: "Plan/template storage is not available.",
-        es: "El almacenamiento de planes/plantillas no esta disponible."
+        en: "Plan storage is not available.",
+        es: "El almacenamiento de planes no esta disponible."
       }), true);
       return;
     }
@@ -4829,14 +4805,14 @@
     renderTemplateList();
     if (result.hadError && !state.templateRecords.length) {
       setTemplatesStatus(tr({
-        en: "Could not load saved plans/templates right now.",
-        es: "No se pudieron cargar los planes/plantillas guardados ahora."
+        en: "Could not load saved plans right now.",
+        es: "No se pudieron cargar los planes guardados ahora."
       }), true);
       return;
     }
     setTemplatesStatus(state.templateRecords.length
-      ? tr({ en: `${state.templateRecords.length} saved items loaded.`, es: `${state.templateRecords.length} elementos guardados cargados.` })
-      : tr({ en: "No saved plans or templates found.", es: "No se encontraron planes ni plantillas guardados." }));
+      ? tr({ en: `${state.templateRecords.length} saved plans loaded.`, es: `${state.templateRecords.length} planes guardados cargados.` })
+      : tr({ en: "No saved plans found.", es: "No se encontraron planes guardados." }));
   }
 
   function openTemplatesModal() {
@@ -4853,19 +4829,19 @@
     const targetId = String(templateId || "").trim();
     const template = state.templateRecords.find((record) => record.sourceKey === targetId || record.id === targetId);
     if (!template) {
-      setTemplatesStatus(tr({ en: "Template not found.", es: "Plantilla no encontrada." }), true);
+      setTemplatesStatus(tr({ en: "Saved plan not found.", es: "Plan guardado no encontrado." }), true);
       return;
     }
     applyPlannerRecord(template, {
       syncCloud: true,
       closeTemplates: true,
       toastMessage: tr({
-        en: `${template.sourceKind === "plan" ? "Plan" : "Template"} loaded: ${template.name}`,
-        es: `${template.sourceKind === "plan" ? "Plan" : "Plantilla"} cargado: ${template.name}`
+        en: `Plan loaded: ${template.name}`,
+        es: `Plan cargado: ${template.name}`
       }),
       statusMessage: tr({
-        en: `Loaded ${template.sourceKind === "plan" ? "saved plan" : "template"}: ${template.name}`,
-        es: `Se cargo ${template.sourceKind === "plan" ? "el plan guardado" : "la plantilla"}: ${template.name}`
+        en: `Loaded saved plan: ${template.name}`,
+        es: `Se cargo el plan guardado: ${template.name}`
       })
     });
   }
@@ -5431,49 +5407,59 @@
       return;
     }
     if (state.templateSaveBusy || state.assignModalBusy) return;
-    const templatesRef = getPlannerWorkspaceCollectionRef("templates");
-    if (!templatesRef) {
-      setBottomStatus(tr({ en: "Template storage is not available.", es: "El almacenamiento de plantillas no esta disponible." }), true);
+    const plansRef = getPlannerWorkspaceCollectionRef("plans");
+    if (!plansRef) {
+      setBottomStatus(tr({ en: "Plan storage is not available.", es: "El almacenamiento de planes no esta disponible." }), true);
       return;
     }
 
-    let saveAsNew = true;
-    let targetId = "";
-    let defaultName = `Template - ${formatDateLabel(state.docInfo.date || getTodayDateKey())}`;
+    const loadedPlanId = String(state.activeLoadedSourceKey || "").startsWith("plan:")
+      ? String(state.activeLoadedSourceKey || "").replace(/^plan:/, "").trim()
+      : "";
+    let saveAsNew = !loadedPlanId;
+    let targetId = loadedPlanId;
+    let defaultName = String(state.activeTemplateName || getPlannerTitle()).trim() || getPlannerTitle();
 
-    if (state.activeTemplateId) {
-      const useCurrent = window.confirm(tr({
-        en: `Save changes to current template "${state.activeTemplateName}"?\nPress Cancel to save as a new template.`,
-        es: `Guardar cambios en la plantilla actual "${state.activeTemplateName}"?\nPresiona Cancelar para guardar como una plantilla nueva.`
+    if (loadedPlanId) {
+      const updateCurrent = window.confirm(tr({
+        en: `Save changes to current plan "${state.activeTemplateName}"?\nPress Cancel to save as a new plan.`,
+        es: `Guardar cambios en el plan actual "${state.activeTemplateName}"?\nPresiona Cancelar para guardar como un plan nuevo.`
       }));
-      if (useCurrent) {
-        saveAsNew = false;
-        targetId = state.activeTemplateId;
-        defaultName = state.activeTemplateName || defaultName;
-      } else if (state.activeTemplateName) {
-        defaultName = `${state.activeTemplateName} copy`;
+      if (!updateCurrent) {
+        saveAsNew = true;
+        targetId = "";
+        defaultName = `${defaultName} copy`;
       }
     }
 
     const namePrompt = saveAsNew
-      ? tr({ en: "Template name (new)", es: "Nombre de plantilla (nueva)" })
-      : tr({ en: "Template name", es: "Nombre de plantilla" });
+      ? tr({ en: "Plan name", es: "Nombre del plan" })
+      : tr({ en: "Plan name", es: "Nombre del plan" });
     const nextName = window.prompt(namePrompt, defaultName);
     if (nextName == null) return;
     const cleanName = String(nextName || "").trim();
     if (!cleanName) {
-      setBottomStatus(tr({ en: "Template name is required.", es: "El nombre de la plantilla es obligatorio." }), true);
+      setBottomStatus(tr({ en: "Plan name is required.", es: "El nombre del plan es obligatorio." }), true);
       return;
     }
 
     state.templateSaveBusy = true;
     const timestamp = getPlannerTimestamp();
+    const profile = getPlannerProfile();
+    const createdBy = String(profile?.name || authUser?.email || "Coach").trim();
     const payload = {
-      name: cleanName,
+      title: cleanName,
       type: "day",
-      focus: `${Math.max(1, parseTimeValue(state.docInfo.totalTime || "90"))} min practice flow`,
-      coachNotes: "Saved from Coach Planner.",
+      focus: `${Math.max(1, parseTimeValue(state.docInfo.totalTime || "90"))} min training flow`,
+      coachNotes: tr({ en: "Saved from Coach Planner.", es: "Guardado desde Coach Planner." }),
       items: buildPlanItemsFromPlanner(),
+      sourceMode: "coach_planner",
+      sourceRefId: "",
+      sourceLabel: tr({ en: "Coach Planner", es: "Coach Planner" }),
+      range: {
+        startKey: normalizeDateKeyValue(state.docInfo.date || getTodayDateKey()),
+        endKey: normalizeDateKeyValue(state.docInfo.date || getTodayDateKey())
+      },
       plannerCategories: getPlannerCategories().map((category) => ({ id: category.id, name: getCategoryNameById(category.id) })),
       plannerSchedule: serializePlannerSchedule(),
       plannerCategoryTimes: { ...state.categoryTimes },
@@ -5482,7 +5468,22 @@
       plannerDate: String(state.docInfo.date || ""),
       monthlyNotes: "",
       seasonYear: String(state.settings?.season || "").trim(),
-      system: false,
+      audience: {
+        mode: "single",
+        recipientNames: [],
+        recipientIds: [],
+        recipientUids: [],
+        athleteNames: [],
+        athleteIds: [],
+        athleteUids: [],
+        coachNames: [],
+        coachIds: [],
+        coachUids: [],
+        groupId: "",
+        groupName: ""
+      },
+      createdBy,
+      updatedBy: createdBy,
       updatedAt: timestamp
     };
     if (saveAsNew) {
@@ -5490,26 +5491,27 @@
     }
 
     try {
-      const ref = saveAsNew ? templatesRef.doc() : templatesRef.doc(targetId);
+      const ref = saveAsNew ? plansRef.doc() : plansRef.doc(targetId);
       await ref.set(payload, { merge: true });
-      state.activeTemplateId = ref.id;
+      state.activeLoadedSourceKey = getPlannerRecordSourceKey("plan", ref.id);
+      state.activeTemplateId = "";
       state.activeTemplateName = cleanName;
       state.lastSavedTemplateId = ref.id;
       const message = saveAsNew
-        ? tr({ en: `Template saved as new: ${cleanName}`, es: `Plantilla guardada como nueva: ${cleanName}` })
-        : tr({ en: `Template updated: ${cleanName}`, es: `Plantilla actualizada: ${cleanName}` });
+        ? tr({ en: `Plan saved as new: ${cleanName}`, es: `Plan guardado como nuevo: ${cleanName}` })
+        : tr({ en: `Plan updated: ${cleanName}`, es: `Plan actualizado: ${cleanName}` });
       setBottomStatus(message);
-      triggerToast(tr({ en: "Template saved.", es: "Plantilla guardada." }));
+      triggerToast(tr({ en: "Plan saved.", es: "Plan guardado." }));
       if (!els.templatesModal?.classList.contains("hidden")) {
         loadPlannerTemplates().catch(() => {});
       }
     } catch (err) {
-      console.warn("Failed to save planner template", err);
+      console.warn("Failed to save planner plan", err);
       const errorCode = String(err?.code || "").trim();
       const detail = errorCode ? ` (${errorCode})` : "";
       setBottomStatus(tr({
-        en: `Could not save template${detail}.`,
-        es: `No se pudo guardar la plantilla${detail}.`
+        en: `Could not save plan${detail}.`,
+        es: `No se pudo guardar el plan${detail}.`
       }), true);
     } finally {
       state.templateSaveBusy = false;
@@ -6402,7 +6404,7 @@
     if (!state.tempSettings) return;
     mergePlannerSettings(state.tempSettings, { sync: true });
     closeSettingsModal();
-    triggerToast(tr({ en: "Template settings saved!", es: "Configuracion de plantilla guardada." }));
+    triggerToast(tr({ en: "Plan settings saved!", es: "Configuracion del plan guardada." }));
   }
 
   function openLibraryModal() {
@@ -6897,12 +6899,12 @@
   function applyPlannerLanguageToStaticDom() {
     if (els.openSettingsBtn) els.openSettingsBtn.textContent = tr({ en: "Customize", es: "Personalizar" });
     if (els.openLibraryBtn) els.openLibraryBtn.textContent = tr({ en: "Library", es: "Libreria" });
-    if (els.loadTemplateBtn) els.loadTemplateBtn.textContent = tr({ en: "Load template", es: "Cargar plantilla" });
-    if (els.saveTemplateTopBtn) els.saveTemplateTopBtn.textContent = tr({ en: "Save template", es: "Guardar plantilla" });
+    if (els.loadTemplateBtn) els.loadTemplateBtn.textContent = tr({ en: "Open saved plans", es: "Abrir planes guardados" });
+    if (els.saveTemplateTopBtn) els.saveTemplateTopBtn.textContent = tr({ en: "Save plan", es: "Guardar plan" });
     if (els.sendAthletesTopBtn) els.sendAthletesTopBtn.textContent = tr({ en: "Share plan", es: "Compartir plan" });
     if (els.addSectionBtn) els.addSectionBtn.textContent = tr({ en: "+ Add section", es: "+ Agregar seccion" });
     if (els.printBtn) els.printBtn.textContent = tr({ en: "Print", es: "Imprimir" });
-    if (els.saveTemplateBtn) els.saveTemplateBtn.textContent = tr({ en: "Save as template", es: "Guardar como plantilla" });
+    if (els.saveTemplateBtn) els.saveTemplateBtn.textContent = tr({ en: "Save plan", es: "Guardar plan" });
     if (els.sendAthletesBtn) els.sendAthletesBtn.textContent = tr({ en: "Share plan", es: "Compartir plan" });
     if (els.assignCloseBtn) els.assignCloseBtn.textContent = tr({ en: "Close", es: "Cerrar" });
     if (els.assignCancelBtn) els.assignCancelBtn.textContent = tr({ en: "Cancel", es: "Cancelar" });
@@ -6929,13 +6931,13 @@
     if (els.liftingNewCategoryInput) els.liftingNewCategoryInput.placeholder = tr({ en: "New category name", es: "Nombre de categoria nueva" });
     if (els.liftingNewExerciseInput) els.liftingNewExerciseInput.placeholder = tr({ en: "Exercise name", es: "Nombre del ejercicio" });
     if (els.liftingSearchInput) els.liftingSearchInput.placeholder = tr({ en: "Search movement", es: "Buscar movimiento" });
-    if (els.liftingPlanNameInput) els.liftingPlanNameInput.placeholder = tr({ en: "New 7-Day Cycle", es: "Nuevo ciclo de 7 dias" });
-    if (els.liftingPlanWeeksInput) els.liftingPlanWeeksInput.placeholder = tr({ en: "1-4", es: "1-4" });
-    if (els.liftingPlanPurposeInput) els.liftingPlanPurposeInput.placeholder = tr({ en: "Full week metabolic conditioning and strength base.", es: "Semana completa de base metabolica y fuerza." });
-    if (els.liftingPlanBenefitsInput) els.liftingPlanBenefitsInput.placeholder = tr({ en: "Optimized recovery and specific wrestling movements.", es: "Recuperacion optimizada y movimientos especificos de lucha." });
+    if (els.liftingPlanNameInput) els.liftingPlanNameInput.placeholder = tr({ en: "Plan name", es: "Nombre del plan" });
+    if (els.liftingPlanWeeksInput) els.liftingPlanWeeksInput.placeholder = tr({ en: "Number of weeks", es: "Numero de semanas" });
+    if (els.liftingPlanPurposeInput) els.liftingPlanPurposeInput.placeholder = tr({ en: "Primary objective", es: "Objetivo principal" });
+    if (els.liftingPlanBenefitsInput) els.liftingPlanBenefitsInput.placeholder = tr({ en: "Notes or expected benefits", es: "Notas o beneficios esperados" });
     if (els.liftingActiveDayNameInput) els.liftingActiveDayNameInput.placeholder = tr({ en: "Day Name", es: "Nombre del dia" });
-    if (els.templatesStatus && String(els.templatesStatus.textContent || "").trim() === "Loading templates...") {
-      els.templatesStatus.textContent = tr({ en: "Loading templates...", es: "Cargando plantillas..." });
+    if (els.templatesStatus && String(els.templatesStatus.textContent || "").trim() === "Loading saved plans...") {
+      els.templatesStatus.textContent = tr({ en: "Loading saved plans...", es: "Cargando planes guardados..." });
     }
     if (els.coachLibrariesStatus && String(els.coachLibrariesStatus.textContent || "").trim() === "Loading coach libraries...") {
       els.coachLibrariesStatus.textContent = tr({ en: "Loading coach libraries...", es: "Cargando librerias de entrenadores..." });

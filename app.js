@@ -2775,20 +2775,6 @@ const PANEL_COPY = {
       ru: "Создание тренировочных планов"
     }
   },
-  "panel-templates": {
-    title: {
-      en: "Templates",
-      es: "Plantillas",
-      uz: "Shablonlar",
-      ru: "Шаблоны"
-    },
-    chip: {
-      en: "Reusable structures",
-      es: "Estructuras reutilizables",
-      uz: "Qayta ishlatiladigan tuzilmalar",
-      ru: "Повторно используемые структуры"
-    }
-  },
   "panel-calendar-manager": {
     title: {
       en: "Calendar",
@@ -5143,23 +5129,17 @@ function getCoachAthleteRecords() {
       if (filteredRecords.length) return filteredRecords;
       return directoryRecords;
     }
-    if (mergedLiveRecords.length) return mergedLiveRecords;
+    const liveWorkspaceRecords = mergedLiveRecords.filter((record) => !isLegacyCoachAthleteRecord(record));
+    if (liveWorkspaceRecords.length) return liveWorkspaceRecords;
   }
-  if (coachAthletesCache.length) return coachAthletesCache;
-  if (PUBLISH_READY_MODE) {
-    if (!athletePortalAthleteCache) return [];
-    return [normalizeCoachAthleteRecord(
-      normalizeAthleteId(athletePortalAthleteCache.id, athletePortalAthleteCache.name),
-      athletePortalAthleteCache
-    )];
+  if (coachAthletesCache.length) {
+    return coachAthletesCache.filter((record) => !isLegacyCoachAthleteRecord(record));
   }
-  const seedRecords = ATHLETES.map((athlete) => normalizeCoachAthleteRecord(slugifyKey(athlete.name), athlete));
-  if (!athletePortalAthleteCache) return seedRecords;
-  const linked = normalizeCoachAthleteRecord(
+  if (!athletePortalAthleteCache) return [];
+  return [normalizeCoachAthleteRecord(
     normalizeAthleteId(athletePortalAthleteCache.id, athletePortalAthleteCache.name),
     athletePortalAthleteCache
-  );
-  return [linked].concat(seedRecords.filter((athlete) => !athleteIdentityMatches(athlete, linked)));
+  )];
 }
 
 function parseAthleteExperienceYears(value) {
@@ -5213,12 +5193,7 @@ function getAutomaticGroupMembersForAthletes(groupId = "", athletes = []) {
 function getCoachNoteRecords() {
   if (coachNotesCache.length) return coachNotesCache;
   if (athletePortalNotesCache.length) return coachWorkspaceSortByUpdated(athletePortalNotesCache);
-  if (PUBLISH_READY_MODE) return [];
-  return Object.entries(COACH_ATHLETE_NOTE_BOARD).map(([athleteName, data]) => normalizeCoachNoteRecord(slugifyKey(athleteName), {
-    athleteName,
-    nextFocus: Array.isArray(data?.nextFocus) ? data.nextFocus.map((item) => getSeedCopyValue(item)).filter(Boolean) : [],
-    recentNotes: Array.isArray(data?.recentNotes) ? data.recentNotes.map((item) => getSeedCopyValue(item)).filter(Boolean) : []
-  }));
+  return [];
 }
 
 function getCoachNoteRecord(athleteName) {
@@ -5346,6 +5321,61 @@ function getSeedCoachMatchAnalysisRecords() {
   ];
 }
 
+function getLegacyCoachTemplateIds() {
+  return new Set(
+    getBuiltinCoachTemplateSeeds()
+      .map((item) => String(item?.id || "").trim())
+      .filter(Boolean)
+  );
+}
+
+function getLegacyCoachGroupIds() {
+  return new Set(
+    getDefaultCoachGroupSeeds()
+      .map((item) => String(item?.id || "").trim())
+      .filter(Boolean)
+  );
+}
+
+function getLegacyCoachAthleteIds() {
+  return new Set(
+    getSeedCoachAthleteRecords()
+      .map((item) => normalizeAthleteId(item?.id, item?.name))
+      .filter(Boolean)
+  );
+}
+
+function isLegacySeedDocumentId(value = "") {
+  return String(value || "").trim().toLowerCase().startsWith("seed-");
+}
+
+function isLegacyCoachTemplateRecord(record = {}) {
+  const id = String(record?.id || "").trim();
+  return Boolean(id) && (getLegacyCoachTemplateIds().has(id) || record?.system === true);
+}
+
+function isLegacyCoachGroupRecord(record = {}) {
+  const id = String(record?.id || "").trim();
+  return Boolean(id) && record?.system === true && getLegacyCoachGroupIds().has(id);
+}
+
+function isLegacyCoachAthleteRecord(record = {}) {
+  const id = normalizeAthleteId(record?.id, record?.name);
+  const hasAccountLink = Boolean(
+    normalizeUid(record?.athleteUid)
+    || normalizeEmail(record?.athleteEmail || record?.email || "")
+  );
+  return Boolean(id) && getLegacyCoachAthleteIds().has(id) && !hasAccountLink;
+}
+
+function getCoachPlanRecords() {
+  return coachWorkspaceSortByUpdated(coachPlansCache).filter((record) => !isLegacySeedDocumentId(record?.id));
+}
+
+function getCoachTemplateRecords() {
+  return coachWorkspaceSortByUpdated(coachTemplatesCache).filter((record) => !isLegacyCoachTemplateRecord(record));
+}
+
 function getAssignmentStatusCounts(records = getCoachAssignmentRecords()) {
   const counts = {
     not_started: 0,
@@ -5369,7 +5399,6 @@ function getCoachJournalState(athleteName) {
 }
 
 function buildCoachCompletionSnapshot(athlete) {
-  const fallback = COACH_COMPLETION_ROWS[athlete.name] || {};
   const assignments = getPlanAssignmentsForAthlete(athlete.name);
   const alerts = getAthleteAlerts(athlete);
   const latestPlan = getLatestCoachPlanForAthlete(athlete.name);
@@ -5388,9 +5417,9 @@ function buildCoachCompletionSnapshot(athlete) {
 
   const progress = assignments.length
     ? (currentLang === "es" ? `${counts.completed}/${assignments.length} completadas` : `${counts.completed}/${assignments.length} completed`)
-    : pickCopy(fallback.progress || {
-        en: "No assignments yet",
-        es: "Todavia no hay asignaciones"
+    : pickCopy({
+        en: "No data",
+        es: "Sin datos"
       });
 
   let followUp = "";
@@ -5415,9 +5444,9 @@ function buildCoachCompletionSnapshot(athlete) {
       ? "Recuerda al atleta que inicie la tarea asignada."
       : "Remind the athlete to start the assigned work.";
   } else {
-    followUp = pickCopy(fallback.followUp || {
-      en: "No urgent follow-up.",
-      es: "No hay seguimiento urgente."
+    followUp = pickCopy({
+      en: "No data",
+      es: "Sin datos"
     });
   }
 
@@ -5426,9 +5455,9 @@ function buildCoachCompletionSnapshot(athlete) {
     athleteUid: normalizeUid(athlete.athleteUid),
     athleteName: athlete.name,
     status,
-    plan: latestPlan?.title || assignments[0]?.title || pickCopy(fallback.plan || {
-      en: "No saved plan yet",
-      es: "Todavia no hay plan guardado"
+    plan: latestPlan?.title || assignments[0]?.title || pickCopy({
+      en: "No data",
+      es: "Sin datos"
     }),
     progress,
     followUp,
@@ -5498,16 +5527,9 @@ async function syncDerivedAssignmentStatuses() {
 
 function getCoachTemplateOptionsForType(type = planRangeType) {
   const targetType = normalizePlanType(type);
-  const seedTemplates = getBuiltinCoachTemplateSeeds();
-  const liveByType = coachTemplatesCache.filter((item) => item.type === targetType);
-  const fallbackByType = seedTemplates.filter((item) => item.type === targetType);
-  const shouldUseFallback = !isCoachWorkspaceActive() || !coachWorkspaceRealtimeUserId;
-  const live = liveByType.length ? liveByType : coachTemplatesCache;
-  const fallback = shouldUseFallback
-    ? (fallbackByType.length ? fallbackByType : seedTemplates)
-    : [];
-  const source = live.length ? live : fallback;
-  const visibleSource = source.filter((item) => {
+  const liveTemplates = getCoachTemplateRecords();
+  const source = liveTemplates.filter((item) => item.type === targetType);
+  const visibleSource = (source.length ? source : liveTemplates).filter((item) => {
     const templateId = String(item?.id || "").trim();
     if (!templateId) return true;
     if (pendingTemplateDeleteById[templateId]) return false;
@@ -5539,7 +5561,7 @@ async function deleteCoachTemplateRecordById(templateId = "") {
 
 function getDuplicatePlanOptionsForType(type = planRangeType) {
   const targetType = normalizePlanType(type);
-  const live = coachWorkspaceSortByUpdated(coachPlansCache).filter((item) => item.type === targetType);
+  const live = getCoachPlanRecords().filter((item) => item.type === targetType);
   return live.map((item) => ({
     value: item.id,
     label: {
@@ -5552,32 +5574,22 @@ function getDuplicatePlanOptionsForType(type = planRangeType) {
 
 function getCoachAssignmentRecords() {
   if (isCoachWorkspaceActive() && coachWorkspaceRealtimeUserId === getAuthUser()?.id) {
-    return coachWorkspaceSortByUpdated(coachAssignmentsCache);
+    return coachWorkspaceSortByUpdated(coachAssignmentsCache).filter((item) => !isLegacySeedDocumentId(item?.id));
   }
-  if (coachAssignmentsCache.length) return coachWorkspaceSortByUpdated(coachAssignmentsCache);
+  if (coachAssignmentsCache.length) {
+    return coachWorkspaceSortByUpdated(coachAssignmentsCache).filter((item) => !isLegacySeedDocumentId(item?.id));
+  }
   if (isAthleteRole(getProfile()?.role) && athletePortalAssignmentsCache.length) {
-    return coachWorkspaceSortByUpdated(athletePortalAssignmentsCache);
+    return coachWorkspaceSortByUpdated(athletePortalAssignmentsCache).filter((item) => !isLegacySeedDocumentId(item?.id));
   }
   if (isParentRole(getProfile()?.role) && parentPortalAssignmentsCache.length) {
-    return coachWorkspaceSortByUpdated(parentPortalAssignmentsCache);
+    return coachWorkspaceSortByUpdated(parentPortalAssignmentsCache).filter((item) => !isLegacySeedDocumentId(item?.id));
   }
-  if (PUBLISH_READY_MODE) return [];
-  return COACH_ASSIGNMENT_ITEMS.map((item, idx) => normalizeCoachAssignmentRecord(`seed-${idx + 1}`, {
-    title: pickCopy(item.title),
-    assigneeName: pickCopy(item.assignee),
-    assigneeType: String(pickCopy(item.assignee)).includes("Team") || String(pickCopy(item.assignee)).includes("Grupo") ? "group" : "athlete",
-    type: pickCopy(item.type),
-    dueLabel: pickCopy(item.dueDate),
-    dueDateKey: getCurrentAppDateKey(),
-    source: pickCopy(item.source),
-    note: pickCopy(item.note),
-    status: item.status
-  }));
+  return [];
 }
 
 function getCoachGroupRecords() {
-  if (PUBLISH_READY_MODE) return coachGroupsCache;
-  return coachGroupsCache.length ? coachGroupsCache : getDefaultCoachGroupSeeds();
+  return coachWorkspaceSortByUpdated(coachGroupsCache).filter((record) => !isLegacyCoachGroupRecord(record));
 }
 
 function getPlanAssignmentsForAthlete(name) {
@@ -6110,6 +6122,82 @@ function stopCoachWorkspaceRealtimeSync() {
   renderAthleteProfileFormMode();
 }
 
+async function cleanupLegacyCoachWorkspaceFixtures(uid = getAuthUser()?.id) {
+  if (!firebaseFirestoreInstance) return;
+  const safeUid = String(uid || "").trim();
+  if (!safeUid) return;
+
+  const templateIds = getLegacyCoachTemplateIds();
+  const groupIds = getLegacyCoachGroupIds();
+  const matchAnalysisSeedIds = new Set(
+    getSeedCoachMatchAnalysisRecords()
+      .map((record) => String(record?.id || "").trim())
+      .filter(Boolean)
+  );
+
+  const targetCollections = [
+    {
+      ref: getCoachWorkspaceCollectionRef("templates", safeUid),
+      shouldDelete: (doc) => {
+        const data = doc.data() || {};
+        return templateIds.has(doc.id) || data.system === true;
+      }
+    },
+    {
+      ref: getCoachWorkspaceCollectionRef("plans", safeUid),
+      shouldDelete: (doc) => isLegacySeedDocumentId(doc.id)
+    },
+    {
+      ref: getCoachWorkspaceCollectionRef("assignments", safeUid),
+      shouldDelete: (doc) => isLegacySeedDocumentId(doc.id)
+    },
+    {
+      ref: getCoachWorkspaceCollectionRef("groups", safeUid),
+      shouldDelete: (doc) => {
+        const data = doc.data() || {};
+        return groupIds.has(doc.id) && data.system === true;
+      }
+    },
+    {
+      ref: getCoachWorkspaceCollectionRef("competitions", safeUid),
+      shouldDelete: (doc) => (doc.data() || {}).system === true
+    },
+    {
+      ref: getCoachWorkspaceCollectionRef("match_analysis", safeUid),
+      shouldDelete: (doc) => matchAnalysisSeedIds.has(doc.id)
+    }
+  ].filter((entry) => entry.ref);
+
+  if (!targetCollections.length) return;
+
+  const snapshots = await Promise.all(
+    targetCollections.map((entry) => withTimeout(
+      entry.ref.get(),
+      FIREBASE_OP_TIMEOUT_MS,
+      "firestore_fixture_cleanup_timeout"
+    ).catch(() => null))
+  );
+
+  const batch = firebaseFirestoreInstance.batch();
+  let hasDeletes = false;
+  snapshots.forEach((snapshot, index) => {
+    if (!snapshot?.docs?.length) return;
+    const { shouldDelete } = targetCollections[index];
+    snapshot.docs.forEach((doc) => {
+      if (!shouldDelete(doc)) return;
+      batch.delete(doc.ref);
+      hasDeletes = true;
+    });
+  });
+
+  if (!hasDeletes) return;
+  await withTimeout(
+    batch.commit(),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_fixture_cleanup_commit_timeout"
+  );
+}
+
 async function ensureCoachWorkspaceSeeded() {
   if (!isCoachWorkspaceActive()) return;
   if (coachWorkspaceSeedPromise) return coachWorkspaceSeedPromise;
@@ -6128,152 +6216,7 @@ async function ensureCoachWorkspaceSeeded() {
       FIREBASE_OP_TIMEOUT_MS,
       "firestore_workspace_seed_timeout"
     );
-
-    const [templatesSnap, groupsSnap, plansSnap, assignmentsSnap, calendarSnap, athletesSnap, notesSnap, journalSnap, matchAnalysisSnap, competitionsSnap] = await Promise.all([
-      withTimeout(getCoachWorkspaceCollectionRef("templates", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_templates_seed_timeout"),
-      withTimeout(getCoachWorkspaceCollectionRef("groups", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_groups_seed_timeout"),
-      withTimeout(getCoachWorkspaceCollectionRef("plans", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_plans_seed_timeout"),
-      withTimeout(getCoachWorkspaceCollectionRef("assignments", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_assignments_seed_timeout"),
-      withTimeout(getCoachWorkspaceCollectionRef("calendar_entries", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_calendar_seed_timeout"),
-      withTimeout(getCoachWorkspaceCollectionRef("athletes", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_athletes_seed_timeout"),
-      withTimeout(getCoachWorkspaceCollectionRef("coach_notes", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_notes_seed_timeout"),
-      withTimeout(getCoachWorkspaceCollectionRef("journal_entries", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_journal_seed_timeout"),
-      withTimeout(getCoachWorkspaceCollectionRef("match_analysis", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_match_analysis_seed_timeout"),
-      withTimeout(getCoachWorkspaceCollectionRef("competitions", authUser.id).get(), FIREBASE_OP_TIMEOUT_MS, "firestore_competitions_seed_timeout")
-    ]);
-
-    if (templatesSnap.empty) {
-      const batch = firebaseFirestoreInstance.batch();
-      getBuiltinCoachTemplateSeeds().forEach((template) => {
-        const ref = getCoachWorkspaceCollectionRef("templates", authUser.id).doc(template.id);
-        batch.set(ref, {
-          ...template,
-          system: true,
-          createdAt: getFirestoreServerTimestamp(),
-          updatedAt: getFirestoreServerTimestamp()
-        }, { merge: true });
-      });
-      await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_templates_seed_commit_timeout");
-    }
-
-    if (groupsSnap.empty) {
-      const batch = firebaseFirestoreInstance.batch();
-      getDefaultCoachGroupSeeds().forEach((group) => {
-        const ref = getCoachWorkspaceCollectionRef("groups", authUser.id).doc(group.id);
-        batch.set(ref, {
-          ...group,
-          system: true,
-          createdAt: getFirestoreServerTimestamp(),
-          updatedAt: getFirestoreServerTimestamp()
-        }, { merge: true });
-      });
-      await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_groups_seed_commit_timeout");
-    }
-
-    await ensureOfficialCompetitionRecordsForWorkspace(authUser.id, competitionsSnap);
-
-    const shouldSeedStarterWorkspace = !PUBLISH_READY_MODE
-      || isOfficialCoachEmail(authUser.email || profile?.email || "");
-
-    if (!shouldSeedStarterWorkspace) {
-      await syncCoachCompletionStatus();
-      return;
-    }
-
-    if (plansSnap.empty) {
-      const batch = firebaseFirestoreInstance.batch();
-      getSeedCoachWorkspacePlans().forEach((plan) => {
-        const ref = getCoachWorkspaceCollectionRef("plans", authUser.id).doc(plan.id);
-        batch.set(ref, {
-          ...plan,
-          createdAt: getFirestoreServerTimestamp(),
-          updatedAt: getFirestoreServerTimestamp()
-        }, { merge: true });
-      });
-      await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_plans_seed_commit_timeout");
-    }
-
-    if (assignmentsSnap.empty) {
-      const batch = firebaseFirestoreInstance.batch();
-      getSeedCoachWorkspaceAssignments().forEach((assignment) => {
-        const ref = getCoachWorkspaceCollectionRef("assignments", authUser.id).doc(assignment.id);
-        batch.set(ref, {
-          ...assignment,
-          createdAt: getFirestoreServerTimestamp(),
-          updatedAt: getFirestoreServerTimestamp()
-        }, { merge: true });
-      });
-      await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_assignments_seed_commit_timeout");
-    }
-
-    if (calendarSnap.empty) {
-      const batch = firebaseFirestoreInstance.batch();
-      Object.entries(getSeedCoachCalendarEntries()).forEach(([dateKey, entry]) => {
-        const ref = getCoachWorkspaceCollectionRef("calendar_entries", authUser.id).doc(dateKey);
-        batch.set(ref, {
-          ...entry,
-          dateKey,
-          updatedAt: getFirestoreServerTimestamp()
-        }, { merge: true });
-      });
-      await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_calendar_seed_commit_timeout");
-    }
-
-    if (athletesSnap.empty) {
-      const batch = firebaseFirestoreInstance.batch();
-      getSeedCoachAthleteRecords().forEach((athlete) => {
-        const ref = getCoachWorkspaceCollectionRef("athletes", authUser.id).doc(athlete.id);
-        batch.set(ref, {
-          ...athlete,
-          coachUid: authUser.id,
-          coachName: String(profile?.name || authUser.email || "").trim(),
-          coachEmail: normalizeEmail(authUser.email || profile?.email || ""),
-          createdAt: getFirestoreServerTimestamp(),
-          updatedAt: getFirestoreServerTimestamp()
-        }, { merge: true });
-      });
-      await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_athletes_seed_commit_timeout");
-    }
-
-    if (notesSnap.empty) {
-      const batch = firebaseFirestoreInstance.batch();
-      getSeedCoachNoteRecords().forEach((noteRecord) => {
-        const ref = getCoachWorkspaceCollectionRef("coach_notes", authUser.id).doc(noteRecord.id);
-        batch.set(ref, {
-          ...noteRecord,
-          createdAt: getFirestoreServerTimestamp(),
-          updatedAt: getFirestoreServerTimestamp()
-        }, { merge: true });
-      });
-      await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_notes_seed_commit_timeout");
-    }
-
-    if (journalSnap.empty) {
-      const batch = firebaseFirestoreInstance.batch();
-      getSeedCoachJournalRecords().forEach((entry) => {
-        const ref = getCoachWorkspaceCollectionRef("journal_entries", authUser.id).doc(entry.id);
-        batch.set(ref, {
-          ...entry,
-          createdAt: getFirestoreServerTimestamp(),
-          updatedAt: getFirestoreServerTimestamp()
-        }, { merge: true });
-      });
-      await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_journal_seed_commit_timeout");
-    }
-
-    if (matchAnalysisSnap.empty) {
-      const batch = firebaseFirestoreInstance.batch();
-      getSeedCoachMatchAnalysisRecords().forEach((analysisRecord) => {
-        const ref = getCoachWorkspaceCollectionRef("match_analysis", authUser.id).doc(analysisRecord.id);
-        batch.set(ref, {
-          ...analysisRecord,
-          createdAt: getFirestoreServerTimestamp(),
-          updatedAt: getFirestoreServerTimestamp()
-        }, { merge: true });
-      });
-      await withTimeout(batch.commit(), FIREBASE_OP_TIMEOUT_MS, "firestore_match_analysis_seed_commit_timeout");
-    }
-
+    await cleanupLegacyCoachWorkspaceFixtures(authUser.id);
     await syncCoachCompletionStatus();
   })().finally(() => {
     coachWorkspaceSeedPromise = null;
@@ -8675,7 +8618,7 @@ function getKnownUserDisplayEntries() {
       name: profile.linkedCoachName
     });
   }
-  [...ATHLETES, ...getCoachAthleteRecords(), ...getAthletesData(), ...parentPortalTeamCache].forEach((athlete) => {
+  [...getCoachAthleteRecords(), ...getAthletesData(), ...parentPortalTeamCache].forEach((athlete) => {
     addUserDisplayEntry(entries, athlete?.name, athlete || {});
     addUserDisplayEntry(entries, athlete?.coachName, {
       uid: athlete?.coachUid,
@@ -8790,7 +8733,7 @@ function resolveAthleteIdentity(input) {
   }
   if (typeof input === "string") {
     const athlete = getCoachAthleteRecords().find((entry) => normalizeName(entry.name) === normalizeName(input))
-      || ATHLETES.find((entry) => normalizeName(entry.name) === normalizeName(input))
+      || getAthletesData().find((entry) => normalizeName(entry.name) === normalizeName(input))
       || null;
     if (athlete) {
       return {
@@ -9072,12 +9015,23 @@ function setStoredCalendarEvents(events) {
 function getCalendarEventsData() {
   const stored = getStoredCalendarEvents();
   if (Object.keys(stored).length) return stored;
-  return currentLang === "es" ? CALENDAR_EVENTS_ES : CALENDAR_EVENTS;
+  return {};
 }
 
 function getMediaItemsData() {
-  if (PUBLISH_READY_MODE) return [];
-  return currentLang === "es" ? MEDIA_ITEMS_ES : MEDIA_ITEMS;
+  return coachWorkspaceSortByUpdated(coachMediaAssetsCache)
+    .map((item) => ({
+      id: item.id,
+      title: item.title || (currentLang === "es" ? "Archivo multimedia" : "Media asset"),
+      type: item.mediaType || "Video",
+      assetPath: item.assetStoragePath || item.assetPath || "",
+      thumbnailPath: item.thumbnailStoragePath || item.thumbnailPath || "",
+      duration: "",
+      assigned: "",
+      note: "",
+      tag: Array.isArray(item.tags) && item.tags.length ? item.tags[0] : ""
+    }))
+    .filter((item) => item.title || item.assetPath || item.thumbnailPath);
 }
 
 function getAnnouncementTimeLabel(record = {}) {
@@ -9148,8 +9102,7 @@ function getAnnouncementsData() {
       markRead: currentFocusedPanel === "parent-home"
     });
   }
-  if (PUBLISH_READY_MODE) return [];
-  return currentLang === "es" ? ANNOUNCEMENTS_ES : ANNOUNCEMENTS;
+  return [];
 }
 
 function isNotificationReadByUser(record = {}, uid = "") {
@@ -9185,13 +9138,11 @@ function getUnreadWorkspaceNotifications() {
 }
 
 function getTeamStatsData() {
-  if (PUBLISH_READY_MODE) return [];
-  return currentLang === "es" ? TEAM_STATS_ES : TEAM_STATS;
+  return [];
 }
 
 function getTeamOverviewData() {
-  if (PUBLISH_READY_MODE) return [];
-  return currentLang === "es" ? TEAM_OVERVIEW_ES : TEAM_OVERVIEW;
+  return [];
 }
 
 function getQuickActionsData() {
@@ -9199,18 +9150,15 @@ function getQuickActionsData() {
 }
 
 function getAlertsData() {
-  if (PUBLISH_READY_MODE) return [];
-  return currentLang === "es" ? ALERTS_ES : ALERTS;
+  return [];
 }
 
 function getHomeCompetitionsData() {
-  if (PUBLISH_READY_MODE) return [];
-  return currentLang === "es" ? HOME_COMPETITIONS_ES : HOME_COMPETITIONS;
+  return [];
 }
 
 function getHomeRecentTrainingsData() {
-  if (PUBLISH_READY_MODE) return [];
-  return currentLang === "es" ? HOME_RECENT_TRAININGS_ES : HOME_RECENT_TRAININGS;
+  return [];
 }
 
 function getCoachAccountData() {
@@ -9278,9 +9226,9 @@ function localizeAthlete(athlete) {
 
 function getAthletesData() {
   const profile = getProfile();
-  const sourceAthletes = isCoachRole(profile?.role) && getCoachAthleteRecords().length
+  const sourceAthletes = getCoachAthleteRecords().length
     ? getCoachAthleteRecords()
-    : ATHLETES;
+    : [];
   const merged = sourceAthletes.map((athlete) => {
     if (!profile || profile.role !== "athlete" || !profile.name || profile.name !== athlete.name) {
       return { ...athlete, tags: normalizeSmartTags(athlete.tags) };
@@ -9361,8 +9309,7 @@ function getJournalAthletesData() {
       entryDate: entry.entryDate
     }));
   }
-  if (PUBLISH_READY_MODE) return [];
-  return currentLang === "es" ? JOURNAL_ATHLETES_ES : JOURNAL_ATHLETES;
+  return [];
 }
 
 function getSkillsData() {
@@ -9412,7 +9359,6 @@ const panels = {
   athletes: document.getElementById("panel-athletes"),
   "coach-match": document.getElementById("panel-coach-match"),
   plans: document.getElementById("panel-plans"),
-  templates: document.getElementById("panel-templates"),
   assignments: document.getElementById("panel-assignments"),
   "calendar-manager": document.getElementById("panel-calendar-manager"),
   "completion-tracking": document.getElementById("panel-completion-tracking"),
@@ -9529,7 +9475,7 @@ async function showTab(name) {
     el.classList.toggle("hidden", orderIndex === -1);
   });
 
-  if (visiblePanels.includes("plans") && templatePdfBytes && window.PDFLib) {
+  if (visiblePanels.includes("plans") && !document.getElementById("coachPlannerApp") && templatePdfBytes && window.PDFLib) {
     await generateFilledPdf({ download: false });
   }
 
@@ -11238,6 +11184,7 @@ function renderPlanCalendar(year, month) {
 
 function initializePlanSelectors() {
     if (!document.getElementById('panel-plans')) return;
+    if (document.getElementById('coachPlannerApp')) return;
     const today = getCurrentAppDate();
     populateSeasonYearSelect();
     renderPlanCalendar(today.getFullYear(), today.getMonth());
@@ -11792,73 +11739,22 @@ function formatDailyPlanText(data) {
 
 function renderTemplatesPanel() {
   if (templateLibraryList) {
-    const liveTemplates = coachWorkspaceSortByUpdated(coachTemplatesCache)
-      .filter((template) => !pendingTemplateDeleteById[String(template.id || "").trim()]);
-    const useFallbackSeeds = !liveTemplates.length && (!isCoachWorkspaceActive() || !coachWorkspaceRealtimeUserId);
-    const templates = (useFallbackSeeds ? getBuiltinCoachTemplateSeeds() : liveTemplates).slice(0, 7);
+    const savedPlans = getCoachPlanRecords().slice(0, 7);
     templateLibraryList.innerHTML = "";
-    if (!templates.length) {
+    if (!savedPlans.length) {
       const empty = document.createElement("li");
       empty.className = "small muted";
       empty.textContent = currentLang === "es"
-        ? "No hay templates guardados todavia."
-        : "No saved templates yet.";
+        ? "Sin datos. Guarda planes reales para verlos aqui."
+        : "No data. Save real plans to see them here.";
       templateLibraryList.appendChild(empty);
     } else {
-      templates.forEach((template) => {
-        const templateId = String(template.id || "").trim();
-        const typeLabel = getPlanAssignmentTypeLabel(template.type);
-        const detail = template.focus || template.monthlyNotes || "";
+      savedPlans.forEach((plan) => {
+        const typeLabel = getPlanAssignmentTypeLabel(plan.type);
+        const detail = plan.focus || plan.monthlyNotes || "";
         const item = document.createElement("li");
         item.className = "template-library-item";
-        item.innerHTML = `<strong>${escapeHtml(template.name)}</strong> - ${escapeHtml(typeLabel)}${detail ? ` - ${escapeHtml(detail)}` : ""}`;
-        if (!useFallbackSeeds && templateId) {
-          bindSwipeDeleteGesture(item, {
-            key: `coach-template:${templateId}`,
-            onSwipeDelete: () => {
-              const safeName = String(template.name || "").trim() || (currentLang === "es" ? "Template" : "Template");
-              const scheduled = scheduleSwipeDelete({
-                key: `coach-template:${templateId}`,
-                labelCopy: {
-                  en: `${safeName} removed`,
-                  es: `${safeName} eliminado`
-                },
-                onCommit: async () => {
-                  pendingTemplateDeleteById = { ...pendingTemplateDeleteById };
-                  delete pendingTemplateDeleteById[templateId];
-                  await deleteCoachTemplateRecordById(templateId);
-                  toast(pickCopy({
-                    en: "Template deleted.",
-                    es: "Template eliminado."
-                  }));
-                },
-                onUndo: () => {
-                  pendingTemplateDeleteById = { ...pendingTemplateDeleteById };
-                  delete pendingTemplateDeleteById[templateId];
-                  renderTemplatesPanel();
-                  renderPlanSourceControls();
-                },
-                onError: () => {
-                  pendingTemplateDeleteById = { ...pendingTemplateDeleteById };
-                  delete pendingTemplateDeleteById[templateId];
-                  renderTemplatesPanel();
-                  renderPlanSourceControls();
-                  toast(pickCopy({
-                    en: "Could not delete template.",
-                    es: "No se pudo eliminar el template."
-                  }));
-                }
-              });
-              if (!scheduled) return;
-              pendingTemplateDeleteById = {
-                ...pendingTemplateDeleteById,
-                [templateId]: true
-              };
-              renderTemplatesPanel();
-              renderPlanSourceControls();
-            }
-          });
-        }
+        item.innerHTML = `<strong>${escapeHtml(plan.title)}</strong> - ${escapeHtml(typeLabel)}${detail ? ` - ${escapeHtml(detail)}` : ""}`;
         templateLibraryList.appendChild(item);
       });
     }
@@ -11867,20 +11763,8 @@ function renderTemplatesPanel() {
   if (templateWorkflowList) {
     const workflowItems = [
       pickCopy({
-        en: "Start from a built-in wrestling template, then edit scope, dates, and audience in Create Plan.",
-        es: "Empieza desde una plantilla base de wrestling y luego ajusta alcance, fechas y audiencia en Create Plan."
-      }),
-      pickCopy({
-        en: "Duplicate the last plan of the same type when you want continuity instead of a blank draft.",
-        es: "Duplica el ultimo plan del mismo tipo cuando quieras continuidad en vez de empezar en blanco."
-      }),
-      pickCopy({
-        en: `Assign templates directly to ${getCoachGroupRecords()[0]?.name || "Varsity"} or to selected athletes without leaving the route.`,
-        es: `Asigna plantillas directamente a ${getCoachGroupRecords()[0]?.name || "Varsity"} o a atletas seleccionados sin salir de la ruta.`
-      }),
-      pickCopy({
-        en: "Use the PDF tools only when staff needs a printable version for practice or travel.",
-        es: "Usa las herramientas PDF solo cuando el staff necesite una version imprimible para practica o viaje."
+        en: "No data. Coaches can create and edit real plans in Plans & Assignments.",
+        es: "Sin datos. Los entrenadores pueden crear y editar planes reales en Planes y asignaciones."
       })
     ];
     templateWorkflowList.innerHTML = workflowItems.map((item) => `<li>${item}</li>`).join("");
@@ -13113,8 +12997,7 @@ function getCompetitionRecordsForContext() {
     if (coachCompetitionsCache.length) return coachWorkspaceSortByUpdated(coachCompetitionsCache);
     if (athletePortalCompetitionsCache.length) return coachWorkspaceSortByUpdated(athletePortalCompetitionsCache);
   }
-  if (PUBLISH_READY_MODE) return [];
-  return getSeedCoachCompetitionRecords().map((record) => normalizeCoachCompetitionRecord(record.id, record));
+  return [];
 }
 
 function getCompetitionStatus(competition, todayKey = getCurrentAppDateKey()) {
@@ -17348,7 +17231,7 @@ function normalizeDateKey(value) {
 }
 
 function getAthleteNamesBase() {
-  return ATHLETES.map((athlete) => athlete.name);
+  return uniqueNames(getAthletesData().map((athlete) => athlete.name).filter(Boolean));
 }
 
 function getCalendarEntry(dateKey) {
@@ -20319,8 +20202,8 @@ function isPlanAssignedToAthlete(plan, athleteName) {
 }
 
 function getLatestCoachPlanForAthlete(athleteName) {
-  const plans = coachPlansCache.length
-    ? coachWorkspaceSortByUpdated(coachPlansCache)
+  const plans = getCoachPlanRecords().length
+    ? getCoachPlanRecords()
     : (athletePortalPlansCache.length ? coachWorkspaceSortByUpdated(athletePortalPlansCache) : []);
   return plans.find((plan) => isPlanAssignedToAthlete(plan, athleteName)) || null;
 }
@@ -20371,8 +20254,9 @@ function getCoachUpcomingCompetitionRows(limit = 3) {
 }
 
 function getCoachRecentTrainingRows(limit = 3) {
-  if (coachPlansCache.length) {
-    return coachWorkspaceSortByUpdated(coachPlansCache).slice(0, limit).map((plan) => ({
+  const livePlans = getCoachPlanRecords();
+  if (livePlans.length) {
+    return livePlans.slice(0, limit).map((plan) => ({
       title: plan.title,
       detail: `${formatPlanRangeLabel(plan.range)} • ${plan.focus || getPlanAssignmentTypeLabel(plan.type)}`
     }));
@@ -21277,7 +21161,6 @@ function getParentVerificationMeta(status) {
 function resolveParentApprovalAthleteRecord(athleteName, fallbackCoachUid = getAuthUser()?.id) {
   const target = normalizeName(athleteName);
   const athlete = getCoachAthleteRecords().find((entry) => normalizeName(entry.name) === target)
-    || ATHLETES.find((entry) => normalizeName(entry.name) === target)
     || null;
   if (!athlete) return null;
   return {
@@ -21640,7 +21523,7 @@ function renderDashboard() {
         },
         {
           title: currentLang === "es" ? "Entrenamientos recientes" : "Recent trainings",
-          value: String(coachPlansCache.length),
+          value: String(getCoachPlanRecords().length),
           note: currentLang === "es" ? "Planes guardados en el workspace" : "Plans saved in the workspace"
         }
       ]
@@ -21657,9 +21540,9 @@ function renderDashboard() {
   teamOverview.innerHTML = "";
   const overviewLines = isCoachWorkspaceActive()
     ? [
-        `${coachPlansCache.length} ${currentLang === "es" ? "planes guardados" : "saved plans"}`,
+        `${getCoachPlanRecords().length} ${currentLang === "es" ? "planes guardados" : "saved plans"}`,
         `${getCoachGroupRecords().length} ${currentLang === "es" ? "grupos listos para asignar" : "groups ready for assignment"}`,
-        `${(coachTemplatesCache.length || getBuiltinCoachTemplateSeeds().length)} ${currentLang === "es" ? "plantillas disponibles" : "templates available"}`
+        `${getCoachAssignmentRecords().length} ${currentLang === "es" ? "asignaciones guardadas" : "saved assignments"}`
       ]
     : getTeamOverviewData();
   overviewLines.forEach((line) => {
@@ -21891,9 +21774,7 @@ function getParentPortalLinkedAthlete() {
     athleteName: getParentLinkedAthleteName()
   });
   if (!linkedIdentity.athleteId && !linkedIdentity.athleteUid && !linkedIdentity.athleteName) return null;
-  return getAthletesData().find((entry) => athleteIdentityMatches(entry, linkedIdentity))
-    || ATHLETES.find((entry) => athleteIdentityMatches(entry, linkedIdentity))
-    || null;
+  return getAthletesData().find((entry) => athleteIdentityMatches(entry, linkedIdentity)) || null;
 }
 
 function getParentPortalCoachRecord() {
@@ -23422,11 +23303,13 @@ function athleteMatchesTagFilter(tags = []) {
 }
 
 function getRawAthleteRecord(name) {
-  return getCoachAthleteRecords().find((athlete) => athlete.name === name) || ATHLETES.find((athlete) => athlete.name === name) || null;
+  return getCoachAthleteRecords().find((athlete) => athlete.name === name)
+    || getAthletesData().find((athlete) => athlete.name === name)
+    || null;
 }
 
 function getRawJournalEntry(name) {
-  return getLatestCoachJournalRecord(name) || JOURNAL_ATHLETES.find((entry) => entry.name === name) || null;
+  return getLatestCoachJournalRecord(name) || null;
 }
 
 function getLocalizedJournalEntry(name) {
@@ -25247,7 +25130,7 @@ function renderOnePager(athleteName) {
   const alerts = getAthleteAlerts(athlete);
   const journalEntry = getLocalizedJournalEntry(athlete.name);
   const latestAnalysis = getLatestCoachMatchAnalysisForAthlete(athlete.name);
-  const cornerPlan = getAthleteCornerPlan(ATHLETES.find((a) => a.name === athlete.name) || athlete);
+  const cornerPlan = getAthleteCornerPlan(athlete);
   const na = currentLang === "es" ? "N/D" : "N/A";
   const styleDisplay = base.style
     ? translateOptionValue("aStyle", base.style) || translateValue(base.style)
@@ -25621,15 +25504,13 @@ function strategyToTendency(strategy) {
 function buildCoachMatchData(athleteName) {
   const safeAthleteName = String(athleteName || "").trim();
   if (!safeAthleteName) return null;
-  const athlete =
-    getAthletesData().find((a) => a.name === safeAthleteName) ||
-    ATHLETES.find((a) => a.name === safeAthleteName);
+  const athlete = getAthletesData().find((a) => a.name === safeAthleteName);
   if (!athlete) return null;
   const saved = getOnePagerData(athlete.name) || {};
   const taskBoard = getAthleteTaskBoard(athlete.name);
   const journalEntry = getLocalizedJournalEntry(athlete.name);
   const alerts = getAthleteAlerts(athlete);
-  const cornerPlan = getAthleteCornerPlan(ATHLETES.find((a) => a.name === athlete.name) || athlete);
+  const cornerPlan = getAthleteCornerPlan(athlete);
   const latestAnalysis = getLatestCoachMatchAnalysisForAthlete(athlete.name);
   const positionKey = normalizePositionKey(athlete.favoritePosition || athlete.position);
   const offense = topThree(athlete.offenseTop3 || athlete.techniques?.neutral || []);
