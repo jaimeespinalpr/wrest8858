@@ -4740,7 +4740,7 @@
   }
 
   async function hydratePlannerFromLatestWorkspacePlan({ syncCloud = true } = {}) {
-    const result = await fetchPlannerSavedRecords({ includeTemplates: false, includePlans: true });
+  const result = await fetchPlannerSavedRecords({ includeTemplates: true, includePlans: true });
     if (!result.authReady || !result.records.length) return false;
     const latestRecord = result.records[0];
     if (!latestRecord) return false;
@@ -4782,8 +4782,7 @@
 
   async function loadPlannerTemplates() {
     setTemplatesStatus(tr({ en: "Loading saved plans...", es: "Cargando planes guardados..." }));
-    const result = await fetchPlannerSavedRecords({ includeTemplates: false, includePlans: true });
-    if (!result.authReady) {
+true    if (!result.authReady) {
       state.templateRecords = [];
       renderTemplateList();
       setTemplatesStatus(tr({
@@ -6022,15 +6021,26 @@
   }
 
   function isPlannerReadOnlyMode() {
-    const view = getPlannerCurrentView();
-    if (view === "coach" || view === "admin") return false;
-    if (view === "athlete" || view === "parent") return true;
-    const role = String(getPlannerProfile()?.role || "").trim().toLowerCase();
-    if (!role) return false;
-    return !isCoachLikeRole(role);
-  }
+  const view = getPlannerCurrentView();
+  const role = String(
+    getPlannerProfile()?.role || getPlannerAuthUser()?.role || ""
+  )
+    .trim()
+    .toLowerCase();
 
-  function applyPlannerAccessMode() {
+  // Si el role real es coach/admin, nunca bloquear
+  if (isCoachLikeRole(role)) return false;
+
+  // Si explícitamente el view es coach/admin, tampoco bloquear
+  if (view === "coach" || view === "admin") return false;
+
+  // Solo bloquear si claramente es athlete o parent
+  if (view === "athlete" || view === "parent") return true;
+
+  // En caso de duda, NO bloquear el coach planner
+  return false;
+}
+function applyPlannerAccessMode() {
     const readOnly = isPlannerReadOnlyMode();
     state.readOnly = readOnly;
     root.classList.toggle("planner-readonly", readOnly);
