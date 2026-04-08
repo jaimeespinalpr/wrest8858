@@ -67,6 +67,7 @@ const FORCED_ADMIN_EMAILS = new Set(["gmunch@united-wc.com"]);
 const OFFICIAL_COACH_EMAILS = new Set([
   "jespinal@united-wc.com",
   "avalencia@united-wc.com",
+  "jaimeespinalpr@gmail.com",
   "gmunch@united-wc.com",
   "cwitte@united-wc.com",
   "smunch@united-wc.com",
@@ -6171,7 +6172,10 @@ async function ensureCoachWorkspaceSeeded() {
 
     await ensureOfficialCompetitionRecordsForWorkspace(authUser.id, competitionsSnap);
 
-    if (PUBLISH_READY_MODE) {
+    const shouldSeedStarterWorkspace = !PUBLISH_READY_MODE
+      || isOfficialCoachEmail(authUser.email || profile?.email || "");
+
+    if (!shouldSeedStarterWorkspace) {
       await syncCoachCompletionStatus();
       return;
     }
@@ -6597,7 +6601,9 @@ async function buildAuthResultFromFirebaseUser(user, { fallbackEmail = "" } = {}
   const defaults = TEST_USER_DEFAULTS[String(email).toLowerCase()] || null;
   const forcedRole = isForcedAdminEmail(email)
     ? "admin"
-    : (defaults?.role ? normalizeAuthRole(defaults.role) : "");
+    : (isOfficialCoachEmail(email)
+      ? "coach"
+      : (defaults?.role ? normalizeAuthRole(defaults.role) : ""));
   const resolvedRole = forcedRole || normalizeAuthRole(remoteProfile?.role);
   const resolvedView = forcedRole
     ? getDefaultViewForRole(resolvedRole)
