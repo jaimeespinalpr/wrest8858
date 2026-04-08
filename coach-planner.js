@@ -827,6 +827,7 @@
     pendingLibraryFocus: "",
     pendingCategoryFocus: "",
     templateRecords: [],
+    activeLoadedSourceKey: "",
     activeTemplateId: "",
     activeTemplateName: "",
     templateSaveBusy: false,
@@ -4555,8 +4556,24 @@
     return normalizePlannerCategoryCollection(value);
   }
 
-  function normalizePlannerTemplateRecord(id, data = {}) {
-    const name = String(data?.name || "").trim();
+  function getPlannerRecordSourceKey(sourceKind = "template", id = "") {
+    return `${String(sourceKind || "template").trim() || "template"}:${String(id || "").trim()}`;
+  }
+
+  function inferPlannerTotalTimeValue(data = {}) {
+    const directValue = String(data?.plannerTotalTime || data?.totalTime || "").trim();
+    if (directValue) return directValue;
+    const source = data?.plannerCategoryTimes && typeof data.plannerCategoryTimes === "object"
+      ? data.plannerCategoryTimes
+      : {};
+    const total = Object.values(source).reduce((sum, value) => sum + parseTimeValue(value), 0);
+    return total > 0 ? String(total) : "";
+  }
+
+  function normalizePlannerTemplateRecord(id, data = {}, { sourceKind = "template" } = {}) {
+    const track = String(data?.trainingTrack || data?.track || "").trim().toLowerCase();
+    if (track && track !== "wrestling") return null;
+    const name = String(data?.name || data?.title || "").trim();
     if (!name) return null;
     const items = normalizeTemplateItemsValue(data?.items || {});
     const rawSchedule = data?.plannerSchedule && typeof data.plannerSchedule === "object"
@@ -4566,6 +4583,8 @@
     const schedule = normalizeTemplateScheduleValue(rawSchedule, categories);
     return {
       id: String(id || "").trim(),
+      sourceKind: String(sourceKind || "template").trim() || "template",
+      sourceKey: getPlannerRecordSourceKey(sourceKind, id),
       name,
       type: String(data?.type || "day").trim(),
       categories,
@@ -4573,8 +4592,8 @@
       schedule,
       categoryTimes: normalizeTemplateTimesValue(data?.plannerCategoryTimes || {}, categories),
       categoryNames: normalizeTemplateCategoryNamesValue(data?.plannerCategoryNames || {}, categories),
-      totalTime: String(data?.plannerTotalTime || "").trim(),
-      savedDate: String(data?.plannerDate || "").trim(),
+      totalTime: inferPlannerTotalTimeValue(data),
+      savedDate: String(data?.plannerDate || data?.range?.startKey || data?.startKey || "").trim(),
       updatedAt: normalizeTemplateDateValue(data?.updatedAt),
       createdAt: normalizeTemplateDateValue(data?.createdAt)
     };
@@ -4600,25 +4619,184 @@
     els.templatesStatus.classList.toggle("planner-status-error", Boolean(isError));
   }
 
+  function hasPlannerScheduleEntries(schedule = {}, categories = getPlannerCategories()) {
+    return (Array.isArray(categories) ? categories : []).some((category) => (
+      Array.isArray(schedule?.[category.id])
+      && schedule[category.id].some((item) => String(typeof item === "string" ? item : item?.name || "").trim())
+    ));
+  }
+
+  function hasMeaningfulPlannerCategoryTimes(value = {}, categories = getPlannerCategories()) {
+    return (Array.isArray(categories) ? categories : []).some((category) => {
+      const current = String(value?.[category.id] ?? "").trim();
+      const baseline = String(INITIAL_TIMES[category.id] || "0").trim();
+      return Boolean(current && current !== baseline);
+    });
+  }
+
+  function hasMeaningfulPlannerDraft(value = {}, categories = getPlannerCategories()) {
+    const safeCategories = normalizeTemplateCategoriesValue(
+      value?.plannerCategories || value?.categories || [],
+      value?.plannerSchedule || value?.schedule || {}
+    );
+    const resolvedCategories = safeCategories.length ? safeCategories : categories;
+    const safeSchedule = normalizePlannerScheduleState(
+      value?.plannerSchedule || value?.schedule || {},
+      resolvedCategories
+    );
+    const safeTimes = normalizePlannerCategoryTimesState(
+      value?.plannerCategoryTimes || value?.categoryTimes || {},
+      resolvedCategories
+    );
+    const safeDate = normalizeDateKeyValue(value?.plannerDate || value?.date || "");
+    const safeTotalTime = String(value?.plannerTotalTime || value?.totalTime || "").trim();
+    return Boolean(
+      safeDate
+      || hasPlannerScheduleEntries(safeSchedule, resolvedCategories)
+      || hasMeaningfulPlannerCategoryTimes(safeTimes, resolvedCategories)
+      || (safeTotalTime && safeTotalTime !== "90")
+    );
+  }
+
+  function applyPlannerRecord(record = null, {
+    syncCloud = true,
+    statusMessage = "",
+    statusIsError = false,
+    toastMessage = "",
+    closeTemplates = false
+  } = {}) {
+    if (!record) return false;
+    state.activeLoadedSourceKey = String(record.sourceKey || getPlannerRecordSourceKey(record.sourceKind, record.id)).trim();
+    state.activeTemplateId = record.sourceKind === "template" ? String(record.id || "").trim() : "";
+    state.activeTemplateName = String(record.name || "").trim();
+    state.wrestlingCategories = normalizePlannerCategoryCollection(record.categories || getPlannerCategories());
+    state.schedule = normalizeTemplateScheduleValue(record.schedule || {}, state.wrestlingCategories);
+    state.categoryTimes = normalizeTemplateTimesValue(record.categoryTimes || {}, state.wrestlingCategories);
+    state.categoryNames = normalizeTemplateCategoryNamesValue(record.categoryNames || {}, state.wrestlingCategories);
+    reconcilePlannerDataForCategories({ keepLibraryUnknown: false });
+    const nextDate = normalizeDateKeyValue(record.savedDate || state.docInfo.date || getTodayDateKey());
+    if (nextDate) {
+      state.docInfo.date = nextDate;
+    }
+    state.docInfo.totalTime = String(record.totalTime || state.docInfo.totalTime || "90").trim() || "90";
+    persistDaily({ syncCloud });
+    persistCategories();
+    persistCategoryNames();
+    persistLibrary();
+    render();
+    queuePlannerLibrarySync();
+    if (closeTemplates) closeTemplatesModal();
+    if (statusMessage) setBottomStatus(statusMessage, statusIsError);
+    if (toastMessage) triggerToast(toastMessage);
+    return true;
+  }
+
+  async function fetchPlannerSavedRecords({ includeTemplates = true, includePlans = true } = {}) {
+    const authUser = await waitForPlannerAuthReady(2200);
+    if (!authUser?.id) {
+      return {
+        authReady: false,
+        hadSource: false,
+        hadError: false,
+        records: []
+      };
+    }
+    const sourceDefs = [];
+    if (includeTemplates) {
+      const templatesRef = getPlannerWorkspaceCollectionRef("templates");
+      if (templatesRef) {
+        sourceDefs.push({
+          sourceKind: "template",
+          label: "templates",
+          ref: templatesRef
+        });
+      }
+    }
+    if (includePlans) {
+      const plansRef = getPlannerWorkspaceCollectionRef("plans");
+      if (plansRef) {
+        sourceDefs.push({
+          sourceKind: "plan",
+          label: "plans",
+          ref: plansRef
+        });
+      }
+    }
+    if (!sourceDefs.length) {
+      return {
+        authReady: true,
+        hadSource: false,
+        hadError: false,
+        records: []
+      };
+    }
+
+    const settled = await Promise.allSettled(sourceDefs.map((source) => source.ref.get()));
+    const records = [];
+    let hadError = false;
+    settled.forEach((result, index) => {
+      const source = sourceDefs[index];
+      if (result.status !== "fulfilled") {
+        hadError = true;
+        console.warn(`Failed to load planner ${source.label}`, result.reason);
+        return;
+      }
+      result.value.docs
+        .map((doc) => normalizePlannerTemplateRecord(doc.id, doc.data() || {}, { sourceKind: source.sourceKind }))
+        .filter(Boolean)
+        .forEach((record) => records.push(record));
+    });
+
+    records.sort((left, right) => {
+      const leftDate = Number(new Date(left.updatedAt || left.createdAt || 0));
+      const rightDate = Number(new Date(right.updatedAt || right.createdAt || 0));
+      return rightDate - leftDate;
+    });
+
+    return {
+      authReady: true,
+      hadSource: true,
+      hadError,
+      records
+    };
+  }
+
+  async function hydratePlannerFromLatestWorkspacePlan({ syncCloud = true } = {}) {
+    const result = await fetchPlannerSavedRecords({ includeTemplates: true, includePlans: true });
+    if (!result.authReady || !result.records.length) return false;
+    const latestRecord = result.records.find((record) => record.sourceKind === "plan") || result.records[0];
+    if (!latestRecord) return false;
+    return applyPlannerRecord(latestRecord, {
+      syncCloud,
+      statusMessage: tr({
+        en: `Loaded latest saved ${latestRecord.sourceKind === "plan" ? "plan" : "template"}: ${latestRecord.name}`,
+        es: `Se cargo el ultimo ${latestRecord.sourceKind === "plan" ? "plan" : "template"} guardado: ${latestRecord.name}`
+      })
+    });
+  }
+
   function renderTemplateList() {
     if (!els.templatesList) return;
     if (!state.templateRecords.length) {
-      els.templatesList.innerHTML = `<p class="small muted">${escapeHtml(tr({ en: "No templates found yet.", es: "Todavia no hay plantillas." }))}</p>`;
+      els.templatesList.innerHTML = `<p class="small muted">${escapeHtml(tr({ en: "No templates or saved plans found yet.", es: "Todavia no hay plantillas ni planes guardados." }))}</p>`;
       return;
     }
     const html = state.templateRecords.map((template) => {
-      const isActive = template.id && template.id === state.activeTemplateId;
+      const isActive = template.sourceKey && template.sourceKey === state.activeLoadedSourceKey;
+      const sourceLabel = template.sourceKind === "plan"
+        ? tr({ en: "Saved plan", es: "Plan guardado" })
+        : tr({ en: "Template", es: "Plantilla" });
       return `
         <article class="planner-template-card${isActive ? " active" : ""}">
           <div>
             <strong>${escapeHtml(template.name)}</strong>
-            <p class="small muted">${escapeHtml(tr({ en: "Updated", es: "Actualizado" }))}: ${escapeHtml(formatTemplateUpdatedLabel(template))}</p>
+            <p class="small muted">${escapeHtml(sourceLabel)} • ${escapeHtml(tr({ en: "Updated", es: "Actualizado" }))}: ${escapeHtml(formatTemplateUpdatedLabel(template))}</p>
           </div>
           <button
             type="button"
             class="primary"
             data-action="load-template-record"
-            data-template-id="${escapeHtml(template.id)}"
+            data-template-key="${escapeHtml(template.sourceKey)}"
           >${escapeHtml(tr({ en: "Load", es: "Cargar" }))}</button>
         </article>
       `;
@@ -4627,44 +4805,38 @@
   }
 
   async function loadPlannerTemplates() {
-    const authUser = await waitForPlannerAuthReady(2200);
-    if (!authUser?.id) {
+    setTemplatesStatus(tr({ en: "Loading saved plans and templates...", es: "Cargando planes y plantillas guardados..." }));
+    const result = await fetchPlannerSavedRecords({ includeTemplates: true, includePlans: true });
+    if (!result.authReady) {
       state.templateRecords = [];
       renderTemplateList();
       setTemplatesStatus(tr({
-        en: "Sign in again to load templates.",
-        es: "Inicia sesion de nuevo para cargar plantillas."
+        en: "Sign in again to load saved plans and templates.",
+        es: "Inicia sesion de nuevo para cargar planes y plantillas guardados."
       }), true);
       return;
     }
-    const templatesRef = getPlannerWorkspaceCollectionRef("templates");
-    if (!templatesRef) {
+    if (!result.hadSource) {
       state.templateRecords = [];
       renderTemplateList();
-      setTemplatesStatus(tr({ en: "Template storage is not available.", es: "El almacenamiento de plantillas no esta disponible." }), true);
+      setTemplatesStatus(tr({
+        en: "Plan/template storage is not available.",
+        es: "El almacenamiento de planes/plantillas no esta disponible."
+      }), true);
       return;
     }
-    try {
-      setTemplatesStatus(tr({ en: "Loading templates...", es: "Cargando plantillas..." }));
-      const snap = await templatesRef.get();
-      state.templateRecords = snap.docs
-        .map((doc) => normalizePlannerTemplateRecord(doc.id, doc.data() || {}))
-        .filter(Boolean)
-        .sort((left, right) => {
-          const leftDate = Number(new Date(left.updatedAt || left.createdAt || 0));
-          const rightDate = Number(new Date(right.updatedAt || right.createdAt || 0));
-          return rightDate - leftDate;
-        });
-      renderTemplateList();
-      setTemplatesStatus(state.templateRecords.length
-        ? tr({ en: `${state.templateRecords.length} templates loaded.`, es: `${state.templateRecords.length} plantillas cargadas.` })
-        : tr({ en: "No templates found.", es: "No se encontraron plantillas." }));
-    } catch (err) {
-      console.warn("Failed to load planner templates", err);
-      state.templateRecords = [];
-      renderTemplateList();
-      setTemplatesStatus(tr({ en: "Could not load templates right now.", es: "No se pudieron cargar las plantillas ahora." }), true);
+    state.templateRecords = result.records;
+    renderTemplateList();
+    if (result.hadError && !state.templateRecords.length) {
+      setTemplatesStatus(tr({
+        en: "Could not load saved plans/templates right now.",
+        es: "No se pudieron cargar los planes/plantillas guardados ahora."
+      }), true);
+      return;
     }
+    setTemplatesStatus(state.templateRecords.length
+      ? tr({ en: `${state.templateRecords.length} saved items loaded.`, es: `${state.templateRecords.length} elementos guardados cargados.` })
+      : tr({ en: "No saved plans or templates found.", es: "No se encontraron planes ni plantillas guardados." }));
   }
 
   function openTemplatesModal() {
@@ -4679,30 +4851,23 @@
 
   function applyTemplateToPlanner(templateId) {
     const targetId = String(templateId || "").trim();
-    const template = state.templateRecords.find((record) => record.id === targetId);
+    const template = state.templateRecords.find((record) => record.sourceKey === targetId || record.id === targetId);
     if (!template) {
       setTemplatesStatus(tr({ en: "Template not found.", es: "Plantilla no encontrada." }), true);
       return;
     }
-    state.activeTemplateId = template.id;
-    state.activeTemplateName = template.name;
-    state.wrestlingCategories = normalizePlannerCategoryCollection(template.categories || getPlannerCategories());
-    state.schedule = normalizeTemplateScheduleValue(template.schedule || {}, state.wrestlingCategories);
-    state.categoryTimes = normalizeTemplateTimesValue(template.categoryTimes || {}, state.wrestlingCategories);
-    state.categoryNames = normalizeTemplateCategoryNamesValue(template.categoryNames || {}, state.wrestlingCategories);
-    reconcilePlannerDataForCategories({ keepLibraryUnknown: false });
-    if (template.totalTime) {
-      state.docInfo.totalTime = String(template.totalTime).trim();
-    }
-    persistDaily();
-    persistCategories();
-    persistLibrary();
-    persistCategoryNames();
-    render();
-    queuePlannerLibrarySync();
-    closeTemplatesModal();
-    triggerToast(tr({ en: `Template loaded: ${template.name}`, es: `Plantilla cargada: ${template.name}` }));
-    setBottomStatus(tr({ en: `Loaded template: ${template.name}`, es: `Plantilla cargada: ${template.name}` }));
+    applyPlannerRecord(template, {
+      syncCloud: true,
+      closeTemplates: true,
+      toastMessage: tr({
+        en: `${template.sourceKind === "plan" ? "Plan" : "Template"} loaded: ${template.name}`,
+        es: `${template.sourceKind === "plan" ? "Plan" : "Plantilla"} cargado: ${template.name}`
+      }),
+      statusMessage: tr({
+        en: `Loaded ${template.sourceKind === "plan" ? "saved plan" : "template"}: ${template.name}`,
+        es: `Se cargo ${template.sourceKind === "plan" ? "el plan guardado" : "la plantilla"}: ${template.name}`
+      })
+    });
   }
 
   function getPlannerTitle() {
@@ -5723,8 +5888,18 @@
     const usersRef = getPlannerUsersCollectionRef();
     const authUser = getPlannerAuthUser();
     const uid = String(authUser?.id || "").trim();
+    const localSnapshot = {
+      date: state.docInfo.date,
+      totalTime: state.docInfo.totalTime,
+      schedule: state.schedule,
+      categoryTimes: state.categoryTimes,
+      plannerCategories: getPlannerCategories()
+    };
+    const localHasData = hasMeaningfulPlannerDraft(localSnapshot, getPlannerCategories());
     if (!usersRef || !uid) {
-      persistDaily({ syncCloud: false });
+      if (localHasData) {
+        persistDaily({ syncCloud: false, updatedAt: state.dailyDraftUpdatedAt });
+      }
       return;
     }
     try {
@@ -5739,16 +5914,19 @@
       const localUpdatedAt = String(state.dailyDraftUpdatedAt || "").trim();
       const remoteMs = remoteUpdatedAt ? Date.parse(remoteUpdatedAt) : 0;
       const localMs = localUpdatedAt ? Date.parse(localUpdatedAt) : 0;
-      const remoteHasData = Boolean(
-        String(remoteDraft?.date || "").trim()
-        || String(remoteDraft?.totalTime || "").trim()
-        || Object.keys(remoteDraft?.schedule || {}).length
-      );
+      const remoteHasData = hasMeaningfulPlannerDraft(remoteDraft, getPlannerCategories());
       if (!remoteHasData) {
-        persistDaily({ syncCloud: true });
+        if (localHasData) {
+          persistDaily({ syncCloud: true, updatedAt: state.dailyDraftUpdatedAt });
+          return;
+        }
+        const hydratedFromWorkspace = await hydratePlannerFromLatestWorkspacePlan({ syncCloud: true });
+        if (!hydratedFromWorkspace) {
+          persistDaily({ syncCloud: false, updatedAt: state.dailyDraftUpdatedAt });
+        }
         return;
       }
-      if (remoteMs > localMs + 1000) {
+      if (!localHasData || remoteMs > localMs + 1000) {
         state.docInfo.date = String(remoteDraft?.date || "").trim();
         state.docInfo.totalTime = String(remoteDraft?.totalTime || "90").trim() || "90";
         state.schedule = normalizePlannerScheduleState(remoteDraft?.schedule || {}, getPlannerCategories());
@@ -5756,11 +5934,18 @@
         persistDaily({ syncCloud: false, updatedAt: remoteUpdatedAt || new Date().toISOString() });
         render();
       } else {
-        persistDaily({ syncCloud: true });
+        persistDaily({ syncCloud: true, updatedAt: state.dailyDraftUpdatedAt });
       }
     } catch (err) {
       console.warn("Planner daily draft cloud hydrate failed", err);
-      persistDaily({ syncCloud: true });
+      if (localHasData) {
+        persistDaily({ syncCloud: true, updatedAt: state.dailyDraftUpdatedAt });
+        return;
+      }
+      const hydratedFromWorkspace = await hydratePlannerFromLatestWorkspacePlan({ syncCloud: false });
+      if (!hydratedFromWorkspace) {
+        persistDaily({ syncCloud: false, updatedAt: state.dailyDraftUpdatedAt });
+      }
     }
   }
 
@@ -6888,7 +7073,7 @@
       return;
     }
     if (action === "load-template-record") {
-      applyTemplateToPlanner(trigger.dataset.templateId);
+      applyTemplateToPlanner(trigger.dataset.templateKey || trigger.dataset.templateId);
     }
   }
 
@@ -7275,7 +7460,6 @@
   bindStaticEvents();
   persistCategories();
   persistCategoryNames();
-  persistDaily({ syncCloud: false });
   persistLibrary();
   state.liftingPlan = normalizeLiftingPlan(state.liftingPlan || buildDefaultLiftingPlan());
   state.liftingLibrary = normalizeLiftingLibraryMap(state.liftingLibrary || DEFAULT_LIFTING_LIBRARY);
