@@ -7134,7 +7134,7 @@
   bindStaticEvents();
   persistCategories();
   persistCategoryNames();
-  persistDaily();
+  persistDaily({ syncCloud: false });
   persistLibrary();
   state.liftingPlan = normalizeLiftingPlan(state.liftingPlan || buildDefaultLiftingPlan());
   state.liftingLibrary = normalizeLiftingLibraryMap(state.liftingLibrary || DEFAULT_LIFTING_LIBRARY);
