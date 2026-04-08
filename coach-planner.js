@@ -796,6 +796,8 @@
     coachLibrariesStatus: tr({ en: "Loading coach libraries...", es: "Cargando librerias de entrenadores..." }),
     coachLibrariesUnsub: null,
     coachLibrariesReady: false,
+    plannerAuthUnsub: null,
+    plannerHydratedUid: "",
     librarySyncTimer: null,
     plannerCatalogSyncTimer: null,
     plannerCatalogUnsub: null,
@@ -4008,6 +4010,49 @@
     }
   }
 
+  function syncPlannerCloudStateAfterAuth() {
+    if (!hasPlannerAuthSession()) return;
+    const uid = String(getPlannerAuthUser()?.id || "").trim();
+    if (!uid) return;
+    if (state.plannerHydratedUid === uid) {
+      startSharedPlannerCatalogSync({ force: true });
+      startPlannerAssignDirectorySync({ force: true });
+      return;
+    }
+    state.plannerHydratedUid = uid;
+    startSharedPlannerCatalogSync({ force: true });
+    startPlannerAssignDirectorySync({ force: true });
+    hydratePlannerSettingsFromCloud().catch(() => {});
+    hydratePlannerDailyFromCloud().catch(() => {});
+  }
+
+  function ensurePlannerAuthWatcher() {
+    if (state.plannerAuthUnsub) return;
+    try {
+      if (typeof firebaseAuthInstance !== "undefined" && firebaseAuthInstance?.onAuthStateChanged) {
+        state.plannerAuthUnsub = firebaseAuthInstance.onAuthStateChanged((user) => {
+          if (!user) {
+            state.plannerHydratedUid = "";
+            return;
+          }
+          syncPlannerCloudStateAfterAuth();
+        });
+        return;
+      }
+      if (typeof firebase !== "undefined" && firebase?.auth) {
+        state.plannerAuthUnsub = firebase.auth().onAuthStateChanged((user) => {
+          if (!user) {
+            state.plannerHydratedUid = "";
+            return;
+          }
+          syncPlannerCloudStateAfterAuth();
+        });
+      }
+    } catch {
+      // ignore auth watcher errors
+    }
+  }
+
   function setupLiftingRealtimeSync() {
     ensureLiftingAuthWatcher();
     if (state.liftingPlansUnsub) {
@@ -5211,8 +5256,9 @@
   }
 
   async function loadPlannerRecipientsFallback({ apply = true } = {}) {
-    const usersRef = getPlannerUsersCollectionRef();
-    const athletesRef = getPlannerWorkspaceCollectionRef("athletes");
+    const authReady = hasPlannerAuthSession();
+    const usersRef = authReady ? getPlannerUsersCollectionRef() : null;
+    const athletesRef = authReady ? getPlannerWorkspaceCollectionRef("athletes") : null;
     const sources = [];
     let hadAtLeastOneSource = false;
 
@@ -5226,7 +5272,10 @@
           .filter((record) => record.role !== "parent");
         sources.push(...usersRecords);
       } catch (err) {
-        console.warn("Planner fallback users directory load failed", err);
+        const errorCode = String(err?.code || "").trim().toLowerCase();
+        if (!errorCode.includes("permission-denied") && !errorCode.includes("unauthenticated")) {
+          console.warn("Planner fallback users directory load failed", err);
+        }
       }
     }
 
@@ -5240,7 +5289,10 @@
           .filter((record) => record.recipientType === "athlete");
         sources.push(...athleteRecords);
       } catch (err) {
-        console.warn("Planner fallback athletes load failed", err);
+        const errorCode = String(err?.code || "").trim().toLowerCase();
+        if (!errorCode.includes("permission-denied") && !errorCode.includes("unauthenticated")) {
+          console.warn("Planner fallback athletes load failed", err);
+        }
       }
     }
 
@@ -6310,6 +6362,19 @@
   function startSharedPlannerCatalogSync({ force = false } = {}) {
     if (force) stopSharedPlannerCatalogSync();
     if (state.plannerCatalogUnsub) return;
+    if (!hasPlannerAuthSession()) {
+      state.plannerCatalogReady = false;
+      state.plannerCatalogStatus = tr({
+        en: "Waiting for sign-in to load shared planner catalog...",
+        es: "Esperando inicio de sesion para cargar el catalogo compartido..."
+      });
+      waitForPlannerAuthReady(5500).then((user) => {
+        if (user?.id) {
+          startSharedPlannerCatalogSync({ force: true });
+        }
+      }).catch(() => {});
+      return;
+    }
     const docRef = getSharedPlannerCatalogDocRef();
     if (!docRef?.onSnapshot) return;
     state.plannerCatalogStatus = tr({
@@ -6359,6 +6424,17 @@
   }
 
   function subscribeCoachLibraries() {
+    if (!hasPlannerAuthSession()) {
+      setCoachLibrariesStatus(tr({
+        en: "Waiting for sign-in to load coach libraries...",
+        es: "Esperando inicio de sesion para cargar las librerias de entrenadores..."
+      }));
+      renderCoachLibraries();
+      waitForPlannerAuthReady(5500).then((user) => {
+        if (user?.id) subscribeCoachLibraries();
+      }).catch(() => {});
+      return;
+    }
     const usersRef = getPlannerUsersCollectionRef();
     if (!usersRef) {
       setCoachLibrariesStatus(tr({ en: "Coach libraries available after Firebase connects.", es: "Las librerias de entrenadores estaran disponibles cuando Firebase conecte." }));
@@ -7477,6 +7553,7 @@
   }
 
   bindStaticEvents();
+  ensurePlannerAuthWatcher();
   persistCategories();
   persistCategoryNames();
   persistLibrary();
@@ -7502,6 +7579,10 @@
         try { state.liftingAuthUnsub(); } catch {}
         state.liftingAuthUnsub = null;
       }
+      if (state.plannerAuthUnsub) {
+        try { state.plannerAuthUnsub(); } catch {}
+        state.plannerAuthUnsub = null;
+      }
       stopPlannerAssignDirectorySync();
       stopSharedPlannerCatalogSync();
       if (state.dailySyncTimer) {
@@ -7510,6 +7591,5 @@
       }
     });
   }
-  hydratePlannerSettingsFromCloud().catch(() => {});
-  hydratePlannerDailyFromCloud().catch(() => {});
+  syncPlannerCloudStateAfterAuth();
 })();
