@@ -11098,7 +11098,10 @@ function renderPlanCalendar(year, month) {
 
 function initializePlanSelectors() {
     if (!document.getElementById('panel-plans')) return;
-    if (document.getElementById('coachPlannerApp')) return;
+    if (document.getElementById('coachPlannerApp')) {
+      clearLegacyCoachPlannerArtifacts();
+      return;
+    }
     const today = getCurrentAppDate();
     populateSeasonYearSelect();
     renderPlanCalendar(today.getFullYear(), today.getMonth());

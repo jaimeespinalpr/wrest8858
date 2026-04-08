@@ -4185,7 +4185,7 @@
     return null;
   }
 
-  function waitForPlannerAuthReady(timeoutMs = 2200) {
+  function waitForPlannerAuthReady(timeoutMs = 5500) {
     const existing = getPlannerAuthUser();
     if (existing?.id) return Promise.resolve(existing);
     return new Promise((resolve) => {
@@ -4670,7 +4670,7 @@
   }
 
   async function fetchPlannerSavedRecords({ includeTemplates = true, includePlans = true } = {}) {
-    const authUser = await waitForPlannerAuthReady(2200);
+    const authUser = await waitForPlannerAuthReady(5500);
     if (!authUser?.id) {
       return {
         authReady: false,
@@ -4740,7 +4740,7 @@
   }
 
   async function hydratePlannerFromLatestWorkspacePlan({ syncCloud = true } = {}) {
-  const result = await fetchPlannerSavedRecords({ includeTemplates: true, includePlans: true });
+    const result = await fetchPlannerSavedRecords({ includeTemplates: true, includePlans: true });
     if (!result.authReady || !result.records.length) return false;
     const latestRecord = result.records[0];
     if (!latestRecord) return false;
@@ -4781,10 +4781,10 @@
   }
 
   async function loadPlannerTemplates() {
-    setTemplatesStatus(tr({ en: "Loading saved plans...", es: "Cargando planes guard
-     const result = await fetchPlannerSavedRecords({ includeTemplates: true, includePlans: true });
+    setTemplatesStatus(tr({ en: "Loading saved plans...", es: "Cargando planes guardados..." }));
+    const result = await fetchPlannerSavedRecords({ includeTemplates: true, includePlans: true });
     if (!result.authReady) {
-state.templateRecords = [];
+      state.templateRecords = [];
       renderTemplateList();
       setTemplatesStatus(tr({
         en: "Sign in again to load saved plans.",
@@ -5292,7 +5292,7 @@ state.templateRecords = [];
           es: "Esperando inicio de sesion para cargar destinatarios..."
         }), true);
       }
-      waitForPlannerAuthReady(2500).then((user) => {
+      waitForPlannerAuthReady(5500).then((user) => {
         if (user?.id) {
           startPlannerAssignDirectorySync({ force: true });
         }
@@ -5398,7 +5398,7 @@ state.templateRecords = [];
   }
 
   async function savePlannerAsTemplate() {
-    const authUser = await waitForPlannerAuthReady(2200);
+    const authUser = await waitForPlannerAuthReady(5500);
     if (!authUser?.id) {
       setBottomStatus(tr({
         en: "Session not ready. Sign in again and retry.",
@@ -5519,7 +5519,7 @@ state.templateRecords = [];
   }
 
   async function sendPlannerTrainingToAthletes() {
-    const authUserReady = await waitForPlannerAuthReady(2200);
+    const authUserReady = await waitForPlannerAuthReady(5500);
     if (!authUserReady?.id) {
       setAssignStatus(tr({
         en: "Session not ready. Sign in again and retry.",
@@ -6021,27 +6021,30 @@ state.templateRecords = [];
     return "";
   }
 
+  function isCoachPlannerRouteActive() {
+    try {
+      return Boolean(document.querySelector(
+        ".tab.active[data-tab='coach-home'], .tab.active[data-tab='coach-athletes'], .tab.active[data-tab='coach-plans'], .tab.active[data-tab='coach-competition'], .tab.active[data-tab='coach-messages']"
+      ));
+    } catch {
+      return false;
+    }
+  }
+
   function isPlannerReadOnlyMode() {
-  const view = getPlannerCurrentView();
-  const role = String(
-    getPlannerProfile()?.role || getPlannerAuthUser()?.role || ""
-  )
-    .trim()
-    .toLowerCase();
+    const profileRole = String(getPlannerProfile()?.role || "").trim().toLowerCase();
+    const authRole = String(getPlannerAuthUser()?.role || "").trim().toLowerCase();
+    if (isCoachLikeRole(profileRole) || isCoachLikeRole(authRole)) return false;
+    const view = getPlannerCurrentView();
+    if (view === "coach" || view === "admin") return false;
+    if (isCoachPlannerRouteActive()) return false;
+    if (view === "athlete" || view === "parent") return true;
+    const effectiveRole = profileRole || authRole;
+    if (!effectiveRole) return false;
+    return !isCoachLikeRole(effectiveRole);
+  }
 
-  // Si el role real es coach/admin, nunca bloquear
-  if (isCoachLikeRole(role)) return false;
-
-  // Si explícitamente el view es coach/admin, tampoco bloquear
-  if (view === "coach" || view === "admin") return false;
-
-  // Solo bloquear si claramente es athlete o parent
-  if (view === "athlete" || view === "parent") return true;
-
-  // En caso de duda, NO bloquear el coach planner
-  return false;
-}
-function applyPlannerAccessMode() {
+  function applyPlannerAccessMode() {
     const readOnly = isPlannerReadOnlyMode();
     state.readOnly = readOnly;
     root.classList.toggle("planner-readonly", readOnly);

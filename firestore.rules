@@ -216,9 +216,19 @@ service cloud.firestore {
       return signedIn()
         && (
           canAccessMessageThread(data)
+          || (data.participantIds is list && request.auth.uid in data.participantIds)
           || data.coachUid == request.auth.uid
           || data.userUid == request.auth.uid
         );
+    }
+
+    function canRepairLegacyMessageParticipants() {
+      return request.resource.data.participantIds is list
+        && request.resource.data.participantIds.size() == 2
+        && resource.data.coachUid is string
+        && resource.data.userUid is string
+        && resource.data.coachUid in request.resource.data.participantIds
+        && resource.data.userUid in request.resource.data.participantIds;
     }
 
     function assignmentTargetsCurrentAthlete(data) {
@@ -304,36 +314,37 @@ service cloud.firestore {
     }
 
     match /message_threads/{threadId} {
-      allow get: if isAdminEmail() || canAccessMessageThread(resource.data);
-      allow list: if isAdminEmail() || canAccessMessageThread(resource.data);
+      allow get: if isAdminEmail() || canRepairLegacyMessageThread(resource.data);
+      allow list: if isAdminEmail() || canRepairLegacyMessageThread(resource.data);
       allow create: if signedIn()
         && isAllowedDirectMessageParticipants(request.resource.data.participantIds)
         && request.auth.uid in request.resource.data.participantIds;
       allow update: if signedIn()
         && isAllowedDirectMessageParticipants(request.resource.data.participantIds)
-        && request.resource.data.participantIds == resource.data.participantIds
+        && (
+          request.resource.data.participantIds == resource.data.participantIds
+          || canRepairLegacyMessageParticipants()
+        )
         && request.auth.uid in request.resource.data.participantIds
-        && (isAdminEmail() || canAccessMessageThread(resource.data));
-      allow delete: if isAdminEmail() || canAccessMessageThread(resource.data);
+        && (isAdminEmail() || canRepairLegacyMessageThread(resource.data));
+      allow delete: if isAdminEmail() || canRepairLegacyMessageThread(resource.data);
 
       match /messages/{messageId} {
         allow get: if isAdminEmail() || (
-          signedIn()
-          && request.auth.uid in get(/databases/$(database)/documents/message_threads/$(threadId)).data.participantIds
+          canRepairLegacyMessageThread(get(/databases/$(database)/documents/message_threads/$(threadId)).data)
         );
         allow list: if isAdminEmail() || (
-          signedIn()
-          && request.auth.uid in get(/databases/$(database)/documents/message_threads/$(threadId)).data.participantIds
+          canRepairLegacyMessageThread(get(/databases/$(database)/documents/message_threads/$(threadId)).data)
         );
         allow create: if signedIn()
-          && request.auth.uid in get(/databases/$(database)/documents/message_threads/$(threadId)).data.participantIds
+          && canRepairLegacyMessageThread(get(/databases/$(database)/documents/message_threads/$(threadId)).data)
           && request.resource.data.senderUid == request.auth.uid
           && request.resource.data.threadId == threadId
           && request.resource.data.text is string
           && request.resource.data.text.size() > 0
           && request.resource.data.text.size() <= 1000;
         allow update: if signedIn()
-          && request.auth.uid in get(/databases/$(database)/documents/message_threads/$(threadId)).data.participantIds
+          && canRepairLegacyMessageThread(get(/databases/$(database)/documents/message_threads/$(threadId)).data)
           && resource.data.threadId == threadId
           && request.resource.data.threadId == resource.data.threadId
           && request.resource.data.senderUid == resource.data.senderUid
@@ -348,8 +359,7 @@ service cloud.firestore {
             "serverReadAt"
           ]);
         allow delete: if isAdminEmail() || (
-          signedIn()
-          && request.auth.uid in get(/databases/$(database)/documents/message_threads/$(threadId)).data.participantIds
+          canRepairLegacyMessageThread(get(/databases/$(database)/documents/message_threads/$(threadId)).data)
         );
       }
     }
