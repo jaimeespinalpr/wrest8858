@@ -25863,6 +25863,14 @@ const MESSAGES_COPY = {
     en: "Could not load messages. Check Firebase rules and auth.",
     es: "No se pudieron cargar los mensajes. Revisa reglas de Firebase y autenticacion."
   },
+  loadPendingAuth: {
+    en: "Messages are waiting for the Firebase session to finish loading.",
+    es: "Los mensajes estan esperando que termine de cargar la sesion de Firebase."
+  },
+  loadPermissionDenied: {
+    en: "Messages are not available for this account yet. Check linked permissions or sign in again.",
+    es: "Los mensajes todavia no estan disponibles para esta cuenta. Revisa permisos vinculados o inicia sesion de nuevo."
+  },
   sendError: {
     en: "Could not send this message.",
     es: "No se pudo enviar este mensaje."
@@ -27988,6 +27996,17 @@ function canMessageThread(current = getMessagesCurrentUser(), thread = null) {
   return canMessageContact(current, candidate);
 }
 
+function getMessageLoadErrorCopy(err = null) {
+  const code = String(err?.code || err?.message || "").toLowerCase();
+  if (code.includes("permission-denied")) {
+    return MESSAGES_COPY.loadPermissionDenied;
+  }
+  if (code.includes("unauthenticated") || code.includes("auth")) {
+    return MESSAGES_COPY.loadPendingAuth;
+  }
+  return MESSAGES_COPY.loadError;
+}
+
 async function loadMessageContactsDirectory() {
   const current = getMessagesCurrentUser();
   if (!current || !firebaseFirestoreInstance) {
@@ -28011,9 +28030,12 @@ async function loadMessageContactsDirectory() {
       current
     ));
   } catch (err) {
-    console.warn("Failed to load message contacts", err);
+    const code = String(err?.code || err?.message || "").toLowerCase();
+    if (!code.includes("permission-denied")) {
+      console.warn("Failed to load message contacts", err);
+    }
     messagesContactRows = [];
-    setMessagesStatus(MESSAGES_COPY.loadError, "error");
+    setMessagesStatus(getMessageLoadErrorCopy(err), "error");
   }
 }
 
@@ -28028,7 +28050,12 @@ function subscribeToMessageContacts(current) {
       );
       rebuildMessageContactsDirectory(current);
     }, (err) => {
-      console.warn("Failed to subscribe to contacts", err);
+      const code = String(err?.code || err?.message || "").toLowerCase();
+      if (!code.includes("permission-denied")) {
+        console.warn("Failed to subscribe to contacts", err);
+      }
+      setMessagesStatus(getMessageLoadErrorCopy(err), "error");
+      renderMessages();
     });
   messagesContactUnsubs.push(unsubscribe);
 }
@@ -28071,9 +28098,12 @@ function subscribeToMessageFeed(threadId) {
         });
       }
     }, (err) => {
-      console.warn("Failed to subscribe to message feed", err);
+      const code = String(err?.code || err?.message || "").toLowerCase();
+      if (!code.includes("permission-denied")) {
+        console.warn("Failed to subscribe to message feed", err);
+      }
       messagesFeedLoading = false;
-      setMessagesStatus(MESSAGES_COPY.loadError, "error");
+      setMessagesStatus(getMessageLoadErrorCopy(err), "error");
       renderMessages();
     });
 }
@@ -28195,19 +28225,32 @@ function subscribeToMessageThreads(current) {
       if (isAthleteRole(getProfile()?.role) && getAthleteLinkedCoachUid()) {
         renderTodayActionQueue();
       }
-    }, (err) => {
-      console.warn("Failed to subscribe to threads", err);
-      messagesThreadRows = [];
-      setMessagesStatus(MESSAGES_COPY.loadError, "error");
-      updateMessagesUnreadIndicators();
-      renderMessages();
-    });
+	    }, (err) => {
+	      const code = String(err?.code || err?.message || "").toLowerCase();
+	      if (!code.includes("permission-denied")) {
+	        console.warn("Failed to subscribe to threads", err);
+	      }
+	      messagesThreadRows = [];
+	      setMessagesStatus(getMessageLoadErrorCopy(err), "error");
+	      updateMessagesUnreadIndicators();
+	      renderMessages();
+	    });
 }
 
 async function startMessagesRealtimeSync({ forceRefreshContacts = false } = {}) {
   const current = getMessagesCurrentUser();
   if (!current || !firebaseFirestoreInstance) {
     teardownMessagesSession();
+    renderMessages();
+    return;
+  }
+
+  if (!getFirebaseSessionSnapshot()?.id) {
+    await waitForInitialFirebaseUser(2500);
+  }
+  if (!getFirebaseSessionSnapshot()?.id) {
+    teardownMessagesSession();
+    setMessagesStatus(MESSAGES_COPY.loadPendingAuth, "");
     renderMessages();
     return;
   }

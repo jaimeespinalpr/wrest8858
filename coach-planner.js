@@ -473,6 +473,9 @@
     return copy;
   }
 
+  // Declared early so helpers used during state construction do not hit TDZ.
+  let state = null;
+
   function getPlannerCategories() {
     if (state && Array.isArray(state.wrestlingCategories) && state.wrestlingCategories.length) {
       return state.wrestlingCategories;
@@ -769,7 +772,7 @@
   runtimeWrestlingCategories = persistedWrestlingCategories.map((category) => ({ ...category }));
   const persistedCategoryNames = readJson(STORAGE_KEYS.categoryNames, {}) || {};
 
-  const state = {
+  state = {
     activeTrack: normalizeTrack(readJson(STORAGE_KEYS.track, "wrestling")),
     lastRenderedTrack: normalizeTrack(readJson(STORAGE_KEYS.track, "wrestling")),
     docInfo: {
