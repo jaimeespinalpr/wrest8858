@@ -48,6 +48,7 @@ const FIREBASE_SHARED_USER_DIRECTORY_DOC = "global_user_directory";
 const FIREBASE_SHARED_USER_DIRECTORY_ITEMS = "items";
 const FIREBASE_MESSAGE_THREADS_COLLECTION = "message_threads";
 const FIREBASE_COACH_WORKSPACES_COLLECTION = "coach_workspaces";
+const FIREBASE_USER_CLIENT_STATE_COLLECTION = "client_state";
 const COACH_WORKSPACE_NOTIFICATIONS_COLLECTION = "notifications";
 const COACH_WORKSPACE_MEDIA_ASSETS_COLLECTION = "media_assets";
 const WPL_MEDIA_UPLOADS_ROOT = String(window.WPL_MEDIA_UPLOADS_ROOT || "media_uploads").trim().replace(/^\/+|\/+$/g, "");
@@ -172,6 +173,18 @@ let swipeDeleteUndoActiveKey = "";
 let pendingTemplateDeleteById = {};
 let pendingMessageThreadDeleteById = {};
 let pendingMessageEntryDeleteById = {};
+const USER_CLIENT_STATE_DOCS = {
+  favorites: "favorites",
+  onePagers: "one_pagers",
+  personalJournal: "personal_journal"
+};
+let userClientStateUid = "";
+let userClientStateUnsubs = [];
+let userCloudFavoritesCache = null;
+let userCloudOnePagersCache = {};
+let userCloudPersonalJournalCache = null;
+let userClientStateWriteTimers = {};
+let userClientStateApplying = false;
 
 function buildCoachPlannerTemplateSettings(name = "") {
   return {
@@ -1374,6 +1387,7 @@ function getAuthUser() {
 
 function setAuthUser(authUser) {
   if (!authUser) {
+    stopUserClientStateSync();
     localStorage.removeItem(AUTH_USER_KEY);
     return;
   }
@@ -3963,6 +3977,234 @@ function getCoachWorkspaceCollectionRef(name, uid = getAuthUser()?.id) {
   const docRef = getCoachWorkspaceDocRef(uid);
   if (!docRef || !name) return null;
   return docRef.collection(name);
+}
+
+function getUserClientStateDocRef(docId, uid = getAuthUser()?.id) {
+  const safeUid = String(uid || "").trim();
+  const safeDocId = String(docId || "").trim();
+  if (!firebaseFirestoreInstance || !safeUid || !safeDocId) return null;
+  return firebaseFirestoreInstance
+    .collection(FIREBASE_USERS_COLLECTION)
+    .doc(safeUid)
+    .collection(FIREBASE_USER_CLIENT_STATE_COLLECTION)
+    .doc(safeDocId);
+}
+
+function normalizeClientStateMapKey(value) {
+  const safe = String(value || "").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "_");
+  return safe || "default";
+}
+
+function normalizePersonalJournalEntries(entries) {
+  return Array.isArray(entries)
+    ? entries
+      .map((entry) => ({
+        date: String(entry?.date || "").trim(),
+        note: String(entry?.note || "").trim()
+      }))
+      .filter((entry) => entry.date || entry.note)
+    : [];
+}
+
+function getLocalOnePagerEntriesMap() {
+  const map = {};
+  if (typeof localStorage === "undefined") return map;
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key || !key.startsWith("wpl_onepager_")) continue;
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") continue;
+      const originalKey = key.replace(/^wpl_onepager_/, "") || "athlete";
+      const safeKey = normalizeClientStateMapKey(originalKey);
+      map[safeKey] = {
+        athleteName: String(parsed.athleteName || originalKey).trim() || originalKey,
+        data: parsed
+      };
+    } catch {
+      // ignore malformed local one-pagers
+    }
+  }
+  return map;
+}
+
+function normalizeOnePagerCloudMap(value) {
+  const source = value && typeof value === "object" ? value : {};
+  return Object.entries(source).reduce((acc, [key, entry]) => {
+    if (!entry || typeof entry !== "object") return acc;
+    const safeKey = normalizeClientStateMapKey(key);
+    acc[safeKey] = {
+      athleteName: String(entry.athleteName || key).trim() || key,
+      data: entry.data && typeof entry.data === "object" ? entry.data : {}
+    };
+    return acc;
+  }, {});
+}
+
+function clearUserClientStateWriteTimer(docId) {
+  const safeDocId = String(docId || "").trim();
+  if (!safeDocId || !userClientStateWriteTimers[safeDocId]) return;
+  clearTimeout(userClientStateWriteTimers[safeDocId]);
+  delete userClientStateWriteTimers[safeDocId];
+}
+
+function scheduleUserClientStateWrite(docId, payloadFactory, delay = 320) {
+  const safeDocId = String(docId || "").trim();
+  if (!safeDocId || typeof payloadFactory !== "function") return;
+  clearUserClientStateWriteTimer(safeDocId);
+  userClientStateWriteTimers[safeDocId] = setTimeout(async () => {
+    clearUserClientStateWriteTimer(safeDocId);
+    const authUser = getAuthUser();
+    const ref = getUserClientStateDocRef(safeDocId, authUser?.id);
+    if (!ref || !authUser?.id) return;
+    try {
+      const payload = stripUndefinedDeep(payloadFactory());
+      await withTimeout(
+        ref.set({
+          ...payload,
+          updatedAt: getFirestoreServerTimestamp(),
+          updatedByUid: authUser.id
+        }, { merge: true }),
+        FIREBASE_OP_TIMEOUT_MS,
+        "firestore_user_client_state_write_timeout"
+      );
+    } catch (err) {
+      console.warn(`Failed to sync client state (${safeDocId})`, err);
+    }
+  }, delay);
+}
+
+function stopUserClientStateSync() {
+  userClientStateUid = "";
+  userClientStateApplying = false;
+  userCloudFavoritesCache = null;
+  userCloudOnePagersCache = {};
+  userCloudPersonalJournalCache = null;
+  userClientStateUnsubs.forEach((unsub) => {
+    if (typeof unsub !== "function") return;
+    try {
+      unsub();
+    } catch {
+      // ignore unsubscribe issues
+    }
+  });
+  userClientStateUnsubs = [];
+  Object.keys(userClientStateWriteTimers).forEach((docId) => clearUserClientStateWriteTimer(docId));
+}
+
+function syncLocalClientStateSeedIfNeeded() {
+  const localFavorites = (() => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(FAV_KEY) || "[]");
+      return Array.isArray(parsed) ? parsed.map((entry) => normalizeFavoriteEntry(entry)) : [];
+    } catch {
+      return [];
+    }
+  })();
+  if (localFavorites.length && !Array.isArray(userCloudFavoritesCache)) {
+    scheduleUserClientStateWrite(USER_CLIENT_STATE_DOCS.favorites, () => ({ items: localFavorites }), 80);
+  }
+
+  const localJournalEntries = (() => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(JOURNAL_ENTRIES_KEY) || "[]");
+      return normalizePersonalJournalEntries(parsed);
+    } catch {
+      return [];
+    }
+  })();
+  if (localJournalEntries.length && !Array.isArray(userCloudPersonalJournalCache)) {
+    scheduleUserClientStateWrite(USER_CLIENT_STATE_DOCS.personalJournal, () => ({ entries: localJournalEntries }), 80);
+  }
+
+  const localOnePagers = getLocalOnePagerEntriesMap();
+  if (Object.keys(localOnePagers).length && !Object.keys(userCloudOnePagersCache || {}).length) {
+    scheduleUserClientStateWrite(USER_CLIENT_STATE_DOCS.onePagers, () => ({ items: localOnePagers }), 80);
+  }
+}
+
+function startUserClientStateSync() {
+  const authUser = getAuthUser();
+  const uid = String(authUser?.id || "").trim();
+  if (!firebaseFirestoreInstance || !uid) {
+    stopUserClientStateSync();
+    return;
+  }
+  if (userClientStateUid === uid && userClientStateUnsubs.length) return;
+  stopUserClientStateSync();
+  userClientStateUid = uid;
+
+  const favoritesRef = getUserClientStateDocRef(USER_CLIENT_STATE_DOCS.favorites, uid);
+  if (favoritesRef?.onSnapshot) {
+    userClientStateUnsubs.push(favoritesRef.onSnapshot((snapshot) => {
+      const exists = typeof snapshot?.exists === "function" ? snapshot.exists() : Boolean(snapshot?.exists);
+      if (!exists) {
+        syncLocalClientStateSeedIfNeeded();
+        return;
+      }
+      const items = Array.isArray(snapshot.data()?.items)
+        ? snapshot.data().items.map((entry) => normalizeFavoriteEntry(entry)).filter((entry) => entry.label || entry.assetPath)
+        : [];
+      userClientStateApplying = true;
+      userCloudFavoritesCache = items;
+      try {
+        localStorage.setItem(FAV_KEY, JSON.stringify(items));
+      } catch {}
+      userClientStateApplying = false;
+      renderFavorites();
+    }, (err) => {
+      console.warn("Favorites sync failed", err);
+    }));
+  }
+
+  const journalRef = getUserClientStateDocRef(USER_CLIENT_STATE_DOCS.personalJournal, uid);
+  if (journalRef?.onSnapshot) {
+    userClientStateUnsubs.push(journalRef.onSnapshot((snapshot) => {
+      const exists = typeof snapshot?.exists === "function" ? snapshot.exists() : Boolean(snapshot?.exists);
+      if (!exists) {
+        syncLocalClientStateSeedIfNeeded();
+        return;
+      }
+      const entries = normalizePersonalJournalEntries(snapshot.data()?.entries);
+      userClientStateApplying = true;
+      userCloudPersonalJournalCache = entries;
+      try {
+        localStorage.setItem(JOURNAL_ENTRIES_KEY, JSON.stringify(entries));
+      } catch {}
+      userClientStateApplying = false;
+      if (!isAthleteRole(getProfile()?.role) || !athletePortalJournalCache.length) {
+        renderJournalEntries();
+      }
+    }, (err) => {
+      console.warn("Personal journal sync failed", err);
+    }));
+  }
+
+  const onePagersRef = getUserClientStateDocRef(USER_CLIENT_STATE_DOCS.onePagers, uid);
+  if (onePagersRef?.onSnapshot) {
+    userClientStateUnsubs.push(onePagersRef.onSnapshot((snapshot) => {
+      const exists = typeof snapshot?.exists === "function" ? snapshot.exists() : Boolean(snapshot?.exists);
+      if (!exists) {
+        syncLocalClientStateSeedIfNeeded();
+        return;
+      }
+      const items = normalizeOnePagerCloudMap(snapshot.data()?.items);
+      userClientStateApplying = true;
+      userCloudOnePagersCache = items;
+      Object.values(items).forEach((entry) => {
+        const athleteName = String(entry?.athleteName || "").trim() || "athlete";
+        const data = entry?.data && typeof entry.data === "object" ? entry.data : {};
+        try {
+          localStorage.setItem(onePagerStorageKey(athleteName), JSON.stringify(data));
+        } catch {}
+      });
+      userClientStateApplying = false;
+    }, (err) => {
+      console.warn("One-pager sync failed", err);
+    }));
+  }
 }
 
 function isCoachWorkspaceActive() {
@@ -6667,6 +6909,7 @@ async function handleSuccessfulAuth(result) {
     }, { required: true });
   }
   setProfile(profile, { sync: resolvedRole !== "parent" });
+  startUserClientStateSync();
   try {
     await hydrateMediaTreeFromSharedStore();
     startMediaRealtimeSync();
@@ -14488,6 +14731,11 @@ function favoriteEntryKey(entry) {
 }
 
 function getFavorites() {
+  if (Array.isArray(userCloudFavoritesCache)) {
+    return userCloudFavoritesCache
+      .map((entry) => normalizeFavoriteEntry(entry))
+      .filter((entry) => entry.label || entry.assetPath);
+  }
   try {
     const parsed = JSON.parse(localStorage.getItem(FAV_KEY) || "[]");
     if (!Array.isArray(parsed)) return [];
@@ -14503,7 +14751,11 @@ function setFavorites(list) {
   const normalized = Array.isArray(list)
     ? list.map((entry) => normalizeFavoriteEntry(entry)).filter((entry) => entry.label || entry.assetPath)
     : [];
+  userCloudFavoritesCache = normalized;
   localStorage.setItem(FAV_KEY, JSON.stringify(normalized));
+  if (!userClientStateApplying) {
+    scheduleUserClientStateWrite(USER_CLIENT_STATE_DOCS.favorites, () => ({ items: normalized }));
+  }
 }
 
 function addFavoriteEntry(entry) {
@@ -24989,6 +25241,10 @@ function onePagerStorageKey(name) {
 }
 
 function getOnePagerData(name) {
+  const safeKey = normalizeClientStateMapKey(name || "athlete");
+  if (userCloudOnePagersCache?.[safeKey]?.data) {
+    return userCloudOnePagersCache[safeKey].data;
+  }
   try {
     return JSON.parse(localStorage.getItem(onePagerStorageKey(name)) || "null");
   } catch {
@@ -24997,7 +25253,21 @@ function getOnePagerData(name) {
 }
 
 function setOnePagerData(name, data) {
+  const safeName = String(name || "athlete").trim() || "athlete";
+  const safeKey = normalizeClientStateMapKey(safeName);
+  userCloudOnePagersCache = {
+    ...(userCloudOnePagersCache || {}),
+    [safeKey]: {
+      athleteName: safeName,
+      data: data && typeof data === "object" ? data : {}
+    }
+  };
   localStorage.setItem(onePagerStorageKey(name), JSON.stringify(data));
+  if (!userClientStateApplying) {
+    scheduleUserClientStateWrite(USER_CLIENT_STATE_DOCS.onePagers, () => ({
+      items: userCloudOnePagersCache
+    }));
+  }
 }
 
 function buildOnePagerBase(athlete) {
@@ -31056,11 +31326,14 @@ const journalEntries = document.getElementById("journalEntries");
 const JOURNAL_ENTRIES_KEY = "wpl_journal_entries";
 
 function getJournalEntries() {
+  if (Array.isArray(userCloudPersonalJournalCache)) {
+    return userCloudPersonalJournalCache;
+  }
   const saved = localStorage.getItem(JOURNAL_ENTRIES_KEY);
   if (!saved) return [];
   try {
     const parsed = JSON.parse(saved);
-    return Array.isArray(parsed) ? parsed : [];
+    return normalizePersonalJournalEntries(parsed);
   } catch {
     return [];
   }
@@ -31167,7 +31440,14 @@ async function saveJournalEntry() {
 
   const entries = getJournalEntries();
   entries.push({ date: new Date().toISOString(), note });
-  localStorage.setItem(JOURNAL_ENTRIES_KEY, JSON.stringify(entries));
+  const normalizedEntries = normalizePersonalJournalEntries(entries);
+  userCloudPersonalJournalCache = normalizedEntries;
+  localStorage.setItem(JOURNAL_ENTRIES_KEY, JSON.stringify(normalizedEntries));
+  if (!userClientStateApplying) {
+    scheduleUserClientStateWrite(USER_CLIENT_STATE_DOCS.personalJournal, () => ({
+      entries: normalizedEntries
+    }));
+  }
   journalInput.value = "";
   journalStatus.textContent = pickCopy({ en: "Entry saved.", es: "Entrada guardada." });
   setTimeout(() => (journalStatus.textContent = ""), 1600);

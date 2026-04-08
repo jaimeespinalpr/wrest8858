@@ -311,6 +311,10 @@ service cloud.firestore {
         )
       ) || isCoachParentVerificationUpdate(uid);
       allow delete: if isAdminEmail();
+
+      match /client_state/{docId} {
+        allow read, write: if isSelf(uid) || isAdminEmail();
+      }
     }
 
     match /message_threads/{threadId} {

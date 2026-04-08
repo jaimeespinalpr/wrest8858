@@ -443,6 +443,18 @@
     } catch {
       // ignore localStorage errors
     }
+    if ([
+      STORAGE_KEYS.track,
+      STORAGE_KEYS.liftingDraft,
+      STORAGE_KEYS.mentalDraft,
+      STORAGE_KEYS.mentalScores,
+      STORAGE_KEYS.mentalAudioMuted,
+      STORAGE_KEYS.liftingPlan,
+      STORAGE_KEYS.liftingActiveDay,
+      STORAGE_KEYS.liftingActiveTab
+    ].includes(key)) {
+      queuePlannerClientStateSync();
+    }
   }
 
   function escapeHtml(value) {
@@ -4017,11 +4029,13 @@
     if (state.plannerHydratedUid === uid) {
       startSharedPlannerCatalogSync({ force: true });
       startPlannerAssignDirectorySync({ force: true });
+      startPlannerClientStateSync({ force: true });
       return;
     }
     state.plannerHydratedUid = uid;
     startSharedPlannerCatalogSync({ force: true });
     startPlannerAssignDirectorySync({ force: true });
+    startPlannerClientStateSync({ force: true });
     hydratePlannerSettingsFromCloud().catch(() => {});
     hydratePlannerDailyFromCloud().catch(() => {});
   }
@@ -4033,6 +4047,7 @@
         state.plannerAuthUnsub = firebaseAuthInstance.onAuthStateChanged((user) => {
           if (!user) {
             state.plannerHydratedUid = "";
+            stopPlannerClientStateSync();
             return;
           }
           syncPlannerCloudStateAfterAuth();
@@ -4043,6 +4058,7 @@
         state.plannerAuthUnsub = firebase.auth().onAuthStateChanged((user) => {
           if (!user) {
             state.plannerHydratedUid = "";
+            stopPlannerClientStateSync();
             return;
           }
           syncPlannerCloudStateAfterAuth();
@@ -5885,6 +5901,115 @@
     } catch {
       return null;
     }
+  }
+
+  function getPlannerClientStateDocRef() {
+    try {
+      const usersRef = getPlannerUsersCollectionRef();
+      const authUser = getPlannerAuthUser();
+      const uid = String(authUser?.id || "").trim();
+      if (!usersRef || !uid) return null;
+      return usersRef.doc(uid).collection("client_state").doc("planner_state");
+    } catch {
+      return null;
+    }
+  }
+
+  function buildPlannerClientStatePayload() {
+    return {
+      activeTrack: normalizeTrack(state.activeTrack || "wrestling"),
+      liftingDraft: state.liftingDraft || {},
+      mentalDraft: state.mentalDraft || {},
+      mentalScores: normalizeMentalScoreValue(state.mentalScores || buildDefaultMentalScores()),
+      mentalAudioMuted: Boolean(state.mentalAudioMuted),
+      liftingPlan: normalizeLiftingPlan(state.liftingPlan || buildDefaultLiftingPlan()),
+      liftingActiveDay: Math.max(0, Math.min(6, parseInt(String(state.liftingActiveDay || 0), 10) || 0)),
+      liftingActiveTab: normalizeLiftingTab(state.liftingTab || "editor"),
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  function applyPlannerClientStatePayload(payload = {}) {
+    const safe = payload && typeof payload === "object" ? payload : {};
+    state.plannerClientStateApplying = true;
+    state.activeTrack = normalizeTrack(safe.activeTrack || state.activeTrack || "wrestling");
+    state.lastRenderedTrack = state.activeTrack;
+    state.liftingDraft = safe.liftingDraft && typeof safe.liftingDraft === "object" ? safe.liftingDraft : (state.liftingDraft || {});
+    state.mentalDraft = safe.mentalDraft && typeof safe.mentalDraft === "object" ? safe.mentalDraft : (state.mentalDraft || {});
+    state.mentalScores = normalizeMentalScoreValue(safe.mentalScores || state.mentalScores || buildDefaultMentalScores());
+    state.mentalAudioMuted = Boolean(
+      typeof safe.mentalAudioMuted === "boolean" ? safe.mentalAudioMuted : state.mentalAudioMuted
+    );
+    state.liftingPlan = normalizeLiftingPlan(safe.liftingPlan || state.liftingPlan || buildDefaultLiftingPlan());
+    state.liftingActiveDay = Math.max(0, Math.min(6, parseInt(String(safe.liftingActiveDay ?? state.liftingActiveDay ?? 0), 10) || 0));
+    state.liftingTab = normalizeLiftingTab(safe.liftingActiveTab || state.liftingTab || "editor");
+    writeJson(STORAGE_KEYS.track, state.activeTrack);
+    writeJson(STORAGE_KEYS.liftingDraft, state.liftingDraft);
+    writeJson(STORAGE_KEYS.mentalDraft, state.mentalDraft);
+    writeJson(STORAGE_KEYS.mentalScores, state.mentalScores);
+    writeJson(STORAGE_KEYS.mentalAudioMuted, state.mentalAudioMuted);
+    writeJson(STORAGE_KEYS.liftingPlan, state.liftingPlan);
+    writeJson(STORAGE_KEYS.liftingActiveDay, state.liftingActiveDay);
+    writeJson(STORAGE_KEYS.liftingActiveTab, state.liftingTab);
+    state.plannerClientStateApplying = false;
+  }
+
+  function queuePlannerClientStateSync() {
+    if (state.plannerClientStateApplying) return;
+    if (state.plannerClientStateSyncTimer) {
+      clearTimeout(state.plannerClientStateSyncTimer);
+      state.plannerClientStateSyncTimer = null;
+    }
+    state.plannerClientStateSyncTimer = window.setTimeout(() => {
+      syncPlannerClientStateNow().catch(() => {});
+    }, 500);
+  }
+
+  async function syncPlannerClientStateNow() {
+    const docRef = getPlannerClientStateDocRef();
+    if (!docRef) return;
+    try {
+      await docRef.set(buildPlannerClientStatePayload(), { merge: true });
+    } catch (err) {
+      console.warn("Planner client state sync failed", err);
+    }
+  }
+
+  function stopPlannerClientStateSync() {
+    if (state.plannerClientStateSyncTimer) {
+      clearTimeout(state.plannerClientStateSyncTimer);
+      state.plannerClientStateSyncTimer = null;
+    }
+    if (typeof state.plannerClientStateUnsub === "function") {
+      try {
+        state.plannerClientStateUnsub();
+      } catch {
+        // ignore unsubscribe errors
+      }
+    }
+    state.plannerClientStateUnsub = null;
+    state.plannerClientStateReady = false;
+  }
+
+  function startPlannerClientStateSync({ force = false } = {}) {
+    if (force) stopPlannerClientStateSync();
+    if (state.plannerClientStateUnsub) return;
+    const docRef = getPlannerClientStateDocRef();
+    if (!docRef?.onSnapshot) return;
+    state.plannerClientStateUnsub = docRef.onSnapshot((docSnap) => {
+      const exists = typeof docSnap?.exists === "function" ? docSnap.exists() : Boolean(docSnap?.exists);
+      if (!exists) {
+        state.plannerClientStateReady = true;
+        syncPlannerClientStateNow().catch(() => {});
+        return;
+      }
+      applyPlannerClientStatePayload(docSnap.data() || {});
+      state.plannerClientStateReady = true;
+      render();
+    }, (err) => {
+      console.warn("Planner client state snapshot failed", err);
+      state.plannerClientStateReady = false;
+    });
   }
 
   function getPlannerSharedUserDirectoryRef() {
