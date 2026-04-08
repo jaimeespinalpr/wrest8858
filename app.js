@@ -9333,7 +9333,7 @@ const panels = {
 const COACH_ROUTE_PANELS = {
   "coach-home": ["dashboard", "coach-profile"],
   "coach-athletes": ["athletes", "coach-match", "skills", "journal-monitor", "athlete-notes"],
-  "coach-plans": ["plans"],
+  "coach-plans": ["plans", "assignments"],
   "coach-competition": ["competition-preview"],
   "coach-messages": ["messages"]
 };
