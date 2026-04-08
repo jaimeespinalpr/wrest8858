@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var model = WebViewModel()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         GeometryReader { proxy in
@@ -45,6 +46,12 @@ struct ContentView: View {
             }
         }
         .animation(.spring(response: 0.32, dampingFraction: 0.85), value: model.errorMessage)
+        .onAppear {
+            model.startAutomaticSyncIfNeeded()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            model.handleScenePhaseChange(newPhase)
+        }
     }
 
     private func adaptiveCornerRadius(for size: CGSize) -> CGFloat {

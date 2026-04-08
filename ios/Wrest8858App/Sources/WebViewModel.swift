@@ -11,8 +11,16 @@ final class WebViewModel: ObservableObject {
     @Published var canGoForward = false
 
     private weak var webView: WKWebView?
-    private let initialURL = URL(string: "https://jaimeespinalpr.github.io/wrest8858/")
+    private let initialBaseURLString = "https://jaimeespinalpr.github.io/wrest8858/"
+    private let syncProbeURLString = "https://jaimeespinalpr.github.io/wrest8858/"
     private var lastKnownViewportSize: CGSize = .zero
+    private var lastWebProcessRecoveryAt: Date = .distantPast
+    private var isRecoveringWebProcess = false
+    private var lastRemoteSignature: String?
+    private var lastSyncCheckAt: Date = .distantPast
+    private var hasStartedAutomaticSync = false
+    private var isSyncCheckInFlight = false
+    private var syncTimer: Timer?
 
     func attach(_ webView: WKWebView) {
         self.webView = webView
@@ -20,7 +28,7 @@ final class WebViewModel: ObservableObject {
 
     func loadInitialURLIfNeeded() {
         guard let webView, webView.url == nil, let initialURL else { return }
-        let request = URLRequest(url: initialURL, cachePolicy: .reloadRevalidatingCacheData, timeoutInterval: 40)
+        let request = URLRequest(url: initialURL, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData, timeoutInterval: 40)
         webView.load(request)
     }
 
@@ -36,7 +44,36 @@ final class WebViewModel: ObservableObject {
     func reloadWithFeedback() {
         let generator = UIImpactFeedbackGenerator(style: .rigid)
         generator.impactOccurred()
-        webView?.reload()
+        refreshFromOrigin()
+    }
+
+    func recoverAfterWebProcessIssue(reason: String) {
+        let now = Date()
+        if isRecoveringWebProcess || now.timeIntervalSince(lastWebProcessRecoveryAt) < 2.0 {
+            return
+        }
+        isRecoveringWebProcess = true
+        lastWebProcessRecoveryAt = now
+        isLoading = true
+        errorMessage = reason
+        syncNavigationState()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+            guard let self else { return }
+            if let webView = self.webView, webView.url != nil {
+                webView.reloadFromOrigin()
+            } else {
+                self.loadInitialURLIfNeeded()
+            }
+            self.isRecoveringWebProcess = false
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) { [weak self] in
+            guard let self else { return }
+            if self.errorMessage == reason {
+                self.errorMessage = nil
+            }
+        }
     }
 
     func goBack() {
@@ -84,6 +121,29 @@ final class WebViewModel: ObservableObject {
         })();
         """
         webView.evaluateJavaScript(js, completionHandler: nil)
+    }
+
+    private var initialURL: URL? {
+        guard var components = URLComponents(string: initialBaseURLString) else { return nil }
+        return freshenedURL(from: &components, includeSyncToken: false)
+    }
+
+    private func freshURL(from url: URL, includeSyncToken: Bool) -> URL {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
+        return freshenedURL(from: &components, includeSyncToken: includeSyncToken) ?? url
+    }
+
+    private func freshenedURL(from components: inout URLComponents, includeSyncToken: Bool) -> URL? {
+        var items = components.queryItems ?? []
+        let dayToken = String(Int(Date().timeIntervalSince1970 / 86_400))
+        items.removeAll { $0.name == "ios_day" }
+        items.append(URLQueryItem(name: "ios_day", value: dayToken))
+        items.removeAll { $0.name == "ios_sync" }
+        if includeSyncToken {
+            items.append(URLQueryItem(name: "ios_sync", value: String(Int(Date().timeIntervalSince1970))))
+        }
+        components.queryItems = items
+        return components.url
     }
 
     func printFromWeb(html: String, title: String) {
@@ -151,5 +211,107 @@ final class WebViewModel: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) { [weak self] in
             self?.errorMessage = nil
         }
+    }
+
+    func startAutomaticSyncIfNeeded() {
+        guard !hasStartedAutomaticSync else { return }
+        hasStartedAutomaticSync = true
+        performRemoteSyncCheck(force: true, reloadIfChanged: false)
+    }
+
+    func handleScenePhaseChange(_ phase: ScenePhase) {
+        switch phase {
+        case .active:
+            startAutomaticSyncIfNeeded()
+            startSyncTimer()
+            performRemoteSyncCheck(force: true, reloadIfChanged: true)
+        case .inactive, .background:
+            stopSyncTimer()
+        @unknown default:
+            stopSyncTimer()
+        }
+    }
+
+    private func startSyncTimer() {
+        guard syncTimer == nil else { return }
+        syncTimer = Timer.scheduledTimer(withTimeInterval: 180, repeats: true) { [weak self] _ in
+            self?.performRemoteSyncCheck(force: false, reloadIfChanged: true)
+        }
+        if let syncTimer {
+            RunLoop.main.add(syncTimer, forMode: .common)
+        }
+    }
+
+    private func stopSyncTimer() {
+        syncTimer?.invalidate()
+        syncTimer = nil
+    }
+
+    private func performRemoteSyncCheck(force: Bool, reloadIfChanged: Bool) {
+        let now = Date()
+        if !force && now.timeIntervalSince(lastSyncCheckAt) < 45 {
+            return
+        }
+        guard !isSyncCheckInFlight else { return }
+        guard let probeURL = URL(string: syncProbeURLString) else { return }
+
+        lastSyncCheckAt = now
+        isSyncCheckInFlight = true
+
+        var request = URLRequest(url: probeURL, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData, timeoutInterval: 20)
+        request.httpMethod = "HEAD"
+
+        URLSession.shared.dataTask(with: request) { [weak self] _, response, error in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.isSyncCheckInFlight = false
+
+                guard error == nil, let httpResponse = response as? HTTPURLResponse else { return }
+                guard (200 ..< 400).contains(httpResponse.statusCode) else { return }
+
+                let signature = self.remoteSignature(from: httpResponse)
+                guard !signature.isEmpty else { return }
+
+                if self.lastRemoteSignature == nil {
+                    self.lastRemoteSignature = signature
+                    return
+                }
+
+                guard self.lastRemoteSignature != signature else { return }
+                self.lastRemoteSignature = signature
+
+                guard reloadIfChanged else { return }
+                self.refreshFromOrigin()
+            }
+        }.resume()
+    }
+
+    private func remoteSignature(from response: HTTPURLResponse) -> String {
+        let eTag = response.value(forHTTPHeaderField: "ETag") ?? ""
+        let lastModified = response.value(forHTTPHeaderField: "Last-Modified") ?? ""
+        let contentLength = response.value(forHTTPHeaderField: "Content-Length") ?? ""
+        return [eTag, lastModified, contentLength].joined(separator: "|")
+    }
+
+    private func refreshFromOrigin() {
+        guard let webView else {
+            loadInitialURLIfNeeded()
+            return
+        }
+        isLoading = true
+        syncNavigationState()
+        let activeURL = webView.url.flatMap { currentURL in
+            let baseHost = URL(string: initialBaseURLString)?.host
+            return currentURL.host == baseHost ? currentURL : nil
+        } ?? initialURL
+
+        guard let activeURL else {
+            loadInitialURLIfNeeded()
+            return
+        }
+
+        let refreshedURL = freshURL(from: activeURL, includeSyncToken: true)
+        let request = URLRequest(url: refreshedURL, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData, timeoutInterval: 40)
+        webView.load(request)
     }
 }
