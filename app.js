@@ -6983,7 +6983,46 @@ async function registerWithFirebase({
   return { user: { id: user.uid, email: normalizedEmail, role: profilePayload.role }, profile: profilePayload };
 }
 
-async function handleSuccessfulAuth(result) {
+function formatWelcomeUserName(profile = {}, authUser = {}) {
+  const explicitName = stripUserDisplayNumber(profile?.name || authUser?.name || "");
+  if (explicitName) return explicitName;
+  const emailLocalPart = String(profile?.email || authUser?.email || "")
+    .trim()
+    .split("@")[0]
+    .replace(/[._-]+/g, " ")
+    .trim();
+  if (!emailLocalPart) {
+    return currentLang === "es" ? "atleta" : "athlete";
+  }
+  return emailLocalPart
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function showSuccessfulAuthWelcome(profile = {}, authUser = {}) {
+  const name = formatWelcomeUserName(profile, authUser);
+  const title = currentLang === "es"
+    ? `Bienvenido, ${name}`
+    : `Welcome, ${name}`;
+  const body = currentLang === "es"
+    ? "Vamos a mejorar hoy."
+    : "Let's get better today.";
+  const stack = typeof getAppToastStack === "function" ? getAppToastStack() : null;
+  if (stack && typeof pushAppToast === "function") {
+    pushAppToast({
+      title,
+      body,
+      tone: "info",
+      duration: 4300
+    });
+    return;
+  }
+  toast(`${title}. ${body}`);
+}
+
+async function handleSuccessfulAuth(result, { showWelcome = false } = {}) {
   const authUser = buildAuthUser(result.user);
   if (!authUser) {
     throw new Error("invalid_credentials");
@@ -7038,6 +7077,11 @@ async function handleSuccessfulAuth(result) {
   window.setTimeout(() => {
     maybePromptAthleteQuestionnaireAfterLogin(promptProfile(), { source: "login" });
   }, 120);
+  if (showWelcome) {
+    window.setTimeout(() => {
+      showSuccessfulAuthWelcome(promptProfile(), resolvedAuthUser);
+    }, 180);
+  }
 }
 
 if (pRole) {
@@ -7057,7 +7101,7 @@ if (loginForm) {
 
     try {
       const result = await loginWithCredentials({ email, password });
-      await handleSuccessfulAuth(result);
+      await handleSuccessfulAuth(result, { showWelcome: true });
     } catch (err) {
       const code = err?.code || err?.message || "auth_error";
       alert(authErrorMessage(code, err?.message || String(err)));
@@ -7165,7 +7209,7 @@ if (profileForm) {
         weightClass,
         notes
       });
-      await handleSuccessfulAuth(payload);
+      await handleSuccessfulAuth(payload, { showWelcome: true });
     } catch (err) {
       const code = err?.code || err?.message || "auth_error";
       alert(authErrorMessage(code, err?.message || String(err)));
