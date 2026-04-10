@@ -1266,16 +1266,7 @@ function refreshLanguageUI() {
   if (profile?.role === "athlete") {
     const linkedAthlete = getAthletePortalLinkedAthlete();
     const profileForAthleteView = linkedAthlete
-      ? {
-          ...profile,
-          ...linkedAthlete,
-          role: profile.role,
-          view: profile.view,
-          lang: profile.lang,
-          email: profile.email,
-          user_id: profile.user_id,
-          name: linkedAthlete.name || profile.name
-        }
+      ? mergeAthletePortalProfileWithWorkspace(profile, linkedAthlete)
       : profile;
     fillAthleteProfileForm(profileForAthleteView);
     renderCompetitionPreview(linkedAthlete || profile);
@@ -4641,6 +4632,33 @@ function mergeCoachAthleteSourceRecords(directoryRecords = [], workspaceRecords 
       );
     })
   );
+}
+
+function mergeAthletePortalProfileWithWorkspace(profile = {}, workspaceRecord = null, authUser = getAuthUser()) {
+  const baseProfile = profile && typeof profile === "object" ? profile : {};
+  const workspace = workspaceRecord && typeof workspaceRecord === "object" ? workspaceRecord : null;
+  if (!workspace) return normalizeProfileForAuth(baseProfile, authUser);
+
+  const profileScore = getCoachAthleteRecordRecencyScore(baseProfile);
+  const workspaceScore = getCoachAthleteRecordRecencyScore(workspace);
+  const primary = profileScore >= workspaceScore ? baseProfile : workspace;
+  const fallback = primary === baseProfile ? workspace : baseProfile;
+  const merged = fillMissingCoachAthleteRecordValues(primary, fallback);
+
+  return normalizeProfileForAuth({
+    ...merged,
+    role: baseProfile.role,
+    view: baseProfile.view,
+    lang: baseProfile.lang,
+    email: baseProfile.email,
+    user_id: baseProfile.user_id,
+    linkedAthleteId: getAthleteLinkedAthleteId(baseProfile) || normalizeAthleteId(workspace?.id, workspace?.name),
+    linkedAthleteUid: getAthleteLinkedAthleteUid(baseProfile, authUser) || normalizeUid(workspace?.athleteUid),
+    linkedCoachUid: getAthleteLinkedCoachUid(baseProfile) || String(workspace?.coachUid || "").trim(),
+    linkedCoachName: getAthleteLinkedCoachName(baseProfile) || String(workspace?.coachName || "").trim(),
+    linkedCoachEmail: normalizeEmail(baseProfile.linkedCoachEmail || workspace?.coachEmail || ""),
+    name: String(merged?.name || baseProfile.name || workspace?.name || "").trim()
+  }, authUser);
 }
 
 function normalizeCoachNoteRecord(id, data = {}) {
@@ -9672,12 +9690,7 @@ function getAthletesData() {
   const profileName = profile?.role === "athlete" ? profile.name : "";
   const hasProfileMatch = profileName && merged.some((athlete) => athlete.name === profileName);
   if (profile?.role === "athlete" && athletePortalAthleteCache) {
-    const linkedAthlete = {
-      ...athletePortalAthleteCache,
-      ...profile,
-      name: athletePortalAthleteCache.name || profile.name || athletePortalAthleteCache.name,
-      tags: normalizeSmartTags(profile.tags?.length ? profile.tags : athletePortalAthleteCache.tags)
-    };
+    const linkedAthlete = mergeAthletePortalProfileWithWorkspace(profile, athletePortalAthleteCache);
     const next = merged.filter((athlete) => !athleteIdentityMatches(athlete, linkedAthlete));
     next.unshift(linkedAthlete);
     return currentLang === "es" ? next.map((athlete) => localizeAthlete(athlete)) : next;
@@ -13288,7 +13301,6 @@ async function syncAthleteProfileToCoachWorkspace(profile = getProfile(), authUs
     preferred_moves: String(profile.preferredMoves || profile.preferred_moves || "").trim(),
     stance: String(profile.stance || "").trim(),
     questionnaireNotes: String(profile.questionnaireNotes || profile.notes || "").trim(),
-    coachQuestionnaireNotes: String(profile.coachQuestionnaireNotes || "").trim(),
     questionnaireUpdatedBy: String(profile.questionnaireUpdatedBy || "").trim(),
     questionnaireUpdatedAt: profile.questionnaireUpdatedAt || "",
     schoolName: String(profile.schoolName || "").trim(),
@@ -14593,7 +14605,16 @@ async function saveCompetitionSummaryFromEditor() {
       competitionSummaryCues: draft.competitionSummaryCues,
       updatedAt: new Date().toISOString()
     };
-    setProfile(updatedProfile);
+    const normalizedEmail = normalizeEmail(updatedProfile.email || authUser?.email || "");
+    if (normalizedEmail) updatedProfile.email = normalizedEmail;
+    setProfile(updatedProfile, { sync: false });
+    if (authUser?.id) {
+      await persistFirebaseProfile(authUser.id, stripUndefinedDeep({
+        ...updatedProfile,
+        user_id: authUser.id,
+        email: normalizedEmail
+      }), { required: true });
+    }
     await applyProfile(updatedProfile);
     if (isAthleteRole(updatedProfile.role || currentProfile.role)) {
       try {
@@ -22957,7 +22978,9 @@ function getAthletePortalIdentity(profile = getProfile()) {
 }
 
 function getAthletePortalLinkedAthlete() {
-  if (athletePortalAthleteCache) return athletePortalAthleteCache;
+  if (athletePortalAthleteCache) {
+    return mergeAthletePortalProfileWithWorkspace(getProfile() || {}, athletePortalAthleteCache);
+  }
   const identity = getAthletePortalIdentity();
   return getCoachAthleteRecordByIdentity(identity) || null;
 }
@@ -23252,16 +23275,7 @@ function refreshAthletePortalDataSync() {
       const baseProfile = getProfile();
       if (isAthleteRole(baseProfile?.role)) {
         const mergedProfile = athletePortalAthleteCache
-          ? {
-              ...baseProfile,
-              ...athletePortalAthleteCache,
-              role: baseProfile.role,
-              view: baseProfile.view,
-              lang: baseProfile.lang,
-              email: baseProfile.email,
-              user_id: baseProfile.user_id,
-              name: athletePortalAthleteCache.name || baseProfile.name
-            }
+          ? mergeAthletePortalProfileWithWorkspace(baseProfile, athletePortalAthleteCache, authUser)
           : baseProfile;
         fillAthleteProfileForm(mergedProfile);
       }

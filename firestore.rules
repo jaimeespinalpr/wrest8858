@@ -205,6 +205,107 @@ service cloud.firestore {
         && athleteId == currentUserLinkedAthleteId();
     }
 
+    function athleteWorkspaceEditableFields() {
+      return [
+        "name",
+        "athleteUid",
+        "athleteEmail",
+        "coachUid",
+        "coachName",
+        "coachEmail",
+        "age",
+        "photo",
+        "country",
+        "city",
+        "schoolClub",
+        "weight",
+        "currentWeight",
+        "weightClass",
+        "weight_class",
+        "style",
+        "level",
+        "position",
+        "strategy",
+        "trainingRoutines",
+        "trainingVolume",
+        "trainingFocus",
+        "preferredMoves",
+        "preferred_moves",
+        "stance",
+        "questionnaireNotes",
+        "questionnaireUpdatedBy",
+        "questionnaireUpdatedAt",
+        "schoolName",
+        "clubName",
+        "schoolGrade",
+        "years",
+        "experienceYears",
+        "experience_years",
+        "favoritePosition",
+        "psychTendency",
+        "coachCues",
+        "archetype",
+        "bodyType",
+        "offenseTop3",
+        "defenseTop3",
+        "setupsTop3",
+        "cornerCoachCues",
+        "cueWords",
+        "mentalReminders",
+        "safetyWarnings",
+        "physicalLimitations",
+        "competitionCue",
+        "competitionSummaryProfile",
+        "competitionSummaryWorkOns",
+        "competitionSummaryCues",
+        "pressureError",
+        "coachSignal",
+        "tags",
+        "injuryNotes",
+        "cueNotes",
+        "safeMoves",
+        "riskyMoves",
+        "strategyA",
+        "strategyB",
+        "strategyC",
+        "challenges",
+        "challengeOne",
+        "challengeTwo",
+        "challengeThree",
+        "resultsHistory",
+        "international",
+        "internationalEvents",
+        "internationalYears",
+        "techniques",
+        "defaultTechniques",
+        "availability",
+        "preferred",
+        "history",
+        "notes",
+        "updatedAt",
+        "createdAt"
+      ];
+    }
+
+    function isOwnAthleteWorkspaceRecord(coachUid, athleteId, data) {
+      return signedIn()
+        && currentUserRole() == "athlete"
+        && currentUserLinkedCoachUid() == coachUid
+        && currentUserLinkedAthleteId() == athleteId
+        && data.coachUid == coachUid
+        && data.athleteUid == request.auth.uid;
+    }
+
+    function canCreateOwnAthleteWorkspaceRecord(coachUid, athleteId) {
+      return isOwnAthleteWorkspaceRecord(coachUid, athleteId, request.resource.data)
+        && request.resource.data.keys().hasOnly(athleteWorkspaceEditableFields());
+    }
+
+    function canUpdateOwnAthleteWorkspaceRecord(coachUid, athleteId) {
+      return isOwnAthleteWorkspaceRecord(coachUid, athleteId, request.resource.data)
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(athleteWorkspaceEditableFields());
+    }
+
     function canAccessMessageThread(data) {
       return signedIn()
         && data.participantIds is list
@@ -447,7 +548,13 @@ service cloud.firestore {
           || isSelf(coachUid)
           || isVerifiedLinkedParent(coachUid)
           || isLinkedAthleteRecord(athleteId);
-        allow write: if isAdminEmail() || isSelf(coachUid);
+        allow create: if isAdminEmail()
+          || isSelf(coachUid)
+          || canCreateOwnAthleteWorkspaceRecord(coachUid, athleteId);
+        allow update: if isAdminEmail()
+          || isSelf(coachUid)
+          || canUpdateOwnAthleteWorkspaceRecord(coachUid, athleteId);
+        allow delete: if isAdminEmail() || isSelf(coachUid);
       }
 
       match /coach_notes/{noteId} {
