@@ -3938,6 +3938,20 @@ function buildSharedUserDirectoryPayload(uid, data = {}) {
     linkedCoachUid: String(data?.linkedCoachUid || "").trim(),
     linkedCoachName: String(data?.linkedCoachName || "").trim(),
     linkedCoachEmail: String(data?.linkedCoachEmail || "").trim().toLowerCase(),
+    preferredMoves: String(data?.preferredMoves || data?.preferred_moves || "").trim(),
+    experienceYears: String(data?.experienceYears || data?.experience_years || "").trim(),
+    stance: String(data?.stance || "").trim(),
+    weightClass: String(data?.weightClass || data?.weight_class || "").trim(),
+    currentWeight: String(data?.currentWeight || data?.weight || "").trim(),
+    style: String(data?.style || "").trim(),
+    level: String(data?.level || "").trim(),
+    position: String(data?.position || "").trim(),
+    strategy: String(data?.strategy || "").trim(),
+    questionnaireNotes: String(data?.questionnaireNotes || data?.notes || "").trim(),
+    coachQuestionnaireNotes: String(data?.coachQuestionnaireNotes || "").trim(),
+    questionnaireUpdatedBy: String(data?.questionnaireUpdatedBy || "").trim(),
+    questionnaireUpdatedAt: normalizeFirestoreDateValue(data?.questionnaireUpdatedAt),
+    tags: normalizeSmartTags(data?.tags || []),
     createdAt: data?.createdAt || new Date().toISOString(),
     updatedAt: data?.updatedAt || new Date().toISOString()
   });
@@ -4448,6 +4462,9 @@ function normalizeCoachAthleteRecord(id, data = {}) {
     id,
     name: stripUserDisplayNumber(data.name || ""),
     age: String(data.age || "").trim(),
+    photo: String(data.photo || "").trim(),
+    country: String(data.country || "").trim(),
+    city: String(data.city || "").trim(),
     athleteUid: String(data.athleteUid || "").trim(),
     athleteEmail: normalizeEmail(data.athleteEmail || data.email || ""),
     coachUid: String(data.coachUid || "").trim(),
@@ -4476,6 +4493,7 @@ function normalizeCoachAthleteRecord(id, data = {}) {
     coachQuestionnaireNotes: String(data.coachQuestionnaireNotes || "").trim(),
     questionnaireUpdatedBy: String(data.questionnaireUpdatedBy || "").trim(),
     questionnaireUpdatedAt: normalizeFirestoreDateValue(data.questionnaireUpdatedAt),
+    schoolClub: String(data.schoolClub || "").trim(),
     schoolName: String(data.schoolName || "").trim(),
     clubName: String(data.clubName || "").trim(),
     schoolGrade: String(data.schoolGrade || "").trim(),
@@ -4535,6 +4553,94 @@ function normalizeCoachAthleteRecord(id, data = {}) {
     createdAt: normalizeFirestoreDateValue(data.createdAt),
     updatedAt: normalizeFirestoreDateValue(data.updatedAt)
   };
+}
+
+function hasCoachAthleteRecordValue(value) {
+  if (Array.isArray(value)) {
+    return value.some((item) => hasCoachAthleteRecordValue(item));
+  }
+  if (value && typeof value === "object") {
+    return Object.values(value).some((item) => hasCoachAthleteRecordValue(item));
+  }
+  if (typeof value === "string") {
+    return value.trim().length > 0;
+  }
+  return value !== null && value !== undefined && value !== "";
+}
+
+function fillMissingCoachAthleteRecordValues(primary = {}, fallback = {}) {
+  const base = {
+    ...(primary && typeof primary === "object" ? primary : {})
+  };
+  const safeFallback = fallback && typeof fallback === "object" ? fallback : {};
+  Object.entries(safeFallback).forEach(([key, fallbackValue]) => {
+    const primaryValue = base[key];
+    if (Array.isArray(fallbackValue)) {
+      if (!hasCoachAthleteRecordValue(primaryValue) && hasCoachAthleteRecordValue(fallbackValue)) {
+        base[key] = [...fallbackValue];
+      }
+      return;
+    }
+    if (fallbackValue && typeof fallbackValue === "object") {
+      if (!Array.isArray(fallbackValue)) {
+        if (primaryValue && typeof primaryValue === "object" && !Array.isArray(primaryValue)) {
+          base[key] = fillMissingCoachAthleteRecordValues(primaryValue, fallbackValue);
+        } else if (!hasCoachAthleteRecordValue(primaryValue) && hasCoachAthleteRecordValue(fallbackValue)) {
+          base[key] = fillMissingCoachAthleteRecordValues({}, fallbackValue);
+        }
+      }
+      return;
+    }
+    if (!hasCoachAthleteRecordValue(primaryValue) && hasCoachAthleteRecordValue(fallbackValue)) {
+      base[key] = fallbackValue;
+    }
+  });
+  return base;
+}
+
+function getCoachAthleteRecordRecencyScore(record = {}) {
+  return Math.max(
+    parseIsoTimestamp(record?.updatedAt || record?.createdAt || ""),
+    parseIsoTimestamp(record?.questionnaireUpdatedAt || "")
+  );
+}
+
+function mergeCoachAthleteSourceRecords(directoryRecords = [], workspaceRecords = []) {
+  const buckets = new Map();
+  directoryRecords.forEach((record) => {
+    const athleteId = normalizeAthleteId(record?.id, record?.name);
+    if (!athleteId) return;
+    const existing = buckets.get(athleteId) || { directory: null, workspace: null };
+    existing.directory = record;
+    buckets.set(athleteId, existing);
+  });
+  workspaceRecords.forEach((record) => {
+    const athleteId = normalizeAthleteId(record?.id, record?.name);
+    if (!athleteId) return;
+    const existing = buckets.get(athleteId) || { directory: null, workspace: null };
+    existing.workspace = record;
+    buckets.set(athleteId, existing);
+  });
+  return coachWorkspaceSortByUpdated(
+    Array.from(buckets.entries()).map(([athleteId, sources]) => {
+      const directoryRecord = sources.directory || null;
+      const workspaceRecord = sources.workspace || null;
+      if (!directoryRecord) {
+        return normalizeCoachAthleteRecord(athleteId, workspaceRecord || {});
+      }
+      if (!workspaceRecord) {
+        return normalizeCoachAthleteRecord(athleteId, directoryRecord || {});
+      }
+      const directoryScore = getCoachAthleteRecordRecencyScore(directoryRecord);
+      const workspaceScore = getCoachAthleteRecordRecencyScore(workspaceRecord);
+      const primary = directoryScore >= workspaceScore ? directoryRecord : workspaceRecord;
+      const fallback = primary === directoryRecord ? workspaceRecord : directoryRecord;
+      return normalizeCoachAthleteRecord(
+        athleteId,
+        fillMissingCoachAthleteRecordValues(primary, fallback)
+      );
+    })
+  );
 }
 
 function normalizeCoachNoteRecord(id, data = {}) {
@@ -5347,7 +5453,7 @@ function getCoachAthleteRecords() {
       coachEmail: normalizeEmail(profile?.email || authUser?.email || "")
     };
     const directoryRecords = coachAthleteDirectoryCache.map((user) => buildCoachAthleteRecordFromUser(user, coachMeta));
-    const mergedLiveRecords = mergeCoachRecordsById(directoryRecords, coachAthletesCache);
+    const mergedLiveRecords = mergeCoachAthleteSourceRecords(directoryRecords, coachAthletesCache);
     if (PUBLISH_READY_MODE && directoryRecords.length) {
       const directoryIds = new Set(directoryRecords.map((record) => normalizeAthleteId(record.id, record.name)));
       const directoryUids = new Set(directoryRecords.map((record) => normalizeUid(record.athleteUid)).filter(Boolean));
@@ -9028,12 +9134,80 @@ function buildCoachAthleteSeedFromUser(user, {
     weightClass: String(user?.weightClass || "").trim(),
     style: String(user?.style || "").trim(),
     availability: "Active",
+    age: String(user?.age || "").trim(),
+    photo: String(user?.photo || "").trim(),
+    country: String(user?.country || "").trim(),
+    city: String(user?.city || "").trim(),
+    schoolClub: String(user?.schoolClub || "").trim(),
+    schoolName: String(user?.schoolName || "").trim(),
+    clubName: String(user?.clubName || "").trim(),
+    schoolGrade: String(user?.schoolGrade || "").trim(),
+    trainingRoutines: String(user?.trainingRoutines || "").trim(),
+    trainingVolume: String(user?.trainingVolume || "").trim(),
+    trainingFocus: String(user?.trainingFocus || "").trim(),
+    preferredMoves: String(user?.preferredMoves || "").trim(),
+    preferred_moves: String(user?.preferredMoves || "").trim(),
     preferred: String(user?.preferredMoves || "").trim(),
     notes: String(user?.notes || "").trim(),
+    questionnaireNotes: String(user?.questionnaireNotes || user?.notes || "").trim(),
+    coachQuestionnaireNotes: String(user?.coachQuestionnaireNotes || "").trim(),
+    questionnaireUpdatedBy: String(user?.questionnaireUpdatedBy || "").trim(),
+    questionnaireUpdatedAt: String(user?.questionnaireUpdatedAt || "").trim(),
+    stance: String(user?.stance || "").trim(),
+    years: String(user?.years || user?.experienceYears || "").trim(),
     experienceYears: String(user?.experienceYears || "").trim(),
+    experience_years: String(user?.years || user?.experienceYears || "").trim(),
     level: String(user?.level || "").trim(),
     position: String(user?.position || "").trim(),
     strategy: String(user?.strategy || "").trim(),
+    strategyA: String(user?.strategyA || "").trim(),
+    strategyB: String(user?.strategyB || "").trim(),
+    strategyC: String(user?.strategyC || "").trim(),
+    favoritePosition: String(user?.favoritePosition || user?.position || "").trim(),
+    psychTendency: String(user?.psychTendency || "").trim(),
+    coachCues: String(user?.coachCues || "").trim(),
+    archetype: String(user?.archetype || "").trim(),
+    bodyType: String(user?.bodyType || "").trim(),
+    offenseTop3: Array.isArray(user?.offenseTop3) ? user.offenseTop3.map((item) => String(item || "").trim()).filter(Boolean) : [],
+    defenseTop3: Array.isArray(user?.defenseTop3) ? user.defenseTop3.map((item) => String(item || "").trim()).filter(Boolean) : [],
+    setupsTop3: Array.isArray(user?.setupsTop3) ? user.setupsTop3.map((item) => String(item || "").trim()).filter(Boolean) : [],
+    cornerCoachCues: Array.isArray(user?.cornerCoachCues) ? user.cornerCoachCues.map((item) => String(item || "").trim()).filter(Boolean) : [],
+    cueWords: Array.isArray(user?.cueWords) ? user.cueWords.map((item) => String(item || "").trim()).filter(Boolean) : [],
+    mentalReminders: Array.isArray(user?.mentalReminders) ? user.mentalReminders.map((item) => String(item || "").trim()).filter(Boolean) : [],
+    safetyWarnings: Array.isArray(user?.safetyWarnings) ? user.safetyWarnings.map((item) => String(item || "").trim()).filter(Boolean) : [],
+    physicalLimitations: Array.isArray(user?.physicalLimitations) ? user.physicalLimitations.map((item) => String(item || "").trim()).filter(Boolean) : [],
+    competitionCue: String(user?.competitionCue || "").trim(),
+    pressureError: String(user?.pressureError || "").trim(),
+    coachSignal: String(user?.coachSignal || "").trim(),
+    injuryNotes: String(user?.injuryNotes || "").trim(),
+    cueNotes: String(user?.cueNotes || "").trim(),
+    safeMoves: String(user?.safeMoves || "").trim(),
+    riskyMoves: String(user?.riskyMoves || "").trim(),
+    challenges: Array.isArray(user?.challenges) ? user.challenges.map((item) => String(item || "").trim()).filter(Boolean) : [],
+    challengeOne: String(user?.challengeOne || user?.challenges?.[0] || "").trim(),
+    challengeTwo: String(user?.challengeTwo || user?.challenges?.[1] || "").trim(),
+    challengeThree: String(user?.challengeThree || user?.challenges?.[2] || "").trim(),
+    resultsHistory: String(user?.resultsHistory || "").trim(),
+    international: String(user?.international || "").trim(),
+    internationalEvents: String(user?.internationalEvents || "").trim(),
+    internationalYears: String(user?.internationalYears || "").trim(),
+    defaultTechniques: {
+      leadLeg: String(user?.defaultTechniques?.leadLeg || "").trim(),
+      leftAttack: String(user?.defaultTechniques?.leftAttack || "").trim(),
+      rightAttack: String(user?.defaultTechniques?.rightAttack || "").trim(),
+      preferredTies: String(user?.defaultTechniques?.preferredTies || "").trim(),
+      miscNotes: String(user?.defaultTechniques?.miscNotes || "").trim()
+    },
+    techniques: {
+      neutral: Array.isArray(user?.techniques?.neutral) ? user.techniques.neutral.map((item) => String(item || "").trim()).filter(Boolean) : [],
+      top: Array.isArray(user?.techniques?.top) ? user.techniques.top.map((item) => String(item || "").trim()).filter(Boolean) : [],
+      bottom: Array.isArray(user?.techniques?.bottom) ? user.techniques.bottom.map((item) => String(item || "").trim()).filter(Boolean) : [],
+      defense: Array.isArray(user?.techniques?.defense) ? user.techniques.defense.map((item) => String(item || "").trim()).filter(Boolean) : [],
+      neutralOther: String(user?.techniques?.neutralOther || "").trim(),
+      topOther: String(user?.techniques?.topOther || "").trim(),
+      bottomOther: String(user?.techniques?.bottomOther || "").trim(),
+      defenseOther: String(user?.techniques?.defenseOther || "").trim()
+    },
     tags: normalizeSmartTags(user?.tags || []),
     createdAt: String(user?.createdAt || "").trim(),
     updatedAt: String(user?.updatedAt || user?.createdAt || "").trim(),
@@ -13051,9 +13225,14 @@ async function syncAthleteProfileToCoachWorkspace(profile = getProfile(), authUs
     coachName: String(getAthleteLinkedCoachName(profile) || profile.linkedCoachName || "").trim(),
     coachEmail: normalizeEmail(profile.linkedCoachEmail || ""),
     age: String(profile.age || "").trim(),
+    photo: String(profile.photo || "").trim(),
+    country: String(profile.country || "").trim(),
+    city: String(profile.city || "").trim(),
+    schoolClub: String(profile.schoolClub || "").trim(),
     weight: String(profile.currentWeight || profile.weight || "").trim(),
     currentWeight: String(profile.currentWeight || profile.weight || "").trim(),
     weightClass: String(profile.weightClass || "").trim(),
+    weight_class: String(profile.weightClass || "").trim(),
     style: String(profile.style || "").trim(),
     level: String(profile.level || "").trim(),
     position: String(profile.position || "").trim(),
@@ -13062,11 +13241,18 @@ async function syncAthleteProfileToCoachWorkspace(profile = getProfile(), authUs
     trainingVolume: String(profile.trainingVolume || "").trim(),
     trainingFocus: String(profile.trainingFocus || "").trim(),
     preferredMoves: String(profile.preferredMoves || profile.preferred_moves || "").trim(),
+    preferred_moves: String(profile.preferredMoves || profile.preferred_moves || "").trim(),
     stance: String(profile.stance || "").trim(),
     questionnaireNotes: String(profile.questionnaireNotes || profile.notes || "").trim(),
+    coachQuestionnaireNotes: String(profile.coachQuestionnaireNotes || "").trim(),
+    questionnaireUpdatedBy: String(profile.questionnaireUpdatedBy || "").trim(),
+    questionnaireUpdatedAt: profile.questionnaireUpdatedAt || "",
     schoolName: String(profile.schoolName || "").trim(),
     clubName: String(profile.clubName || "").trim(),
     schoolGrade: String(profile.schoolGrade || "").trim(),
+    years: String(profile.years || profile.experienceYears || "").trim(),
+    experienceYears: String(profile.experienceYears || profile.years || "").trim(),
+    experience_years: String(profile.experienceYears || profile.years || "").trim(),
     favoritePosition: String(profile.favoritePosition || profile.position || "").trim(),
     psychTendency: String(profile.psychTendency || strategyToTendency(profile.strategy) || "").trim(),
     coachCues: String(profile.coachCues || "").trim(),
@@ -14426,10 +14612,27 @@ async function saveAthleteProfileFromForm({
   updated.role = nextRole;
   updated.view = resolveViewForRole(nextRole, updated.view);
   const authUser = getAuthUser();
+  const nowIso = new Date().toISOString();
+  const normalizedEmail = normalizeEmail(updated.email || authUser?.email || "");
+  if (normalizedEmail) updated.email = normalizedEmail;
+  updated.updatedAt = nowIso;
+  if (isAthleteRole(nextRole)) {
+    updated.linkedAthleteId = getAthleteLinkedAthleteId(updated);
+    updated.linkedAthleteUid = getAthleteLinkedAthleteUid(updated, authUser);
+    updated.questionnaireUpdatedBy = String(updated.name || authUser?.email || "").trim();
+    updated.questionnaireUpdatedAt = nowIso;
+  }
   if (authUser && normalizeAuthRole(authUser.role) !== nextRole) {
     setAuthUser({ ...authUser, role: nextRole });
   }
-  setProfile(updated);
+  setProfile(updated, { sync: false });
+  if (authUser?.id) {
+    await persistFirebaseProfile(authUser.id, stripUndefinedDeep({
+      ...updated,
+      user_id: authUser.id,
+      email: normalizedEmail
+    }), { required: true });
+  }
   await applyProfile(updated);
   if (isAthleteRole(nextRole)) {
     try {
@@ -24934,8 +25137,21 @@ function normalizeManagedUserRecord(uid, data = {}) {
     linkedCoachEmail: normalizeEmail(data.linkedCoachEmail || ""),
     phone: String(data.phone || data.phoneNumber || data.mobile || data.cell || "").trim(),
     whatsapp: String(data.whatsapp || data.whatsappNumber || "").trim(),
+    age: String(data.age || "").trim(),
+    photo: String(data.photo || "").trim(),
+    country: String(data.country || "").trim(),
+    city: String(data.city || "").trim(),
+    schoolClub: String(data.schoolClub || "").trim(),
+    schoolName: String(data.schoolName || "").trim(),
+    clubName: String(data.clubName || "").trim(),
+    schoolGrade: String(data.schoolGrade || "").trim(),
+    trainingRoutines: String(data.trainingRoutines || "").trim(),
+    trainingVolume: String(data.trainingVolume || "").trim(),
+    trainingFocus: String(data.trainingFocus || "").trim(),
     preferredMoves: String(data.preferredMoves || data.preferred_moves || "").trim(),
+    preferred: String(data.preferred || data.preferredMoves || data.preferred_moves || "").trim(),
     experienceYears: String(data.experienceYears || data.experience_years || "").trim(),
+    years: String(data.years || data.experienceYears || data.experience_years || "").trim(),
     stance: String(data.stance || "").trim(),
     weightClass: String(data.weightClass || data.weight_class || "").trim(),
     currentWeight: String(data.currentWeight || data.weight || "").trim(),
@@ -24943,7 +25159,61 @@ function normalizeManagedUserRecord(uid, data = {}) {
     level: String(data.level || "").trim(),
     position: String(data.position || "").trim(),
     strategy: String(data.strategy || "").trim(),
+    strategyA: String(data.strategyA || "").trim(),
+    strategyB: String(data.strategyB || "").trim(),
+    strategyC: String(data.strategyC || "").trim(),
+    favoritePosition: String(data.favoritePosition || data.position || "").trim(),
+    psychTendency: String(data.psychTendency || "").trim(),
+    questionnaireNotes: String(data.questionnaireNotes || data.notes || "").trim(),
+    coachQuestionnaireNotes: String(data.coachQuestionnaireNotes || "").trim(),
+    questionnaireUpdatedBy: String(data.questionnaireUpdatedBy || "").trim(),
+    questionnaireUpdatedAt: normalizeFirestoreDateValue(data.questionnaireUpdatedAt),
+    coachCues: String(data.coachCues || "").trim(),
+    archetype: String(data.archetype || "").trim(),
+    bodyType: String(data.bodyType || "").trim(),
+    offenseTop3: Array.isArray(data.offenseTop3) ? data.offenseTop3.map((item) => String(item || "").trim()).filter(Boolean) : [],
+    defenseTop3: Array.isArray(data.defenseTop3) ? data.defenseTop3.map((item) => String(item || "").trim()).filter(Boolean) : [],
+    setupsTop3: Array.isArray(data.setupsTop3) ? data.setupsTop3.map((item) => String(item || "").trim()).filter(Boolean) : [],
+    cornerCoachCues: Array.isArray(data.cornerCoachCues) ? data.cornerCoachCues.map((item) => String(item || "").trim()).filter(Boolean) : [],
+    cueWords: Array.isArray(data.cueWords) ? data.cueWords.map((item) => String(item || "").trim()).filter(Boolean) : [],
+    mentalReminders: Array.isArray(data.mentalReminders) ? data.mentalReminders.map((item) => String(item || "").trim()).filter(Boolean) : [],
+    safetyWarnings: Array.isArray(data.safetyWarnings) ? data.safetyWarnings.map((item) => String(item || "").trim()).filter(Boolean) : [],
+    physicalLimitations: Array.isArray(data.physicalLimitations) ? data.physicalLimitations.map((item) => String(item || "").trim()).filter(Boolean) : [],
+    competitionCue: String(data.competitionCue || "").trim(),
+    pressureError: String(data.pressureError || "").trim(),
+    coachSignal: String(data.coachSignal || "").trim(),
+    injuryNotes: String(data.injuryNotes || "").trim(),
+    cueNotes: String(data.cueNotes || "").trim(),
+    safeMoves: String(data.safeMoves || "").trim(),
+    riskyMoves: String(data.riskyMoves || "").trim(),
+    challenges: Array.isArray(data.challenges)
+      ? data.challenges.map((item) => String(item || "").trim()).filter(Boolean)
+      : [data.challengeOne, data.challengeTwo, data.challengeThree].map((item) => String(item || "").trim()).filter(Boolean),
+    challengeOne: String(data.challengeOne || data.challenges?.[0] || "").trim(),
+    challengeTwo: String(data.challengeTwo || data.challenges?.[1] || "").trim(),
+    challengeThree: String(data.challengeThree || data.challenges?.[2] || "").trim(),
+    resultsHistory: String(data.resultsHistory || "").trim(),
     notes: String(data.notes || "").trim(),
+    international: String(data.international || "").trim(),
+    internationalEvents: String(data.internationalEvents || "").trim(),
+    internationalYears: String(data.internationalYears || "").trim(),
+    defaultTechniques: {
+      leadLeg: String(data.defaultTechniques?.leadLeg || "").trim(),
+      leftAttack: String(data.defaultTechniques?.leftAttack || "").trim(),
+      rightAttack: String(data.defaultTechniques?.rightAttack || "").trim(),
+      preferredTies: String(data.defaultTechniques?.preferredTies || "").trim(),
+      miscNotes: String(data.defaultTechniques?.miscNotes || "").trim()
+    },
+    techniques: {
+      neutral: Array.isArray(data.techniques?.neutral) ? data.techniques.neutral.map((item) => String(item || "").trim()).filter(Boolean) : [],
+      top: Array.isArray(data.techniques?.top) ? data.techniques.top.map((item) => String(item || "").trim()).filter(Boolean) : [],
+      bottom: Array.isArray(data.techniques?.bottom) ? data.techniques.bottom.map((item) => String(item || "").trim()).filter(Boolean) : [],
+      defense: Array.isArray(data.techniques?.defense) ? data.techniques.defense.map((item) => String(item || "").trim()).filter(Boolean) : [],
+      neutralOther: String(data.techniques?.neutralOther || "").trim(),
+      topOther: String(data.techniques?.topOther || "").trim(),
+      bottomOther: String(data.techniques?.bottomOther || "").trim(),
+      defenseOther: String(data.techniques?.defenseOther || "").trim()
+    },
     tags: normalizeSmartTags(data.tags || []),
     updatedAt: String(data.updatedAt || ""),
     createdAt: String(data.createdAt || "")
