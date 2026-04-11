@@ -421,6 +421,7 @@
   const DEFAULT_PLANNER_LOGO_URL = "https://united-wc.com/assets/uwc-logo.png";
   const DEFAULT_PRINT_BORDER_COLOR = "#0d6b4a";
   const DEFAULT_PRINT_TEXT_COLOR = "#0d6b4a";
+  const MAX_LOGO_DATA_URL_LENGTH = 240000;
   const LEGACY_PLANNER_CLUB_NAME = "ARCHMERE AUKS";
   const LEGACY_PLANNER_COACH_NAME = "Coach Espinal";
   const LEGACY_PLANNER_SEASON = "Season 2025-2026";
@@ -514,6 +515,19 @@
     return String(fallback || "#0d6b4a").trim().toLowerCase();
   }
 
+  function isInlineImageDataUrl(value) {
+    return /^data:image\//i.test(String(value || "").trim());
+  }
+
+  function sanitizePlannerLogoUrl(value, fallback = DEFAULT_PLANNER_LOGO_URL) {
+    const clean = String(value || "").trim();
+    if (!clean) return String(fallback || "").trim();
+    if (isInlineImageDataUrl(clean) && clean.length > MAX_LOGO_DATA_URL_LENGTH) {
+      return String(fallback || "").trim() || DEFAULT_PLANNER_LOGO_URL;
+    }
+    return clean;
+  }
+
   function hexToRgb(value) {
     const hex = normalizeHexColor(value, "#0d6b4a");
     const intValue = parseInt(hex.slice(1), 16);
@@ -567,6 +581,58 @@
       image.onerror = reject;
       image.src = src;
     });
+  }
+
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("logo_read_failed"));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function readOptimizedLogoDataUrl(file) {
+    const rawDataUrl = await readFileAsDataUrl(file);
+    if (!rawDataUrl) return "";
+    if (rawDataUrl.length <= MAX_LOGO_DATA_URL_LENGTH) {
+      return rawDataUrl;
+    }
+    try {
+      const image = await loadImageForPalette(rawDataUrl);
+      const maxEdge = 920;
+      const sourceWidth = Math.max(1, Number(image.naturalWidth || image.width || 0));
+      const sourceHeight = Math.max(1, Number(image.naturalHeight || image.height || 0));
+      const scale = Math.min(1, maxEdge / Math.max(sourceWidth, sourceHeight));
+      const width = Math.max(1, Math.round(sourceWidth * scale));
+      const height = Math.max(1, Math.round(sourceHeight * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return "";
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(image, 0, 0, width, height);
+      const qualities = [0.92, 0.84, 0.76, 0.68, 0.6, 0.52];
+      let bestCandidate = "";
+      for (const quality of qualities) {
+        const candidate = canvas.toDataURL("image/jpeg", quality);
+        if (!candidate) continue;
+        if (!bestCandidate || candidate.length < bestCandidate.length) {
+          bestCandidate = candidate;
+        }
+        if (candidate.length <= MAX_LOGO_DATA_URL_LENGTH) {
+          return candidate;
+        }
+      }
+      if (bestCandidate.length <= MAX_LOGO_DATA_URL_LENGTH) {
+        return bestCandidate;
+      }
+    } catch {
+      // If optimization fails, reject below with empty payload.
+    }
+    return "";
   }
 
   async function derivePrintPaletteFromLogo(logoSrc = "") {
@@ -957,7 +1023,7 @@
       clubName: String(source.clubName || "").trim(),
       coach: String(source.coach || "").trim(),
       season: String(source.season || "").trim(),
-      logoUrl: String(source.logoUrl || "").trim(),
+      logoUrl: sanitizePlannerLogoUrl(source.logoUrl, defaults.logoUrl),
       footerMessage: String(source.footerMessage || "").trim(),
       printAutoColors: typeof rawAuto === "boolean" ? rawAuto : String(rawAuto || "").trim().toLowerCase() !== "false",
       printBorderColor: normalizeHexColor(source.printBorderColor, defaults.printBorderColor),
@@ -1832,6 +1898,8 @@
     }
   }
 
+  let inlinePrintCleanupTimer = null;
+
   function ensureInlinePrintHost() {
     let host = document.getElementById("wtp-print-root") || document.getElementById("plannerBasicPrintHost");
     if (!host) {
@@ -1847,6 +1915,10 @@
   }
 
   function clearInlinePrintMode() {
+    if (inlinePrintCleanupTimer) {
+      clearTimeout(inlinePrintCleanupTimer);
+      inlinePrintCleanupTimer = null;
+    }
     document.body.removeAttribute("data-basic-print");
     document.body.classList.remove("wtp-print-mode");
     const host = document.getElementById("wtp-print-root") || document.getElementById("plannerBasicPrintHost");
@@ -1859,6 +1931,7 @@
 
   function printInlineBasicDocument(bodyMarkup, documentTitle) {
     void documentTitle;
+    clearInlinePrintMode();
     const host = ensureInlinePrintHost();
     host.innerHTML = `
       <style>${getPlannerBasicPrintStyles()}</style>
@@ -1870,6 +1943,9 @@
     host.style.display = "block";
     document.body.setAttribute("data-basic-print", "true");
     document.body.classList.add("wtp-print-mode");
+    inlinePrintCleanupTimer = window.setTimeout(() => {
+      clearInlinePrintMode();
+    }, 2500);
     try {
       // Keep print call inside the same user gesture turn for iOS Safari/WebView reliability.
       void host.offsetHeight;
@@ -1904,29 +1980,7 @@
     if (requestNativePrintIfAvailable(html, documentTitle)) {
       return true;
     }
-
-    if (isLikelyMobilePrintFlow()) {
-      return printInlineBasicDocument(bodyMarkup, documentTitle);
-    }
-
-    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=980,height=1200");
-    if (!printWindow) {
-      triggerToast(tr({ en: "Popup blocked. Allow popups to print.", es: "Popup bloqueado. Permite popups para imprimir." }));
-      return printInlineBasicDocument(bodyMarkup, documentTitle);
-    }
-
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.focus();
-    window.setTimeout(() => {
-      try {
-        printWindow.print();
-      } catch {
-        window.print();
-      }
-    }, 180);
-    return true;
+    return printInlineBasicDocument(bodyMarkup, documentTitle);
   }
 
   function setTotalTime(nextValue) {
@@ -4541,7 +4595,44 @@
     renderLiftingOverview();
   }
 
+  function getFirebasePlannerSessionUser() {
+    const normalizePlannerAuthUser = (value = null) => {
+      if (!value || typeof value !== "object") return null;
+      const id = String(value.uid || value.id || "").trim();
+      if (!id) return null;
+      return {
+        id,
+        email: String(value.email || "").trim().toLowerCase(),
+        role: String(value.role || "").trim().toLowerCase()
+      };
+    };
+    try {
+      if (typeof firebaseAuthInstance !== "undefined" && firebaseAuthInstance?.currentUser) {
+        const fromFirebaseInstance = normalizePlannerAuthUser(firebaseAuthInstance.currentUser);
+        if (fromFirebaseInstance?.id) return fromFirebaseInstance;
+      }
+    } catch {
+      // fallback below
+    }
+    try {
+      if (typeof firebase !== "undefined" && typeof firebase?.auth === "function") {
+        const fromFirebase = normalizePlannerAuthUser(firebase.auth().currentUser);
+        if (fromFirebase?.id) return fromFirebase;
+      }
+    } catch {
+      // ignore fallback errors
+    }
+    return null;
+  }
+
   function hasPlannerAuthSession() {
+    const firebaseSession = getFirebasePlannerSessionUser();
+    if (firebaseSession?.id) return true;
+    const hasFirebaseAuthLayer = Boolean(
+      (typeof firebaseAuthInstance !== "undefined" && firebaseAuthInstance?.onAuthStateChanged)
+      || (typeof firebase !== "undefined" && typeof firebase?.auth === "function")
+    );
+    if (hasFirebaseAuthLayer) return false;
     return Boolean(String(getPlannerAuthUser()?.id || "").trim());
   }
 
@@ -4765,6 +4856,14 @@
         role: String(value.role || "").trim().toLowerCase()
       };
     };
+    const firebaseSession = getFirebasePlannerSessionUser();
+    if (firebaseSession?.id) return firebaseSession;
+
+    const hasFirebaseAuthLayer = Boolean(
+      (typeof firebaseAuthInstance !== "undefined" && firebaseAuthInstance?.onAuthStateChanged)
+      || (typeof firebase !== "undefined" && typeof firebase?.auth === "function")
+    );
+    if (hasFirebaseAuthLayer) return null;
     if (typeof getAuthUser === "function") {
       try {
         const fromApp = normalizePlannerAuthUser(getAuthUser());
@@ -4785,22 +4884,6 @@
       } catch {
         // fallback below
       }
-    }
-    try {
-      if (typeof firebaseAuthInstance !== "undefined" && firebaseAuthInstance?.currentUser) {
-        const fromFirebaseInstance = normalizePlannerAuthUser(firebaseAuthInstance.currentUser);
-        if (fromFirebaseInstance?.id) return fromFirebaseInstance;
-      }
-    } catch {
-      // fallback below
-    }
-    try {
-      if (typeof firebase !== "undefined" && firebase?.auth) {
-        const fromFirebase = normalizePlannerAuthUser(firebase.auth().currentUser);
-        if (fromFirebase?.id) return fromFirebase;
-      }
-    } catch {
-      // ignore fallback errors
     }
     return null;
   }
@@ -6693,6 +6776,8 @@
     const uid = String(authUser?.id || "").trim();
     if (!usersRef || !uid) return;
     const settingsPayload = normalizePlannerSettings(state.settings, { migrateLegacy: true });
+    state.settings = settingsPayload;
+    persistSettings();
     try {
       await usersRef.doc(uid).set({
         plannerTemplateSettings: settingsPayload,
@@ -6716,6 +6801,9 @@
       const raw = doc.exists ? (doc.data() || {}) : {};
       const remoteSettings = normalizePlannerSettings(raw?.plannerTemplateSettings || {}, { migrateLegacy: true });
       const localSettings = normalizePlannerSettings(state.settings, { migrateLegacy: true });
+      const rawRemoteLogo = String(raw?.plannerTemplateSettings?.logoUrl || "").trim();
+      const remoteLogoWasSanitized = isInlineImageDataUrl(rawRemoteLogo)
+        && rawRemoteLogo.length > MAX_LOGO_DATA_URL_LENGTH;
       const remoteSerialized = JSON.stringify(remoteSettings);
       const localSerialized = JSON.stringify(localSettings);
       if (remoteSerialized !== localSerialized) {
@@ -6725,6 +6813,8 @@
         } else {
           mergePlannerSettings(localSettings, { sync: true });
         }
+      } else if (remoteLogoWasSanitized) {
+        mergePlannerSettings(localSettings, { sync: true });
       } else {
         persistSettings();
       }
@@ -6768,8 +6858,9 @@
   }
 
   function isPlannerReadOnlyMode() {
-    const coachPlansPanel = document.getElementById("panel-coach-plans");
-    if (coachPlansPanel && !coachPlansPanel.classList.contains("hidden")) return false;
+    const coachPlansPanel = document.getElementById("panel-coach-plans") || document.getElementById("panel-plans");
+    const coachPlansTabActive = Boolean(document.querySelector(".tab.active[data-tab='coach-plans']"));
+    if ((coachPlansPanel && !coachPlansPanel.classList.contains("hidden")) || coachPlansTabActive) return false;
     const profileRole = String(getPlannerProfile()?.role || "").trim().toLowerCase();
     const authRole = String(getPlannerAuthUser()?.role || "").trim().toLowerCase();
     if (isCoachLikeRole(profileRole) || isCoachLikeRole(authRole)) return false;
@@ -8264,20 +8355,30 @@
     els.settingsSaveBtn?.addEventListener("click", saveSettings);
     els.settingsRemoveLogoBtn?.addEventListener("click", () => {
       if (!state.tempSettings) return;
-      state.tempSettings.logoUrl = null;
+      state.tempSettings.logoUrl = sanitizePlannerLogoUrl("", DEFAULT_PLANNER_LOGO_URL);
       renderSettingsLogoPreview();
       refreshTempSettingsPrintPaletteFromLogo().catch(() => {});
     });
     els.settingsLogoInput?.addEventListener("change", (event) => {
       const file = event.target.files && event.target.files[0];
       if (!file || !state.tempSettings) return;
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        state.tempSettings.logoUrl = String(reader.result || "");
+      void readOptimizedLogoDataUrl(file).then((nextLogo) => {
+        if (!nextLogo) {
+          triggerToast(tr({
+            en: "Logo is too large. Use a smaller image.",
+            es: "El logo es muy grande. Usa una imagen mas pequena."
+          }));
+          return;
+        }
+        state.tempSettings.logoUrl = sanitizePlannerLogoUrl(nextLogo, state.settings?.logoUrl || DEFAULT_PLANNER_LOGO_URL);
         renderSettingsLogoPreview();
         refreshTempSettingsPrintPaletteFromLogo().catch(() => {});
-      };
-      reader.readAsDataURL(file);
+      }).catch(() => {
+        triggerToast(tr({
+          en: "Could not load logo file. Try another image.",
+          es: "No se pudo cargar el logo. Intenta con otra imagen."
+        }));
+      });
     });
 
     els.openLibraryBtn?.addEventListener("click", openLibraryModal);
@@ -8360,6 +8461,14 @@
         }
         render();
         applyAssignContextUi();
+      });
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState !== "hidden") return;
+        syncPlannerDailyNow().catch(() => {});
+        syncPlannerSettingsNow().catch(() => {});
+        syncPlannerLibraryNow().catch(() => {});
+        syncSharedPlannerCatalogNow().catch(() => {});
+        syncPlannerClientStateNow().catch(() => {});
       });
     }
   }
