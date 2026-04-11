@@ -7233,10 +7233,27 @@
 
   async function saveSettings() {
     if (!state.tempSettings) return;
-    const normalized = await resolveSettingsPrintPalette(state.tempSettings);
-    mergePlannerSettings(normalized, { sync: true });
+    const draft = normalizePlannerSettings(state.tempSettings, { migrateLegacy: true });
+    const immediatePayload = draft.printAutoColors
+      ? {
+          ...draft,
+          printBorderColor: normalizeHexColor(state.settings?.printBorderColor || draft.printBorderColor, DEFAULT_PRINT_BORDER_COLOR),
+          printTextColor: ensureDarkPrintColor(state.settings?.printTextColor || draft.printTextColor, draft.printBorderColor)
+        }
+      : draft;
+
+    // Save immediately so mobile users do not lose changes if palette extraction lags.
+    mergePlannerSettings(immediatePayload, { sync: true });
     closeSettingsModal();
     triggerToast(tr({ en: "Plan settings saved!", es: "Configuracion del plan guardada." }));
+
+    if (draft.printAutoColors) {
+      resolveSettingsPrintPalette(draft)
+        .then((resolved) => {
+          mergePlannerSettings(resolved, { sync: true });
+        })
+        .catch(() => {});
+    }
   }
 
   function openLibraryModal() {
@@ -8041,7 +8058,16 @@
 
     if (target.matches("input[data-action='edit-category-name']")) {
       const categoryId = normalizeCategoryId(target.dataset.category);
-      state.categoryNames[categoryId] = target.value;
+      const nextValue = String(target.value || "");
+      state.categoryNames[categoryId] = nextValue;
+      state.wrestlingCategories = getPlannerCategories().map((category) => (
+        category.id === categoryId
+          ? { ...category, name: nextValue }
+          : { ...category }
+      ));
+      persistCategories();
+      persistCategoryNames();
+      queuePlannerLibrarySync();
       return;
     }
 
