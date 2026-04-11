@@ -15,7 +15,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Teko:wght@500;600;700&display=swap"
     rel="stylesheet"
   >
-  <link rel="stylesheet" href="styles.css?v=20260411-competition-corner1" >
+  <link rel="stylesheet" href="styles.css?v=20260411-mobilefix2" >
 </head>
 
 <body>
@@ -1460,20 +1460,20 @@
           <div class="planner-sheet">
             <header class="planner-sheet-header">
               <div class="planner-logo-box" id="plannerLogoBox">
-                <img id="plannerLogoPreview" alt="Team logo" class="hidden">
+                <img id="wtpLogoPreview" alt="Planner Logo" class="hidden">
                 <div id="plannerLogoPlaceholder">Setup logo in Customize</div>
               </div>
               <div class="planner-meta-boxes">
                 <label>
                   <span>Date</span>
-                  <input type="date" id="plannerDateInput">
+                  <input type="date" id="wtpPlanDate">
                   <div class="planner-print-value" id="plannerDatePrintValue"></div>
                 </label>
                 <label>
                   <span>Total Time (min)</span>
                   <div class="planner-total-time-editor">
                     <button type="button" class="ghost" id="plannerTotalTimeDownBtn" aria-label="Decrease total time">-</button>
-                    <input type="number" id="plannerTotalTimeInput" min="1" value="90">
+                    <input type="number" id="wtpTotalMinutes" min="0" value="90">
                     <button type="button" class="ghost" id="plannerTotalTimeUpBtn" aria-label="Increase total time">+</button>
                   </div>
                   <div class="planner-print-value" id="plannerTotalTimePrintValue"></div>
@@ -1680,15 +1680,19 @@
                 </div>
                 <label>
                   <span>Club / School</span>
-                  <input type="text" id="plannerSettingsClubInput">
+                  <input type="text" id="wtpClubName" placeholder="Club / School">
                 </label>
                 <label>
                   <span>Coach</span>
-                  <input type="text" id="plannerSettingsCoachInput">
+                  <input type="text" id="wtpCoachName" placeholder="Coach">
                 </label>
                 <label>
                   <span>Season</span>
-                  <input type="text" id="plannerSettingsSeasonInput">
+                  <input type="text" id="wtpSeasonName" placeholder="Season">
+                </label>
+                <label>
+                  <span>Footer message</span>
+                  <input type="text" id="wtpFooterMessage" placeholder="Coach Espinal  Season 2025-2026">
                 </label>
               </div>
               <footer>
@@ -2266,7 +2270,7 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260411-competition-corner1"></script>
-  <script src="coach-planner.js?v=20260408-planfix7"></script>
+  <script src="app.js?v=20260411-mobilefix2"></script>
+  <script src="coach-planner.js?v=20260411-mobilefix2"></script>
 </body>
 </html>

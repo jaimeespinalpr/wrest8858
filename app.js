@@ -22264,7 +22264,7 @@ function renderDashboard() {
   quickActions.innerHTML = "";
   const quickActionHandlers = [
     () => focusRoutePanel("athletes", { selector: "#athleteSearchInput", selectText: true }),
-    () => focusRoutePanel("plans", { selector: "#plannerDateInput", selectText: true }),
+    () => focusRoutePanel("plans", { selector: "#wtpPlanDate", selectText: true }),
     () => focusRoutePanel("plans", { selector: "#plannerOpenLibraryBtn" }),
     () => focusRoutePanel("competition-preview")
   ];

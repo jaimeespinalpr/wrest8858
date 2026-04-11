@@ -131,7 +131,7 @@
       subtitleEs: "Memoria de trabajo y enfoque",
       ruleBrief: "Watch the sequence, then repeat in exact order.",
       ruleBriefEs: "Mira la secuencia y repitela en el mismo orden.",
-      duration: 45,
+      duration: 60,
       gradient: "linear-gradient(135deg, rgba(139, 92, 246, 0.95), rgba(217, 70, 239, 0.92))",
       cue: "Memorize, then repeat in order.",
       cueEs: "Memoriza y luego repite en orden."
@@ -181,6 +181,10 @@
     { key: "green", name: "Green", nameEs: "Verde" },
     { key: "yellow", name: "Yellow", nameEs: "Amarillo" }
   ];
+  const MEMORY_SEQUENCE_SHOW_MS = 5000;
+  const MEMORY_SEQUENCE_RESPONSE_MS = 10000;
+  const MEMORY_SEQUENCE_WRONG_FEEDBACK_MS = 1100;
+  const MEMORY_SEQUENCE_CORRECT_FEEDBACK_MS = 650;
 
   const MENTAL_DECISION_SCENARIOS = [
     {
@@ -264,6 +268,28 @@
     const color = MENTAL_COLORS.find((entry) => String(entry.name || "").toLowerCase() === String(name || "").toLowerCase());
     if (!color) return String(name || "");
     return getPlannerLang() === "es" ? String(color.nameEs || color.name || "") : String(color.name || color.nameEs || "");
+  }
+
+  function getMentalColorMeta(name) {
+    return MENTAL_COLORS.find((entry) => String(entry.name || "").toLowerCase() === String(name || "").toLowerCase()) || null;
+  }
+
+  function getMentalColorSurfaceStyle(name, { placeholder = false } = {}) {
+    const colorKey = String(getMentalColorMeta(name)?.key || "").trim();
+    if (!colorKey || placeholder) {
+      return "background: rgba(18, 33, 59, 0.82); color: #cbd5e1; border-color: rgba(126, 156, 207, 0.32);";
+    }
+    if (colorKey === "red") return "background: #ef4444; color: #fff7f7; border-color: rgba(254, 202, 202, 0.55);";
+    if (colorKey === "blue") return "background: #3b82f6; color: #eff6ff; border-color: rgba(191, 219, 254, 0.55);";
+    if (colorKey === "green") return "background: #22c55e; color: #f0fdf4; border-color: rgba(187, 247, 208, 0.55);";
+    if (colorKey === "yellow") return "background: #facc15; color: #1e293b; border-color: rgba(254, 240, 138, 0.65);";
+    return "background: rgba(18, 33, 59, 0.82); color: #e2e8f0; border-color: rgba(126, 156, 207, 0.32);";
+  }
+
+  function getMentalPhaseSecondsLeft(session) {
+    const endsAt = Number(session?.roundPhaseEndsAt || 0);
+    if (!Number.isFinite(endsAt) || endsAt <= 0) return 0;
+    return Math.max(0, Math.ceil((endsAt - performance.now()) / 1000));
   }
 
   function getLocalizedDecisionScenario(scenario = {}) {
@@ -726,7 +752,8 @@
       clubName: "United Wrestling Club",
       coach: getDefaultPlannerCoachName(),
       season: LEGACY_PLANNER_SEASON,
-      logoUrl: DEFAULT_PLANNER_LOGO_URL
+      logoUrl: DEFAULT_PLANNER_LOGO_URL,
+      footerMessage: ""
     };
   }
 
@@ -752,7 +779,8 @@
       clubName: String(source.clubName || "").trim(),
       coach: String(source.coach || "").trim(),
       season: String(source.season || "").trim(),
-      logoUrl: String(source.logoUrl || "").trim()
+      logoUrl: String(source.logoUrl || "").trim(),
+      footerMessage: String(source.footerMessage || "").trim()
     };
 
     if (migrateLegacy) {
@@ -765,6 +793,7 @@
       next.coach = next.coach || defaults.coach;
       next.season = next.season || defaults.season;
       next.logoUrl = next.logoUrl || defaults.logoUrl;
+      next.footerMessage = next.footerMessage || defaults.footerMessage;
     }
 
     return next;
@@ -892,9 +921,9 @@
     saveTemplateTopBtn: document.getElementById("plannerSaveTemplateTopBtn"),
     sendAthletesTopBtn: document.getElementById("plannerSendAthletesTopBtn"),
     printBtn: document.getElementById("plannerPrintBtn"),
-    dateInput: document.getElementById("plannerDateInput"),
+    dateInput: document.getElementById("wtpPlanDate"),
     datePrintValue: document.getElementById("plannerDatePrintValue"),
-    totalTimeInput: document.getElementById("plannerTotalTimeInput"),
+    totalTimeInput: document.getElementById("wtpTotalMinutes"),
     totalTimeDownBtn: document.getElementById("plannerTotalTimeDownBtn"),
     totalTimeUpBtn: document.getElementById("plannerTotalTimeUpBtn"),
     totalTimePrintValue: document.getElementById("plannerTotalTimePrintValue"),
@@ -903,7 +932,7 @@
     footerClub: document.getElementById("plannerFooterClub"),
     footerCoach: document.getElementById("plannerFooterCoach"),
     footerSeason: document.getElementById("plannerFooterSeason"),
-    logoPreview: document.getElementById("plannerLogoPreview"),
+    logoPreview: document.getElementById("wtpLogoPreview"),
     logoPlaceholder: document.getElementById("plannerLogoPlaceholder"),
     toast: document.getElementById("plannerToast"),
     overtimeAlert: document.getElementById("plannerOvertimeAlert"),
@@ -912,9 +941,10 @@
     settingsCloseBtn: document.getElementById("plannerSettingsCloseBtn"),
     settingsCancelBtn: document.getElementById("plannerSettingsCancelBtn"),
     settingsSaveBtn: document.getElementById("plannerSettingsSaveBtn"),
-    settingsClubInput: document.getElementById("plannerSettingsClubInput"),
-    settingsCoachInput: document.getElementById("plannerSettingsCoachInput"),
-    settingsSeasonInput: document.getElementById("plannerSettingsSeasonInput"),
+    settingsClubInput: document.getElementById("wtpClubName"),
+    settingsCoachInput: document.getElementById("wtpCoachName"),
+    settingsSeasonInput: document.getElementById("wtpSeasonName"),
+    settingsFooterInput: document.getElementById("wtpFooterMessage"),
     settingsLogoInput: document.getElementById("plannerSettingsLogoInput"),
     settingsLogoPreview: document.getElementById("plannerSettingsLogoPreview"),
     settingsLogoPlaceholder: document.getElementById("plannerSettingsLogoPlaceholder"),
@@ -1151,83 +1181,313 @@
       .replace(/'/g, "&#39;");
   }
 
+  function q(selector, scope = document) {
+    if (!scope || typeof scope.querySelector !== "function") return null;
+    return scope.querySelector(selector);
+  }
+
+  function qa(selector, scope = document) {
+    if (!scope || typeof scope.querySelectorAll !== "function") return [];
+    return Array.from(scope.querySelectorAll(selector));
+  }
+
+  function text(node) {
+    if (!node) return "";
+    return String(node.value ?? node.textContent ?? "").trim();
+  }
+
+  function getSettings(plannerRoot) {
+    void plannerRoot;
+    const coachValue = text(document.getElementById("wtpCoachName")) || String(state.settings?.coach || "").trim() || "Coach";
+    const seasonValue = text(document.getElementById("wtpSeasonName")) || String(state.settings?.season || "").trim() || "Season 2025-2026";
+    const footerCustom = text(document.getElementById("wtpFooterMessage")) || String(state.settings?.footerMessage || "").trim();
+    return {
+      club: text(document.getElementById("wtpClubName")) || String(state.settings?.clubName || "").trim() || "United Wrestling Club",
+      coach: coachValue,
+      season: seasonValue,
+      date: text(document.getElementById("wtpPlanDate")) || String(state.docInfo?.date || "").trim(),
+      totalTime: text(document.getElementById("wtpTotalMinutes")) || String(state.docInfo?.totalTime || "").trim() || "90",
+      footerMessage: footerCustom || `${coachValue}  ${seasonValue}`.trim(),
+      logoSrc: document.getElementById("wtpLogoPreview")?.src || String(state.settings?.logoUrl || "").trim()
+    };
+  }
+
+  function getRows() {
+    return qa("[data-plan-row]").map((row) => {
+      const notesCombined = qa(".wtp-notes", row).map((node) => text(node)).filter(Boolean).join(" • ");
+      return {
+        activity: text(q(".wtp-activity", row)) || "Activity",
+        notes: notesCombined || text(q(".wtp-notes", row)) || "",
+        time: text(q(".wtp-time", row)) || ""
+      };
+    }).filter((entry) => entry.activity || entry.notes || entry.time);
+  }
+
   function buildWrestlingBasicPrintMarkup() {
-    const plannedTotalInput = String(els.totalTimeInput?.value || state.docInfo.totalTime || "90").trim();
-    const plannedTotal = Math.max(1, parseTimeValue(plannedTotalInput || "90"));
-    const dateRaw = String(els.dateInput?.value || state.docInfo.date || "").trim();
-    const dateLabel = formatDateForPrint(dateRaw || "");
-    const title = tr({ en: "Wrestling Training Plan", es: "Plan de Entrenamiento de Lucha" });
-    const generatedLabel = tr({ en: "Generated", es: "Generado" });
-    const plannedLabel = tr({ en: "Planned", es: "Planificado" });
-    const usedLabel = tr({ en: "Used", es: "Usado" });
-    const clubLabel = tr({ en: "Club", es: "Club" });
+    const titleLabel = tr({ en: "Daily Schedule", es: "Horario Diario" });
+    const clubLabel = tr({ en: "Club / School", es: "Club / Escuela" });
     const coachLabel = tr({ en: "Coach", es: "Entrenador" });
     const seasonLabel = tr({ en: "Season", es: "Temporada" });
+    const dateLabel = tr({ en: "Date", es: "Fecha" });
+    const totalTimeLabel = tr({ en: "Total Time", es: "Tiempo Total" });
+    const activityLabel = "ACTIVITY";
+    const timeLabel = "TIME";
     const minutesLabel = tr({ en: "min", es: "min" });
-    const noItemsLabel = tr({ en: "No activities added.", es: "No hay actividades agregadas." });
-    const planSheetLabel = tr({ en: "Training Plan Sheet", es: "Hoja de Plan de Entrenamiento" });
+    const noDataLabel = tr({ en: "No data", es: "Sin datos" });
+    const noItemsLabel = tr({ en: "No plan sections saved yet.", es: "Todavia no hay secciones del plan guardadas." });
 
-    const snapshotCategories = getPlannerCategories().map((category) => {
-      const categoryId = category.id;
-      const nameInput = root.querySelector(`input[data-action="edit-category-name"][data-category="${categoryId}"]`);
-      const timeInput = root.querySelector(`input[data-action="time-input"][data-category="${categoryId}"]`);
-      const textareas = Array.from(root.querySelectorAll(`textarea[data-action="item-input"][data-category="${categoryId}"]`));
-      const liveItems = textareas
-        .map((node) => String(node.value || "").replace(/\s+/g, " ").trim())
-        .filter(Boolean);
-      const fallbackItems = (state.schedule[categoryId] || [])
-        .map((item) => String(item?.name || "").replace(/\s+/g, " ").trim())
-        .filter(Boolean);
-      const safeItems = liveItems.length ? liveItems : fallbackItems;
-      const safeName = String(nameInput?.value || getCategoryNameById(categoryId) || category.name || "").trim()
-        || String(category.name || "").trim()
-        || categoryId;
-      const safeMinutes = Math.max(0, parseTimeValue(String(timeInput?.value || state.categoryTimes[categoryId] || "0")));
-      return {
-        id: categoryId,
-        name: safeName,
-        minutes: safeMinutes,
-        items: safeItems
-      };
-    });
+    const settings = getSettings(root);
+    const rows = getRows();
+    const logoMarkup = settings.logoSrc
+      ? `
+        <div class="wtp-print-logo-wrap">
+          <img class="wtp-print-logo" src="${escapePrintHtml(settings.logoSrc)}" alt="Planner Logo">
+        </div>
+      `
+      : "";
+    const watermarkMarkup = settings.logoSrc
+      ? `<div class="wtp-print-watermark"><img src="${escapePrintHtml(settings.logoSrc)}" alt=""></div>`
+      : "";
 
-    const usedTotal = snapshotCategories.reduce((sum, row) => sum + row.minutes, 0);
-
-    const sections = snapshotCategories.map((category, index) => {
-      const itemsMarkup = category.items.length
-        ? `<ul>${category.items.map((item) => `<li>${escapePrintHtml(item)}</li>`).join("")}</ul>`
-        : `<p class="muted">${escapePrintHtml(noItemsLabel)}</p>`;
-      return `
-        <section class="section">
-          <div class="section-head">
-            <h2>${index + 1}. ${escapePrintHtml(category.name)}</h2>
-            <span>${category.minutes} ${escapePrintHtml(minutesLabel)}</span>
-          </div>
-          ${itemsMarkup}
-        </section>
+    const rowsMarkup = rows.length
+      ? rows.map((row) => `
+        <tr>
+          <td>
+            <div class="wtp-print-activity">${escapePrintHtml(row.activity || noDataLabel)}</div>
+            <div class="wtp-print-notes">${escapePrintHtml(row.notes || "")}</div>
+          </td>
+          <td class="wtp-print-time">${escapePrintHtml(row.time || "--")}</td>
+        </tr>
+      `).join("")
+      : `
+        <tr>
+          <td>
+            <div class="wtp-print-activity">${escapePrintHtml(noDataLabel)}</div>
+            <div class="wtp-print-notes">${escapePrintHtml(noItemsLabel)}</div>
+          </td>
+          <td class="wtp-print-time">--</td>
+        </tr>
       `;
-    }).join("");
-    const safeSections = sections || `<p class="muted">${escapePrintHtml(noItemsLabel)}</p>`;
-
-    const clubName = String(state.settings?.clubName || "").trim();
-    const coachName = String(state.settings?.coach || "").trim();
-    const seasonName = String(state.settings?.season || "").trim();
 
     return `
-      <header>
-        <h1>${escapePrintHtml(title)}</h1>
-        <p>${escapePrintHtml(dateLabel || "--")}</p>
-      </header>
-      <section class="meta">
-        <div><strong>${escapePrintHtml(planSheetLabel)}:</strong> ${escapePrintHtml(dateLabel || "--")}</div>
-        <div><strong>${escapePrintHtml(clubLabel)}:</strong> ${escapePrintHtml(clubName || "-")}</div>
-        <div><strong>${escapePrintHtml(coachLabel)}:</strong> ${escapePrintHtml(coachName || "-")}</div>
-        <div><strong>${escapePrintHtml(seasonLabel)}:</strong> ${escapePrintHtml(seasonName || "-")}</div>
-        <div><strong>${escapePrintHtml(plannedLabel)}:</strong> ${plannedTotal} ${escapePrintHtml(minutesLabel)}</div>
-        <div><strong>${escapePrintHtml(usedLabel)}:</strong> ${usedTotal} ${escapePrintHtml(minutesLabel)}</div>
-        <div><strong>${escapePrintHtml(generatedLabel)}:</strong> ${escapePrintHtml(new Date().toLocaleString())}</div>
-      </section>
-      ${safeSections}
+      <div class="wtp-print-sheet">
+        ${logoMarkup}
+        <div class="wtp-print-header-box">
+          ${watermarkMarkup}
+          <div class="wtp-print-title">${escapePrintHtml(titleLabel)}</div>
+
+          <div class="wtp-print-topline">
+            <div class="wtp-print-subtitle">
+              <strong>${escapePrintHtml(settings.club || clubLabel)}</strong>
+            </div>
+
+            <div class="wtp-print-field">
+              <span class="wtp-print-field-label">${escapePrintHtml(dateLabel)}</span>
+              <span class="wtp-print-field-line">${escapePrintHtml(settings.date || "--")}</span>
+            </div>
+
+            <div class="wtp-print-field">
+              <span class="wtp-print-field-label">${escapePrintHtml(totalTimeLabel)}</span>
+              <span class="wtp-print-field-line">${escapePrintHtml(String(settings.totalTime || "90"))} ${escapePrintHtml(minutesLabel)}</span>
+            </div>
+          </div>
+
+          <table class="wtp-print-table">
+            <thead>
+              <tr>
+                <th>${escapePrintHtml(activityLabel)}</th>
+                <th>${escapePrintHtml(timeLabel)}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsMarkup}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="wtp-print-footer">${escapePrintHtml(settings.footerMessage || `${settings.coach || coachLabel}  ${settings.season || seasonLabel}` || noDataLabel)}</div>
+      </div>
+    `;
+  }
+
+  function getPlannerBasicPrintStyles() {
+    return `
+      /* ===== WRESTLING TRAINING PLANNER - PRINT TEMPLATE ===== */
+      .wtp-print-sheet {
+        width: 8.5in;
+        min-height: 11in;
+        margin: 0 auto;
+        padding: 0.35in 0.35in 0.25in 0.35in;
+        box-sizing: border-box;
+        background: #fff;
+        color: #1f2937;
+        font-family: Arial, Helvetica, sans-serif;
+      }
+
+      .wtp-print-logo-wrap {
+        text-align: center;
+        margin-bottom: 14px;
+      }
+
+      .wtp-print-logo {
+        max-width: 260px;
+        max-height: 110px;
+        object-fit: contain;
+      }
+
+      .wtp-print-header-box {
+        border: 5px solid #0d6b4a;
+        border-radius: 16px;
+        padding: 14px 16px 12px 16px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .wtp-print-watermark {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        opacity: 0.08;
+      }
+
+      .wtp-print-watermark img {
+        max-width: 88%;
+        max-height: 88%;
+        object-fit: contain;
+      }
+
+      .wtp-print-topline {
+        position: relative;
+        z-index: 2;
+        display: grid;
+        grid-template-columns: 1.2fr 1fr 0.9fr;
+        gap: 10px;
+        align-items: end;
+        margin-bottom: 10px;
+        font-size: 14px;
+      }
+
+      .wtp-print-title {
+        font-size: 28px;
+        font-weight: 800;
+        color: #0d6b4a;
+        letter-spacing: 0.4px;
+        margin-bottom: 4px;
+      }
+
+      .wtp-print-subtitle {
+        font-size: 13px;
+        color: #374151;
+      }
+
+      .wtp-print-field {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+      }
+
+      .wtp-print-field-label {
+        font-weight: 700;
+      }
+
+      .wtp-print-field-line {
+        border-bottom: 1px solid #6b7280;
+        min-height: 18px;
+        flex: 1;
+        padding: 0 4px 1px 4px;
+        font-weight: 600;
+      }
+
+      .wtp-print-table {
+        position: relative;
+        z-index: 2;
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-size: 13px;
+      }
+
+      .wtp-print-table thead th {
+        text-align: left;
+        padding: 6px 8px;
+        border-bottom: 2px solid #0d6b4a;
+        color: #111827;
+        font-size: 13px;
+      }
+
+      .wtp-print-table thead th:last-child {
+        width: 82px;
+        text-align: center;
+      }
+
+      .wtp-print-table tbody td {
+        padding: 6px 8px;
+        vertical-align: top;
+        border-bottom: 1px solid #c7d2cf;
+      }
+
+      .wtp-print-table tbody td:last-child {
+        text-align: center;
+        border-left: 1px solid #c7d2cf;
+        width: 82px;
+      }
+
+      .wtp-print-activity {
+        font-weight: 700;
+        color: #0d6b4a;
+        margin-bottom: 4px;
+      }
+
+      .wtp-print-notes {
+        white-space: pre-wrap;
+        color: #1f2937;
+        line-height: 1.35;
+        min-height: 18px;
+      }
+
+      .wtp-print-footer {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 14px;
+        font-weight: 800;
+        color: #2b2b2b;
+        font-size: 14px;
+      }
+
+      @page {
+        size: Letter portrait;
+        margin: 0.2in;
+      }
+
+      @media (max-width: 760px) {
+        .wtp-print-sheet {
+          width: 100%;
+          min-height: 0;
+          padding: 12px;
+        }
+        .wtp-print-topline {
+          grid-template-columns: 1fr;
+          align-items: start;
+        }
+      }
+
+      /* Keep legacy print styles for lifting/mental print pages */
+      html, body { margin: 0; padding: 0; background: #fff; color: #111; font-family: Arial, Helvetica, sans-serif; font-size: 12px; line-height: 1.35; }
+      body { padding: 8px; -webkit-print-color-adjust: economy; print-color-adjust: economy; }
+      header { border-bottom: 1px solid #111; padding-bottom: 6px; margin-bottom: 8px; }
+      h1 { margin: 0; font-size: 18px; }
+      h2 { margin: 0; font-size: 14px; }
+      p { margin: 4px 0; }
+      .meta { border: 1px solid #111; padding: 6px; margin-bottom: 8px; display: grid; gap: 2px; }
+      .section { border: 1px solid #111; padding: 6px; margin-bottom: 8px; break-inside: avoid; page-break-inside: avoid; }
+      .section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+      ul { margin: 0; padding-left: 18px; }
+      li { margin: 0 0 2px 0; }
+      .muted { color: #444; font-style: italic; }
     `;
   }
 
@@ -1361,35 +1621,43 @@
   }
 
   function ensureInlinePrintHost() {
-    let host = document.getElementById("plannerBasicPrintHost");
+    let host = document.getElementById("wtp-print-root") || document.getElementById("plannerBasicPrintHost");
     if (!host) {
       host = document.createElement("div");
-      host.id = "plannerBasicPrintHost";
+      host.id = "wtp-print-root";
       host.setAttribute("aria-hidden", "true");
+      host.style.display = "none";
       document.body.appendChild(host);
+    } else if (host.id !== "wtp-print-root") {
+      host.id = "wtp-print-root";
     }
     return host;
   }
 
   function clearInlinePrintMode() {
     document.body.removeAttribute("data-basic-print");
-    const host = document.getElementById("plannerBasicPrintHost");
+    document.body.classList.remove("wtp-print-mode");
+    const host = document.getElementById("wtp-print-root") || document.getElementById("plannerBasicPrintHost");
     if (host) {
       host.innerHTML = "";
       host.setAttribute("aria-hidden", "true");
+      host.style.display = "none";
     }
   }
 
   function printInlineBasicDocument(bodyMarkup, documentTitle) {
+    void documentTitle;
     const host = ensureInlinePrintHost();
     host.innerHTML = `
+      <style>${getPlannerBasicPrintStyles()}</style>
       <article class="planner-basic-print-paper">
-        <h1 class="planner-basic-print-doc-title">${escapePrintHtml(documentTitle)}</h1>
         ${bodyMarkup}
       </article>
     `;
     host.setAttribute("aria-hidden", "false");
+    host.style.display = "block";
     document.body.setAttribute("data-basic-print", "true");
+    document.body.classList.add("wtp-print-mode");
     try {
       // Keep print call inside the same user gesture turn for iOS Safari/WebView reliability.
       void host.offsetHeight;
@@ -1415,21 +1683,7 @@
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <title>${escapePrintHtml(documentTitle)}</title>
-          <style>
-            @page { margin: 10mm; size: auto; }
-            html, body { margin: 0; padding: 0; background: #fff; color: #111; font-family: Arial, Helvetica, sans-serif; font-size: 12px; line-height: 1.35; }
-            body { padding: 8px; -webkit-print-color-adjust: economy; print-color-adjust: economy; }
-            header { border-bottom: 1px solid #111; padding-bottom: 6px; margin-bottom: 8px; }
-            h1 { margin: 0; font-size: 18px; }
-            h2 { margin: 0; font-size: 14px; }
-            p { margin: 4px 0; }
-            .meta { border: 1px solid #111; padding: 6px; margin-bottom: 8px; display: grid; gap: 2px; }
-            .section { border: 1px solid #111; padding: 6px; margin-bottom: 8px; break-inside: avoid; page-break-inside: avoid; }
-            .section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
-            ul { margin: 0; padding-left: 18px; }
-            li { margin: 0 0 2px 0; }
-            .muted { color: #444; font-style: italic; }
-          </style>
+          <style>${getPlannerBasicPrintStyles()}</style>
         </head>
         <body>${bodyMarkup}</body>
       </html>
@@ -2455,24 +2709,67 @@
   }
 
   function renderMemoryGame(meta, session) {
-    const sequenceHtml = (session.sequence || []).map((name, index) => {
-      const active = session.showingSequence && index === session.showIndex;
-      return `<span class="planner-mental-seq-item${active ? " active" : ""}">${escapeHtml(getMentalColorLabel(name))}</span>`;
-    }).join("");
+    const canAnswer = session.roundPhase === "answer" && !session.showingSequence;
+    const phaseSecondsLeft = getMentalPhaseSecondsLeft(session);
+    const phaseLabel = session.roundPhase === "show"
+      ? tr({ en: "Watch the full sequence", es: "Mira la secuencia completa" })
+      : session.roundPhase === "feedback"
+        ? tr({ en: "Round complete", es: "Ronda completada" })
+        : tr({ en: "Repeat from memory", es: "Repite de memoria" });
+    const phaseTimerLabel = phaseSecondsLeft
+      ? tr({
+          en: `${phaseSecondsLeft}s left in this phase`,
+          es: `${phaseSecondsLeft}s restantes en esta fase`
+        })
+      : "";
+    const sequenceHtml = (
+      session.showingSequence
+        ? (session.sequence || []).map((name, index) => {
+            const active = session.showingSequence && index === session.showIndex;
+            return `
+              <span
+                class="planner-mental-seq-item${active ? " active" : ""}"
+                style="${getMentalColorSurfaceStyle(name)}"
+              >${escapeHtml(getMentalColorLabel(name))}</span>
+            `;
+          })
+        : Array.from({ length: (session.sequence || []).length || Math.max((session.input || []).length, 1) }, (_, index) => {
+            const inputColor = session.input?.[index] || "";
+            const hasSelection = Boolean(inputColor);
+            const label = hasSelection
+              ? getMentalColorLabel(inputColor)
+              : tr({ en: `Step ${index + 1}`, es: `Paso ${index + 1}` });
+            return `
+              <span
+                class="planner-mental-seq-item${hasSelection ? " active" : ""}"
+                style="${getMentalColorSurfaceStyle(inputColor, { placeholder: !hasSelection })}"
+              >${escapeHtml(label)}</span>
+            `;
+          })
+    ).join("");
+    const wrongFeedback = session.feedbackState === "wrong"
+      ? `
+        <div class="planner-mental-chip planner-status-error">
+          <span>${escapeHtml(tr({ en: "Feedback", es: "Feedback" }))}</span>
+          <strong>${escapeHtml(session.feedbackMessage || tr({ en: "[X] Wrong sequence", es: "[X] Secuencia incorrecta" }))}</strong>
+        </div>
+      `
+      : "";
     const colorButtons = MENTAL_COLORS.map((color) => `
       <button
         type="button"
         class="planner-mental-color-btn ${escapeHtml(color.key)}"
         data-action="mental-memory-tap"
         data-color="${escapeHtml(color.name)}"
-        ${session.showingSequence ? "disabled" : ""}
+        ${canAnswer ? "" : "disabled"}
       >${escapeHtml(getMentalColorLabel(color.name))}</button>
     `).join("");
     const content = `
       <div class="planner-mental-actions">
         <span class="planner-mental-game-badge">${escapeHtml(tr({ en: "Level", es: "Nivel" }))} ${escapeHtml(session.level || 1)}</span>
-        <span class="small muted">${escapeHtml(session.showingSequence ? tr({ en: "Memorize", es: "Memoriza" }) : tr({ en: "Repeat", es: "Repite" }))}</span>
+        <span class="small muted">${escapeHtml(phaseLabel)}${phaseTimerLabel ? ` - ${escapeHtml(phaseTimerLabel)}` : ""}</span>
       </div>
+      ${wrongFeedback}
       <div class="planner-mental-seq">${sequenceHtml || `<span class="small muted">${escapeHtml(tr({ en: "Preparing sequence...", es: "Preparando secuencia..." }))}</span>`}</div>
       <div class="planner-mental-color-grid">${colorButtons}</div>
       <div class="planner-mental-chip"><span>${escapeHtml(tr({ en: "Current input", es: "Entrada actual" }))}</span><strong>${escapeHtml((session.input || []).map((value) => getMentalColorLabel(value)).join(" • ") || tr({ en: "Waiting...", es: "Esperando..." }))}</strong></div>
@@ -2857,23 +3154,38 @@
       return color.name;
     });
     session.input = [];
-    session.showIndex = 0;
+    session.showIndex = -1;
     session.showingSequence = true;
+    session.feedbackState = "";
+    session.feedbackMessage = "";
+    session.roundPhase = "show";
+    session.roundPhaseEndsAt = performance.now() + MEMORY_SEQUENCE_SHOW_MS;
+    const roundToken = makeId();
+    session.roundToken = roundToken;
     renderMentalApp();
-
-    const step = () => {
-      if (!isActiveMentalSession(session) || session.phase !== "playing") return;
-      if (session.showIndex < session.sequence.length - 1) {
-        session.showIndex += 1;
-        renderMentalApp();
-        trackMentalTimer(setTimeout(step, 650));
-        return;
-      }
+    trackMentalTimer(setTimeout(() => {
+      if (!isActiveMentalSession(session) || session.phase !== "playing" || session.roundToken !== roundToken) return;
       session.showIndex = session.sequence.length;
       session.showingSequence = false;
+      session.roundPhase = "answer";
+      session.roundPhaseEndsAt = performance.now() + MEMORY_SEQUENCE_RESPONSE_MS;
       renderMentalApp();
-    };
-    trackMentalTimer(setTimeout(step, 650));
+      trackMentalTimer(setTimeout(() => {
+        if (!isActiveMentalSession(session) || session.phase !== "playing" || session.roundToken !== roundToken) return;
+        session.wrongRounds += 1;
+        playMentalCue("wrong");
+        const currentLevel = Math.max(1, parseInt(String(session.level || safeLevel), 10) || safeLevel);
+        const nextLevel = Math.max(1, currentLevel - 1);
+        session.level = nextLevel;
+        session.maxLevel = Math.max(session.maxLevel || 1, currentLevel);
+        queueMentalMemoryRoundFeedback(session, {
+          type: "wrong",
+          message: tr({ en: "[X] Time expired", es: "[X] Se acabo el tiempo" }),
+          nextLevel,
+          delay: MEMORY_SEQUENCE_WRONG_FEEDBACK_MS
+        });
+      }, MEMORY_SEQUENCE_RESPONSE_MS));
+    }, MEMORY_SEQUENCE_SHOW_MS));
   }
 
   function initMemorySession(session) {
@@ -2890,6 +3202,27 @@
       es: "Secuencia de Memoria. Memoriza el orden de colores y luego repitelo exactamente."
     }));
     startMentalMemoryRound(session, 1);
+  }
+
+  function queueMentalMemoryRoundFeedback(session, {
+    type = "",
+    message = "",
+    nextLevel = session.level || 1,
+    delay = MEMORY_SEQUENCE_WRONG_FEEDBACK_MS
+  } = {}) {
+    if (!isActiveMentalSession(session) || session.phase !== "playing") return;
+    const feedbackToken = makeId();
+    session.roundToken = feedbackToken;
+    session.showingSequence = false;
+    session.roundPhase = "feedback";
+    session.roundPhaseEndsAt = performance.now() + delay;
+    session.feedbackState = type;
+    session.feedbackMessage = message;
+    renderMentalApp();
+    trackMentalTimer(setTimeout(() => {
+      if (!isActiveMentalSession(session) || session.phase !== "playing" || session.roundToken !== feedbackToken) return;
+      startMentalMemoryRound(session, nextLevel);
+    }, delay));
   }
 
   function startMentalDecisionQuestion(session) {
@@ -3093,7 +3426,7 @@
   function handleMentalMemoryTap(colorName) {
     const session = state.mentalSession;
     if (!isActiveMentalSession(session) || session.gameKey !== MENTAL_GAME_KEYS.MEMORY || session.phase !== "playing") return;
-    if (session.showingSequence) return;
+    if (session.showingSequence || session.roundPhase !== "answer") return;
     const selected = String(colorName || "").trim();
     if (!selected) return;
     const nextInput = [...(session.input || []), selected];
@@ -3101,20 +3434,31 @@
     const index = nextInput.length - 1;
     if (session.sequence[index] !== selected) {
       session.wrongRounds += 1;
-      session.level = Math.max(1, (session.level || 1) - 1);
-      session.maxLevel = Math.max(session.maxLevel || 1, session.level || 1);
+      const currentLevel = Math.max(1, parseInt(String(session.level || 1), 10) || 1);
+      const nextLevel = Math.max(1, currentLevel - 1);
+      session.level = nextLevel;
+      session.maxLevel = Math.max(session.maxLevel || 1, currentLevel);
       playMentalCue("wrong");
-      renderMentalApp();
-      trackMentalTimer(setTimeout(() => startMentalMemoryRound(session, session.level || 1), 420));
+      queueMentalMemoryRoundFeedback(session, {
+        type: "wrong",
+        message: tr({ en: "[X] Wrong sequence", es: "[X] Secuencia incorrecta" }),
+        nextLevel,
+        delay: MEMORY_SEQUENCE_WRONG_FEEDBACK_MS
+      });
       return;
     }
     if (nextInput.length === session.sequence.length) {
       session.correctRounds += 1;
-      session.level = (session.level || 1) + 1;
-      session.maxLevel = Math.max(session.maxLevel || 1, session.level || 1);
+      const nextLevel = (session.level || 1) + 1;
+      session.level = nextLevel;
+      session.maxLevel = Math.max(session.maxLevel || 1, nextLevel);
       playMentalCue("correct");
-      renderMentalApp();
-      trackMentalTimer(setTimeout(() => startMentalMemoryRound(session, session.level || 1), 480));
+      queueMentalMemoryRoundFeedback(session, {
+        type: "correct",
+        message: "",
+        nextLevel,
+        delay: MEMORY_SEQUENCE_CORRECT_FEEDBACK_MS
+      });
       return;
     }
     renderMentalApp();
@@ -6212,6 +6556,8 @@
   }
 
   function isPlannerReadOnlyMode() {
+    const coachPlansPanel = document.getElementById("panel-coach-plans");
+    if (coachPlansPanel && !coachPlansPanel.classList.contains("hidden")) return false;
     const profileRole = String(getPlannerProfile()?.role || "").trim().toLowerCase();
     const authRole = String(getPlannerAuthUser()?.role || "").trim().toLowerCase();
     if (isCoachLikeRole(profileRole) || isCoachLikeRole(authRole)) return false;
@@ -6595,6 +6941,7 @@
     if (els.settingsClubInput) els.settingsClubInput.value = state.tempSettings.clubName || "";
     if (els.settingsCoachInput) els.settingsCoachInput.value = state.tempSettings.coach || "";
     if (els.settingsSeasonInput) els.settingsSeasonInput.value = state.tempSettings.season || "";
+    if (els.settingsFooterInput) els.settingsFooterInput.value = state.tempSettings.footerMessage || "";
     renderSettingsLogoPreview();
     els.settingsModal?.classList.remove("hidden");
     focusPlannerWindow(els.settingsModal, { smooth: true });
@@ -7044,6 +7391,8 @@
           return `
             <li>
               <textarea
+                class="wtp-notes"
+                name="notes"
                 data-action="item-input"
                 data-category="${category.id}"
                 data-item-id="${item.id}"
@@ -7058,12 +7407,13 @@
         .join("");
 
       return `
-        <tr>
+        <tr class="planner-row" data-plan-row>
           <td>
             <div class="planner-category-title">
               <input
                 type="text"
-                class="planner-library-category-input planner-row-category-input"
+                class="planner-library-category-input planner-row-category-input wtp-activity"
+                name="activity"
                 value="${escapeHtml(getCategoryNameById(category.id))}"
                 data-action="edit-category-name"
                 data-category="${category.id}"
@@ -7082,6 +7432,8 @@
           <td class="planner-time-cell">
             <input
               type="number"
+              class="wtp-time"
+              name="time"
               min="0"
               data-action="time-input"
               data-category="${category.id}"
@@ -7341,6 +7693,15 @@
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
 
+    if (target.matches("input[data-action='time-input']")) {
+      const categoryId = target.dataset.category;
+      if (!categoryId) return;
+      state.categoryTimes[categoryId] = String(target.value || "0");
+      persistDaily();
+      updateTimeStatus();
+      return;
+    }
+
     if (target.matches("input[data-action='lifting-update-exercise-field']")) {
       updateLiftingExerciseField(target.dataset.exerciseId, target.dataset.field, target.value);
       return;
@@ -7460,6 +7821,10 @@
     }
     if (target === els.settingsSeasonInput && state.tempSettings) {
       state.tempSettings.season = target.value;
+      return;
+    }
+    if (target === els.settingsFooterInput && state.tempSettings) {
+      state.tempSettings.footerMessage = target.value;
     }
   }
 

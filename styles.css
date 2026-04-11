@@ -9110,7 +9110,13 @@ svg{
 
 .coach-planner-card{
   display: grid;
-  gap: 14px;
+  gap: 16px;
+  width: 100%;
+}
+
+.coach-planner-card,
+.coach-planner-card *{
+  box-sizing: border-box;
 }
 
 .planner-toolbar{
@@ -9119,7 +9125,7 @@ svg{
   z-index: 2;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   flex-wrap: wrap;
   padding: 12px;
@@ -9163,10 +9169,14 @@ svg{
   align-items: center;
   gap: 10px;
   min-width: 220px;
+  flex: 1 1 300px;
+  min-width: 0;
 }
 
 .planner-brand h2{
   margin: 0;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
 }
 
 .planner-brand-badge{
@@ -9185,6 +9195,20 @@ svg{
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  flex: 1 1 560px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.planner-toolbar-actions > button{
+  min-height: 40px;
+  line-height: 1.1;
+  flex: 0 1 auto;
+}
+
+.planner-toolbar-actions .planner-time-badge{
+  margin-right: auto;
+  flex: 0 0 auto;
 }
 
 .planner-time-badge{
@@ -9223,6 +9247,8 @@ svg{
   background: rgba(6, 14, 27, 0.88);
   display: grid;
   gap: 14px;
+  width: 100%;
+  min-width: 0;
 }
 
 .planner-alt-sheet{
@@ -10278,19 +10304,21 @@ svg{
 
 .planner-sheet-header{
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) 1.6fr;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
   gap: 12px;
+  align-items: stretch;
 }
 
 .planner-logo-box{
   border: 1px dashed rgba(173, 192, 218, 0.38);
   border-radius: 12px;
-  min-height: 112px;
+  min-height: 124px;
   display: grid;
   place-items: center;
   padding: 8px;
   text-align: center;
   color: #93a6c6;
+  height: 100%;
 }
 
 .planner-logo-box img{
@@ -10303,10 +10331,13 @@ svg{
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+  align-items: stretch;
 }
 
 .planner-meta-boxes label{
   display: grid;
+  grid-template-rows: auto auto auto;
+  align-content: start;
   gap: 8px;
   padding: 10px;
   border-radius: 12px;
@@ -10314,6 +10345,7 @@ svg{
   background: rgba(12, 25, 45, 0.84);
   font-weight: 600;
   color: #dce8f8;
+  min-height: 124px;
 }
 
 .planner-meta-boxes label > span{
@@ -10325,6 +10357,7 @@ svg{
 
 .planner-meta-boxes input{
   min-height: 56px;
+  width: 100%;
   border-radius: 12px;
   border: 1px solid rgba(154, 177, 211, 0.34);
   background: rgba(6, 16, 33, 0.92);
@@ -10333,31 +10366,46 @@ svg{
   color: #f3f8ff;
   padding: 8px 12px;
   color-scheme: dark;
+  box-sizing: border-box;
+  font-variant-numeric: tabular-nums;
 }
 
-#plannerDateInput{
+#wtpPlanDate{
   letter-spacing: 0.02em;
 }
 
-#plannerDateInput::-webkit-calendar-picker-indicator{
+#wtpPlanDate::-webkit-calendar-picker-indicator{
   opacity: 0.9;
 }
 
-#plannerTotalTimeInput{
+#wtpTotalMinutes{
   text-align: center;
   font-size: clamp(1.2rem, 2.2vw, 1.5rem);
   font-weight: 900;
+  min-height: 54px;
+  min-width: 0;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+#wtpTotalMinutes::-webkit-outer-spin-button,
+#wtpTotalMinutes::-webkit-inner-spin-button{
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .planner-total-time-editor{
   display: grid;
-  grid-template-columns: 42px 1fr 42px;
+  grid-template-columns: 42px minmax(96px, 120px) 42px;
   gap: 8px;
   align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  max-width: 100%;
 }
 
 .planner-total-time-editor button{
-  min-height: 56px;
+  min-height: 54px;
   border-radius: 12px;
   font-size: 1.2rem;
   font-weight: 800;
@@ -10381,6 +10429,7 @@ svg{
   border-collapse: collapse;
   min-width: 560px;
   background: rgba(8, 17, 31, 0.82);
+  table-layout: fixed;
 }
 
 .planner-table th,
@@ -10454,7 +10503,7 @@ svg{
 }
 
 .planner-time-cell{
-  width: 120px;
+  width: clamp(110px, 16vw, 150px);
 }
 
 .planner-time-cell input{
@@ -10487,10 +10536,12 @@ svg{
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: stretch;
 }
 
 .planner-bottom-actions-row button{
   min-height: 42px;
+  flex: 1 1 180px;
 }
 
 .planner-status-error{
@@ -10919,6 +10970,16 @@ svg{
 }
 
 @media (max-width: 860px){
+  .planner-toolbar{
+    top: 6px;
+  }
+  .planner-toolbar-actions{
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
+  .planner-toolbar-actions .planner-time-badge{
+    margin-right: 0;
+  }
   .planner-track-switch{
     flex-direction: column;
   }
@@ -10936,6 +10997,23 @@ svg{
   .planner-meta-boxes{
     grid-template-columns: 1fr;
   }
+  .planner-meta-boxes label{
+    min-height: 0;
+  }
+  .planner-table{
+    min-width: 0;
+  }
+  .planner-table th,
+  .planner-table td{
+    padding: 8px 7px;
+  }
+  .planner-time-cell{
+    width: 84px;
+  }
+  .planner-total-time-editor{
+    grid-template-columns: 40px minmax(84px, 1fr) 40px;
+    width: 100%;
+  }
   .planner-row-controls{
     flex-direction: column;
   }
@@ -10950,6 +11028,7 @@ svg{
   }
   .planner-bottom-actions-row button{
     width: 100%;
+    flex: 1 1 auto;
   }
   .planner-assign-toolbar{
     grid-template-columns: 1fr;
@@ -10967,6 +11046,61 @@ svg{
   }
   .planner-footer > div:last-child{
     justify-items: start;
+  }
+}
+
+@media (max-width: 520px){
+  .coach-planner-card{
+    overflow-x: hidden;
+  }
+  .planner-toolbar{
+    overflow-x: hidden;
+  }
+  .planner-toolbar-actions{
+    width: 100%;
+    min-width: 0;
+  }
+  .planner-toolbar-actions > button{
+    flex: 1 1 calc(50% - 8px);
+    min-width: 0;
+  }
+  .planner-toolbar-actions .planner-time-badge{
+    width: 100%;
+  }
+  .planner-sheet{
+    padding: 10px;
+  }
+  .planner-table-wrap{
+    overflow-x: visible;
+  }
+  .planner-table{
+    min-width: 0;
+    width: 100%;
+    table-layout: fixed;
+  }
+  .planner-table th,
+  .planner-table td{
+    padding: 7px 6px;
+    word-break: break-word;
+  }
+  .planner-time-cell{
+    width: 74px;
+  }
+  .planner-time-cell input{
+    min-height: 46px;
+    font-size: 1rem;
+  }
+  .planner-total-time-editor{
+    grid-template-columns: 34px minmax(0, 1fr) 34px;
+    gap: 6px;
+  }
+  .planner-total-time-editor button{
+    min-height: 46px;
+    font-size: 1rem;
+  }
+  .planner-meta-boxes input{
+    min-height: 50px;
+    font-size: 1rem;
   }
 }
 
@@ -11151,14 +11285,173 @@ body.viewport-mobile .app{
   }
 }
 
-#plannerBasicPrintHost{
+#plannerBasicPrintHost,
+#wtp-print-root{
   display: none;
+}
+
+/* ===== WRESTLING TRAINING PLANNER - PRINT TEMPLATE ===== */
+.wtp-print-sheet {
+  width: 8.5in;
+  min-height: 11in;
+  margin: 0 auto;
+  padding: 0.35in 0.35in 0.25in 0.35in;
+  box-sizing: border-box;
+  background: #fff;
+  color: #1f2937;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.wtp-print-logo-wrap {
+  text-align: center;
+  margin-bottom: 14px;
+}
+
+.wtp-print-logo {
+  max-width: 260px;
+  max-height: 110px;
+  object-fit: contain;
+}
+
+.wtp-print-header-box {
+  border: 5px solid #0d6b4a;
+  border-radius: 16px;
+  padding: 14px 16px 12px 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.wtp-print-watermark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0.08;
+}
+
+.wtp-print-watermark img {
+  max-width: 88%;
+  max-height: 88%;
+  object-fit: contain;
+}
+
+.wtp-print-topline {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 0.9fr;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.wtp-print-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: #0d6b4a;
+  letter-spacing: 0.4px;
+  margin-bottom: 4px;
+}
+
+.wtp-print-subtitle {
+  font-size: 13px;
+  color: #374151;
+}
+
+.wtp-print-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.wtp-print-field-label {
+  font-weight: 700;
+}
+
+.wtp-print-field-line {
+  border-bottom: 1px solid #6b7280;
+  min-height: 18px;
+  flex: 1;
+  padding: 0 4px 1px 4px;
+  font-weight: 600;
+}
+
+.wtp-print-table {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 13px;
+}
+
+.wtp-print-table thead th {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 2px solid #0d6b4a;
+  color: #111827;
+  font-size: 13px;
+}
+
+.wtp-print-table thead th:last-child {
+  width: 82px;
+  text-align: center;
+}
+
+.wtp-print-table tbody td {
+  padding: 6px 8px;
+  vertical-align: top;
+  border-bottom: 1px solid #c7d2cf;
+}
+
+.wtp-print-table tbody td:last-child {
+  text-align: center;
+  border-left: 1px solid #c7d2cf;
+  width: 82px;
+}
+
+.wtp-print-activity {
+  font-weight: 700;
+  color: #0d6b4a;
+  margin-bottom: 4px;
+}
+
+.wtp-print-notes {
+  white-space: pre-wrap;
+  color: #1f2937;
+  line-height: 1.35;
+  min-height: 18px;
+}
+
+.wtp-print-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+  font-weight: 800;
+  color: #2b2b2b;
+  font-size: 14px;
+}
+
+@media (max-width: 760px){
+  .wtp-print-sheet{
+    width: 100%;
+    min-height: 0;
+    padding: 12px;
+  }
+  .wtp-print-topline{
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
 }
 
 @media print{
   @page{
-    margin: 10mm;
-    size: auto;
+    size: Letter portrait;
+    margin: 0.2in;
   }
 
   html,
@@ -11339,12 +11632,15 @@ body.viewport-mobile .app{
   padding-top: 8px;
 }
 
-  body[data-basic-print="true"] *{
+  body[data-basic-print="true"] *,
+  body.wtp-print-mode *{
     visibility: hidden !important;
   }
 
   body[data-basic-print="true"] #plannerBasicPrintHost,
-  body[data-basic-print="true"] #plannerBasicPrintHost *{
+  body[data-basic-print="true"] #plannerBasicPrintHost *,
+  body.wtp-print-mode #wtp-print-root,
+  body.wtp-print-mode #wtp-print-root *{
     visibility: visible !important;
   }
 
@@ -11356,6 +11652,16 @@ body.viewport-mobile .app{
     padding: 0 !important;
     background: #fff !important;
     color: #111 !important;
+  }
+  body.wtp-print-mode #wtp-print-root{
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
   body[data-basic-print="true"] .planner-basic-print-paper{
