@@ -600,6 +600,7 @@ let currentView = "athlete";
 let selectedCompetitionId = "";
 let competitionCreateOpen = false;
 let competitionPreviewGroup = "summary";
+let competitionAthleteSearchQuery = "";
 let responsiveViewportEventsBound = false;
 const headerViewButtons = Array.from(document.querySelectorAll("#headerMenu button[data-action^='view-']"));
 
@@ -12370,6 +12371,7 @@ const continueQuestionnaireLaterBtn = document.getElementById("continueQuestionn
 const backToProfileBtn = document.getElementById("backToProfileBtn");
 competitionPreview = document.getElementById("competitionPreview");
 const competitionManager = document.getElementById("competitionManager");
+const competitionSharedLayout = document.querySelector("#panel-competition-preview .competition-shared-layout");
 const competitionCurrentCard = document.getElementById("competitionCurrentCard");
 const competitionPastHeading = document.getElementById("competitionPastHeading");
 const competitionFutureHeading = document.getElementById("competitionFutureHeading");
@@ -12381,6 +12383,10 @@ const competitionAthleteListCard = document.getElementById("competitionAthleteLi
 const competitionAthleteList = document.getElementById("competitionAthleteList");
 const competitionAthleteListTitle = document.getElementById("competitionAthleteListTitle");
 const competitionAthleteListHint = document.getElementById("competitionAthleteListHint");
+const competitionRosterSearchInput = document.getElementById("competitionRosterSearchInput");
+const competitionRosterSearchClearBtn = document.getElementById("competitionRosterSearchClearBtn");
+const competitionFavoriteAthletesLabel = document.getElementById("competitionFavoriteAthletesLabel");
+const competitionFavoriteAthletes = document.getElementById("competitionFavoriteAthletes");
 const competitionAthletePrevBtn = document.getElementById("competitionAthletePrevBtn");
 const competitionAthleteQuickSelect = document.getElementById("competitionAthleteQuickSelect");
 const competitionAthleteNextBtn = document.getElementById("competitionAthleteNextBtn");
@@ -14139,15 +14145,48 @@ function buildCompetitionPreview(profile) {
   ];
 }
 
+function competitionAthleteMatchesSearch(athlete = {}, query = "") {
+  const safeQuery = normalizeName(query);
+  if (!safeQuery) return true;
+  const searchable = [
+    athlete.name,
+    athlete.weightClass,
+    athlete.currentWeight,
+    athlete.level,
+    athlete.style,
+    athlete.favoritePosition,
+    athlete.position,
+    athlete.trainingFocus,
+    athlete.strategy,
+    athlete.competitionSummaryProfile,
+    athlete.competitionSummaryWorkOns,
+    athlete.competitionSummaryCues,
+    ...(Array.isArray(athlete.tags) ? athlete.tags : []),
+    ...(Array.isArray(athlete.cueWords) ? athlete.cueWords : [])
+  ]
+    .map((value) => normalizeName(value))
+    .filter(Boolean)
+    .join(" ");
+  return searchable.includes(safeQuery);
+}
+
 function renderCompetitionPreview(profile) {
   const isCoachContext = isCoachRouteContext();
+  if (competitionSharedLayout) {
+    competitionSharedLayout.classList.toggle("coach-roster-active", isCoachContext);
+  }
   if (competitionAthleteListTitle) {
     competitionAthleteListTitle.textContent = currentLang === "es" ? "Lista de atletas" : "Athlete list";
   }
-  if (competitionAthleteListHint) {
-    competitionAthleteListHint.textContent = currentLang === "es"
-      ? "Elige un atleta para cargar su resumen de competencia."
-      : "Choose an athlete to load their competition summary.";
+  if (competitionFavoriteAthletesLabel) {
+    competitionFavoriteAthletesLabel.textContent = currentLang === "es" ? "Favoritos" : "Favorites";
+  }
+  if (competitionRosterSearchInput) {
+    competitionRosterSearchInput.placeholder = currentLang === "es" ? "Buscar atleta, peso, estilo o tags" : "Search athlete, weight, style, or tags";
+    competitionRosterSearchInput.value = competitionAthleteSearchQuery;
+  }
+  if (competitionRosterSearchClearBtn) {
+    competitionRosterSearchClearBtn.textContent = currentLang === "es" ? "Limpiar" : "Clear";
   }
   if (competitionSharedEditorTitle) {
     competitionSharedEditorTitle.textContent = currentLang === "es" ? "Resumen de enfoque competitivo" : "Competition focus summary";
@@ -14190,7 +14229,17 @@ function renderCompetitionPreview(profile) {
   const selectedProfile = profile || null;
   const selectedName = String(selectedProfile?.name || "").trim();
   const selectedCoachName = String(getSelectedCoachAthleteName() || "").trim();
-  const athletes = getAthletesData().slice().sort((left, right) => String(left?.name || "").localeCompare(String(right?.name || "")));
+  const favoriteAthleteNames = new Set(
+    getFavoriteAthleteEntries().map((entry) => normalizeName(entry.targetAthlete || entry.label))
+  );
+  const athletes = getAthletesData().slice().sort((left, right) => {
+    const leftName = String(left?.name || "").trim();
+    const rightName = String(right?.name || "").trim();
+    const leftFav = favoriteAthleteNames.has(normalizeName(leftName));
+    const rightFav = favoriteAthleteNames.has(normalizeName(rightName));
+    if (leftFav !== rightFav) return leftFav ? -1 : 1;
+    return leftName.localeCompare(rightName);
+  });
   if (isCoachContext && !selectedName && !selectedCoachName && athletes.length) {
     const firstName = String(athletes[0]?.name || "").trim();
     if (firstName) {
@@ -14204,6 +14253,11 @@ function renderCompetitionPreview(profile) {
 
   const activeAthleteName = selectedName || selectedCoachName;
   const activeAthleteIndex = athletes.findIndex((athlete) => String(athlete?.name || "").trim() === activeAthleteName);
+  const searchQuery = normalizeName(competitionAthleteSearchQuery);
+  const filteredAthletes = searchQuery
+    ? athletes.filter((athlete) => competitionAthleteMatchesSearch(athlete, searchQuery))
+    : athletes;
+  const navAthletes = filteredAthletes.length ? filteredAthletes : athletes;
   const switchToAthlete = (athleteName) => {
     const safeName = String(athleteName || "").trim();
     if (!safeName) return;
@@ -14217,6 +14271,23 @@ function renderCompetitionPreview(profile) {
     renderAthleteNotes();
     renderJournalMonitor();
   };
+  if (competitionAthleteListHint) {
+    if (!isCoachContext) {
+      competitionAthleteListHint.textContent = "";
+    } else if (!athletes.length) {
+      competitionAthleteListHint.textContent = currentLang === "es"
+        ? "No hay atletas disponibles todavia."
+        : "No athletes available yet.";
+    } else if (searchQuery && !filteredAthletes.length) {
+      competitionAthleteListHint.textContent = currentLang === "es"
+        ? "No hay atletas que coincidan con esa busqueda."
+        : "No athletes match that search.";
+    } else {
+      competitionAthleteListHint.textContent = currentLang === "es"
+        ? `${filteredAthletes.length || athletes.length} atleta(s) visibles. Favoritos primero.`
+        : `${filteredAthletes.length || athletes.length} athlete(s) visible. Favorites first.`;
+    }
+  }
   const competitionRecords = getCompetitionRecordsForContext();
   if (!selectedCompetitionId || !competitionRecords.some((entry) => entry.id === selectedCompetitionId)) {
     const timeline = getCompetitionTimeline(competitionRecords);
@@ -14227,13 +14298,16 @@ function renderCompetitionPreview(profile) {
   if (competitionAthleteListCard) {
     competitionAthleteListCard.classList.toggle("hidden", !isCoachContext);
   }
+  if (competitionRosterSearchClearBtn) {
+    competitionRosterSearchClearBtn.disabled = !isCoachContext || !competitionAthleteSearchQuery;
+  }
   if (competitionAthletePrevBtn) {
     competitionAthletePrevBtn.textContent = currentLang === "es" ? "Anterior" : "Previous";
-    competitionAthletePrevBtn.disabled = !isCoachContext || athletes.length < 2;
+    competitionAthletePrevBtn.disabled = !isCoachContext || navAthletes.length < 2;
   }
   if (competitionAthleteNextBtn) {
     competitionAthleteNextBtn.textContent = currentLang === "es" ? "Siguiente" : "Next";
-    competitionAthleteNextBtn.disabled = !isCoachContext || athletes.length < 2;
+    competitionAthleteNextBtn.disabled = !isCoachContext || navAthletes.length < 2;
   }
   if (competitionAthleteAddToEventBtn) {
     competitionAthleteAddToEventBtn.textContent = currentLang === "es" ? "Agregar a competencia seleccionada" : "Add to selected competition";
@@ -14263,8 +14337,9 @@ function renderCompetitionPreview(profile) {
       competitionAthleteQuickSelect.innerHTML = athletes.length
         ? athletes.map((athlete) => {
             const safeName = String(athlete?.name || "").trim();
+            const favoriteMark = favoriteAthleteNames.has(normalizeName(safeName)) ? "★ " : "";
             const selectedAttr = safeName === activeAthleteName ? " selected" : "";
-            return `<option value="${escapeHtml(safeName)}"${selectedAttr}>${escapeHtml(safeName)}</option>`;
+            return `<option value="${escapeHtml(safeName)}"${selectedAttr}>${escapeHtml(`${favoriteMark}${safeName}`)}</option>`;
           }).join("")
         : `<option value="">${currentLang === "es" ? "Sin atletas" : "No athletes"}</option>`;
       competitionAthleteQuickSelect.disabled = !athletes.length;
@@ -14276,20 +14351,35 @@ function renderCompetitionPreview(profile) {
 
   if (competitionAthletePrevBtn) {
     competitionAthletePrevBtn.onclick = () => {
-      if (!athletes.length) return;
-      const currentIndex = activeAthleteIndex >= 0 ? activeAthleteIndex : 0;
-      const nextIndex = (currentIndex - 1 + athletes.length) % athletes.length;
-      const nextName = String(athletes[nextIndex]?.name || "").trim();
+      if (!navAthletes.length) return;
+      const currentIndex = navAthletes.findIndex((athlete) => String(athlete?.name || "").trim() === activeAthleteName);
+      const safeIndex = currentIndex >= 0 ? currentIndex : 0;
+      const nextIndex = (safeIndex - 1 + navAthletes.length) % navAthletes.length;
+      const nextName = String(navAthletes[nextIndex]?.name || "").trim();
       switchToAthlete(nextName);
     };
   }
   if (competitionAthleteNextBtn) {
     competitionAthleteNextBtn.onclick = () => {
-      if (!athletes.length) return;
-      const currentIndex = activeAthleteIndex >= 0 ? activeAthleteIndex : 0;
-      const nextIndex = (currentIndex + 1) % athletes.length;
-      const nextName = String(athletes[nextIndex]?.name || "").trim();
+      if (!navAthletes.length) return;
+      const currentIndex = navAthletes.findIndex((athlete) => String(athlete?.name || "").trim() === activeAthleteName);
+      const safeIndex = currentIndex >= 0 ? currentIndex : 0;
+      const nextIndex = (safeIndex + 1) % navAthletes.length;
+      const nextName = String(navAthletes[nextIndex]?.name || "").trim();
       switchToAthlete(nextName);
+    };
+  }
+  if (competitionRosterSearchInput) {
+    competitionRosterSearchInput.oninput = () => {
+      competitionAthleteSearchQuery = String(competitionRosterSearchInput.value || "").trim();
+      renderCompetitionPreview(getSelectedCoachAthleteRecord() || selectedProfile);
+    };
+  }
+  if (competitionRosterSearchClearBtn) {
+    competitionRosterSearchClearBtn.onclick = () => {
+      competitionAthleteSearchQuery = "";
+      if (competitionRosterSearchInput) competitionRosterSearchInput.value = "";
+      renderCompetitionPreview(getSelectedCoachAthleteRecord() || selectedProfile);
     };
   }
   if (competitionAthleteQuickSelect) {
@@ -14325,6 +14415,27 @@ function renderCompetitionPreview(profile) {
       }
     };
   }
+  if (competitionFavoriteAthletes) {
+    if (!isCoachContext) {
+      competitionFavoriteAthletes.innerHTML = "";
+    } else {
+      const favoriteButtons = athletes
+        .filter((athlete) => favoriteAthleteNames.has(normalizeName(athlete?.name)))
+        .map((athlete) => {
+          const safeName = String(athlete?.name || "").trim();
+          const isActive = safeName && safeName === activeAthleteName;
+          return `<button type="button" class="competition-athlete-favorite-chip${isActive ? " active" : ""}" data-competition-favorite-athlete="${escapeHtml(safeName)}">★ ${escapeHtml(safeName)}</button>`;
+        });
+      competitionFavoriteAthletes.innerHTML = favoriteButtons.length
+        ? favoriteButtons.join("")
+        : `<span class="small muted">${currentLang === "es" ? "Guarda atletas aqui para abrirlos rapido." : "Save athletes here for quick access."}</span>`;
+      competitionFavoriteAthletes.querySelectorAll("[data-competition-favorite-athlete]").forEach((button) => {
+        button.addEventListener("click", () => {
+          switchToAthlete(button.dataset.competitionFavoriteAthlete);
+        });
+      });
+    }
+  }
 
   if (competitionAthleteList) {
     if (!isCoachContext) {
@@ -14332,15 +14443,47 @@ function renderCompetitionPreview(profile) {
     } else {
       if (!athletes.length) {
         competitionAthleteList.innerHTML = `<p class="small muted">${currentLang === "es" ? "No hay atletas disponibles." : "No athletes available."}</p>`;
+      } else if (!filteredAthletes.length) {
+        competitionAthleteList.innerHTML = `<p class="small muted">${currentLang === "es" ? "Ningun atleta coincide con la busqueda actual." : "No athletes match the current search."}</p>`;
       } else {
-        competitionAthleteList.innerHTML = athletes.map((athlete) => {
+        competitionAthleteList.innerHTML = filteredAthletes.map((athlete) => {
           const safeName = String(athlete?.name || "").trim();
           const isActive = safeName && safeName === activeAthleteName;
-          return `<button type="button" class="competition-athlete-list-btn${isActive ? " active" : ""}" data-competition-athlete="${escapeHtml(safeName)}">${escapeHtml(safeName || (currentLang === "es" ? "Atleta" : "Athlete"))}</button>`;
+          const isFavorite = favoriteAthleteNames.has(normalizeName(safeName));
+          const metaLine = [
+            athlete.weightClass || athlete.currentWeight || athlete.weight || "",
+            getLevelLabel(athlete.level) || "",
+            athlete.trainingFocus || ""
+          ].filter(Boolean).join(" • ") || (currentLang === "es" ? "Abrir resumen de esquina" : "Open corner summary");
+          return `
+            <div class="competition-athlete-list-row">
+              <button type="button" class="competition-athlete-list-btn${isActive ? " active" : ""}" data-competition-athlete="${escapeHtml(safeName)}">
+                <strong>${escapeHtml(safeName || (currentLang === "es" ? "Atleta" : "Athlete"))}</strong>
+                <span>${escapeHtml(metaLine)}</span>
+              </button>
+              <button
+                type="button"
+                class="competition-athlete-mini-btn${isFavorite ? " active" : ""}"
+                data-competition-athlete-favorite="${escapeHtml(safeName)}"
+                aria-label="${escapeHtml(isFavorite
+                  ? (currentLang === "es" ? "Quitar de Favoritos" : "Remove from Favorites")
+                  : (currentLang === "es" ? "Guardar en Favoritos" : "Save to Favorites"))}"
+              >${isFavorite ? "★" : "+"}</button>
+            </div>
+          `;
         }).join("");
         competitionAthleteList.querySelectorAll("[data-competition-athlete]").forEach((button) => {
           button.addEventListener("click", () => {
             switchToAthlete(button.dataset.competitionAthlete);
+          });
+        });
+        competitionAthleteList.querySelectorAll("[data-competition-athlete-favorite]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const athleteName = String(button.dataset.competitionAthleteFavorite || "").trim();
+            const athleteRecord = getCoachAthleteRecordByIdentity(athleteName) || athletes.find((entry) => entry.name === athleteName) || null;
+            if (!athleteRecord) return;
+            toggleAthleteProfileFavorite(athleteRecord);
+            renderCompetitionPreview(getSelectedCoachAthleteRecord() || selectedProfile);
           });
         });
       }
@@ -15014,22 +15157,115 @@ function normalizeFavoriteEntry(entry) {
       label: String(entry || "").trim(),
       assetPath: "",
       mediaType: "",
-      tags: []
+      tags: [],
+      favoriteType: "",
+      targetAthlete: "",
+      targetTab: "",
+      targetView: ""
     };
   }
   return {
     label: String(entry?.label || entry?.title || "").trim(),
     assetPath: String(entry?.assetPath || entry?.url || "").trim(),
     mediaType: String(entry?.mediaType || "").trim(),
-    tags: normalizeLooseTagList(entry?.tags || [])
+    tags: normalizeLooseTagList(entry?.tags || []),
+    favoriteType: String(entry?.favoriteType || entry?.type || "").trim().toLowerCase(),
+    targetAthlete: String(entry?.targetAthlete || entry?.athleteName || "").trim(),
+    targetTab: String(entry?.targetTab || "").trim(),
+    targetView: String(entry?.targetView || "").trim()
   };
 }
 
 function favoriteEntryKey(entry) {
   const safe = normalizeFavoriteEntry(entry);
+  if (safe.favoriteType === "athlete_profile" && safe.targetAthlete) {
+    return `athlete::${normalizeName(safe.targetAthlete)}`;
+  }
   const safeAsset = String(safe.assetPath || "").trim().toLowerCase();
   if (safeAsset) return `asset::${safeAsset}`;
   return `label::${String(safe.label || "").trim().toLowerCase()}`;
+}
+
+function removeFavoriteEntry(entry) {
+  const safeKey = favoriteEntryKey(entry);
+  const current = getFavorites();
+  const next = current.filter((item) => favoriteEntryKey(item) !== safeKey);
+  const removed = next.length !== current.length;
+  if (removed) {
+    setFavorites(next);
+    renderFavorites();
+  }
+  return { removed };
+}
+
+function isAthleteProfileFavoriteEntry(entry) {
+  const safe = normalizeFavoriteEntry(entry);
+  return safe.favoriteType === "athlete_profile" && Boolean(safe.targetAthlete || safe.label);
+}
+
+function buildAthleteProfileFavoriteEntry(athlete = {}) {
+  const athleteName = String(athlete?.name || "").trim();
+  return {
+    label: athleteName,
+    assetPath: "",
+    mediaType: "",
+    tags: ["athlete-profile", "competition"],
+    favoriteType: "athlete_profile",
+    targetAthlete: athleteName,
+    targetTab: "coach-competition",
+    targetView: "coach"
+  };
+}
+
+function getFavoriteAthleteEntries() {
+  return getFavorites().filter((entry) => isAthleteProfileFavoriteEntry(entry));
+}
+
+function isAthleteProfileFavoriteSaved(athleteName = "") {
+  const safeName = normalizeName(athleteName);
+  if (!safeName) return false;
+  return getFavoriteAthleteEntries().some((entry) => normalizeName(entry.targetAthlete || entry.label) === safeName);
+}
+
+function openFavoriteEntry(entry) {
+  const safe = normalizeFavoriteEntry(entry);
+  if (isAthleteProfileFavoriteEntry(safe)) {
+    const athleteName = String(safe.targetAthlete || safe.label || "").trim();
+    const athleteRecord = getCoachAthleteRecordByIdentity(athleteName)
+      || getAthletesData().find((item) => normalizeName(item.name) === normalizeName(athleteName))
+      || null;
+    if (!athleteRecord) {
+      toast(currentLang === "es" ? "Ese atleta ya no esta disponible." : "That athlete is no longer available.");
+      return;
+    }
+    if (!isCoachRole(getProfile()?.role)) {
+      toast(currentLang === "es" ? "Esta vista favorita es para el coach." : "This favorite view is for coach access.");
+      return;
+    }
+    selectCoachMatchAthlete(athleteRecord.name, { allowFallback: false });
+    Promise.resolve(showTab(safe.targetTab || "coach-competition")).catch(() => {});
+    return;
+  }
+  if (safe.assetPath) {
+    window.open(safe.assetPath, "_blank", "noopener,noreferrer");
+  }
+}
+
+function toggleAthleteProfileFavorite(athlete = {}) {
+  const safeName = String(athlete?.name || "").trim();
+  if (!safeName) return false;
+  if (isAthleteProfileFavoriteSaved(safeName)) {
+    const result = removeFavoriteEntry(buildAthleteProfileFavoriteEntry(athlete));
+    if (result.removed) {
+      toast(currentLang === "es" ? "Atleta removido de Favoritos." : "Athlete removed from Favorites.");
+    }
+    return false;
+  }
+  const result = addFavoriteEntry(buildAthleteProfileFavoriteEntry(athlete));
+  if (result.added) {
+    toast(currentLang === "es" ? "Atleta guardado en Favoritos." : "Athlete saved to Favorites.");
+  }
+  return result.added;
 }
 
 function getFavorites() {
@@ -15089,7 +15325,10 @@ function renderFavorites() {
   favs.forEach((f, idx) => {
     const li = document.createElement("li");
     const tags = Array.isArray(f.tags) && f.tags.length ? ` [${f.tags.join(", ")}]` : "";
-    const type = f.mediaType ? ` (${f.mediaType})` : "";
+    const typeLabel = isAthleteProfileFavoriteEntry(f)
+      ? pickCopy({ en: "Athlete profile", es: "Perfil de atleta" })
+      : String(f.mediaType || "").trim();
+    const type = typeLabel ? ` (${typeLabel})` : "";
     li.textContent = `${f.label}${type}${tags}`;
 
     const del = document.createElement("button");
@@ -15103,12 +15342,20 @@ function renderFavorites() {
     });
 
     li.appendChild(del);
-    if (f.assetPath) {
+    if (isAthleteProfileFavoriteEntry(f)) {
+      const openAthlete = document.createElement("button");
+      openAthlete.textContent = pickCopy({ en: "Open Competition", es: "Abrir Competition" });
+      openAthlete.style.marginLeft = "8px";
+      openAthlete.addEventListener("click", () => {
+        openFavoriteEntry(f);
+      });
+      li.appendChild(openAthlete);
+    } else if (f.assetPath) {
       const open = document.createElement("button");
       open.textContent = pickCopy({ en: "Open", es: "Abrir" });
       open.style.marginLeft = "8px";
       open.addEventListener("click", () => {
-        window.open(f.assetPath, "_blank", "noopener,noreferrer");
+        openFavoriteEntry(f);
       });
       li.appendChild(open);
     }

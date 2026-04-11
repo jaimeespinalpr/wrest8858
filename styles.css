@@ -4158,6 +4158,11 @@ textarea:focus{
   margin-bottom: 12px;
 }
 
+.competition-shared-layout.coach-roster-active{
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  align-items: start;
+}
+
 .competition-athlete-list-card{
   display: grid;
   gap: 10px;
@@ -4179,6 +4184,42 @@ textarea:focus{
   width: 100%;
 }
 
+.competition-athlete-search-shell{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.competition-athlete-search-shell input{
+  min-width: 0;
+}
+
+.competition-athlete-favorites-shell{
+  display: grid;
+  gap: 8px;
+}
+
+.competition-athlete-favorites{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.competition-athlete-favorite-chip{
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  padding: 6px 10px;
+  font-size: 0.82rem;
+}
+
+.competition-athlete-favorite-chip.active{
+  border-color: rgba(255, 215, 0, 0.45);
+  background: rgba(255, 215, 0, 0.14);
+}
+
 .competition-athlete-quick-add{
   display: grid;
   gap: 6px;
@@ -4190,6 +4231,13 @@ textarea:focus{
   max-height: 360px;
   overflow: auto;
   padding-right: 4px;
+}
+
+.competition-athlete-list-row{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: stretch;
 }
 
 .competition-athlete-list-btn{
@@ -4204,6 +4252,18 @@ textarea:focus{
   transition: border-color 120ms ease, background 120ms ease;
 }
 
+.competition-athlete-list-btn strong{
+  display: block;
+  font-size: 0.96rem;
+}
+
+.competition-athlete-list-btn span{
+  display: block;
+  margin-top: 4px;
+  color: rgba(255,255,255,0.72);
+  font-size: 0.78rem;
+}
+
 .competition-athlete-list-btn:hover{
   border-color: rgba(111, 182, 255, 0.5);
   background: rgba(83, 136, 255, 0.12);
@@ -4212,6 +4272,22 @@ textarea:focus{
 .competition-athlete-list-btn.active{
   border-color: rgba(97, 174, 255, 0.74);
   background: rgba(44, 82, 150, 0.35);
+}
+
+.competition-athlete-mini-btn{
+  min-width: 52px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  padding: 0 10px;
+  font-weight: 700;
+}
+
+.competition-athlete-mini-btn.active{
+  border-color: rgba(255, 215, 0, 0.45);
+  background: rgba(255, 215, 0, 0.16);
+  color: #ffe08a;
 }
 
 .competition-shared-editor-card{
@@ -4488,6 +4564,10 @@ textarea:focus{
 
 @media (max-width: 860px){
   .competition-shared-layout{
+    grid-template-columns: 1fr;
+  }
+
+  .competition-shared-layout.coach-roster-active{
     grid-template-columns: 1fr;
   }
 

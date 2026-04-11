@@ -15,7 +15,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Teko:wght@500;600;700&display=swap"
     rel="stylesheet"
   >
-  <link rel="stylesheet" href="styles.css?v=20260408-qa9" >
+  <link rel="stylesheet" href="styles.css?v=20260411-competition-corner1" >
 </head>
 
 <body>
@@ -944,6 +944,32 @@
             <div class="chip">Coach view</div>
           </div>
           <div class="competition-shared-layout">
+            <section class="mini-card competition-athlete-list-card hidden" id="competitionAthleteListCard">
+              <div class="competition-picker-header">
+                <div>
+                  <h3 id="competitionAthleteListTitle">Athlete List</h3>
+                  <p class="small muted" id="competitionAthleteListHint">Choose an athlete to load the corner summary.</p>
+                </div>
+              </div>
+              <div class="competition-athlete-search-shell">
+                <input type="search" id="competitionRosterSearchInput" placeholder="Search athletes">
+                <button type="button" class="ghost" id="competitionRosterSearchClearBtn">Clear</button>
+              </div>
+              <div class="competition-athlete-quick-nav">
+                <button type="button" class="ghost" id="competitionAthletePrevBtn">Previous</button>
+                <select id="competitionAthleteQuickSelect" aria-label="Select athlete"></select>
+                <button type="button" class="ghost" id="competitionAthleteNextBtn">Next</button>
+              </div>
+              <div class="competition-athlete-favorites-shell">
+                <div class="small muted" id="competitionFavoriteAthletesLabel">Favorite athletes</div>
+                <div class="competition-athlete-favorites" id="competitionFavoriteAthletes"></div>
+              </div>
+              <div class="competition-athlete-quick-add">
+                <button type="button" id="competitionAthleteAddToEventBtn">Add to selected competition</button>
+                <span class="small muted" id="competitionAthleteQuickStatus"></span>
+              </div>
+              <div class="competition-athlete-list" id="competitionAthleteList"></div>
+            </section>
             <section class="mini-card competition-shared-editor-card" id="competitionSharedEditorCard">
               <h3 id="competitionSharedEditorTitle">Competition Focus Summary</h3>
               <p class="small muted" id="competitionSharedEditorHint">Editable by athlete and coach. Keep this concise and actionable.</p>
@@ -2240,7 +2266,7 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260410-athlete-save2"></script>
+  <script src="app.js?v=20260411-competition-corner1"></script>
   <script src="coach-planner.js?v=20260408-planfix7"></script>
 </body>
 </html>
