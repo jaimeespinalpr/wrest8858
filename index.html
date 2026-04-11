@@ -15,7 +15,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Teko:wght@500;600;700&display=swap"
     rel="stylesheet"
   >
-  <link rel="stylesheet" href="styles.css?v=20260411-savefix3" >
+  <link rel="stylesheet" href="styles.css?v=20260411-savefix4" >
 </head>
 
 <body>
@@ -1694,10 +1694,53 @@
                   <span>Footer message</span>
                   <input type="text" id="wtpFooterMessage" placeholder="Coach Espinal  Season 2025-2026">
                 </label>
-                <label class="planner-print-auto-toggle">
-                  <span>Auto print colors from logo</span>
-                  <input type="checkbox" id="wtpPrintAutoColors" checked>
-                </label>
+                <section class="planner-print-presets" aria-label="Color presets">
+                  <span class="planner-print-presets-title">Color presets</span>
+                  <div class="planner-print-presets-grid" id="plannerPrintPresetGrid">
+                    <button type="button" class="planner-print-preset" data-action="apply-print-preset" data-border="#0d6b4a" data-text="#0d6b4a">
+                      <span class="planner-print-preset-swatches">
+                        <span class="planner-print-preset-chip" style="--preset:#0d6b4a"></span>
+                        <span class="planner-print-preset-chip" style="--preset:#0d6b4a"></span>
+                      </span>
+                      <strong>Classic Green</strong>
+                    </button>
+                    <button type="button" class="planner-print-preset" data-action="apply-print-preset" data-border="#0f4c81" data-text="#163252">
+                      <span class="planner-print-preset-swatches">
+                        <span class="planner-print-preset-chip" style="--preset:#0f4c81"></span>
+                        <span class="planner-print-preset-chip" style="--preset:#163252"></span>
+                      </span>
+                      <strong>Royal Blue</strong>
+                    </button>
+                    <button type="button" class="planner-print-preset" data-action="apply-print-preset" data-border="#8f1d3f" data-text="#5f1028">
+                      <span class="planner-print-preset-swatches">
+                        <span class="planner-print-preset-chip" style="--preset:#8f1d3f"></span>
+                        <span class="planner-print-preset-chip" style="--preset:#5f1028"></span>
+                      </span>
+                      <strong>Crimson</strong>
+                    </button>
+                    <button type="button" class="planner-print-preset" data-action="apply-print-preset" data-border="#305f72" data-text="#1f3b48">
+                      <span class="planner-print-preset-swatches">
+                        <span class="planner-print-preset-chip" style="--preset:#305f72"></span>
+                        <span class="planner-print-preset-chip" style="--preset:#1f3b48"></span>
+                      </span>
+                      <strong>Teal Steel</strong>
+                    </button>
+                    <button type="button" class="planner-print-preset" data-action="apply-print-preset" data-border="#4b5563" data-text="#1f2937">
+                      <span class="planner-print-preset-swatches">
+                        <span class="planner-print-preset-chip" style="--preset:#4b5563"></span>
+                        <span class="planner-print-preset-chip" style="--preset:#1f2937"></span>
+                      </span>
+                      <strong>Slate</strong>
+                    </button>
+                    <button type="button" class="planner-print-preset" data-action="apply-print-preset" data-border="#704214" data-text="#4a2c0d">
+                      <span class="planner-print-preset-swatches">
+                        <span class="planner-print-preset-chip" style="--preset:#704214"></span>
+                        <span class="planner-print-preset-chip" style="--preset:#4a2c0d"></span>
+                      </span>
+                      <strong>Bronze</strong>
+                    </button>
+                  </div>
+                </section>
                 <div class="planner-print-color-grid">
                   <label>
                     <span>Print border color</span>
@@ -2284,7 +2327,7 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260411-savefix3"></script>
-  <script src="coach-planner.js?v=20260411-savefix3"></script>
+  <script src="app.js?v=20260411-savefix4"></script>
+  <script src="coach-planner.js?v=20260411-savefix4"></script>
 </body>
 </html>

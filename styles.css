@@ -10683,16 +10683,67 @@ svg{
   justify-content: center;
 }
 
-.planner-print-auto-toggle{
-  display: flex !important;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+.planner-print-presets{
+  display: grid;
+  gap: 8px;
 }
 
-.planner-print-auto-toggle input[type="checkbox"]{
+.planner-print-presets-title{
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9ab0d4;
+  font-weight: 700;
+}
+
+.planner-print-presets-grid{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.planner-print-preset{
+  display: grid;
+  gap: 7px;
+  align-items: center;
+  justify-items: start;
+  padding: 9px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(122, 145, 180, 0.34);
+  background: linear-gradient(160deg, rgba(10, 24, 44, 0.88), rgba(8, 19, 35, 0.7));
+  color: #e9f1ff;
+  cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.planner-print-preset strong{
+  font-size: 0.76rem;
+  line-height: 1.1;
+}
+
+.planner-print-preset:hover{
+  transform: translateY(-1px);
+  border-color: rgba(180, 207, 255, 0.64);
+  box-shadow: 0 7px 15px rgba(4, 12, 24, 0.35);
+}
+
+.planner-print-preset.is-active{
+  border-color: rgba(140, 209, 170, 0.9);
+  box-shadow: 0 0 0 1px rgba(140, 209, 170, 0.3), 0 8px 20px rgba(9, 20, 36, 0.36);
+}
+
+.planner-print-preset-swatches{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.planner-print-preset-chip{
   width: 18px;
   height: 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  background: var(--preset, #0d6b4a);
 }
 
 .planner-print-color-grid{
@@ -11050,6 +11101,9 @@ svg{
   .planner-print-color-grid{
     grid-template-columns: 1fr;
   }
+  .planner-print-presets-grid{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .planner-library-quick-add{
     grid-template-columns: 1fr;
   }
@@ -11096,6 +11150,9 @@ svg{
   }
   .planner-toolbar-actions .planner-time-badge{
     width: 100%;
+  }
+  .planner-print-presets-grid{
+    grid-template-columns: 1fr;
   }
   .planner-sheet{
     padding: 10px;

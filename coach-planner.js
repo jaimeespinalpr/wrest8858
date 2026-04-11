@@ -994,7 +994,7 @@
       season: LEGACY_PLANNER_SEASON,
       logoUrl: DEFAULT_PLANNER_LOGO_URL,
       footerMessage: "",
-      printAutoColors: true,
+      printAutoColors: false,
       printBorderColor: DEFAULT_PRINT_BORDER_COLOR,
       printTextColor: DEFAULT_PRINT_TEXT_COLOR
     };
@@ -1018,14 +1018,13 @@
   function normalizePlannerSettings(raw = {}, { migrateLegacy = false } = {}) {
     const defaults = buildPlannerDefaultSettings();
     const source = raw && typeof raw === "object" ? raw : {};
-    const rawAuto = source.printAutoColors;
     const next = {
       clubName: String(source.clubName || "").trim(),
       coach: String(source.coach || "").trim(),
       season: String(source.season || "").trim(),
       logoUrl: sanitizePlannerLogoUrl(source.logoUrl, defaults.logoUrl),
       footerMessage: String(source.footerMessage || "").trim(),
-      printAutoColors: typeof rawAuto === "boolean" ? rawAuto : String(rawAuto || "").trim().toLowerCase() !== "false",
+      printAutoColors: false,
       printBorderColor: normalizeHexColor(source.printBorderColor, defaults.printBorderColor),
       printTextColor: normalizeHexColor(source.printTextColor, defaults.printTextColor)
     };
@@ -1194,7 +1193,6 @@
     settingsCoachInput: document.getElementById("wtpCoachName"),
     settingsSeasonInput: document.getElementById("wtpSeasonName"),
     settingsFooterInput: document.getElementById("wtpFooterMessage"),
-    settingsPrintAutoInput: document.getElementById("wtpPrintAutoColors"),
     settingsPrintBorderInput: document.getElementById("wtpPrintBorderColor"),
     settingsPrintTextInput: document.getElementById("wtpPrintTextColor"),
     settingsLogoInput: document.getElementById("plannerSettingsLogoInput"),
@@ -7241,54 +7239,29 @@
 
   function renderSettingsPrintColorInputs() {
     if (!state.tempSettings) return;
-    if (els.settingsPrintAutoInput) {
-      els.settingsPrintAutoInput.checked = Boolean(state.tempSettings.printAutoColors);
-    }
     if (els.settingsPrintBorderInput) {
       els.settingsPrintBorderInput.value = normalizeHexColor(
         state.tempSettings.printBorderColor,
         DEFAULT_PRINT_BORDER_COLOR
       );
-      els.settingsPrintBorderInput.disabled = Boolean(state.tempSettings.printAutoColors);
+      els.settingsPrintBorderInput.disabled = false;
     }
     if (els.settingsPrintTextInput) {
       els.settingsPrintTextInput.value = normalizeHexColor(
         state.tempSettings.printTextColor,
         DEFAULT_PRINT_TEXT_COLOR
       );
-      els.settingsPrintTextInput.disabled = Boolean(state.tempSettings.printAutoColors);
+      els.settingsPrintTextInput.disabled = false;
     }
-  }
-
-  async function refreshTempSettingsPrintPaletteFromLogo() {
-    if (!state.tempSettings || !state.tempSettings.printAutoColors) return;
-    const logoUrl = String(state.tempSettings.logoUrl || "").trim();
-    const palette = await derivePrintPaletteFromLogo(logoUrl);
-    if (!state.tempSettings || !state.tempSettings.printAutoColors) return;
-    state.tempSettings.printBorderColor = normalizeHexColor(
-      palette.borderColor,
-      DEFAULT_PRINT_BORDER_COLOR
-    );
-    state.tempSettings.printTextColor = ensureDarkPrintColor(
-      palette.textColor,
-      state.tempSettings.printBorderColor
-    );
-    renderSettingsPrintColorInputs();
-  }
-
-  async function resolveSettingsPrintPalette(nextSettings = {}) {
-    const candidate = {
-      ...nextSettings
-    };
-    if (!candidate.printAutoColors) {
-      candidate.printBorderColor = normalizeHexColor(candidate.printBorderColor, DEFAULT_PRINT_BORDER_COLOR);
-      candidate.printTextColor = ensureDarkPrintColor(candidate.printTextColor, candidate.printBorderColor);
-      return candidate;
-    }
-    const palette = await derivePrintPaletteFromLogo(candidate.logoUrl || "");
-    candidate.printBorderColor = normalizeHexColor(palette.borderColor, DEFAULT_PRINT_BORDER_COLOR);
-    candidate.printTextColor = ensureDarkPrintColor(palette.textColor, candidate.printBorderColor);
-    return candidate;
+    qa(".planner-print-preset", els.settingsModal || root).forEach((button) => {
+      const presetBorder = normalizeHexColor(button.dataset.border, DEFAULT_PRINT_BORDER_COLOR);
+      const presetText = normalizeHexColor(button.dataset.text, DEFAULT_PRINT_TEXT_COLOR);
+      const currentBorder = normalizeHexColor(state.tempSettings.printBorderColor, DEFAULT_PRINT_BORDER_COLOR);
+      const currentText = normalizeHexColor(state.tempSettings.printTextColor, DEFAULT_PRINT_TEXT_COLOR);
+      const active = presetBorder === currentBorder && presetText === currentText;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
   }
 
   function applyTempManualPrintColor(field, value) {
@@ -7307,8 +7280,22 @@
     renderSettingsPrintColorInputs();
   }
 
+  function applyTempPrintPreset(borderColor, textColor) {
+    if (!state.tempSettings) return;
+    const safeBorder = normalizeHexColor(borderColor, DEFAULT_PRINT_BORDER_COLOR);
+    const safeText = ensureDarkPrintColor(
+      normalizeHexColor(textColor, DEFAULT_PRINT_TEXT_COLOR),
+      safeBorder
+    );
+    state.tempSettings.printAutoColors = false;
+    state.tempSettings.printBorderColor = safeBorder;
+    state.tempSettings.printTextColor = safeText;
+    renderSettingsPrintColorInputs();
+  }
+
   function openSettingsModal() {
     state.tempSettings = { ...state.settings };
+    state.tempSettings.printAutoColors = false;
     if (els.settingsClubInput) els.settingsClubInput.value = state.tempSettings.clubName || "";
     if (els.settingsCoachInput) els.settingsCoachInput.value = state.tempSettings.coach || "";
     if (els.settingsSeasonInput) els.settingsSeasonInput.value = state.tempSettings.season || "";
@@ -7317,7 +7304,6 @@
     renderSettingsLogoPreview();
     els.settingsModal?.classList.remove("hidden");
     focusPlannerWindow(els.settingsModal, { smooth: true });
-    refreshTempSettingsPrintPaletteFromLogo().catch(() => {});
   }
 
   function closeSettingsModal() {
@@ -7340,18 +7326,11 @@
 
   async function saveSettings() {
     if (!state.tempSettings) return;
+    state.tempSettings.printAutoColors = false;
     const draft = normalizePlannerSettings(state.tempSettings, { migrateLegacy: true });
     mergePlannerSettings(draft, { sync: true });
     closeSettingsModal();
     triggerToast(tr({ en: "Plan settings saved!", es: "Configuracion del plan guardada." }));
-
-    if (draft.printAutoColors) {
-      resolveSettingsPrintPalette(draft)
-        .then((resolved) => {
-          mergePlannerSettings(resolved, { sync: true });
-        })
-        .catch(() => {});
-    }
   }
 
   function openLibraryModal() {
@@ -8028,6 +8007,10 @@
     }
     if (action === "load-template-record") {
       applyTemplateToPlanner(trigger.dataset.templateKey || trigger.dataset.templateId);
+      return;
+    }
+    if (action === "apply-print-preset") {
+      applyTempPrintPreset(trigger.dataset.border, trigger.dataset.text);
     }
   }
 
@@ -8070,15 +8053,6 @@
       return;
     }
 
-    if (target === els.settingsPrintAutoInput && state.tempSettings) {
-      state.tempSettings.printAutoColors = Boolean(els.settingsPrintAutoInput.checked);
-      renderSettingsPrintColorInputs();
-      if (state.tempSettings.printAutoColors) {
-        refreshTempSettingsPrintPaletteFromLogo().catch(() => {});
-      }
-      return;
-    }
-
     if (target === els.settingsPrintBorderInput && state.tempSettings) {
       applyTempManualPrintColor("border", target.value);
       return;
@@ -8093,15 +8067,6 @@
     if (state.readOnly) return;
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
-
-    if (target === els.settingsPrintAutoInput && state.tempSettings) {
-      state.tempSettings.printAutoColors = Boolean(els.settingsPrintAutoInput.checked);
-      renderSettingsPrintColorInputs();
-      if (state.tempSettings.printAutoColors) {
-        refreshTempSettingsPrintPaletteFromLogo().catch(() => {});
-      }
-      return;
-    }
 
     if (target.matches("input[data-action='time-input']")) {
       const categoryId = target.dataset.category;
@@ -8373,7 +8338,6 @@
       if (!state.tempSettings) return;
       state.tempSettings.logoUrl = sanitizePlannerLogoUrl("", DEFAULT_PLANNER_LOGO_URL);
       renderSettingsLogoPreview();
-      refreshTempSettingsPrintPaletteFromLogo().catch(() => {});
     });
     els.settingsLogoInput?.addEventListener("change", (event) => {
       const file = event.target.files && event.target.files[0];
@@ -8388,7 +8352,6 @@
         }
         state.tempSettings.logoUrl = sanitizePlannerLogoUrl(nextLogo, state.settings?.logoUrl || DEFAULT_PLANNER_LOGO_URL);
         renderSettingsLogoPreview();
-        refreshTempSettingsPrintPaletteFromLogo().catch(() => {});
       }).catch(() => {
         triggerToast(tr({
           en: "Could not load logo file. Try another image.",

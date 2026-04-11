@@ -80,7 +80,7 @@ const COACH_PLANNER_DEFAULTS = {
   season: "Season 2025-2026",
   logoUrl: "https://united-wc.com/assets/uwc-logo.png",
   footerMessage: "",
-  printAutoColors: true,
+  printAutoColors: false,
   printBorderColor: "#0d6b4a",
   printTextColor: "#0d6b4a"
 };
