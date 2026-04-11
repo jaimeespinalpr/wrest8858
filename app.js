@@ -78,7 +78,11 @@ const OFFICIAL_COACH_EMAILS = new Set([
 const COACH_PLANNER_DEFAULTS = {
   clubName: "United Wrestling Club",
   season: "Season 2025-2026",
-  logoUrl: "https://united-wc.com/assets/uwc-logo.png"
+  logoUrl: "https://united-wc.com/assets/uwc-logo.png",
+  footerMessage: "",
+  printAutoColors: true,
+  printBorderColor: "#0d6b4a",
+  printTextColor: "#0d6b4a"
 };
 const SIGNUP_ALLOWED_ROLES = new Set(["athlete", "coach", "parent"]);
 let coachWorkspaceRealtimeUserId = "";
@@ -191,7 +195,11 @@ function buildCoachPlannerTemplateSettings(name = "") {
     clubName: COACH_PLANNER_DEFAULTS.clubName,
     coach: String(name || "").trim() || "Coach",
     season: COACH_PLANNER_DEFAULTS.season,
-    logoUrl: COACH_PLANNER_DEFAULTS.logoUrl
+    logoUrl: COACH_PLANNER_DEFAULTS.logoUrl,
+    footerMessage: COACH_PLANNER_DEFAULTS.footerMessage,
+    printAutoColors: COACH_PLANNER_DEFAULTS.printAutoColors,
+    printBorderColor: COACH_PLANNER_DEFAULTS.printBorderColor,
+    printTextColor: COACH_PLANNER_DEFAULTS.printTextColor
   };
 }
 const MEDIA_THUMBNAIL_QUALITY = 0.82;

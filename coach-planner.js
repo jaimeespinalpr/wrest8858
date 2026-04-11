@@ -7291,6 +7291,22 @@
     return candidate;
   }
 
+  function applyTempManualPrintColor(field, value) {
+    if (!state.tempSettings) return;
+    const safeField = field === "text" ? "text" : "border";
+    state.tempSettings.printAutoColors = false;
+    if (safeField === "border") {
+      state.tempSettings.printBorderColor = normalizeHexColor(value, DEFAULT_PRINT_BORDER_COLOR);
+      state.tempSettings.printTextColor = ensureDarkPrintColor(
+        state.tempSettings.printTextColor,
+        state.tempSettings.printBorderColor
+      );
+    } else {
+      state.tempSettings.printTextColor = normalizeHexColor(value, DEFAULT_PRINT_TEXT_COLOR);
+    }
+    renderSettingsPrintColorInputs();
+  }
+
   function openSettingsModal() {
     state.tempSettings = { ...state.settings };
     if (els.settingsClubInput) els.settingsClubInput.value = state.tempSettings.clubName || "";
@@ -7325,16 +7341,7 @@
   async function saveSettings() {
     if (!state.tempSettings) return;
     const draft = normalizePlannerSettings(state.tempSettings, { migrateLegacy: true });
-    const immediatePayload = draft.printAutoColors
-      ? {
-          ...draft,
-          printBorderColor: normalizeHexColor(state.settings?.printBorderColor || draft.printBorderColor, DEFAULT_PRINT_BORDER_COLOR),
-          printTextColor: ensureDarkPrintColor(state.settings?.printTextColor || draft.printTextColor, draft.printBorderColor)
-        }
-      : draft;
-
-    // Save immediately so mobile users do not lose changes if palette extraction lags.
-    mergePlannerSettings(immediatePayload, { sync: true });
+    mergePlannerSettings(draft, { sync: true });
     closeSettingsModal();
     triggerToast(tr({ en: "Plan settings saved!", es: "Configuracion del plan guardada." }));
 
@@ -8073,12 +8080,12 @@
     }
 
     if (target === els.settingsPrintBorderInput && state.tempSettings) {
-      state.tempSettings.printBorderColor = normalizeHexColor(target.value, DEFAULT_PRINT_BORDER_COLOR);
+      applyTempManualPrintColor("border", target.value);
       return;
     }
 
     if (target === els.settingsPrintTextInput && state.tempSettings) {
-      state.tempSettings.printTextColor = normalizeHexColor(target.value, DEFAULT_PRINT_TEXT_COLOR);
+      applyTempManualPrintColor("text", target.value);
     }
   }
 
@@ -8086,6 +8093,15 @@
     if (state.readOnly) return;
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
+
+    if (target === els.settingsPrintAutoInput && state.tempSettings) {
+      state.tempSettings.printAutoColors = Boolean(els.settingsPrintAutoInput.checked);
+      renderSettingsPrintColorInputs();
+      if (state.tempSettings.printAutoColors) {
+        refreshTempSettingsPrintPaletteFromLogo().catch(() => {});
+      }
+      return;
+    }
 
     if (target.matches("input[data-action='time-input']")) {
       const categoryId = target.dataset.category;
@@ -8231,11 +8247,11 @@
       return;
     }
     if (target === els.settingsPrintBorderInput && state.tempSettings) {
-      state.tempSettings.printBorderColor = normalizeHexColor(target.value, DEFAULT_PRINT_BORDER_COLOR);
+      applyTempManualPrintColor("border", target.value);
       return;
     }
     if (target === els.settingsPrintTextInput && state.tempSettings) {
-      state.tempSettings.printTextColor = normalizeHexColor(target.value, DEFAULT_PRINT_TEXT_COLOR);
+      applyTempManualPrintColor("text", target.value);
     }
   }
 
