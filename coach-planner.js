@@ -419,6 +419,8 @@
   }
 
   const DEFAULT_PLANNER_LOGO_URL = "https://united-wc.com/assets/uwc-logo.png";
+  const DEFAULT_PRINT_BORDER_COLOR = "#0d6b4a";
+  const DEFAULT_PRINT_TEXT_COLOR = "#0d6b4a";
   const LEGACY_PLANNER_CLUB_NAME = "ARCHMERE AUKS";
   const LEGACY_PLANNER_COACH_NAME = "Coach Espinal";
   const LEGACY_PLANNER_SEASON = "Season 2025-2026";
@@ -498,6 +500,178 @@
 
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
+  }
+
+  function normalizeHexColor(value, fallback = "#0d6b4a") {
+    const raw = String(value || "").trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(raw)) return raw.toLowerCase();
+    if (/^#[0-9a-fA-F]{3}$/.test(raw)) {
+      const r = raw[1];
+      const g = raw[2];
+      const b = raw[3];
+      return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+    }
+    return String(fallback || "#0d6b4a").trim().toLowerCase();
+  }
+
+  function hexToRgb(value) {
+    const hex = normalizeHexColor(value, "#0d6b4a");
+    const intValue = parseInt(hex.slice(1), 16);
+    return {
+      r: (intValue >> 16) & 255,
+      g: (intValue >> 8) & 255,
+      b: intValue & 255
+    };
+  }
+
+  function rgbToHex(r, g, b) {
+    const toHex = (channel) => clamp(Math.round(channel), 0, 255).toString(16).padStart(2, "0");
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  }
+
+  function mixHexColors(colorA, colorB, ratio = 0.5) {
+    const safeRatio = clamp(Number(ratio), 0, 1);
+    const a = hexToRgb(colorA);
+    const b = hexToRgb(colorB);
+    return rgbToHex(
+      a.r + (b.r - a.r) * safeRatio,
+      a.g + (b.g - a.g) * safeRatio,
+      a.b + (b.b - a.b) * safeRatio
+    );
+  }
+
+  function luminanceFromHex(color) {
+    const { r, g, b } = hexToRgb(color);
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  }
+
+  function ensureDarkPrintColor(color, fallback = "#0d6b4a") {
+    let candidate = normalizeHexColor(color, fallback);
+    let luminance = luminanceFromHex(candidate);
+    let attempts = 0;
+    while (luminance > 0.45 && attempts < 6) {
+      candidate = mixHexColors(candidate, "#000000", 0.18);
+      luminance = luminanceFromHex(candidate);
+      attempts += 1;
+    }
+    return candidate;
+  }
+
+  function loadImageForPalette(src) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      if (!String(src || "").startsWith("data:")) {
+        image.crossOrigin = "anonymous";
+      }
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = src;
+    });
+  }
+
+  async function derivePrintPaletteFromLogo(logoSrc = "") {
+    const cleanSrc = String(logoSrc || "").trim();
+    if (!cleanSrc) {
+      return {
+        borderColor: DEFAULT_PRINT_BORDER_COLOR,
+        textColor: DEFAULT_PRINT_TEXT_COLOR
+      };
+    }
+
+    try {
+      const image = await loadImageForPalette(cleanSrc);
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) throw new Error("palette ctx unavailable");
+      const size = 48;
+      canvas.width = size;
+      canvas.height = size;
+      ctx.clearRect(0, 0, size, size);
+      ctx.drawImage(image, 0, 0, size, size);
+      const { data } = ctx.getImageData(0, 0, size, size);
+
+      let sumR = 0;
+      let sumG = 0;
+      let sumB = 0;
+      let sumWeight = 0;
+      let darkR = 0;
+      let darkG = 0;
+      let darkB = 0;
+      let darkWeight = 0;
+
+      for (let i = 0; i < data.length; i += 4) {
+        const alpha = data[i + 3] / 255;
+        if (alpha < 0.14) continue;
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const sat = max === 0 ? 0 : (max - min) / max;
+        const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+        if (lum > 0.97) continue;
+        if (sat < 0.05 && lum > 0.75) continue;
+
+        const weight = alpha * (0.3 + sat * 1.7);
+        sumR += r * weight;
+        sumG += g * weight;
+        sumB += b * weight;
+        sumWeight += weight;
+
+        const darkFactor = Math.max(0, 0.95 - lum);
+        const darkPixelWeight = weight * darkFactor;
+        darkR += r * darkPixelWeight;
+        darkG += g * darkPixelWeight;
+        darkB += b * darkPixelWeight;
+        darkWeight += darkPixelWeight;
+      }
+
+      if (!sumWeight || sumWeight < 1) {
+        throw new Error("palette insufficient pixels");
+      }
+
+      const accentColor = rgbToHex(sumR / sumWeight, sumG / sumWeight, sumB / sumWeight);
+      const borderColor = ensureDarkPrintColor(accentColor, DEFAULT_PRINT_BORDER_COLOR);
+      const textBase = darkWeight > 0.1
+        ? rgbToHex(darkR / darkWeight, darkG / darkWeight, darkB / darkWeight)
+        : mixHexColors(borderColor, "#000000", 0.26);
+      const textColor = ensureDarkPrintColor(textBase, borderColor);
+
+      return {
+        borderColor,
+        textColor
+      };
+    } catch {
+      return {
+        borderColor: DEFAULT_PRINT_BORDER_COLOR,
+        textColor: DEFAULT_PRINT_TEXT_COLOR
+      };
+    }
+  }
+
+  async function refreshStoredPrintPaletteFromLogo({ sync = false } = {}) {
+    if (!state?.settings?.printAutoColors) return;
+    const logoUrl = String(state.settings.logoUrl || "").trim();
+    const palette = await derivePrintPaletteFromLogo(logoUrl);
+    if (!state?.settings?.printAutoColors) return;
+
+    const nextBorderColor = normalizeHexColor(palette.borderColor, DEFAULT_PRINT_BORDER_COLOR);
+    const nextTextColor = ensureDarkPrintColor(palette.textColor, nextBorderColor);
+    const currentBorder = normalizeHexColor(state.settings.printBorderColor, DEFAULT_PRINT_BORDER_COLOR);
+    const currentText = ensureDarkPrintColor(state.settings.printTextColor, currentBorder);
+    if (nextBorderColor === currentBorder && nextTextColor === currentText) return;
+
+    state.settings = normalizePlannerSettings({
+      ...state.settings,
+      printBorderColor: nextBorderColor,
+      printTextColor: nextTextColor
+    }, { migrateLegacy: true });
+    persistSettings();
+    updateFooter();
+    updateLogos();
+    if (sync) {
+      queuePlannerSettingsSync();
+    }
   }
 
   function shuffleList(list = []) {
@@ -753,7 +927,10 @@
       coach: getDefaultPlannerCoachName(),
       season: LEGACY_PLANNER_SEASON,
       logoUrl: DEFAULT_PLANNER_LOGO_URL,
-      footerMessage: ""
+      footerMessage: "",
+      printAutoColors: true,
+      printBorderColor: DEFAULT_PRINT_BORDER_COLOR,
+      printTextColor: DEFAULT_PRINT_TEXT_COLOR
     };
   }
 
@@ -775,12 +952,16 @@
   function normalizePlannerSettings(raw = {}, { migrateLegacy = false } = {}) {
     const defaults = buildPlannerDefaultSettings();
     const source = raw && typeof raw === "object" ? raw : {};
+    const rawAuto = source.printAutoColors;
     const next = {
       clubName: String(source.clubName || "").trim(),
       coach: String(source.coach || "").trim(),
       season: String(source.season || "").trim(),
       logoUrl: String(source.logoUrl || "").trim(),
-      footerMessage: String(source.footerMessage || "").trim()
+      footerMessage: String(source.footerMessage || "").trim(),
+      printAutoColors: typeof rawAuto === "boolean" ? rawAuto : String(rawAuto || "").trim().toLowerCase() !== "false",
+      printBorderColor: normalizeHexColor(source.printBorderColor, defaults.printBorderColor),
+      printTextColor: normalizeHexColor(source.printTextColor, defaults.printTextColor)
     };
 
     if (migrateLegacy) {
@@ -794,6 +975,8 @@
       next.season = next.season || defaults.season;
       next.logoUrl = next.logoUrl || defaults.logoUrl;
       next.footerMessage = next.footerMessage || defaults.footerMessage;
+      next.printBorderColor = normalizeHexColor(next.printBorderColor, defaults.printBorderColor);
+      next.printTextColor = normalizeHexColor(next.printTextColor, defaults.printTextColor);
     }
 
     return next;
@@ -945,6 +1128,9 @@
     settingsCoachInput: document.getElementById("wtpCoachName"),
     settingsSeasonInput: document.getElementById("wtpSeasonName"),
     settingsFooterInput: document.getElementById("wtpFooterMessage"),
+    settingsPrintAutoInput: document.getElementById("wtpPrintAutoColors"),
+    settingsPrintBorderInput: document.getElementById("wtpPrintBorderColor"),
+    settingsPrintTextInput: document.getElementById("wtpPrintTextColor"),
     settingsLogoInput: document.getElementById("plannerSettingsLogoInput"),
     settingsLogoPreview: document.getElementById("plannerSettingsLogoPreview"),
     settingsLogoPlaceholder: document.getElementById("plannerSettingsLogoPlaceholder"),
@@ -1062,11 +1248,17 @@
   }
 
   function mergePlannerSettings(nextSettings = {}, { sync = false } = {}) {
+    const previous = normalizePlannerSettings(state.settings || {}, { migrateLegacy: true });
     const normalized = normalizePlannerSettings(nextSettings, { migrateLegacy: true });
     state.settings = normalized;
     persistSettings();
     updateFooter();
     updateLogos();
+    const shouldRefreshAutoPalette = Boolean(normalized.printAutoColors)
+      && String(normalized.logoUrl || "").trim() !== String(previous.logoUrl || "").trim();
+    if (shouldRefreshAutoPalette) {
+      refreshStoredPrintPaletteFromLogo({ sync }).catch(() => {});
+    }
     if (sync) {
       queuePlannerSettingsSync();
     }
@@ -1198,17 +1390,30 @@
 
   function getSettings(plannerRoot) {
     void plannerRoot;
-    const coachValue = text(document.getElementById("wtpCoachName")) || String(state.settings?.coach || "").trim() || "Coach";
-    const seasonValue = text(document.getElementById("wtpSeasonName")) || String(state.settings?.season || "").trim() || "Season 2025-2026";
-    const footerCustom = text(document.getElementById("wtpFooterMessage")) || String(state.settings?.footerMessage || "").trim();
+    const usingTempSettings = Boolean(state.tempSettings && els.settingsModal && !els.settingsModal.classList.contains("hidden"));
+    const sourceSettings = usingTempSettings ? state.tempSettings : state.settings;
+    const clubValue = String(sourceSettings?.clubName || "").trim() || text(document.getElementById("wtpClubName")) || "United Wrestling Club";
+    const coachValue = String(sourceSettings?.coach || "").trim() || text(document.getElementById("wtpCoachName")) || "Coach";
+    const seasonValue = String(sourceSettings?.season || "").trim() || text(document.getElementById("wtpSeasonName")) || "Season 2025-2026";
+    const footerCustom = String(sourceSettings?.footerMessage || "").trim() || text(document.getElementById("wtpFooterMessage"));
+    const borderColor = normalizeHexColor(
+      String(sourceSettings?.printBorderColor || "").trim() || DEFAULT_PRINT_BORDER_COLOR,
+      DEFAULT_PRINT_BORDER_COLOR
+    );
+    const textColor = ensureDarkPrintColor(
+      String(sourceSettings?.printTextColor || "").trim() || borderColor,
+      borderColor
+    );
     return {
-      club: text(document.getElementById("wtpClubName")) || String(state.settings?.clubName || "").trim() || "United Wrestling Club",
+      club: clubValue,
       coach: coachValue,
       season: seasonValue,
       date: text(document.getElementById("wtpPlanDate")) || String(state.docInfo?.date || "").trim(),
       totalTime: text(document.getElementById("wtpTotalMinutes")) || String(state.docInfo?.totalTime || "").trim() || "90",
       footerMessage: footerCustom || `${coachValue}  ${seasonValue}`.trim(),
-      logoSrc: document.getElementById("wtpLogoPreview")?.src || String(state.settings?.logoUrl || "").trim()
+      logoSrc: document.getElementById("wtpLogoPreview")?.src || String(sourceSettings?.logoUrl || state.settings?.logoUrl || "").trim(),
+      borderColor,
+      textColor
     };
   }
 
@@ -1238,6 +1443,9 @@
 
     const settings = getSettings(root);
     const rows = getRows();
+    const borderColor = ensureDarkPrintColor(settings.borderColor, DEFAULT_PRINT_BORDER_COLOR);
+    const textColor = ensureDarkPrintColor(settings.textColor, borderColor);
+    const lineColor = mixHexColors(borderColor, "#ffffff", 0.72);
     const logoMarkup = settings.logoSrc
       ? `
         <div class="wtp-print-logo-wrap">
@@ -1270,7 +1478,7 @@
       `;
 
     return `
-      <div class="wtp-print-sheet">
+      <div class="wtp-print-sheet" style="--wtp-print-border: ${escapePrintHtml(borderColor)}; --wtp-print-text: ${escapePrintHtml(textColor)}; --wtp-print-line: ${escapePrintHtml(lineColor)};">
         ${logoMarkup}
         <div class="wtp-print-header-box">
           ${watermarkMarkup}
@@ -1314,6 +1522,9 @@
     return `
       /* ===== WRESTLING TRAINING PLANNER - PRINT TEMPLATE ===== */
       .wtp-print-sheet {
+        --wtp-print-border: #0d6b4a;
+        --wtp-print-text: #0d6b4a;
+        --wtp-print-line: #c7d2cf;
         width: 8.5in;
         min-height: 11in;
         margin: 0 auto;
@@ -1336,7 +1547,7 @@
       }
 
       .wtp-print-header-box {
-        border: 5px solid #0d6b4a;
+        border: 5px solid var(--wtp-print-border);
         border-radius: 16px;
         padding: 14px 16px 12px 16px;
         position: relative;
@@ -1373,7 +1584,7 @@
       .wtp-print-title {
         font-size: 28px;
         font-weight: 800;
-        color: #0d6b4a;
+        color: var(--wtp-print-text);
         letter-spacing: 0.4px;
         margin-bottom: 4px;
       }
@@ -1392,10 +1603,11 @@
 
       .wtp-print-field-label {
         font-weight: 700;
+        color: var(--wtp-print-text);
       }
 
       .wtp-print-field-line {
-        border-bottom: 1px solid #6b7280;
+        border-bottom: 1px solid var(--wtp-print-line);
         min-height: 18px;
         flex: 1;
         padding: 0 4px 1px 4px;
@@ -1414,8 +1626,8 @@
       .wtp-print-table thead th {
         text-align: left;
         padding: 6px 8px;
-        border-bottom: 2px solid #0d6b4a;
-        color: #111827;
+        border-bottom: 2px solid var(--wtp-print-border);
+        color: var(--wtp-print-text);
         font-size: 13px;
       }
 
@@ -1427,18 +1639,18 @@
       .wtp-print-table tbody td {
         padding: 6px 8px;
         vertical-align: top;
-        border-bottom: 1px solid #c7d2cf;
+        border-bottom: 1px solid var(--wtp-print-line);
       }
 
       .wtp-print-table tbody td:last-child {
         text-align: center;
-        border-left: 1px solid #c7d2cf;
+        border-left: 1px solid var(--wtp-print-line);
         width: 82px;
       }
 
       .wtp-print-activity {
         font-weight: 700;
-        color: #0d6b4a;
+        color: var(--wtp-print-text);
         margin-bottom: 4px;
       }
 
@@ -1454,7 +1666,7 @@
         justify-content: flex-end;
         margin-top: 14px;
         font-weight: 800;
-        color: #2b2b2b;
+        color: var(--wtp-print-text);
         font-size: 14px;
       }
 
@@ -6936,15 +7148,69 @@
     subscribeCoachLibraries();
   }
 
+  function renderSettingsPrintColorInputs() {
+    if (!state.tempSettings) return;
+    if (els.settingsPrintAutoInput) {
+      els.settingsPrintAutoInput.checked = Boolean(state.tempSettings.printAutoColors);
+    }
+    if (els.settingsPrintBorderInput) {
+      els.settingsPrintBorderInput.value = normalizeHexColor(
+        state.tempSettings.printBorderColor,
+        DEFAULT_PRINT_BORDER_COLOR
+      );
+      els.settingsPrintBorderInput.disabled = Boolean(state.tempSettings.printAutoColors);
+    }
+    if (els.settingsPrintTextInput) {
+      els.settingsPrintTextInput.value = normalizeHexColor(
+        state.tempSettings.printTextColor,
+        DEFAULT_PRINT_TEXT_COLOR
+      );
+      els.settingsPrintTextInput.disabled = Boolean(state.tempSettings.printAutoColors);
+    }
+  }
+
+  async function refreshTempSettingsPrintPaletteFromLogo() {
+    if (!state.tempSettings || !state.tempSettings.printAutoColors) return;
+    const logoUrl = String(state.tempSettings.logoUrl || "").trim();
+    const palette = await derivePrintPaletteFromLogo(logoUrl);
+    if (!state.tempSettings || !state.tempSettings.printAutoColors) return;
+    state.tempSettings.printBorderColor = normalizeHexColor(
+      palette.borderColor,
+      DEFAULT_PRINT_BORDER_COLOR
+    );
+    state.tempSettings.printTextColor = ensureDarkPrintColor(
+      palette.textColor,
+      state.tempSettings.printBorderColor
+    );
+    renderSettingsPrintColorInputs();
+  }
+
+  async function resolveSettingsPrintPalette(nextSettings = {}) {
+    const candidate = {
+      ...nextSettings
+    };
+    if (!candidate.printAutoColors) {
+      candidate.printBorderColor = normalizeHexColor(candidate.printBorderColor, DEFAULT_PRINT_BORDER_COLOR);
+      candidate.printTextColor = ensureDarkPrintColor(candidate.printTextColor, candidate.printBorderColor);
+      return candidate;
+    }
+    const palette = await derivePrintPaletteFromLogo(candidate.logoUrl || "");
+    candidate.printBorderColor = normalizeHexColor(palette.borderColor, DEFAULT_PRINT_BORDER_COLOR);
+    candidate.printTextColor = ensureDarkPrintColor(palette.textColor, candidate.printBorderColor);
+    return candidate;
+  }
+
   function openSettingsModal() {
     state.tempSettings = { ...state.settings };
     if (els.settingsClubInput) els.settingsClubInput.value = state.tempSettings.clubName || "";
     if (els.settingsCoachInput) els.settingsCoachInput.value = state.tempSettings.coach || "";
     if (els.settingsSeasonInput) els.settingsSeasonInput.value = state.tempSettings.season || "";
     if (els.settingsFooterInput) els.settingsFooterInput.value = state.tempSettings.footerMessage || "";
+    renderSettingsPrintColorInputs();
     renderSettingsLogoPreview();
     els.settingsModal?.classList.remove("hidden");
     focusPlannerWindow(els.settingsModal, { smooth: true });
+    refreshTempSettingsPrintPaletteFromLogo().catch(() => {});
   }
 
   function closeSettingsModal() {
@@ -6965,9 +7231,10 @@
     }
   }
 
-  function saveSettings() {
+  async function saveSettings() {
     if (!state.tempSettings) return;
-    mergePlannerSettings(state.tempSettings, { sync: true });
+    const normalized = await resolveSettingsPrintPalette(state.tempSettings);
+    mergePlannerSettings(normalized, { sync: true });
     closeSettingsModal();
     triggerToast(tr({ en: "Plan settings saved!", es: "Configuracion del plan guardada." }));
   }
@@ -7685,6 +7952,25 @@
 
     if (target.matches("input[data-action='edit-library-item']")) {
       updateLibraryItemName(target.dataset.id, target.dataset.category, target.value);
+      return;
+    }
+
+    if (target === els.settingsPrintAutoInput && state.tempSettings) {
+      state.tempSettings.printAutoColors = Boolean(els.settingsPrintAutoInput.checked);
+      renderSettingsPrintColorInputs();
+      if (state.tempSettings.printAutoColors) {
+        refreshTempSettingsPrintPaletteFromLogo().catch(() => {});
+      }
+      return;
+    }
+
+    if (target === els.settingsPrintBorderInput && state.tempSettings) {
+      state.tempSettings.printBorderColor = normalizeHexColor(target.value, DEFAULT_PRINT_BORDER_COLOR);
+      return;
+    }
+
+    if (target === els.settingsPrintTextInput && state.tempSettings) {
+      state.tempSettings.printTextColor = normalizeHexColor(target.value, DEFAULT_PRINT_TEXT_COLOR);
     }
   }
 
@@ -7825,6 +8111,14 @@
     }
     if (target === els.settingsFooterInput && state.tempSettings) {
       state.tempSettings.footerMessage = target.value;
+      return;
+    }
+    if (target === els.settingsPrintBorderInput && state.tempSettings) {
+      state.tempSettings.printBorderColor = normalizeHexColor(target.value, DEFAULT_PRINT_BORDER_COLOR);
+      return;
+    }
+    if (target === els.settingsPrintTextInput && state.tempSettings) {
+      state.tempSettings.printTextColor = normalizeHexColor(target.value, DEFAULT_PRINT_TEXT_COLOR);
     }
   }
 
@@ -7946,6 +8240,7 @@
       if (!state.tempSettings) return;
       state.tempSettings.logoUrl = null;
       renderSettingsLogoPreview();
+      refreshTempSettingsPrintPaletteFromLogo().catch(() => {});
     });
     els.settingsLogoInput?.addEventListener("change", (event) => {
       const file = event.target.files && event.target.files[0];
@@ -7954,6 +8249,7 @@
       reader.onloadend = () => {
         state.tempSettings.logoUrl = String(reader.result || "");
         renderSettingsLogoPreview();
+        refreshTempSettingsPrintPaletteFromLogo().catch(() => {});
       };
       reader.readAsDataURL(file);
     });
@@ -8060,6 +8356,7 @@
   fillTrackDraftInputs("mental");
   render();
   persistSettings();
+  refreshStoredPrintPaletteFromLogo({ sync: false }).catch(() => {});
   persistMentalScores();
   if (typeof window !== "undefined") {
     window.addEventListener("beforeunload", () => {

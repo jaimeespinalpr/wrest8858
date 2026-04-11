@@ -15,7 +15,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Teko:wght@500;600;700&display=swap"
     rel="stylesheet"
   >
-  <link rel="stylesheet" href="styles.css?v=20260411-mobilefix2" >
+  <link rel="stylesheet" href="styles.css?v=20260411-printcolor1" >
 </head>
 
 <body>
@@ -1694,6 +1694,20 @@
                   <span>Footer message</span>
                   <input type="text" id="wtpFooterMessage" placeholder="Coach Espinal  Season 2025-2026">
                 </label>
+                <label class="planner-print-auto-toggle">
+                  <span>Auto print colors from logo</span>
+                  <input type="checkbox" id="wtpPrintAutoColors" checked>
+                </label>
+                <div class="planner-print-color-grid">
+                  <label>
+                    <span>Print border color</span>
+                    <input type="color" id="wtpPrintBorderColor" value="#0d6b4a">
+                  </label>
+                  <label>
+                    <span>Print text color</span>
+                    <input type="color" id="wtpPrintTextColor" value="#0d6b4a">
+                  </label>
+                </div>
               </div>
               <footer>
                 <button type="button" class="ghost" id="plannerSettingsCancelBtn">Cancel</button>
@@ -2270,7 +2284,7 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260411-mobilefix2"></script>
-  <script src="coach-planner.js?v=20260411-mobilefix2"></script>
+  <script src="app.js?v=20260411-printcolor1"></script>
+  <script src="coach-planner.js?v=20260411-printcolor1"></script>
 </body>
 </html>
