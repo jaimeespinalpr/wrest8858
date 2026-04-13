@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GitHub Actions Dashboard</title>
+    <link rel="icon" href="./favicon.ico" />
+    <link rel="stylesheet" href="./styles.css" />
+    <style>
+      .ghad-wrap {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 24px 16px 48px;
+      }
+      .ghad-card {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 14px;
+        padding: 16px;
+        background: rgba(0, 0, 0, 0.16);
+        backdrop-filter: blur(8px);
+      }
+      .ghad-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      @media (max-width: 880px) {
+        .ghad-row {
+          grid-template-columns: 1fr;
+        }
+      }
+      .ghad-field label {
+        display: block;
+        font-size: 12px;
+        opacity: 0.85;
+        margin-bottom: 6px;
+      }
+      .ghad-field input {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(0, 0, 0, 0.22);
+        color: inherit;
+        outline: none;
+      }
+      .ghad-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin-top: 12px;
+      }
+      .ghad-btn {
+        appearance: none;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.08);
+        color: inherit;
+        padding: 10px 12px;
+        border-radius: 10px;
+        cursor: pointer;
+      }
+      .ghad-btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+      .ghad-note {
+        font-size: 12px;
+        opacity: 0.8;
+        line-height: 1.35;
+      }
+      .ghad-split {
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: 14px;
+        margin-top: 14px;
+      }
+      @media (max-width: 1100px) {
+        .ghad-split {
+          grid-template-columns: 1fr;
+        }
+      }
+      .ghad-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .ghad-table th,
+      .ghad-table td {
+        padding: 10px 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        vertical-align: top;
+        text-align: left;
+        font-size: 13px;
+      }
+      .ghad-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.07);
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      .ghad-right {
+        text-align: right;
+      }
+      .ghad-muted {
+        opacity: 0.75;
+      }
+      .ghad-link {
+        color: inherit;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+        opacity: 0.9;
+      }
+      .ghad-error {
+        margin-top: 10px;
+        border: 1px solid rgba(255, 120, 120, 0.35);
+        background: rgba(255, 120, 120, 0.12);
+        color: inherit;
+        padding: 10px 12px;
+        border-radius: 12px;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ghad-wrap">
+      <h1 style="margin: 0 0 10px">GitHub Actions Dashboard</h1>
+      <p class="ghad-note" style="margin: 0 0 16px">
+        Visual para listar workflows y ver ejecuciones. Para <b>ejecutar</b> un workflow con
+        <code>workflow_dispatch</code>, necesitas un token (fine-grained o classic) con permisos de Actions.
+      </p>
+
+      <div class="ghad-card">
+        <div class="ghad-row">
+          <div class="ghad-field">
+            <label for="owner">Owner</label>
+            <input id="owner" autocomplete="off" spellcheck="false" />
+          </div>
+          <div class="ghad-field">
+            <label for="repo">Repo</label>
+            <input id="repo" autocomplete="off" spellcheck="false" />
+          </div>
+          <div class="ghad-field">
+            <label for="ref">Ref (branch/tag)</label>
+            <input id="ref" value="main" autocomplete="off" spellcheck="false" />
+          </div>
+          <div class="ghad-field">
+            <label for="token">Token (opcional para leer; requerido para ejecutar)</label>
+            <input id="token" type="password" autocomplete="off" spellcheck="false" />
+            <div class="ghad-actions" style="margin-top: 8px">
+              <label class="ghad-note" style="display: inline-flex; gap: 8px; align-items: center">
+                <input id="rememberToken" type="checkbox" />
+                Guardar token (solo este navegador)
+              </label>
+              <button id="toggleToken" class="ghad-btn" type="button">Mostrar</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="ghad-actions">
+          <button id="loadBtn" class="ghad-btn" type="button">Cargar workflows</button>
+          <button id="runsBtn" class="ghad-btn" type="button">Cargar runs</button>
+          <span id="rateNote" class="ghad-note ghad-muted"></span>
+          <span id="busy" class="ghad-note ghad-muted"></span>
+        </div>
+
+        <div id="errorBox" class="ghad-error"></div>
+
+        <div class="ghad-split">
+          <div class="ghad-card" style="padding: 12px">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px">
+              <h2 style="margin: 0">Workflows</h2>
+              <span id="wfCount" class="ghad-note ghad-muted"></span>
+            </div>
+            <div style="overflow: auto; margin-top: 8px">
+              <table class="ghad-table" aria-label="Workflows">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th class="ghad-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="wfTbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="ghad-card" style="padding: 12px">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px">
+              <h2 style="margin: 0">Runs (últimos 20)</h2>
+              <span id="runCount" class="ghad-note ghad-muted"></span>
+            </div>
+            <div style="overflow: auto; margin-top: 8px">
+              <table class="ghad-table" aria-label="Runs">
+                <thead>
+                  <tr>
+                    <th>Workflow</th>
+                    <th>Estado</th>
+                    <th class="ghad-right">Link</th>
+                  </tr>
+                </thead>
+                <tbody id="runTbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <p class="ghad-note ghad-muted" style="margin: 12px 0 0">
+          Nota: este dashboard usa la API de GitHub desde tu navegador. No sube tu token a ningún servidor,
+          pero si eliges “Guardar token”, quedará en <code>localStorage</code>.
+        </p>
+      </div>
+    </div>
+
+    <script src="./actions-dashboard.js"></script>
+  </body>
+</html>
+
