@@ -828,12 +828,21 @@ function closeHeaderMenu() {
   toggleHeaderMenu(false);
 }
 
+function shouldProfileIconOpenDirectly() {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  return window.matchMedia("(max-width: 820px)").matches;
+}
+
+async function openProfileShortcut() {
+  const role = normalizeAuthRole(getProfile()?.role || "athlete");
+  await showTab(resolveProfileShortcutTab(role));
+}
+
 function handleHeaderMenuAction(action) {
   if (!action) return;
   closeHeaderMenu();
   if (action === "profile") {
-    const role = normalizeAuthRole(getProfile()?.role || "athlete");
-    showTab(resolveProfileShortcutTab(role));
+    openProfileShortcut();
     return;
   }
   if (action === "logout") {
@@ -3700,8 +3709,16 @@ if (guestCoachBtn) {
   });
 }
 if (editProfileBtn) {
-  editProfileBtn.addEventListener("click", (event) => {
+  editProfileBtn.addEventListener("click", async (event) => {
     event.stopPropagation();
+    if (shouldProfileIconOpenDirectly()) {
+      const profileTab = resolveProfileShortcutTab(getProfile()?.role || "athlete");
+      if (currentTopTab !== profileTab) {
+        closeHeaderMenu();
+        await openProfileShortcut();
+        return;
+      }
+    }
     toggleHeaderMenu();
   });
 }
@@ -3709,7 +3726,11 @@ if (editProfileBtn) {
 if (headerMenu) {
   headerMenu.addEventListener("click", (event) => {
     event.stopPropagation();
-    const action = event.target?.dataset?.action;
+    const targetElement = event.target instanceof Element
+      ? event.target
+      : event.target?.parentElement;
+    const targetBtn = targetElement?.closest("button[data-action]");
+    const action = targetBtn?.dataset?.action;
     handleHeaderMenuAction(action);
   });
 }
