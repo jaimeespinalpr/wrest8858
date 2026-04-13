@@ -21385,6 +21385,21 @@ async function updateCoachAssignmentStatus(assignmentId, status) {
   );
 }
 
+async function deleteCoachAssignment(assignment, { markedDone = false } = {}) {
+  const assignmentId = String(assignment?.id || "").trim();
+  const assignmentsRef = getCoachWorkspaceCollectionRef("assignments");
+  if (!assignmentsRef || !assignmentId) return;
+  await withTimeout(
+    assignmentsRef.doc(assignmentId).delete(),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_assignment_delete_timeout"
+  );
+  const toastMessage = markedDone
+    ? (currentLang === "es" ? "Tarea marcada como hecha y eliminada." : "Task marked done and deleted.")
+    : (currentLang === "es" ? "Tarea eliminada como no hecha." : "Task deleted as not done.");
+  toast(toastMessage);
+}
+
 async function findFirebaseUserByName(name) {
   if (!firebaseFirestoreInstance || !name) return null;
   const snapshot = await withTimeout(
@@ -21601,6 +21616,8 @@ function renderCoachAssignments() {
     const updateLabel = currentLang === "es" ? "Actualizar estado" : "Update status";
     const mediaLabel = currentLang === "es" ? "Abrir media" : "Open media";
     const discussionLabel = currentLang === "es" ? "Preguntas y comentarios" : "Questions and comments";
+    const deleteDoneLabel = currentLang === "es" ? "Hecha + eliminar" : "Done + delete";
+    const deleteNotDoneLabel = currentLang === "es" ? "No hecha + eliminar" : "Not done + delete";
     const statusOptions = ["not_started", "in_progress", "completed", "overdue", "shared"]
       .map((option) => {
         const meta = getAssignmentStatusMeta(option);
@@ -21688,6 +21705,53 @@ function renderCoachAssignments() {
         }
       });
       actions.appendChild(updateBtn);
+    }
+    if (!isCoachShare && normalizeAssignmentStatus(item.status) !== "completed") {
+      const deleteDoneBtn = document.createElement("button");
+      deleteDoneBtn.type = "button";
+      deleteDoneBtn.className = "ghost";
+      deleteDoneBtn.textContent = deleteDoneLabel;
+      deleteDoneBtn.addEventListener("click", async () => {
+        const confirmed = window.confirm(
+          currentLang === "es"
+            ? "Se eliminara esta tarea pendiente y se registrara como hecha. Continuar?"
+            : "This pending task will be deleted and treated as done. Continue?"
+        );
+        if (!confirmed) return;
+        deleteDoneBtn.disabled = true;
+        try {
+          await deleteCoachAssignment(item, { markedDone: true });
+        } catch (err) {
+          console.warn("Assignment done+delete failed", err);
+          toast(currentLang === "es" ? "No se pudo eliminar la tarea." : "Could not delete the task.");
+        } finally {
+          deleteDoneBtn.disabled = false;
+        }
+      });
+      actions.appendChild(deleteDoneBtn);
+
+      const deleteNotDoneBtn = document.createElement("button");
+      deleteNotDoneBtn.type = "button";
+      deleteNotDoneBtn.className = "ghost";
+      deleteNotDoneBtn.textContent = deleteNotDoneLabel;
+      deleteNotDoneBtn.addEventListener("click", async () => {
+        const confirmed = window.confirm(
+          currentLang === "es"
+            ? "Se eliminara esta tarea pendiente como no hecha. Continuar?"
+            : "This pending task will be deleted as not done. Continue?"
+        );
+        if (!confirmed) return;
+        deleteNotDoneBtn.disabled = true;
+        try {
+          await deleteCoachAssignment(item, { markedDone: false });
+        } catch (err) {
+          console.warn("Assignment not-done delete failed", err);
+          toast(currentLang === "es" ? "No se pudo eliminar la tarea." : "Could not delete the task.");
+        } finally {
+          deleteNotDoneBtn.disabled = false;
+        }
+      });
+      actions.appendChild(deleteNotDoneBtn);
     }
     if (item.mediaAssetPath) {
       const mediaBtn = document.createElement("button");
