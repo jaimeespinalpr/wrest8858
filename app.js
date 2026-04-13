@@ -828,11 +828,6 @@ function closeHeaderMenu() {
   toggleHeaderMenu(false);
 }
 
-function shouldProfileIconOpenDirectly() {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-  return window.matchMedia("(max-width: 820px)").matches;
-}
-
 async function openProfileShortcut() {
   const role = normalizeAuthRole(getProfile()?.role || "athlete");
   await showTab(resolveProfileShortcutTab(role));
@@ -3709,16 +3704,8 @@ if (guestCoachBtn) {
   });
 }
 if (editProfileBtn) {
-  editProfileBtn.addEventListener("click", async (event) => {
+  editProfileBtn.addEventListener("click", (event) => {
     event.stopPropagation();
-    if (shouldProfileIconOpenDirectly()) {
-      const profileTab = resolveProfileShortcutTab(getProfile()?.role || "athlete");
-      if (currentTopTab !== profileTab) {
-        closeHeaderMenu();
-        await openProfileShortcut();
-        return;
-      }
-    }
     toggleHeaderMenu();
   });
 }
