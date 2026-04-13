@@ -4087,6 +4087,20 @@ textarea:focus{
   margin-top: 12px;
 }
 
+.assignment-card-actions .destructive,
+.completion-task-actions .destructive{
+  border-color: rgba(248,113,113,0.38);
+  color: #fecaca;
+  background: rgba(127,29,29,0.24);
+}
+
+.assignment-card-actions .destructive:hover,
+.completion-task-actions .destructive:hover{
+  border-color: rgba(248,113,113,0.6);
+  background: rgba(127,29,29,0.34);
+  color: #fff1f2;
+}
+
 .completion-task-list{
   display: grid;
   gap: 10px;

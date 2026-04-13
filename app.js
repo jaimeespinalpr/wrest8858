@@ -22341,6 +22341,37 @@ async function updateCoachAssignmentStatus(assignmentId, status) {
   );
 }
 
+async function deleteCoachAssignment(assignmentId, assignmentRecord = null) {
+  const safeId = String(assignmentId || "").trim();
+  if (!safeId) return false;
+  const assignmentsRef = getCoachWorkspaceCollectionRef("assignments");
+  if (!assignmentsRef) return false;
+
+  const record = assignmentRecord
+    || getCoachAssignmentRecords().find((item) => String(item.id || "").trim() === safeId)
+    || getAthleteTrainingAssignments({ includeCompleted: true }).find((item) => String(item.id || "").trim() === safeId)
+    || null;
+  const title = String(record?.title || "").trim() || (currentLang === "es" ? "esta tarea" : "this task");
+  const confirmMessage = currentLang === "es"
+    ? `¿Eliminar "${title}"? Esta tarea se borrará para todos los usuarios y no se puede deshacer.`
+    : `Delete "${title}"? This task will be removed for everyone and cannot be undone.`;
+
+  if (typeof window !== "undefined" && typeof window.confirm === "function" && !window.confirm(confirmMessage)) {
+    return false;
+  }
+
+  await withTimeout(
+    assignmentsRef.doc(safeId).delete(),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_assignment_delete_timeout"
+  );
+  renderCoachAssignments();
+  renderCompletionTracking();
+  refreshAthleteAssignmentUI();
+  renderTodayActionQueue();
+  return true;
+}
+
 async function findFirebaseUserByName(name) {
   if (!firebaseFirestoreInstance || !name) return null;
   const snapshot = await withTimeout(
@@ -22651,6 +22682,14 @@ function renderCoachAssignments() {
       });
       actions.appendChild(updateBtn);
     }
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "ghost destructive";
+    deleteBtn.textContent = currentLang === "es" ? "Eliminar" : "Delete";
+    deleteBtn.dataset.action = "delete-assignment";
+    deleteBtn.dataset.assignmentId = item.id;
+    deleteBtn.dataset.assignmentTitle = item.title || "";
+    actions.appendChild(deleteBtn);
     if (normalizeUiAssignmentStatus(item.status) !== "completed") {
       const completeBtn = document.createElement("button");
       completeBtn.type = "button";
@@ -22834,6 +22873,15 @@ function renderCompletionTracking() {
           completeBtn.dataset.assignmentId = task.assignment?.id || "";
           completeBtn.dataset.viewerRole = "coach";
           taskActions.appendChild(completeBtn);
+
+          const deleteBtn = document.createElement("button");
+          deleteBtn.type = "button";
+          deleteBtn.className = "ghost destructive";
+          deleteBtn.textContent = currentLang === "es" ? "Eliminar" : "Delete";
+          deleteBtn.dataset.action = "delete-assignment";
+          deleteBtn.dataset.assignmentId = task.assignment?.id || "";
+          deleteBtn.dataset.assignmentTitle = task.assignment?.title || "";
+          taskActions.appendChild(deleteBtn);
         }
 
         taskRow.appendChild(taskActions);
@@ -22902,11 +22950,35 @@ if (assignmentFilterClear) {
 }
 
 document.addEventListener("click", async (event) => {
-  const target = event.target instanceof Element ? event.target.closest("[data-action='mark-assignment-done']") : null;
+  const target = event.target instanceof Element ? event.target.closest("[data-action]") : null;
   if (!target) return;
+  const action = String(target.dataset.action || "").trim();
+  if (action !== "mark-assignment-done" && action !== "delete-assignment") return;
   const assignmentId = String(target.dataset.assignmentId || "").trim();
-  const viewerRole = String(target.dataset.viewerRole || "athlete").trim();
   if (!assignmentId) return;
+
+  if (action === "delete-assignment") {
+    target.disabled = true;
+    const originalText = target.textContent || "";
+    try {
+      const ok = await deleteCoachAssignment(assignmentId, {
+        id: assignmentId,
+        title: String(target.dataset.assignmentTitle || "").trim()
+      });
+      if (ok) {
+        toast(currentLang === "es" ? "Tarea eliminada." : "Task deleted.");
+      }
+    } catch (err) {
+      console.warn("Assignment delete action failed", err);
+      toast(currentLang === "es" ? "No se pudo eliminar la tarea." : "Could not delete the task.");
+    } finally {
+      target.disabled = false;
+      if (originalText) target.textContent = originalText;
+    }
+    return;
+  }
+
+  const viewerRole = String(target.dataset.viewerRole || "athlete").trim();
   target.disabled = true;
   try {
     await markAssignmentDone(assignmentId, viewerRole);
