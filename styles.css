@@ -751,6 +751,19 @@ button:active{
   line-height: 1.2;
 }
 
+.coach-athlete-name-line{
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.coach-athlete-option-avatar{
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  font-size: 0.72rem;
+}
+
 .coach-athlete-name-option-copy h4 .small{
   font-size: 0.72rem;
   color: rgba(186, 216, 255, 0.78);
@@ -986,6 +999,7 @@ button:active{
   font-size: 24px;
   font-weight: 800;
   background: linear-gradient(135deg, rgba(18,52,98,0.28), rgba(200,16,46,0.18));
+  overflow: hidden;
 }
 
 .coach-athlete-profile-tabs{
@@ -1022,6 +1036,79 @@ button:active{
   border-radius: 16px;
   border: 1px solid rgba(255,255,255,0.16);
   background: rgba(0,0,0,0.22);
+}
+
+.profile-photo-field{
+  display: grid;
+  gap: 8px;
+}
+
+.profile-photo-callout{
+  display: grid;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.profile-photo-callout-header{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.profile-photo-uploader{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.profile-photo-input{
+  display: none;
+}
+
+.profile-photo-action{
+  min-height: 40px;
+}
+
+.profile-photo-uploader .primary.profile-photo-action{
+  min-width: 190px;
+}
+
+#aPhotoClearBtn{
+  min-height: 36px;
+  white-space: nowrap;
+}
+
+#pPhotoClearBtn{
+  min-height: 36px;
+  white-space: nowrap;
+}
+
+.profile-photo-preview-row{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.profile-photo-preview{
+  width: 62px;
+  height: 62px;
+  border-radius: 16px;
+}
+
+#aPhotoStatus{
+  margin: 0;
+  font-size: 0.75rem;
+}
+
+#aPhotoStatus.photo-status-ok{
+  color: #93f4d9;
+}
+
+#aPhotoStatus.photo-status-error{
+  color: #fecaca;
 }
 
 .profile-subtab{
@@ -1144,6 +1231,7 @@ button:active{
   display: grid;
   place-items: center;
   font-weight: 700;
+  overflow: hidden;
 }
 
 .onepager-grid{
@@ -1239,6 +1327,7 @@ button:active{
   font-weight: 800;
   font-size: 30px;
   letter-spacing: 0.5px;
+  overflow: hidden;
 }
 
 .coach-match-name{
@@ -1795,11 +1884,28 @@ button:active{
   box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
 }
 
+.messages-contact-chip-main{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.messages-contact-chip-copy{
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
 .messages-contact-name{
   display: block;
   font-size: 0.95rem;
   font-weight: 700;
   line-height: 1.2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .messages-contact-meta{
@@ -1834,7 +1940,7 @@ button:active{
 .messages-thread-avatar-large {
   width: 48px;
   height: 48px;
-  border-radius: 999px;
+  border-radius: 16px;
   background: linear-gradient(135deg, #1e293b, #0f172a);
   color: #ffffff;
   display: inline-flex;
@@ -1843,6 +1949,26 @@ button:active{
   font-weight: 800;
   font-size: 1rem;
   box-shadow: 0 4px 10px rgba(15, 23, 42, 0.15);
+  overflow: hidden;
+}
+
+.messages-thread-avatar-large img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.messages-contact-avatar{
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  font-size: 0.68rem;
+}
+
+.message-thread-avatar{
+  border-radius: 14px;
+  overflow: hidden;
 }
 
 .messages-thread-actions{
@@ -3893,6 +4019,38 @@ textarea:focus{
   color: #8fe6d6;
 }
 
+.plan-card.plan-card-priority{
+  border-color: rgba(245, 158, 11, 0.68);
+  background: linear-gradient(145deg, rgba(120, 53, 15, 0.34), rgba(14, 22, 44, 0.88));
+  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.24);
+}
+
+.assignment-priority-card{
+  border-color: rgba(251, 191, 36, 0.62);
+  background: linear-gradient(145deg, rgba(120, 53, 15, 0.2), rgba(9, 20, 41, 0.88));
+}
+
+.assignment-priority-note{
+  border: 1px solid rgba(251, 191, 36, 0.54);
+  background: rgba(251, 191, 36, 0.14);
+  color: #fde68a;
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.athlete-mental-practice-hub{
+  border-color: rgba(56, 189, 248, 0.44);
+  background: linear-gradient(155deg, rgba(3, 28, 53, 0.82), rgba(6, 23, 46, 0.64));
+}
+
+.athlete-mental-practice-actions{
+  margin-top: 10px;
+}
+
+.athlete-mental-practice-actions button{
+  min-height: 40px;
+}
+
 .assignment-card-fields{
   display: grid;
   grid-template-columns: repeat(3, minmax(0,1fr));
@@ -3927,6 +4085,46 @@ textarea:focus{
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
+}
+
+.completion-task-list{
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.completion-task-item{
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.04);
+  padding: 12px;
+}
+
+.completion-task-head{
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.completion-task-cause{
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.completion-task-meta{
+  margin-top: 6px;
+  color: rgba(255,255,255,0.72);
+  font-size: 0.78rem;
+}
+
+.completion-task-actions{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .assignment-status-select{
@@ -4255,6 +4453,19 @@ textarea:focus{
 .competition-athlete-list-btn strong{
   display: block;
   font-size: 0.96rem;
+}
+
+.competition-athlete-name-row{
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.competition-athlete-name-row .wpl-avatar{
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  font-size: 0.7rem;
 }
 
 .competition-athlete-list-btn span{
@@ -5247,6 +5458,104 @@ textarea:focus{
 
 .header-profile{
   position: relative;
+}
+
+.wpl-avatar{
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: linear-gradient(135deg, rgba(18,52,98,0.4), rgba(200,16,46,0.3));
+  color: #f8fafc;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  flex: 0 0 auto;
+}
+
+.wpl-avatar img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.wpl-avatar-xs{
+  width: 28px;
+  height: 28px;
+  font-size: 0.7rem;
+}
+
+.wpl-avatar-sm{
+  width: 40px;
+  height: 40px;
+  font-size: 0.86rem;
+}
+
+.wpl-avatar-md{
+  width: 56px;
+  height: 56px;
+  font-size: 1rem;
+}
+
+.wpl-avatar-lg{
+  width: 88px;
+  height: 88px;
+  font-size: 1.35rem;
+}
+
+.wpl-name-with-avatar{
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.wpl-name-with-avatar-copy{
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.wpl-name-with-avatar-copy strong,
+.wpl-name-with-avatar-copy span{
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel-user-mini{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05);
+  padding: 6px 8px;
+}
+
+.panel-user-mini-copy{
+  display: grid;
+  gap: 2px;
+}
+
+.panel-user-mini-copy strong{
+  font-size: 0.78rem;
+  line-height: 1;
+}
+
+.panel-user-mini-copy small{
+  font-size: 0.66rem;
+  color: rgba(255,255,255,0.68);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .header-menu{
@@ -6400,6 +6709,14 @@ button.ghost,
   align-items: center;
   justify-content: center;
   font-size: 18px;
+  overflow: hidden;
+}
+
+.header-user-avatar{
+  border-radius: 13px;
+  width: 40px;
+  height: 40px;
+  border-color: rgba(148,163,184,0.3);
 }
 
 .header-menu,
@@ -11921,6 +12238,90 @@ body.viewport-mobile .app{
 @media print{
   .global-uwc-corner-mark{
     display: none !important;
+  }
+}
+
+/* Athlete calendar action modal */
+.athlete-calendar-action-overlay{
+  position: fixed;
+  inset: 0;
+  z-index: 1180;
+  background: rgba(2, 8, 23, 0.74);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+}
+
+.athlete-calendar-action-card{
+  width: min(560px, 100%);
+  max-height: calc(100vh - 28px);
+  overflow: auto;
+  border-radius: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.36);
+  background: linear-gradient(165deg, rgba(8, 20, 44, 0.96), rgba(10, 26, 58, 0.92));
+  box-shadow: 0 24px 52px rgba(2, 8, 23, 0.52);
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.athlete-calendar-action-head{
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.athlete-calendar-action-head h3{
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.athlete-calendar-action-head p{
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.athlete-calendar-action-close{
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.24);
+  background: rgba(15, 23, 42, 0.72);
+  color: #f8fafc;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.athlete-calendar-action-grid{
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.athlete-calendar-action-grid button{
+  min-height: 44px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 640px){
+  .athlete-calendar-action-overlay{
+    align-items: flex-end;
+    padding: 10px;
+  }
+
+  .athlete-calendar-action-card{
+    width: min(100%, 520px);
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  .athlete-calendar-action-grid{
+    grid-template-columns: 1fr;
   }
 }
 

@@ -15,7 +15,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Teko:wght@500;600;700&display=swap"
     rel="stylesheet"
   >
-  <link rel="stylesheet" href="styles.css?v=20260411-savefix4" >
+  <link rel="stylesheet" href="styles.css?v=20260413-tasksphoto1" >
 </head>
 
 <body>
@@ -97,6 +97,19 @@
             <option value="uz">Uzbek</option>
             <option value="ru">Russian</option>
           </select>
+        </label>
+        <label class="profile-photo-field">
+          <span>Profile photo (optional)</span>
+          <div class="profile-photo-uploader">
+            <input id="pPhotoFile" class="profile-photo-input" type="file" accept="image/*">
+            <button type="button" id="pPhotoChooseBtn" class="primary profile-photo-action">Upload from device</button>
+            <button type="button" id="pPhotoClearBtn" class="ghost profile-photo-action">Remove photo</button>
+          </div>
+          <input id="pPhoto" type="text" placeholder="Upload a photo or paste URL">
+          <div class="profile-photo-preview-row">
+            <div id="pPhotoPreview" class="wpl-avatar wpl-avatar-lg profile-photo-preview">U</div>
+            <p class="small muted" id="pPhotoStatus">Optional. Recommended square image, optimized automatically.</p>
+          </div>
         </label>
         <label class="register-athlete-extra">
           <span>Preferred move(s)</span>
@@ -215,7 +228,9 @@
           </div>
         </div>
         <div class="header-profile">
-          <button type="button" id="editProfileBtn" title="User menu">👤</button>
+          <button type="button" id="editProfileBtn" title="User menu" aria-label="User menu">
+            <span id="headerAvatar" class="wpl-avatar wpl-avatar-sm header-user-avatar">U</span>
+          </button>
           <div id="headerMenu" class="header-menu hidden">
             <div class="header-menu-section">
               <div class="header-menu-section-title">Views</div>
@@ -223,6 +238,10 @@
               <button type="button" data-action="view-coach">Coach view</button>
               <button type="button" data-action="view-admin">Administrative view</button>
               <button type="button" data-action="view-parent">Parent view</button>
+            </div>
+            <div class="header-menu-section">
+              <div class="header-menu-section-title">Tools</div>
+              <button type="button" data-action="github-actions">GitHub Actions</button>
             </div>
             <div class="header-menu-section">
               <button type="button" data-action="profile">Profile</button>
@@ -421,6 +440,25 @@
             <div class="chip">Create &amp; Edit</div>
           </div>
           <form id="athleteProfileForm" class="form">
+            <div class="mini-card profile-photo-callout">
+              <div class="profile-photo-callout-header">
+                <div>
+                  <h3>Profile photo</h3>
+                  <p class="small muted">Upload from your device or paste a photo URL. This image appears across the app.</p>
+                </div>
+                <div id="aPhotoPreview" class="wpl-avatar wpl-avatar-lg profile-photo-preview">AT</div>
+              </div>
+              <label class="profile-photo-field">
+                <span>Profile photo (optional)</span>
+                <div class="profile-photo-uploader">
+                  <input id="aPhotoFile" class="profile-photo-input" type="file" accept="image/*" >
+                  <button type="button" id="aPhotoChooseBtn" class="primary profile-photo-action">Upload from device</button>
+                  <button type="button" id="aPhotoClearBtn" class="ghost profile-photo-action">Remove photo</button>
+                </div>
+                <input id="aPhoto" type="text" placeholder="Upload a photo or paste URL" >
+                <p class="small muted" id="aPhotoStatus">Optional. Recommended square image, optimized automatically.</p>
+              </label>
+            </div>
             <div class="profile-subtabs" role="tablist" aria-label="Athlete profile focus">
               <button type="button" class="profile-subtab active" data-profile-tab="training" id="profileSubtabTraining">Training</button>
               <button type="button" class="profile-subtab" data-profile-tab="competition" id="profileSubtabCompetition">Competition</button>
@@ -444,10 +482,6 @@
                 <label>
                   <span>Age</span>
                   <input id="aAge" type="number" min="10" max="60" placeholder="e.g., 19" >
-                </label>
-                <label>
-                  <span>Profile photo (optional)</span>
-                  <input id="aPhoto" type="text" placeholder="Add a photo URL" >
                 </label>
                 <label>
                   <span>Country (optional)</span>
@@ -2327,7 +2361,7 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260413-profilefix2"></script>
-  <script src="coach-planner.js?v=20260411-savefix4"></script>
+  <script src="app.js?v=20260413-tasksphoto1"></script>
+  <script src="coach-planner.js?v=20260413-tasksphoto1"></script>
 </body>
 </html>

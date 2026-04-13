@@ -6457,7 +6457,7 @@
       selected.forEach((athlete) => {
         const assignmentRef = assignmentsRef.doc();
         const isCoach = athlete.recipientType === "coach";
-        const initialStatus = isCoach ? "shared" : "not_started";
+        const initialStatus = "pending";
         const startDateKey = contextTrack === "wrestling" && weeklyMode && wrestlingWindow
           ? wrestlingWindow.startKey
           : dueDateKey;

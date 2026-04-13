@@ -126,15 +126,38 @@ function normalizeArray(values = []) {
 
 function normalizeAssignmentStatus(value) {
   const raw = normalizeText(value).toLowerCase();
-  if (raw === "in_progress" || raw === "in-progress" || raw === "progress" || raw === "review") {
-    return "in_progress";
-  }
-  if (raw === "completed" || raw === "complete") {
+
+  if (
+    raw === "completed" ||
+    raw === "complete" ||
+    raw === "done"
+  ) {
     return "completed";
   }
+
+  if (
+    raw === "in_progress" ||
+    raw === "in-progress" ||
+    raw === "progress" ||
+    raw === "review"
+  ) {
+    return "in_progress";
+  }
+
   if (raw === "overdue") return "overdue";
-  if (raw === "shared" || raw === "share" || raw === "shared_with_coach") return "shared";
-  return "not_started";
+
+  if (
+    raw === "pending" ||
+    raw === "not_started" ||
+    raw === "not-started" ||
+    raw === "shared" ||
+    raw === "share" ||
+    raw === "shared_with_coach"
+  ) {
+    return "pending";
+  }
+
+  return "pending";
 }
 
 function buildNotificationId(eventId = "", recipientUid = "", kind = "") {
