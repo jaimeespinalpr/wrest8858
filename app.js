@@ -568,6 +568,7 @@ const todayActionQueueTitle = document.getElementById("todayActionQueueTitle");
 const todayActionQueueCount = document.getElementById("todayActionQueueCount");
 const todayActionQueueHint = document.getElementById("todayActionQueueHint");
 const todayActionQueueList = document.getElementById("todayActionQueueList");
+const athleteFeelingCheckin = document.getElementById("athleteFeelingCheckin");
 const feelingScale = document.getElementById("feelingScale");
 const dailyStatus = document.getElementById("dailyStatus");
 const planGrid = document.getElementById("planGrid");
@@ -17534,11 +17535,43 @@ async function saveAthleteQuickCheckIn(score) {
     return;
   }
   const entryDate = getCurrentAppDateKey();
+  const recordId = `${athleteId}-${entryDate}`;
+  const cachedCheckIn = coachWorkspaceSortByUpdated(athletePortalJournalCache).find((entry) => (
+    String(entry?.athleteId || "").trim() === athleteId
+    && String(entry?.entryDate || "").trim() === entryDate
+    && String(entry?.energy || "").trim()
+  )) || null;
+  if (cachedCheckIn) {
+    return { saved: false, alreadyAnswered: true, entry: cachedCheckIn };
+  }
+  const existingSnapshot = await withTimeout(
+    journalRef.doc(recordId).get(),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_athlete_checkin_lookup_timeout"
+  ).catch(() => null);
+  if (existingSnapshot?.exists) {
+    const existingData = existingSnapshot.data() || {};
+    if (String(existingData.energy || "").trim()) {
+      return { saved: false, alreadyAnswered: true, entry: existingData };
+    }
+  }
+  const nowIso = new Date().toISOString();
   const mood = score >= 4
     ? (currentLang === "es" ? "Ready" : "Ready")
     : (score === 3 ? (currentLang === "es" ? "Neutral" : "Neutral") : (currentLang === "es" ? "Need reset" : "Need reset"));
+  const localRecord = {
+    id: recordId,
+    athleteId,
+    athleteUid: authUser.id,
+    athleteName: String(profile?.name || "").trim(),
+    entryDate,
+    energy: `${score}/5`,
+    mood,
+    updatedAt: nowIso,
+    createdAt: nowIso
+  };
   await withTimeout(
-    journalRef.doc(`${athleteId}-${entryDate}`).set(stripUndefinedDeep({
+    journalRef.doc(recordId).set(stripUndefinedDeep({
       athleteId,
       athleteUid: authUser.id,
       athleteName: String(profile?.name || "").trim(),
@@ -17551,6 +17584,15 @@ async function saveAthleteQuickCheckIn(score) {
     FIREBASE_OP_TIMEOUT_MS,
     "firestore_athlete_checkin_timeout"
   );
+  const currentEntries = Array.isArray(athletePortalJournalCache) ? athletePortalJournalCache : [];
+  const nextEntries = currentEntries
+    .map((entry) => (String(entry?.id || "").trim() === recordId ? { ...entry, ...localRecord } : entry))
+    .filter((entry, index, list) => list.findIndex((item) => String(item?.id || "").trim() === String(entry?.id || "").trim()) === index);
+  if (!nextEntries.some((entry) => String(entry?.id || "").trim() === recordId)) {
+    nextEntries.unshift(localRecord);
+  }
+  athletePortalJournalCache = coachWorkspaceSortByUpdated(nextEntries);
+  return { saved: true, entryDate, score, mood };
 }
 
 function renderAthleteTrackTaskList(container, records = [], { track = "wrestling" } = {}) {
@@ -18021,6 +18063,7 @@ function renderToday(dayIndex = getCurrentAppDayIndex()) {
     if (logCompletionBtn) logCompletionBtn.disabled = !primaryAssignment;
     renderAthleteTrackTaskAreas();
     renderTodayActionQueue();
+    renderFeelingScale();
     return;
   }
 
@@ -18048,6 +18091,7 @@ function renderToday(dayIndex = getCurrentAppDayIndex()) {
   });
   renderAthleteTrackTaskAreas();
   renderTodayActionQueue();
+  renderFeelingScale();
 }
 
 function refreshAthleteAssignmentUI() {
@@ -18057,21 +18101,72 @@ function refreshAthleteAssignmentUI() {
   }
 }
 
+function getAthleteTodayQuickCheckInEntry() {
+  if (!isAthleteRole(getProfile()?.role)) return null;
+  const profile = getProfile() || {};
+  const athleteId = getAthleteLinkedAthleteId(profile);
+  const today = getCurrentAppDateKey();
+  if (!athleteId || !today) return null;
+  return coachWorkspaceSortByUpdated(athletePortalJournalCache).find((entry) => (
+    String(entry?.athleteId || "").trim() === athleteId
+    && String(entry?.entryDate || "").trim() === today
+    && String(entry?.energy || "").trim()
+  )) || null;
+}
+
+let athleteFeelingCheckInSaving = false;
+
 function renderFeelingScale() {
+  if (!feelingScale) return;
+  const isAthlete = isAthleteRole(getProfile()?.role);
+  if (!isAthlete) {
+    if (athleteFeelingCheckin) {
+      athleteFeelingCheckin.classList.add("hidden");
+    }
+    feelingScale.innerHTML = "";
+    return;
+  }
+  const answeredEntry = getAthleteTodayQuickCheckInEntry();
+  if (athleteFeelingCheckin) {
+    athleteFeelingCheckin.classList.toggle("hidden", Boolean(answeredEntry));
+  }
   feelingScale.innerHTML = "";
+  if (answeredEntry) {
+    return;
+  }
+  if (athleteFeelingCheckInSaving) {
+    const loading = document.createElement("div");
+    loading.className = "small muted";
+    loading.textContent = currentLang === "es" ? "Guardando..." : "Saving...";
+    feelingScale.appendChild(loading);
+    return;
+  }
   for (let i = 1; i <= 5; i++) {
     const btn = document.createElement("button");
     btn.textContent = i;
     btn.addEventListener("click", async () => {
+      if (athleteFeelingCheckInSaving) return;
+      athleteFeelingCheckInSaving = true;
+      renderFeelingScale();
       try {
         if (isAthleteRole(getProfile()?.role) && getAthleteLinkedCoachUid()) {
-          await saveAthleteQuickCheckIn(i);
+          const result = await saveAthleteQuickCheckIn(i);
+          if (result?.alreadyAnswered) {
+            toast(currentLang === "es" ? "Ya respondiste hoy." : "You already answered today.");
+          } else {
+            const msg = currentLang === "es" ? `Chequeo guardado: ${i}/5` : `Check-in saved: ${i}/5`;
+            toast(msg);
+          }
+        } else {
+          const msg = currentLang === "es" ? `Chequeo guardado: ${i}/5` : `Check-in saved: ${i}/5`;
+          toast(msg);
         }
-        const msg = currentLang === "es" ? `Chequeo guardado: ${i}/5` : `Check-in saved: ${i}/5`;
-        toast(msg);
       } catch (err) {
         console.warn("Athlete check-in save failed", err);
         toast(currentLang === "es" ? "No se pudo guardar el check-in." : "Could not save the check-in.");
+      } finally {
+        athleteFeelingCheckInSaving = false;
+        renderFeelingScale();
       }
     });
     feelingScale.appendChild(btn);
