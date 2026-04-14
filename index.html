@@ -169,6 +169,43 @@
     </div>
   </div>
 
+  <div id="profilePhotoCropModal" class="register-modal hidden profile-photo-crop-modal" role="dialog" aria-modal="true" aria-labelledby="profilePhotoCropTitle" aria-describedby="profilePhotoCropSubtitle">
+    <div class="register-card profile-photo-crop-card">
+      <div class="register-header profile-photo-crop-header">
+        <div>
+          <h3 id="profilePhotoCropTitle">Crop profile photo</h3>
+          <p class="small muted" id="profilePhotoCropSubtitle">Drag the photo and use zoom so the face fills the frame.</p>
+        </div>
+        <button type="button" class="ghost profile-photo-crop-close" id="profilePhotoCropCloseBtn" aria-label="Close">×</button>
+      </div>
+      <div class="profile-photo-crop-layout">
+        <div class="profile-photo-crop-stage">
+          <div class="profile-photo-crop-viewport" id="profilePhotoCropViewport">
+            <img id="profilePhotoCropImage" alt="Crop preview">
+            <div class="profile-photo-crop-mask"></div>
+            <div class="profile-photo-crop-frame"></div>
+          </div>
+        </div>
+        <div class="profile-photo-crop-controls">
+          <label class="profile-photo-crop-slider">
+            <span id="profilePhotoCropZoomLabel">Zoom</span>
+            <input id="profilePhotoCropZoom" type="range" min="1" max="3" step="0.01" value="1">
+          </label>
+          <p class="small muted" id="profilePhotoCropHint">Move the image so the face is centered. The visible square is the final result.</p>
+          <div class="profile-photo-crop-preview-note">
+            <span class="small muted">Square crop</span>
+            <span class="small muted">Best for avatars</span>
+          </div>
+        </div>
+      </div>
+      <div class="row profile-photo-crop-actions">
+        <button type="button" class="ghost" id="profilePhotoCropCancelBtn">Cancel</button>
+        <button type="button" class="ghost" id="profilePhotoCropResetBtn">Reset</button>
+        <button type="button" class="primary" id="profilePhotoCropSaveBtn">Use photo</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MAIN APP -->
   <div class="app hidden" id="appRoot">
       <nav class="tabs" aria-label="Main tabs">
@@ -2371,7 +2408,7 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260413-feelingcheckin1"></script>
-  <script src="coach-planner.js?v=20260413-feelingcheckin1"></script>
+  <script src="app.js?v=20260413-photocrop1"></script>
+  <script src="coach-planner.js?v=20260413-photocrop1"></script>
 </body>
 </html>
