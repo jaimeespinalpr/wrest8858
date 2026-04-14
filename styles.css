@@ -1107,8 +1107,9 @@ button:active{
 .profile-photo-crop-card{
   width: min(920px, calc(100vw - 24px));
   max-height: min(92vh, 860px);
-  overflow: auto;
-  display: grid;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
 }
 
@@ -1132,6 +1133,10 @@ button:active{
   grid-template-columns: minmax(0, 1.35fr) minmax(240px, 0.75fr);
   gap: 16px;
   align-items: stretch;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .profile-photo-crop-stage{
@@ -1227,6 +1232,13 @@ button:active{
 
 .profile-photo-crop-actions{
   justify-content: flex-end;
+  margin-top: auto;
+  padding-top: 8px;
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(180deg, rgba(10,15,30,0), rgba(10,15,30,0.82) 28%, rgba(10,15,30,0.96));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 #aPhotoStatus{
