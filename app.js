@@ -8374,61 +8374,6 @@ const ATHLETE_CORNER_PLANS = {
   }
 };
 
-const COACH_ACCOUNT = [
-  "Email: coach@wrestlingapp.com",
-  "Password: ********",
-  "Role: Coach (fixed)",
-  "Secure access: Role-based permissions"
-];
-
-const COACH_ACCOUNT_ES = [
-  "Correo: coach@wrestlingapp.com",
-  "Contrasena: ********",
-  "Rol: Entrenador (fijo)",
-  "Acceso seguro: Permisos por rol"
-];
-
-const COACH_PROFILE = [
-  "Name: Coach Morgan Hill",
-  "Profile photo: Uploaded",
-  "Country: United States",
-  "City/State: Lincoln, NE",
-  "Team type: School and club",
-  "Primary discipline: Mixed",
-  "School: Lincoln West (optional)",
-  "Club: Midwest Grapplers (optional)"
-];
-
-const COACH_PROFILE_ES = [
-  "Nombre: Coach Morgan Hill",
-  "Foto de perfil: Subida",
-  "Pais: Estados Unidos",
-  "Ciudad/Estado: Lincoln, NE",
-  "Tipo de equipo: Escuela y club",
-  "Disciplina principal: Mixto",
-  "Escuela: Lincoln West (opcional)",
-  "Club: Midwest Grapplers (opcional)"
-];
-
-const COACH_DISCIPLINE = ["Freestyle", "Greco-Roman", "Folkstyle", "Mixed"];
-const COACH_DISCIPLINE_ES = ["Estilo libre", "Greco-Romana", "Folkstyle", "Mixto"];
-const COACH_STYLE = ["Technical", "Conditioning", "Strategy", "Balanced"];
-const COACH_STYLE_ES = ["Tecnico", "Acondicionamiento", "Estrategia", "Balanceado"];
-
-const COACH_INTERNATIONAL = [
-  "International coaching: Yes",
-  "Countries: Japan, Turkey, Canada",
-  "Events: U23 Worlds, Pan-Am",
-  "Experience: 6 years"
-];
-
-const COACH_INTERNATIONAL_ES = [
-  "Coaching internacional: Si",
-  "Paises: Japon, Turquia, Canada",
-  "Eventos: Mundiales U23, Pan-Am",
-  "Experiencia: 6 anos"
-];
-
 const ATHLETE_FILTERS = ["Weight class", "Wrestling style", "Availability", "Search by name"];
 
 const ATHLETE_FILTERS_ES = ["Categoria de peso", "Estilo de lucha", "Disponibilidad", "Buscar por nombre"];
@@ -9747,24 +9692,87 @@ function getHomeRecentTrainingsData() {
   return [];
 }
 
+function formatCoachProfileField(label, value, { emptyLabel = "" } = {}) {
+  const safeValue = String(value || "").trim();
+  const displayValue = safeValue || emptyLabel || (currentLang === "es" ? "Sin datos" : "No data");
+  return `${label}: ${displayValue}`;
+}
+
 function getCoachAccountData() {
-  return currentLang === "es" ? COACH_ACCOUNT_ES : COACH_ACCOUNT;
+  const profile = getProfile() || {};
+  const authUser = getAuthUser() || {};
+  const role = getRoleLabel(profile.role || "coach", currentLang);
+  const view = getViewLabel(resolveViewForRole(normalizeAuthRole(profile.role || "coach"), profile.view), currentLang);
+  const photoState = String(profile.photo || "").trim()
+    ? (currentLang === "es" ? "Subida" : "Uploaded")
+    : (currentLang === "es" ? "Sin foto" : "No photo");
+  return [
+    formatCoachProfileField(currentLang === "es" ? "Correo" : "Email", authUser.email || profile.email),
+    formatCoachProfileField("UID", authUser.id || profile.uid || ""),
+    formatCoachProfileField(currentLang === "es" ? "Rol" : "Role", role),
+    formatCoachProfileField(currentLang === "es" ? "Vista" : "View", view),
+    formatCoachProfileField(currentLang === "es" ? "Acceso seguro" : "Secure access", currentLang === "es" ? "Permisos por rol" : "Role-based permissions"),
+    formatCoachProfileField(currentLang === "es" ? "Foto de perfil" : "Profile photo", photoState)
+  ];
 }
 
 function getCoachProfileData() {
-  return currentLang === "es" ? COACH_PROFILE_ES : COACH_PROFILE;
+  const profile = getProfile() || {};
+  const teamType = [
+    String(profile.schoolName || "").trim(),
+    String(profile.clubName || "").trim()
+  ].filter(Boolean).join(" / ");
+  const teamLabel = teamType || String(profile.schoolClub || "").trim();
+  return [
+    formatCoachProfileField(currentLang === "es" ? "Nombre" : "Name", profile.name || ""),
+    formatCoachProfileField(currentLang === "es" ? "Pais" : "Country", profile.country || ""),
+    formatCoachProfileField(currentLang === "es" ? "Ciudad/Estado" : "City/State", profile.city || ""),
+    formatCoachProfileField(currentLang === "es" ? "Tipo de equipo" : "Team type", teamLabel),
+    formatCoachProfileField(currentLang === "es" ? "Disciplina principal" : "Primary discipline", profile.primaryDiscipline || profile.discipline || profile.style || ""),
+    formatCoachProfileField(currentLang === "es" ? "Edad" : "Age", profile.age || ""),
+    formatCoachProfileField(currentLang === "es" ? "Telefono" : "Phone", profile.phone || profile.whatsapp || ""),
+    formatCoachProfileField(currentLang === "es" ? "Email de usuario" : "User email", profile.email || "")
+  ];
 }
 
 function getCoachDisciplineData() {
-  return currentLang === "es" ? COACH_DISCIPLINE_ES : COACH_DISCIPLINE;
+  const profile = getProfile() || {};
+  const tags = [
+    profile.discipline,
+    profile.primaryDiscipline,
+    profile.style,
+    profile.trainingFocus
+  ].map((item) => String(item || "").trim()).filter(Boolean);
+  return tags.length ? tags : (currentLang === "es"
+    ? ["Sin datos"]
+    : ["No data"]);
 }
 
 function getCoachStyleData() {
-  return currentLang === "es" ? COACH_STYLE_ES : COACH_STYLE;
+  const profile = getProfile() || {};
+  const tags = [
+    profile.coachStyle,
+    profile.style,
+    profile.trainingFocus,
+    profile.trainingRoutines
+  ].map((item) => String(item || "").trim()).filter(Boolean);
+  return tags.length ? tags : (currentLang === "es"
+    ? ["Sin datos"]
+    : ["No data"]);
 }
 
 function getCoachInternationalData() {
-  return currentLang === "es" ? COACH_INTERNATIONAL_ES : COACH_INTERNATIONAL;
+  const profile = getProfile() || {};
+  const international = String(profile.international || profile.internationalCoaching || "").trim();
+  const events = String(profile.internationalEvents || "").trim();
+  const years = String(profile.internationalYears || profile.years || profile.experienceYears || "").trim();
+  const lines = [
+    formatCoachProfileField(currentLang === "es" ? "Coaching internacional" : "International coaching", international),
+    formatCoachProfileField(currentLang === "es" ? "Eventos" : "Events", events),
+    formatCoachProfileField(currentLang === "es" ? "Experiencia" : "Experience", years ? `${years} ${currentLang === "es" ? "anos" : "years"}` : ""),
+    formatCoachProfileField(currentLang === "es" ? "Coach" : "Coach", String(profile.name || "").trim())
+  ];
+  return lines;
 }
 
 function getAthleteFiltersData() {
@@ -23612,8 +23620,30 @@ const coachProfile = document.getElementById("coachProfile");
 const coachDiscipline = document.getElementById("coachDiscipline");
 const coachStyle = document.getElementById("coachStyle");
 const coachInternational = document.getElementById("coachInternational");
+const coachProfileSummaryName = document.getElementById("coachProfileSummaryName");
+const coachProfileSummaryMeta = document.getElementById("coachProfileSummaryMeta");
+const coachProfileAvatar = document.getElementById("coachProfileAvatar");
 
 function renderCoachProfile() {
+  const profile = getProfile() || {};
+  const authUser = getAuthUser() || {};
+  const fallbackRole = getRoleLabel(normalizeAuthRole(profile.role || "coach"), currentLang);
+  if (coachProfileSummaryName) {
+    coachProfileSummaryName.textContent = String(profile.name || authUser.email || (currentLang === "es" ? "Entrenador" : "Coach")).trim();
+  }
+  if (coachProfileSummaryMeta) {
+    coachProfileSummaryMeta.textContent = [
+      authUser.email || profile.email || "",
+      fallbackRole,
+      profile.city ? `${profile.city}${profile.country ? `, ${profile.country}` : ""}` : String(profile.country || "").trim()
+    ].filter(Boolean).join(" • ");
+  }
+  renderAvatarElement(coachProfileAvatar, {
+    photo: profile.photo || "",
+    name: profile.name || authUser.email || "",
+    fallback: currentLang === "es" ? "CE" : "CO"
+  });
+
   coachAccount.innerHTML = "";
   getCoachAccountData().forEach((line) => {
     const li = document.createElement("li");
