@@ -1927,6 +1927,10 @@
     }
   }
 
+  if (typeof window !== "undefined") {
+    window.clearInlinePrintMode = clearInlinePrintMode;
+  }
+
   function printInlineBasicDocument(bodyMarkup, documentTitle) {
     void documentTitle;
     clearInlinePrintMode();
@@ -2061,7 +2065,38 @@
     }
   }
 
+  function clearBlockingPlannerOverlays() {
+    try {
+      if (typeof window.clearInlinePrintMode === "function") {
+        window.clearInlinePrintMode();
+      } else {
+        document.body.removeAttribute("data-basic-print");
+        document.body.classList.remove("wtp-print-mode");
+        const printHost = document.getElementById("wtp-print-root") || document.getElementById("plannerBasicPrintHost");
+        if (printHost) {
+          printHost.innerHTML = "";
+          printHost.setAttribute("aria-hidden", "true");
+          printHost.style.display = "none";
+        }
+      }
+    } catch {}
+
+    const cropModal = document.getElementById("profilePhotoCropModal");
+    if (cropModal && !cropModal.classList.contains("hidden")) {
+      try {
+        if (typeof window.closeProfilePhotoCropModal === "function") {
+          window.closeProfilePhotoCropModal({ resolveValue: null });
+        } else {
+          cropModal.classList.add("hidden");
+        }
+      } catch {
+        cropModal.classList.add("hidden");
+      }
+    }
+  }
+
   function renderTrackPanels() {
+    clearBlockingPlannerOverlays();
     const previousTrack = normalizeTrack(state.lastRenderedTrack || state.activeTrack);
     const activeTrack = normalizeTrack(state.activeTrack);
     state.activeTrack = activeTrack;
@@ -7909,6 +7944,7 @@
   function render() {
     syncCategoryNamesForLanguage();
     applyPlannerLanguageToStaticDom();
+    clearBlockingPlannerOverlays();
     if (els.dateInput) els.dateInput.value = state.docInfo.date || "";
     if (els.totalTimeInput) els.totalTimeInput.value = state.docInfo.totalTime || "90";
     updatePrintMetaValues();

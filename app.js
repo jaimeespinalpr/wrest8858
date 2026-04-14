@@ -13659,6 +13659,11 @@ function closeProfilePhotoCropModal({ resolveValue = null } = {}) {
   }
 }
 
+if (typeof window !== "undefined") {
+  window.closeProfilePhotoCropModal = closeProfilePhotoCropModal;
+  window.openProfilePhotoCropModal = openProfilePhotoCropModal;
+}
+
 async function openProfilePhotoCropModal(source, {
   target = "athlete",
   profileName = ""
