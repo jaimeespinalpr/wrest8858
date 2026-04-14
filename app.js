@@ -21804,21 +21804,31 @@ function buildCoachAssignmentTask(athleteName = "", assignment = {}) {
 
 function buildCoachJournalTask(athleteName = "") {
   const safeName = String(athleteName || "").trim();
-  if (!safeName || getCoachJournalState(safeName) !== "stale") return null;
-  const latest = getLatestCoachJournalRecord(safeName);
-  const lastEntryLabel = latest?.entryDate
-    ? formatPlanDateLabel(latest.entryDate)
+  if (!safeName) return null;
+  const latestAthleteEntry = getCoachJournalRecords()
+    .filter((entry) => athleteIdentityMatches(entry, safeName))
+    .filter((entry) => String(entry.athleteReflection || "").trim().length > 0)
+    .sort((left, right) => {
+      const leftScore = Date.parse(left.updatedAt || left.createdAt || `${left.entryDate}T23:59:59`);
+      const rightScore = Date.parse(right.updatedAt || right.createdAt || `${right.entryDate}T23:59:59`);
+      return rightScore - leftScore;
+    })[0] || null;
+  if (!latestAthleteEntry) return null;
+  const lastEntryLabel = latestAthleteEntry.entryDate
+    ? formatPlanDateLabel(latestAthleteEntry.entryDate)
     : (currentLang === "es" ? "sin entrada guardada" : "no saved entry");
+  const entryPreview = String(latestAthleteEntry.athleteReflection || latestAthleteEntry.note || "").trim();
   return {
     id: `journal:${normalizeName(safeName)}`,
     type: "journal",
     athleteName: safeName,
-    title: currentLang === "es" ? "Journal pendiente" : "Journal follow-up",
-    status: "overdue",
+    title: currentLang === "es" ? "Journal enviado" : "Journal submitted",
+    status: "pending",
     cause: currentLang === "es"
-      ? `La ultima entrada real del journal fue ${lastEntryLabel}.`
-      : `Last saved journal entry was ${lastEntryLabel}.`,
+      ? `El atleta envio una entrada el ${lastEntryLabel}.`
+      : `The athlete submitted a journal entry on ${lastEntryLabel}.`,
     dueLabel: lastEntryLabel,
+    note: entryPreview,
     assignment: null
   };
 }
@@ -22351,14 +22361,6 @@ async function deleteCoachAssignment(assignmentId, assignmentRecord = null) {
     || getCoachAssignmentRecords().find((item) => String(item.id || "").trim() === safeId)
     || getAthleteTrainingAssignments({ includeCompleted: true }).find((item) => String(item.id || "").trim() === safeId)
     || null;
-  const title = String(record?.title || "").trim() || (currentLang === "es" ? "esta tarea" : "this task");
-  const confirmMessage = currentLang === "es"
-    ? `¿Eliminar "${title}"? Esta tarea se borrará para todos los usuarios y no se puede deshacer.`
-    : `Delete "${title}"? This task will be removed for everyone and cannot be undone.`;
-
-  if (typeof window !== "undefined" && typeof window.confirm === "function" && !window.confirm(confirmMessage)) {
-    return false;
-  }
 
   await withTimeout(
     assignmentsRef.doc(safeId).delete(),
@@ -23368,8 +23370,13 @@ function renderDashboard() {
       if (leftDue && rightDue && leftDue !== rightDue) return leftDue.localeCompare(rightDue);
       return String(left.updatedAt || left.createdAt || "").localeCompare(String(right.updatedAt || right.createdAt || ""));
     });
-  const staleJournalAthletes = athletes.filter((athlete) => getAthleteTaskBoard(athlete.name).journalState === "stale");
-  const pendingTaskCount = openAssignments.length + staleJournalAthletes.length;
+  const athleteTaskBoards = new Map(
+    athletes.map((athlete) => [athlete.name, getAthleteTaskBoard(athlete.name)])
+  );
+  const journalTaskAthletes = athletes.filter((athlete) => (
+    athleteTaskBoards.get(athlete.name)?.taskDetails.some((task) => task.type === "journal")
+  ));
+  const pendingTaskCount = openAssignments.length + journalTaskAthletes.length;
   const competitionRows = getCoachUpcomingCompetitionRows(3);
   const recentTrainingRows = getCoachRecentTrainingRows(3);
   const dashboardStats = isCoachWorkspaceActive()
@@ -23407,7 +23414,7 @@ function renderDashboard() {
 
   teamOverview.innerHTML = "";
   const pendingAssignments = openAssignments.slice(0, 6);
-  const pendingJournalRows = staleJournalAthletes.slice(0, 3);
+  const pendingJournalRows = journalTaskAthletes.slice(0, 3);
   if (isCoachWorkspaceActive()) {
     if (!pendingAssignments.length && !pendingJournalRows.length) {
       teamOverview.innerHTML = `<div class="small muted">${currentLang === "es" ? "No hay tareas pendientes reales ahora mismo." : "No real pending tasks right now."}</div>`;
@@ -23470,12 +23477,14 @@ function renderDashboard() {
       });
 
       pendingJournalRows.forEach((athlete) => {
-        const board = getAthleteTaskBoard(athlete.name);
+        const board = athleteTaskBoards.get(athlete.name) || getAthleteTaskBoard(athlete.name);
+        const journalTask = board.taskDetails.find((task) => task.type === "journal") || null;
         const card = document.createElement("article");
         card.className = "completion-card";
         const row = getCoachCompletionRow(athlete);
         const status = getCompletionStatusMeta(row.status);
-        const latestJournalLabel = escapeHtml(board.journalLabel || (currentLang === "es" ? "Journal pendiente" : "Stale journal"));
+        const latestJournalLabel = escapeHtml(journalTask?.dueLabel || board.journalLabel || (currentLang === "es" ? "Journal enviado" : "Journal submitted"));
+        const journalNote = escapeHtml(journalTask?.note || journalTask?.cause || pickCopy({ en: "Athlete journal entry", es: "Entrada del journal del atleta" }));
         card.innerHTML = `
           <div class="completion-card-top">
             <div>
@@ -23485,7 +23494,7 @@ function renderDashboard() {
             <span class="status-pill ${status.className}">${status.label}</span>
           </div>
           <div class="completion-card-meta">${latestJournalLabel}</div>
-          <div class="completion-card-meta">${escapeHtml(pickCopy({ en: "Needs a new journal update", es: "Necesita una actualizacion del journal" }))}</div>
+          <div class="completion-card-meta">${journalNote}</div>
         `;
         const actions = document.createElement("div");
         actions.className = "completion-task-actions";
@@ -23501,7 +23510,7 @@ function renderDashboard() {
         teamOverview.appendChild(card);
       });
 
-      if (openAssignments.length > pendingAssignments.length || staleJournalAthletes.length > pendingJournalRows.length) {
+      if (openAssignments.length > pendingAssignments.length || journalTaskAthletes.length > pendingJournalRows.length) {
         const more = document.createElement("div");
         more.className = "small muted";
         more.textContent = currentLang === "es"
