@@ -9700,6 +9700,8 @@ svg{
 }
 
 .planner-track-switch{
+  position: relative;
+  z-index: 20;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -9710,6 +9712,9 @@ svg{
 }
 
 .planner-track-btn{
+  position: relative;
+  z-index: 21;
+  cursor: pointer;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   background: rgba(255, 255, 255, 0.05);
