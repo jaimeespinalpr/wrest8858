@@ -473,7 +473,6 @@
       // ignore localStorage errors
     }
     if ([
-      STORAGE_KEYS.track,
       STORAGE_KEYS.liftingDraft,
       STORAGE_KEYS.mentalDraft,
       STORAGE_KEYS.mentalScores,
@@ -6601,7 +6600,6 @@
 
   function buildPlannerClientStatePayload() {
     return {
-      activeTrack: normalizeTrack(state.activeTrack || "wrestling"),
       liftingDraft: state.liftingDraft || {},
       mentalDraft: state.mentalDraft || {},
       mentalScores: normalizeMentalScoreValue(state.mentalScores || buildDefaultMentalScores()),
@@ -6616,8 +6614,6 @@
   function applyPlannerClientStatePayload(payload = {}) {
     const safe = payload && typeof payload === "object" ? payload : {};
     state.plannerClientStateApplying = true;
-    state.activeTrack = normalizeTrack(safe.activeTrack || state.activeTrack || "wrestling");
-    state.lastRenderedTrack = state.activeTrack;
     state.liftingDraft = safe.liftingDraft && typeof safe.liftingDraft === "object" ? safe.liftingDraft : (state.liftingDraft || {});
     state.mentalDraft = safe.mentalDraft && typeof safe.mentalDraft === "object" ? safe.mentalDraft : (state.mentalDraft || {});
     state.mentalScores = normalizeMentalScoreValue(safe.mentalScores || state.mentalScores || buildDefaultMentalScores());
@@ -6627,7 +6623,6 @@
     state.liftingPlan = normalizeLiftingPlan(safe.liftingPlan || state.liftingPlan || buildDefaultLiftingPlan());
     state.liftingActiveDay = Math.max(0, Math.min(6, parseInt(String(safe.liftingActiveDay ?? state.liftingActiveDay ?? 0), 10) || 0));
     state.liftingTab = normalizeLiftingTab(safe.liftingActiveTab || state.liftingTab || "editor");
-    writeJson(STORAGE_KEYS.track, state.activeTrack);
     writeJson(STORAGE_KEYS.liftingDraft, state.liftingDraft);
     writeJson(STORAGE_KEYS.mentalDraft, state.mentalDraft);
     writeJson(STORAGE_KEYS.mentalScores, state.mentalScores);
@@ -8321,29 +8316,51 @@
     root.addEventListener("blur", handleRootBlur, true);
     root.addEventListener("keydown", handleRootKeydown);
 
+    const handleTrackActivation = (btn, event) => {
+      if (!btn) return;
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      if (btn.dataset.trackActivationLock === "1") return;
+      btn.dataset.trackActivationLock = "1";
+      window.setTimeout(() => {
+        delete btn.dataset.trackActivationLock;
+      }, 250);
+      setPlannerActiveTrack(btn.dataset.plannerTrack, { focus: false });
+    };
+
+    if (els.trackSwitch) {
+      const resolveTrackButton = (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return null;
+        return target.closest("[data-planner-track]");
+      };
+      els.trackSwitch.addEventListener("pointerdown", (event) => {
+        const btn = resolveTrackButton(event);
+        if (!btn) return;
+        handleTrackActivation(btn, event);
+      }, true);
+      els.trackSwitch.addEventListener("touchend", (event) => {
+        const btn = resolveTrackButton(event);
+        if (!btn) return;
+        handleTrackActivation(btn, event);
+      }, { capture: true, passive: false });
+      els.trackSwitch.addEventListener("click", (event) => {
+        const btn = resolveTrackButton(event);
+        if (!btn) return;
+        handleTrackActivation(btn, event);
+      }, true);
+    }
+
     els.trackButtons.forEach((btn) => {
       const activate = (event) => {
-        if (event) {
-          event.preventDefault();
-          event.stopPropagation();
-        }
-        if (btn.dataset.trackActivationLock === "1") return;
-        btn.dataset.trackActivationLock = "1";
-        window.setTimeout(() => {
-          delete btn.dataset.trackActivationLock;
-        }, 250);
-        setPlannerActiveTrack(btn.dataset.plannerTrack, { focus: false });
+        handleTrackActivation(btn, event);
       };
 
       btn.addEventListener("pointerup", activate);
-      btn.addEventListener("click", (event) => {
-        if (btn.dataset.trackActivationLock === "1") {
-          event.preventDefault();
-          event.stopPropagation();
-          return;
-        }
-        activate(event);
-      });
+      btn.addEventListener("touchend", activate, { passive: false });
+      btn.addEventListener("click", activate);
       btn.addEventListener("keydown", (event) => {
         if (event.key !== "Enter" && event.key !== " ") return;
         activate(event);
