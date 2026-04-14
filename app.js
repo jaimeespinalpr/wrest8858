@@ -12656,6 +12656,15 @@ const competitionSharedEditorHint = document.getElementById("competitionSharedEd
 const competitionSummaryProfileLabel = document.getElementById("competitionSummaryProfileLabel");
 const competitionSummaryWorkOnsLabel = document.getElementById("competitionSummaryWorkOnsLabel");
 const competitionSummaryCuesLabel = document.getElementById("competitionSummaryCuesLabel");
+const competitionSummaryQuickCard = document.getElementById("competitionSummaryQuickCard");
+const competitionSummaryQuickAvatar = document.getElementById("competitionSummaryQuickAvatar");
+const competitionSummaryQuickName = document.getElementById("competitionSummaryQuickName");
+const competitionSummaryQuickMeta = document.getElementById("competitionSummaryQuickMeta");
+const competitionSummaryQuickLeadLegValue = document.getElementById("competitionSummaryQuickLeadLegValue");
+const competitionSummaryQuickPositionValue = document.getElementById("competitionSummaryQuickPositionValue");
+const competitionSummaryQuickCueWordsValue = document.getElementById("competitionSummaryQuickCueWordsValue");
+const competitionSummaryQuickWorkOnsValue = document.getElementById("competitionSummaryQuickWorkOnsValue");
+const competitionSummaryQuickChipRow = document.getElementById("competitionSummaryQuickChipRow");
 const competitionSummaryProfileInput = document.getElementById("competitionSummaryProfileInput");
 const competitionSummaryWorkOnsInput = document.getElementById("competitionSummaryWorkOnsInput");
 const competitionSummaryCuesInput = document.getElementById("competitionSummaryCuesInput");
@@ -14935,6 +14944,8 @@ function buildCompetitionPreview(profile) {
   const summaryProfile = String(profile.competitionSummaryProfile || "").trim();
   const summaryWorkOns = String(profile.competitionSummaryWorkOns || "").trim();
   const summaryCues = String(profile.competitionSummaryCues || "").trim();
+  const leadLeg = getCompetitionLeadLegLabel(profile);
+  const cueWords = Array.isArray(profile.cueWords) ? profile.cueWords.map((item) => String(item || "").trim()).filter(Boolean) : [];
   const latestPlan = athleteIdentity.athleteId || athleteIdentity.athleteUid || athleteIdentity.athleteName
     ? getLatestCoachPlanForAthlete(athleteIdentity)
     : null;
@@ -14981,7 +14992,9 @@ function buildCompetitionPreview(profile) {
       title: currentLang === "es" ? "Resumen competitivo" : "Competition Summary",
       lines: [
         `${currentLang === "es" ? "Perfil" : "Profile"}: ${summaryProfile || summaryProfileFallback || na}`,
+        `${currentLang === "es" ? "Lead leg" : "Lead leg"}: ${leadLeg || none}`,
         `${currentLang === "es" ? "Trabajo actual" : "Current work-ons"}: ${summaryWorkOns || summaryWorkOnsFallback || none}`,
+        `${currentLang === "es" ? "Cue words" : "Cue words"}: ${cueWords.length ? cueWords.slice(0, 3).join(" | ") : none}`,
         `${currentLang === "es" ? "Cues de rendimiento" : "Performance cues"}: ${summaryCues || summaryCuesFallback || none}`,
         `${currentLang === "es" ? "Plan activo" : "Active plan"}: ${latestPlan?.title || none}`,
         `${currentLang === "es" ? "Siguiente tarea" : "Next assignment"}: ${liveAssignments[0]?.title || none}`,
@@ -15058,6 +15071,37 @@ function competitionAthleteMatchesSearch(athlete = {}, query = "") {
   return searchable.includes(safeQuery);
 }
 
+function getCompetitionLeadLegLabel(profile = {}) {
+  const rawLeadLeg = profile.defaultTechniques?.leadLeg || profile.leadLeg || "";
+  return translateOptionValue("aLeadLeg", rawLeadLeg) || translateValue(rawLeadLeg) || String(rawLeadLeg || "").trim();
+}
+
+function buildCompetitionQuickSnapshot(profile = {}) {
+  const styleLabel = translateOptionValue("aStyle", profile.style) || translateValue(profile.style) || String(profile.style || "").trim();
+  const weightLabel = [profile.currentWeight || profile.weight || "", profile.weightClass || ""].filter(Boolean).join(" • ").trim();
+  const positionLabel = translateOptionValue("aFavoritePosition", profile.favoritePosition || profile.position) || translateValue(profile.favoritePosition || profile.position) || String(profile.favoritePosition || profile.position || "").trim();
+  const leadLegLabel = getCompetitionLeadLegLabel(profile);
+  const cueWords = Array.isArray(profile.cueWords) ? profile.cueWords.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 3) : [];
+  const workOns = [profile.trainingFocus, profile.competitionSummaryWorkOns, profile.strategyA, profile.strategyB]
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .slice(0, 2)
+    .join(" | ");
+  const cues = [profile.competitionCue, profile.coachSignal, ...(cueWords || [])]
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  return {
+    styleLabel,
+    weightLabel,
+    positionLabel,
+    leadLegLabel,
+    cueWords,
+    workOns,
+    cues
+  };
+}
+
 function renderCompetitionPreview(profile) {
   const isCoachContext = isCoachRouteContext();
   if (competitionSharedLayout) {
@@ -15108,15 +15152,57 @@ function renderCompetitionPreview(profile) {
       ? "Cues cortos para esquina y triggers de reset"
       : "Short corner cues and reset triggers";
   }
+  const selectedProfile = profile || null;
+  const selectedName = String(selectedProfile?.name || "").trim();
+  const selectedCoachName = String(getSelectedCoachAthleteName() || "").trim();
+  const quickSnapshot = buildCompetitionQuickSnapshot(selectedProfile || {});
+  renderAvatarElement(competitionSummaryQuickAvatar, {
+    photo: selectedProfile?.photo || "",
+    name: selectedName,
+    fallback: selectedName ? selectedName.slice(0, 2).toUpperCase() : "AT"
+  });
+  if (competitionSummaryQuickCard) {
+    competitionSummaryQuickCard.classList.toggle("is-empty", !selectedName && !selectedCoachName);
+  }
+  if (competitionSummaryQuickName) {
+    competitionSummaryQuickName.textContent = selectedName || (currentLang === "es" ? "Selecciona un atleta" : "Select an athlete");
+  }
+  if (competitionSummaryQuickMeta) {
+    competitionSummaryQuickMeta.textContent = selectedName
+      ? `${quickSnapshot.styleLabel || (currentLang === "es" ? "Sin estilo" : "No style")} • ${quickSnapshot.weightLabel || (currentLang === "es" ? "Sin peso" : "No weight")} • ${quickSnapshot.positionLabel || (currentLang === "es" ? "Sin posicion" : "No position")}`
+      : (currentLang === "es"
+        ? "Elige un atleta para cargar su snapshot de esquina."
+        : "Pick an athlete to load the corner snapshot.");
+  }
+  if (competitionSummaryQuickLeadLegValue) {
+    competitionSummaryQuickLeadLegValue.textContent = quickSnapshot.leadLegLabel || (currentLang === "es" ? "Sin datos" : "No data");
+  }
+  if (competitionSummaryQuickPositionValue) {
+    competitionSummaryQuickPositionValue.textContent = quickSnapshot.positionLabel || (currentLang === "es" ? "Sin datos" : "No data");
+  }
+  if (competitionSummaryQuickCueWordsValue) {
+    competitionSummaryQuickCueWordsValue.textContent = quickSnapshot.cueWords.length
+      ? quickSnapshot.cueWords.join(" • ")
+      : (currentLang === "es" ? "Sin cue words" : "No cue words");
+  }
+  if (competitionSummaryQuickWorkOnsValue) {
+    competitionSummaryQuickWorkOnsValue.textContent = quickSnapshot.workOns || (currentLang === "es" ? "Sin trabajo actual" : "No current work-ons");
+  }
+  if (competitionSummaryQuickChipRow) {
+    const chips = [
+      selectedName ? (currentLang === "es" ? "Resumen listo" : "Snapshot ready") : "",
+      quickSnapshot.leadLegLabel ? `${currentLang === "es" ? "Lead" : "Lead"}: ${quickSnapshot.leadLegLabel}` : "",
+      quickSnapshot.cues[0] ? `${currentLang === "es" ? "Cue" : "Cue"}: ${quickSnapshot.cues[0]}` : ""
+    ].filter(Boolean);
+    competitionSummaryQuickChipRow.innerHTML = chips.length
+      ? chips.map((chip) => `<span class="competition-focus-chip">${escapeHtml(chip)}</span>`).join("")
+      : `<span class="small muted">${currentLang === "es" ? "Resumen rapido sin atleta seleccionado." : "Quick snapshot without a selected athlete."}</span>`;
+  }
   if (competitionSummarySaveBtn) {
     competitionSummarySaveBtn.textContent = currentLang === "es"
       ? "Guardar resumen de competencia"
       : "Save competition summary";
   }
-
-  const selectedProfile = profile || null;
-  const selectedName = String(selectedProfile?.name || "").trim();
-  const selectedCoachName = String(getSelectedCoachAthleteName() || "").trim();
   const favoriteAthleteNames = new Set(
     getFavoriteAthleteEntries().map((entry) => normalizeName(entry.targetAthlete || entry.label))
   );
@@ -15354,10 +15440,13 @@ function renderCompetitionPreview(profile) {
           const safeName = String(athlete?.name || "").trim();
           const isActive = safeName && safeName === activeAthleteName;
           const isFavorite = favoriteAthleteNames.has(normalizeName(safeName));
+          const leadLeg = getCompetitionLeadLegLabel(athlete);
+          const cueWord = Array.isArray(athlete.cueWords) ? athlete.cueWords.map((item) => String(item || "").trim()).filter(Boolean)[0] : "";
           const metaLine = [
             athlete.weightClass || athlete.currentWeight || athlete.weight || "",
-            getLevelLabel(athlete.level) || "",
-            athlete.trainingFocus || ""
+            leadLeg ? `${currentLang === "es" ? "Lead" : "Lead"} ${leadLeg}` : "",
+            cueWord ? `${currentLang === "es" ? "Cue" : "Cue"} ${cueWord}` : "",
+            athlete.trainingFocus || athlete.competitionSummaryWorkOns || ""
           ].filter(Boolean).join(" • ") || (currentLang === "es" ? "Abrir resumen de esquina" : "Open corner summary");
           return `
             <div class="competition-athlete-list-row">

@@ -15,7 +15,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Teko:wght@500;600;700&display=swap"
     rel="stylesheet"
   >
-  <link rel="stylesheet" href="styles.css?v=20260414-plannerfix1" >
+  <link rel="stylesheet" href="styles.css?v=20260414-competitionfocus1" >
 </head>
 
 <body>
@@ -1044,6 +1044,34 @@
               <div class="competition-athlete-list" id="competitionAthleteList"></div>
             </section>
             <section class="mini-card competition-shared-editor-card" id="competitionSharedEditorCard">
+              <div class="competition-summary-quick-card" id="competitionSummaryQuickCard">
+                <div class="competition-summary-quick-head">
+                  <span class="wpl-avatar competition-summary-quick-avatar" id="competitionSummaryQuickAvatar">AT</span>
+                  <div>
+                    <h3 id="competitionSummaryQuickName">Competition snapshot</h3>
+                    <p class="small muted" id="competitionSummaryQuickMeta">Pick an athlete to load the corner snapshot.</p>
+                  </div>
+                </div>
+                <div class="competition-summary-quick-grid">
+                  <div class="competition-summary-quick-item">
+                    <span id="competitionSummaryQuickLeadLegLabel">Lead leg</span>
+                    <strong id="competitionSummaryQuickLeadLegValue">-</strong>
+                  </div>
+                  <div class="competition-summary-quick-item">
+                    <span id="competitionSummaryQuickPositionLabel">Favorite position</span>
+                    <strong id="competitionSummaryQuickPositionValue">-</strong>
+                  </div>
+                  <div class="competition-summary-quick-item">
+                    <span id="competitionSummaryQuickCueWordsLabel">Cue words</span>
+                    <strong id="competitionSummaryQuickCueWordsValue">-</strong>
+                  </div>
+                  <div class="competition-summary-quick-item">
+                    <span id="competitionSummaryQuickWorkOnsLabel">Current work-ons</span>
+                    <strong id="competitionSummaryQuickWorkOnsValue">-</strong>
+                  </div>
+                </div>
+                <div class="competition-summary-quick-chip-row" id="competitionSummaryQuickChipRow"></div>
+              </div>
               <h3 id="competitionSharedEditorTitle">Competition Focus Summary</h3>
               <p class="small muted" id="competitionSharedEditorHint">Editable by athlete and coach. Keep this concise and actionable.</p>
               <label>
@@ -2410,7 +2438,7 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260414-plannerfix1"></script>
-  <script src="coach-planner.js?v=20260414-plannerfix1"></script>
+  <script src="app.js?v=20260414-competitionfocus1"></script>
+  <script src="coach-planner.js?v=20260414-competitionfocus1"></script>
 </body>
 </html>
