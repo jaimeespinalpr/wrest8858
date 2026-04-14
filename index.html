@@ -100,11 +100,12 @@
         </label>
         <label class="profile-photo-field">
           <span>Profile photo (optional)</span>
-          <div class="profile-photo-uploader">
-            <input id="pPhotoFile" class="profile-photo-input" type="file" accept="image/*">
-            <button type="button" id="pPhotoChooseBtn" class="primary profile-photo-action">Upload from device</button>
-            <button type="button" id="pPhotoClearBtn" class="ghost profile-photo-action">Remove photo</button>
-          </div>
+                <div class="profile-photo-uploader">
+                  <input id="pPhotoFile" class="profile-photo-input" type="file" accept="image/*">
+                  <button type="button" id="pPhotoChooseBtn" class="primary profile-photo-action">Upload from device</button>
+                  <button type="button" id="pPhotoEditBtn" class="ghost profile-photo-action" disabled>Edit current photo</button>
+                  <button type="button" id="pPhotoClearBtn" class="ghost profile-photo-action">Remove photo</button>
+                </div>
           <input id="pPhoto" type="text" placeholder="Upload a photo or paste URL">
           <div class="profile-photo-preview-row">
             <div id="pPhotoPreview" class="wpl-avatar wpl-avatar-lg profile-photo-preview">U</div>
@@ -490,6 +491,7 @@
                 <div class="profile-photo-uploader">
                   <input id="aPhotoFile" class="profile-photo-input" type="file" accept="image/*" >
                   <button type="button" id="aPhotoChooseBtn" class="primary profile-photo-action">Upload from device</button>
+                  <button type="button" id="aPhotoEditBtn" class="ghost profile-photo-action" disabled>Edit current photo</button>
                   <button type="button" id="aPhotoClearBtn" class="ghost profile-photo-action">Remove photo</button>
                 </div>
                 <input id="aPhoto" type="text" placeholder="Upload a photo or paste URL" >
@@ -2408,7 +2410,7 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260413-photocrop1"></script>
-  <script src="coach-planner.js?v=20260413-photocrop1"></script>
+  <script src="app.js?v=20260413-photocrop2"></script>
+  <script src="coach-planner.js?v=20260413-photocrop2"></script>
 </body>
 </html>

@@ -1069,6 +1069,7 @@ const pLang = document.getElementById("pLang");
 const pPhoto = document.getElementById("pPhoto");
 const pPhotoFile = document.getElementById("pPhotoFile");
 const pPhotoChooseBtn = document.getElementById("pPhotoChooseBtn");
+const pPhotoEditBtn = document.getElementById("pPhotoEditBtn");
 const pPhotoPreview = document.getElementById("pPhotoPreview");
 const pPhotoStatus = document.getElementById("pPhotoStatus");
 const pPhotoClearBtn = document.getElementById("pPhotoClearBtn");
@@ -12674,6 +12675,7 @@ const aAge = document.getElementById("aAge");
 const aPhoto = document.getElementById("aPhoto");
 const aPhotoFile = document.getElementById("aPhotoFile");
 const aPhotoChooseBtn = document.getElementById("aPhotoChooseBtn");
+const aPhotoEditBtn = document.getElementById("aPhotoEditBtn");
 const aPhotoPreview = document.getElementById("aPhotoPreview");
 const aPhotoStatus = document.getElementById("aPhotoStatus");
 const aPhotoClearBtn = document.getElementById("aPhotoClearBtn");
@@ -13474,6 +13476,9 @@ function renderAthleteProfilePhotoPreview({
   const name = String(profileName || "").trim();
   renderAvatarElement(aPhotoPreview, { photo, name, fallback: "AT" });
   const hasPhoto = Boolean(photo);
+  if (aPhotoEditBtn) {
+    aPhotoEditBtn.disabled = !hasPhoto;
+  }
   if (statusMessage != null) {
     setAthleteProfilePhotoStatus(statusMessage, statusTone);
   } else {
@@ -13491,6 +13496,9 @@ function renderRegisterProfilePhotoPreview({
   const name = String(profileName || "").trim();
   renderAvatarElement(pPhotoPreview, { photo, name, fallback: "U" });
   const hasPhoto = Boolean(photo);
+  if (pPhotoEditBtn) {
+    pPhotoEditBtn.disabled = !hasPhoto;
+  }
   if (statusMessage != null) {
     setRegisterProfilePhotoStatus(statusMessage, statusTone);
   } else {
@@ -13651,20 +13659,31 @@ function closeProfilePhotoCropModal({ resolveValue = null } = {}) {
   }
 }
 
-async function openProfilePhotoCropModal(file, {
+async function openProfilePhotoCropModal(source, {
   target = "athlete",
   profileName = ""
 } = {}) {
-  if (!file) return null;
-  const mimeType = String(file.type || "").toLowerCase();
-  if (!mimeType.startsWith("image/")) {
-    throw new Error("profile_photo_invalid_type");
-  }
-  if (Number(file.size || 0) > PROFILE_PHOTO_MAX_BYTES) {
-    throw new Error("profile_photo_file_too_large");
+  if (!source) return null;
+  const isStringSource = typeof source === "string";
+  let src = "";
+  let objectUrl = "";
+  if (isStringSource) {
+    src = String(source || "").trim();
+    if (!src) return null;
+  } else {
+    const mimeType = String(source.type || "").toLowerCase();
+    if (!mimeType.startsWith("image/")) {
+      throw new Error("profile_photo_invalid_type");
+    }
+    if (Number(source.size || 0) > PROFILE_PHOTO_MAX_BYTES) {
+      throw new Error("profile_photo_file_too_large");
+    }
+    objectUrl = URL.createObjectURL(source);
+    src = objectUrl;
   }
   if (!profilePhotoCropModal || !profilePhotoCropViewport || !profilePhotoCropImage || !profilePhotoCropSaveBtn) {
-    return readAthleteProfilePhotoFileAsDataUrl(file);
+    if (isStringSource) return src;
+    return readAthleteProfilePhotoFileAsDataUrl(source);
   }
   const copy = getProfilePhotoCropCopy(target);
   if (profilePhotoCropTitle) profilePhotoCropTitle.textContent = copy.title;
@@ -13677,15 +13696,17 @@ async function openProfilePhotoCropModal(file, {
   if (profilePhotoCropSaveBtn) profilePhotoCropSaveBtn.disabled = false;
   if (profilePhotoCropImage) profilePhotoCropImage.removeAttribute("src");
 
-  const objectUrl = URL.createObjectURL(file);
   profilePhotoCropModal.classList.remove("hidden");
   focusOpenedWindow(profilePhotoCropModal);
 
   const image = new Image();
+  if (isStringSource && !src.startsWith("data:")) {
+    image.crossOrigin = "anonymous";
+  }
   const state = {
     target,
     profileName,
-    fileName: String(file.name || "").trim(),
+    fileName: isStringSource ? "" : String(source.name || "").trim(),
     objectUrl,
     image,
     naturalWidth: 0,
@@ -13732,7 +13753,7 @@ async function openProfilePhotoCropModal(file, {
       state.scale = state.baseScale;
       state.x = Math.round((state.viewportSize - (state.naturalWidth * state.scale)) / 2);
       state.y = Math.round((state.viewportSize - (state.naturalHeight * state.scale)) / 2);
-      profilePhotoCropImage.src = objectUrl;
+      profilePhotoCropImage.src = src;
       profilePhotoCropImage.alt = profileName ? `${profileName} photo crop preview` : "Crop preview";
       clampProfilePhotoCropState(state);
       renderProfilePhotoCropState();
@@ -13741,7 +13762,7 @@ async function openProfilePhotoCropModal(file, {
       toast(currentLang === "es" ? "No se pudo abrir la foto." : "Could not open the photo.");
       closeProfilePhotoCropModal({ resolveValue: null });
     };
-    image.src = objectUrl;
+    image.src = src;
   });
 
   return result;
@@ -14040,6 +14061,44 @@ if (pPhotoClearBtn) {
 if (pPhotoChooseBtn && pPhotoFile) {
   pPhotoChooseBtn.addEventListener("click", () => {
     pPhotoFile.click();
+  });
+}
+
+if (pPhotoEditBtn) {
+  pPhotoEditBtn.addEventListener("click", async () => {
+    const currentPhoto = String(pPhoto?.value || "").trim();
+    if (!currentPhoto) return;
+    pPhotoEditBtn.disabled = true;
+    setRegisterProfilePhotoStatus(currentLang === "es" ? "Abriendo recorte..." : "Opening crop tool...");
+    try {
+      const dataUrl = await openProfilePhotoCropModal(currentPhoto, {
+        target: "register",
+        profileName: pName?.value || ""
+      });
+      if (dataUrl) {
+        pPhoto.value = dataUrl;
+        renderRegisterProfilePhotoPreview({
+          photoValue: dataUrl,
+          profileName: pName?.value || "",
+          statusMessage: currentLang === "es"
+            ? "Foto recortada. Guarda la cuenta para aplicar el cambio."
+            : "Photo cropped. Save the account to apply the change.",
+          statusTone: "ok"
+        });
+      }
+    } catch (err) {
+      console.warn("Register profile photo recrop failed", err);
+      renderRegisterProfilePhotoPreview({
+        photoValue: pPhoto?.value || "",
+        profileName: pName?.value || "",
+        statusMessage: currentLang === "es"
+          ? "No se pudo recortar la foto. Intenta otra vez."
+          : "Could not crop the photo. Try again.",
+        statusTone: "error"
+      });
+    } finally {
+      pPhotoEditBtn.disabled = false;
+    }
   });
 }
 
@@ -16030,6 +16089,44 @@ if (aPhotoClearBtn) {
 if (aPhotoChooseBtn && aPhotoFile) {
   aPhotoChooseBtn.addEventListener("click", () => {
     aPhotoFile.click();
+  });
+}
+
+if (aPhotoEditBtn) {
+  aPhotoEditBtn.addEventListener("click", async () => {
+    const currentPhoto = String(aPhoto?.value || "").trim();
+    if (!currentPhoto) return;
+    aPhotoEditBtn.disabled = true;
+    setAthleteProfilePhotoStatus(currentLang === "es" ? "Abriendo recorte..." : "Opening crop tool...");
+    try {
+      const dataUrl = await openProfilePhotoCropModal(currentPhoto, {
+        target: "athlete",
+        profileName: aName?.value || ""
+      });
+      if (dataUrl) {
+        aPhoto.value = dataUrl;
+        renderAthleteProfilePhotoPreview({
+          photoValue: dataUrl,
+          profileName: aName?.value || "",
+          statusMessage: currentLang === "es"
+            ? "Foto recortada. Guarda el perfil para aplicar el cambio."
+            : "Photo cropped. Save the profile to apply the change.",
+          statusTone: "ok"
+        });
+      }
+    } catch (err) {
+      console.warn("Athlete profile photo recrop failed", err);
+      renderAthleteProfilePhotoPreview({
+        photoValue: aPhoto?.value || "",
+        profileName: aName?.value || "",
+        statusMessage: currentLang === "es"
+          ? "No se pudo recortar la foto. Intenta otra vez."
+          : "Could not crop the photo. Try again.",
+        statusTone: "error"
+      });
+    } finally {
+      aPhotoEditBtn.disabled = false;
+    }
   });
 }
 
