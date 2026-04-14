@@ -9693,9 +9693,17 @@ function getHomeRecentTrainingsData() {
 }
 
 function formatCoachProfileField(label, value, { emptyLabel = "" } = {}) {
-  const safeValue = String(value || "").trim();
+  const safeValue = normalizeProfileDisplayValue(value);
   const displayValue = safeValue || emptyLabel || (currentLang === "es" ? "Sin datos" : "No data");
   return `${label}: ${displayValue}`;
+}
+
+function normalizeProfileDisplayValue(value) {
+  const safe = String(value || "").trim();
+  if (!safe) return "";
+  const lowered = safe.toLowerCase();
+  if (["no", "none", "n/a", "na", "null", "undefined", "-", "optional"].includes(lowered)) return "";
+  return safe;
 }
 
 function getCoachAccountData() {
@@ -9719,10 +9727,10 @@ function getCoachAccountData() {
 function getCoachProfileData() {
   const profile = getProfile() || {};
   const teamType = [
-    String(profile.schoolName || "").trim(),
-    String(profile.clubName || "").trim()
+    normalizeProfileDisplayValue(profile.schoolName),
+    normalizeProfileDisplayValue(profile.clubName)
   ].filter(Boolean).join(" / ");
-  const teamLabel = teamType || String(profile.schoolClub || "").trim();
+  const teamLabel = teamType || normalizeProfileDisplayValue(profile.schoolClub);
   return [
     formatCoachProfileField(currentLang === "es" ? "Nombre" : "Name", profile.name || ""),
     formatCoachProfileField(currentLang === "es" ? "Pais" : "Country", profile.country || ""),
