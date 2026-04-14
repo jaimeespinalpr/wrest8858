@@ -2131,6 +2131,18 @@
     state.lastRenderedTrack = activeTrack;
   }
 
+  function setPlannerActiveTrack(track, { focus = false } = {}) {
+    const nextTrack = normalizeTrack(track);
+    const changed = nextTrack !== normalizeTrack(state.activeTrack);
+    state.activeTrack = nextTrack;
+    if (changed || state.lastRenderedTrack !== nextTrack) {
+      renderTrackPanels();
+    }
+    if (focus) {
+      focusPlannerWindow(root, { smooth: true });
+    }
+  }
+
   function getTrackDraftElements(track) {
     if (track === "lifting") {
       return {
@@ -8310,10 +8322,31 @@
     root.addEventListener("keydown", handleRootKeydown);
 
     els.trackButtons.forEach((btn) => {
-      btn.addEventListener("click", () => {
-        state.activeTrack = normalizeTrack(btn.dataset.plannerTrack);
-        renderTrackPanels();
-        focusPlannerWindow(root, { smooth: true });
+      const activate = (event) => {
+        if (event) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        if (btn.dataset.trackActivationLock === "1") return;
+        btn.dataset.trackActivationLock = "1";
+        window.setTimeout(() => {
+          delete btn.dataset.trackActivationLock;
+        }, 250);
+        setPlannerActiveTrack(btn.dataset.plannerTrack, { focus: false });
+      };
+
+      btn.addEventListener("pointerup", activate);
+      btn.addEventListener("click", (event) => {
+        if (btn.dataset.trackActivationLock === "1") {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        activate(event);
+      });
+      btn.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        activate(event);
       });
     });
 

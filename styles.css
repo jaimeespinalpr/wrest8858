@@ -9716,6 +9716,9 @@ svg{
   color: #d7e7ff;
   font-weight: 700;
   padding: 8px 14px;
+  min-height: 44px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .planner-track-btn.active{
@@ -11628,6 +11631,7 @@ svg{
   .planner-track-btn{
     width: 100%;
     text-align: left;
+    min-height: 50px;
   }
   .planner-sheet-header{
     grid-template-columns: 1fr;
