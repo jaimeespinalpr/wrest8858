@@ -23354,8 +23354,22 @@ function renderDashboard() {
   const athletes = getAthletesData();
   const assignmentRecords = getCoachAssignmentRecords();
   const activeAthletes = athletes.filter((athlete) => normalizeAvailabilityKey(athlete.availability) !== "other").length || athletes.length;
-  const pendingTaskCount = assignmentRecords.filter((item) => item.status !== "completed").length
-    + athletes.filter((athlete) => getAthleteTaskBoard(athlete.name).journalState === "stale").length;
+  const openAssignments = assignmentRecords
+    .filter((item) => normalizeAssignmentStatus(item.status) !== "completed")
+    .sort((left, right) => {
+      const leftStatus = normalizeAssignmentStatus(left.status);
+      const rightStatus = normalizeAssignmentStatus(right.status);
+      const priorityOrder = { overdue: 0, not_started: 1, in_progress: 2, shared: 3 };
+      const leftPriority = priorityOrder[leftStatus] ?? 9;
+      const rightPriority = priorityOrder[rightStatus] ?? 9;
+      if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+      const leftDue = String(left.dueDateKey || "").trim();
+      const rightDue = String(right.dueDateKey || "").trim();
+      if (leftDue && rightDue && leftDue !== rightDue) return leftDue.localeCompare(rightDue);
+      return String(left.updatedAt || left.createdAt || "").localeCompare(String(right.updatedAt || right.createdAt || ""));
+    });
+  const staleJournalAthletes = athletes.filter((athlete) => getAthleteTaskBoard(athlete.name).journalState === "stale");
+  const pendingTaskCount = openAssignments.length + staleJournalAthletes.length;
   const competitionRows = getCoachUpcomingCompetitionRows(3);
   const recentTrainingRows = getCoachRecentTrainingRows(3);
   const dashboardStats = isCoachWorkspaceActive()
@@ -23392,18 +23406,118 @@ function renderDashboard() {
   });
 
   teamOverview.innerHTML = "";
-  const overviewLines = isCoachWorkspaceActive()
-    ? [
-        `${getCoachPlanRecords().length} ${currentLang === "es" ? "planes guardados" : "saved plans"}`,
-        `${getCoachGroupRecords().length} ${currentLang === "es" ? "grupos listos para asignar" : "groups ready for assignment"}`,
-        `${getCoachAssignmentRecords().length} ${currentLang === "es" ? "asignaciones guardadas" : "saved assignments"}`
-      ]
-    : getTeamOverviewData();
-  overviewLines.forEach((line) => {
-    const li = document.createElement("li");
-    li.textContent = line;
-    teamOverview.appendChild(li);
-  });
+  const pendingAssignments = openAssignments.slice(0, 6);
+  const pendingJournalRows = staleJournalAthletes.slice(0, 3);
+  if (isCoachWorkspaceActive()) {
+    if (!pendingAssignments.length && !pendingJournalRows.length) {
+      teamOverview.innerHTML = `<div class="small muted">${currentLang === "es" ? "No hay tareas pendientes reales ahora mismo." : "No real pending tasks right now."}</div>`;
+    } else {
+      pendingAssignments.forEach((item) => {
+        const statusMeta = getAssignmentStatusMeta(item.status);
+        const card = document.createElement("article");
+        card.className = "completion-card";
+        const assigneeLabel = getCoachAssignmentAssigneeLabel(item);
+        const dueLabel = item.dueLabel || formatPlanDateLabel(item.dueDateKey || getCurrentAppDateKey());
+        card.innerHTML = `
+          <div class="completion-card-top">
+            <div>
+              <strong>${escapeHtml(item.title || defaultPlanTitle(item.planType || "day"))}</strong>
+              <div class="small">${escapeHtml(assigneeLabel || (currentLang === "es" ? "Sin asignar" : "Unassigned"))} • ${escapeHtml(dueLabel)}</div>
+            </div>
+            <span class="status-pill ${statusMeta.className}">${escapeHtml(statusMeta.label)}</span>
+          </div>
+          <div class="completion-card-meta"><strong>${currentLang === "es" ? "Causa" : "Cause"}:</strong> ${escapeHtml(getCoachAssignmentCauseLabel(item))}</div>
+          <div class="completion-card-meta">${escapeHtml(item.source || getPlanAssignmentTypeLabel(item.planType))}</div>
+        `;
+        const actions = document.createElement("div");
+        actions.className = "completion-task-actions";
+
+        const openBtn = document.createElement("button");
+        openBtn.type = "button";
+        openBtn.className = "ghost";
+        openBtn.textContent = currentLang === "es" ? "Abrir tarea" : "Open task";
+        openBtn.addEventListener("click", () => {
+          openCoachTaskWorkspace({
+            type: "assignment",
+            athleteName: getCoachAssignmentPrimaryAthleteName(item) || assigneeLabel,
+            assignment: item
+          });
+        });
+        actions.appendChild(openBtn);
+
+        if (normalizeAssignmentStatus(item.status) !== "completed") {
+          const completeBtn = document.createElement("button");
+          completeBtn.type = "button";
+          completeBtn.className = "primary";
+          completeBtn.textContent = currentLang === "es" ? "Done" : "Done";
+          completeBtn.dataset.action = "mark-assignment-done";
+          completeBtn.dataset.assignmentId = item.id;
+          completeBtn.dataset.viewerRole = "coach";
+          actions.appendChild(completeBtn);
+        }
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.type = "button";
+        deleteBtn.className = "ghost destructive";
+        deleteBtn.textContent = currentLang === "es" ? "Eliminar" : "Delete";
+        deleteBtn.dataset.action = "delete-assignment";
+        deleteBtn.dataset.assignmentId = item.id;
+        deleteBtn.dataset.assignmentTitle = item.title || "";
+        actions.appendChild(deleteBtn);
+
+        card.appendChild(actions);
+        teamOverview.appendChild(card);
+      });
+
+      pendingJournalRows.forEach((athlete) => {
+        const board = getAthleteTaskBoard(athlete.name);
+        const card = document.createElement("article");
+        card.className = "completion-card";
+        const row = getCoachCompletionRow(athlete);
+        const status = getCompletionStatusMeta(row.status);
+        const latestJournalLabel = escapeHtml(board.journalLabel || (currentLang === "es" ? "Journal pendiente" : "Stale journal"));
+        card.innerHTML = `
+          <div class="completion-card-top">
+            <div>
+              <strong>${escapeHtml(athlete.name)}</strong>
+              <div class="small">${escapeHtml(athlete.weight || "")}</div>
+            </div>
+            <span class="status-pill ${status.className}">${status.label}</span>
+          </div>
+          <div class="completion-card-meta">${latestJournalLabel}</div>
+          <div class="completion-card-meta">${escapeHtml(pickCopy({ en: "Needs a new journal update", es: "Necesita una actualizacion del journal" }))}</div>
+        `;
+        const actions = document.createElement("div");
+        actions.className = "completion-task-actions";
+        const openJournalBtn = document.createElement("button");
+        openJournalBtn.type = "button";
+        openJournalBtn.className = "ghost";
+        openJournalBtn.textContent = currentLang === "es" ? "Abrir journal" : "Open journal";
+        openJournalBtn.addEventListener("click", () => {
+          openCoachTaskWorkspace({ type: "journal", athleteName: athlete.name });
+        });
+        actions.appendChild(openJournalBtn);
+        card.appendChild(actions);
+        teamOverview.appendChild(card);
+      });
+
+      if (openAssignments.length > pendingAssignments.length || staleJournalAthletes.length > pendingJournalRows.length) {
+        const more = document.createElement("div");
+        more.className = "small muted";
+        more.textContent = currentLang === "es"
+          ? "Abre Plans & Assignments para ver y gestionar la lista completa."
+          : "Open Plans & Assignments to manage the full list.";
+        teamOverview.appendChild(more);
+      }
+    }
+  } else {
+    getTeamOverviewData().forEach((line) => {
+      const row = document.createElement("div");
+      row.className = "small muted";
+      row.textContent = line;
+      teamOverview.appendChild(row);
+    });
+  }
 
   quickActions.innerHTML = "";
   const quickActionHandlers = [
