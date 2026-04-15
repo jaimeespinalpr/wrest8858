@@ -13860,12 +13860,10 @@ if (profilePhotoCropSaveBtn) {
       const dataUrl = await buildProfilePhotoCropDataUrl();
       closeProfilePhotoCropModal({ resolveValue: dataUrl || null });
     } catch (err) {
-      console.warn("Profile photo crop failed", err);
+      console.error("Profile photo crop failed:", err?.message || err);
       toast(currentLang === "es" ? "No se pudo recortar la foto." : "Could not crop the photo.");
       profilePhotoCropSaveBtn.disabled = false;
-      return;
     }
-    profilePhotoCropSaveBtn.disabled = false;
   });
 }
 
