@@ -13695,10 +13695,19 @@ async function openProfilePhotoCropModal(source, {
     objectUrl = URL.createObjectURL(source);
     src = objectUrl;
   }
+  
+  // Check if all DOM elements are available
   if (!profilePhotoCropModal || !profilePhotoCropViewport || !profilePhotoCropImage || !profilePhotoCropSaveBtn) {
+    console.warn("Photo crop modal elements missing:", {
+      modal: !!profilePhotoCropModal,
+      viewport: !!profilePhotoCropViewport,
+      image: !!profilePhotoCropImage,
+      saveBtn: !!profilePhotoCropSaveBtn
+    });
     if (isStringSource) return src;
     return readAthleteProfilePhotoFileAsDataUrl(source);
   }
+  
   const copy = getProfilePhotoCropCopy(target);
   if (profilePhotoCropTitle) profilePhotoCropTitle.textContent = copy.title;
   if (profilePhotoCropSubtitle) profilePhotoCropSubtitle.textContent = copy.subtitle;
@@ -13748,31 +13757,55 @@ async function openProfilePhotoCropModal(source, {
   };
 
   const result = await new Promise((resolve) => {
+    let settled = false;
+    const timeoutId = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      console.error("Photo crop image load timeout");
+      toast(currentLang === "es" ? "La foto tardó demasiado en cargar." : "Photo took too long to load.");
+      closeProfilePhotoCropModal({ resolveValue: null });
+    }, FIREBASE_OP_TIMEOUT_MS || 10000);
+    
     profilePhotoCropSession.resolve = resolve;
     image.onload = () => {
-      state.naturalWidth = image.naturalWidth || image.width || 1;
-      state.naturalHeight = image.naturalHeight || image.height || 1;
-      state.viewportSize = Math.max(
-        240,
-        Math.min(
-          Math.round(profilePhotoCropViewport.clientWidth || 320),
-          Math.round(profilePhotoCropViewport.clientHeight || profilePhotoCropViewport.clientWidth || 320)
-        )
-      );
-      state.baseScale = Math.max(
-        state.viewportSize / state.naturalWidth,
-        state.viewportSize / state.naturalHeight
-      );
-      state.zoom = 1;
-      state.scale = state.baseScale;
-      state.x = Math.round((state.viewportSize - (state.naturalWidth * state.scale)) / 2);
-      state.y = Math.round((state.viewportSize - (state.naturalHeight * state.scale)) / 2);
-      profilePhotoCropImage.src = src;
-      profilePhotoCropImage.alt = profileName ? `${profileName} photo crop preview` : "Crop preview";
-      clampProfilePhotoCropState(state);
-      renderProfilePhotoCropState();
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      try {
+        state.naturalWidth = image.naturalWidth || image.width || 1;
+        state.naturalHeight = image.naturalHeight || image.height || 1;
+        const vpWidth = profilePhotoCropViewport.clientWidth || 320;
+        const vpHeight = profilePhotoCropViewport.clientHeight || vpWidth || 320;
+        if (vpWidth < 1 || vpHeight < 1) {
+          throw new Error("viewport_dimensions_invalid");
+        }
+        state.viewportSize = Math.max(
+          240,
+          Math.min(Math.round(vpWidth), Math.round(vpHeight))
+        );
+        state.baseScale = Math.max(
+          state.viewportSize / state.naturalWidth,
+          state.viewportSize / state.naturalHeight
+        );
+        state.zoom = 1;
+        state.scale = state.baseScale;
+        state.x = Math.round((state.viewportSize - (state.naturalWidth * state.scale)) / 2);
+        state.y = Math.round((state.viewportSize - (state.naturalHeight * state.scale)) / 2);
+        profilePhotoCropImage.src = src;
+        profilePhotoCropImage.alt = profileName ? `${profileName} photo crop preview` : "Crop preview";
+        clampProfilePhotoCropState(state);
+        renderProfilePhotoCropState();
+      } catch (err) {
+        console.error("Photo crop onload handler failed:", err);
+        toast(currentLang === "es" ? "Error al cargar la foto." : "Error loading photo.");
+        closeProfilePhotoCropModal({ resolveValue: null });
+      }
     };
-    image.onerror = () => {
+    image.onerror = (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      console.error("Photo crop image load failed:", err);
       toast(currentLang === "es" ? "No se pudo abrir la foto." : "Could not open the photo.");
       closeProfilePhotoCropModal({ resolveValue: null });
     };
