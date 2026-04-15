@@ -207,6 +207,24 @@ const MEDIA_THUMBNAIL_QUALITY = 0.82;
 const PROFILE_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 const PROFILE_PHOTO_MAX_DATA_URL_CHARS = 420000;
 
+// Client debug logging helper (sends logs to Cloud Function when enabled)
+if (typeof window !== "undefined") {
+  window._sendClientDebugLog = async (eventName, data = {}) => {
+    try {
+      if (!window.DEBUG_PHOTO_CROP) return;
+      const project = (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.projectId) || "gary-test-c557f";
+      const url = `https://us-central1-${project}.cloudfunctions.net/clientDebugLog`;
+      await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event: eventName, data, href: location.href, ua: navigator.userAgent, ts: new Date().toISOString() })
+      });
+    } catch (err) {
+      console.warn("clientDebugLog send failed", err);
+    }
+  };
+}
+
 function initFirebaseClient() {
   if (typeof firebase === "undefined" || !window.FIREBASE_CONFIG) return null;
   try {
@@ -13698,12 +13716,14 @@ async function openProfilePhotoCropModal(source, {
   
   // Check if all DOM elements are available
   if (!profilePhotoCropModal || !profilePhotoCropViewport || !profilePhotoCropImage || !profilePhotoCropSaveBtn) {
-    console.warn("Photo crop modal elements missing:", {
+    const missingInfo = {
       modal: !!profilePhotoCropModal,
       viewport: !!profilePhotoCropViewport,
       image: !!profilePhotoCropImage,
       saveBtn: !!profilePhotoCropSaveBtn
-    });
+    };
+    console.warn("Photo crop modal elements missing:", missingInfo);
+    try { window._sendClientDebugLog && window._sendClientDebugLog('modal_elements_missing', missingInfo); } catch (e) {}
     if (isStringSource) return src;
     return readAthleteProfilePhotoFileAsDataUrl(source);
   }
@@ -13761,7 +13781,9 @@ async function openProfilePhotoCropModal(source, {
     const timeoutId = setTimeout(() => {
       if (settled) return;
       settled = true;
-      console.error("Photo crop image load timeout");
+      const info = { reason: 'timeout', timeoutMs: FIREBASE_OP_TIMEOUT_MS || 10000 };
+      console.error("Photo crop image load timeout", info);
+      try { window._sendClientDebugLog && window._sendClientDebugLog('image_load_timeout', info); } catch (e) {}
       toast(currentLang === "es" ? "La foto tardó demasiado en cargar." : "Photo took too long to load.");
       closeProfilePhotoCropModal({ resolveValue: null });
     }, FIREBASE_OP_TIMEOUT_MS || 10000);
@@ -13805,7 +13827,9 @@ async function openProfilePhotoCropModal(source, {
       if (settled) return;
       settled = true;
       clearTimeout(timeoutId);
-      console.error("Photo crop image load failed:", err);
+      const info = { message: err?.message || String(err) };
+      console.error("Photo crop image load failed:", info);
+      try { window._sendClientDebugLog && window._sendClientDebugLog('image_load_failed', info); } catch (e) {}
       toast(currentLang === "es" ? "No se pudo abrir la foto." : "Could not open the photo.");
       closeProfilePhotoCropModal({ resolveValue: null });
     };
@@ -13893,7 +13917,9 @@ if (profilePhotoCropSaveBtn) {
       const dataUrl = await buildProfilePhotoCropDataUrl();
       closeProfilePhotoCropModal({ resolveValue: dataUrl || null });
     } catch (err) {
-      console.error("Profile photo crop failed:", err?.message || err);
+      const info = { message: err?.message || String(err) };
+      console.error("Profile photo crop failed:", info);
+      try { window._sendClientDebugLog && window._sendClientDebugLog('crop_failed', info); } catch (e) {}
       toast(currentLang === "es" ? "No se pudo recortar la foto." : "Could not crop the photo.");
       profilePhotoCropSaveBtn.disabled = false;
     }

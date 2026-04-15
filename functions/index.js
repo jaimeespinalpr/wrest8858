@@ -818,6 +818,34 @@ exports.sendInviteEmail = onRequest({ region: "us-central1" }, async (req, res) 
   }
 });
 
+// HTTP endpoint for receiving client-side debug logs
+exports.clientDebugLog = onRequest({ region: "us-central1" }, async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  if (req.method === "OPTIONS") {
+    res.status(204).send("");
+    return;
+  }
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "method_not_allowed" });
+    return;
+  }
+
+  try {
+    const payload = req.body || {};
+    const docRef = await firestore.collection("client_debug_logs").add({
+      payload,
+      headers: req.headers || {},
+      createdAt: FieldValue.serverTimestamp()
+    });
+    res.status(200).json({ ok: true, id: docRef.id });
+  } catch (err) {
+    logger.error("clientDebugLog failed", { message: err?.message || String(err) });
+    res.status(500).json({ error: "internal_error", message: String(err?.message || err) });
+  }
+});
+
 exports.notifyRegistrationByEmail = onDocumentCreated({
   document: `${USERS_COLLECTION}/{userId}`,
   region: "us-central1"
