@@ -154,6 +154,7 @@ let athleteMentalLeaderboardStatus = "";
 let athleteMentalLeaderboardLoadedKeys = {};
 let athleteMentalLeaderboardReady = false;
 let athleteMentalLeaderboardUnsubs = [];
+let profilePhotoRealtimeUnsub = null;
 let coachRelationshipSyncTimeout = null;
 let coachRelationshipSyncInFlight = false;
 let parentScoutingRecorder = null;
@@ -1330,12 +1331,41 @@ function renderAvatarElement(element, { photo = "", name = "", fallback = "U" } 
   element.replaceChildren(image);
 }
 
-function syncHeaderAvatar(profile = getProfile()) {
+function getProfilePhotoValue(profile = getProfile()) {
+  const safeProfile = profile && typeof profile === "object" ? profile : {};
+  return String(safeProfile.photo || safeProfile.photoUrl || safeProfile.profilePhoto || "").trim();
+}
+
+function syncVisibleProfileAvatars(profile = getProfile()) {
   const safeProfile = profile && typeof profile === "object" ? profile : {};
   const name = String(safeProfile.name || "").trim();
-  const photo = String(safeProfile.photo || "").trim();
+  const photo = getProfilePhotoValue(safeProfile);
   const fallback = currentLang === "es" ? "US" : "U";
   renderAvatarElement(headerAvatar, { photo, name, fallback });
+  renderAvatarElement(coachProfileAvatar, {
+    photo,
+    name,
+    fallback: currentLang === "es" ? "CE" : "CO"
+  });
+  renderAvatarElement(coachAthleteProfileAvatar, {
+    photo,
+    name,
+    fallback: currentLang === "es" ? "AT" : "AT"
+  });
+  renderAvatarElement(competitionSummaryQuickAvatar, {
+    photo,
+    name,
+    fallback: currentLang === "es" ? "AT" : "AT"
+  });
+  renderAvatarElement(messagesThreadAvatar, {
+    photo,
+    name,
+    fallback: currentLang === "es" ? "MS" : "MS"
+  });
+}
+
+function syncHeaderAvatar(profile = getProfile()) {
+  syncVisibleProfileAvatars(profile);
 }
 
 function renderUserMeta(profile) {
@@ -1343,7 +1373,7 @@ function renderUserMeta(profile) {
     userMeta.textContent = currentLang === "es" ? "Vista atleta" : "Athlete View";
     roleMeta.textContent =
       currentLang === "es" ? "Enfoque: Tecnica en el tapiz" : "Training Focus: Mat Technique";
-    syncHeaderAvatar(null);
+    syncVisibleProfileAvatars(null);
     return;
   }
   const name = profile.name || (currentLang === "es" ? "Usuario" : "User");
@@ -1352,7 +1382,7 @@ function renderUserMeta(profile) {
   const levelValue = getLevelLabel(profile.level, currentLang);
   const level = levelValue ? ` - ${levelValue}` : "";
   userMeta.textContent = `${name} - ${getRoleLabel(role, currentLang)}${level}${team}`;
-  syncHeaderAvatar(profile);
+  syncVisibleProfileAvatars(profile);
 }
 
 let clockStarted = false;
@@ -1560,6 +1590,13 @@ function normalizeProfileForAuth(profile, authUser) {
   if (authUser?.id) base.user_id = authUser.id;
   const email = normalizeEmail(base.email || authUser?.email || "");
   if (email) base.email = email;
+  const normalizedPhoto = getProfilePhotoValue(base);
+  if (normalizedPhoto) {
+    base.photo = normalizedPhoto;
+  } else {
+    delete base.photoUrl;
+    delete base.profilePhoto;
+  }
   const requestedRole = normalizeAuthRole(authUser?.role || base.role);
   const allowAdmin = hasTrustedAdminSession({ email, userId: authUser?.id || base.user_id });
   const role = (requestedRole === "admin" || isForcedAdminEmail(email))
@@ -1624,6 +1661,7 @@ async function applyProfile(profile) {
     stopParentPortalRealtimeSync();
     stopAthletePortalRealtimeSync();
     stopAdminUsersRealtimeSync();
+    stopProfilePhotoRealtimeSync();
     teardownMessagesSession();
     setLanguage(getPreferredLang(), { skipConfirm: true, refresh: false });
     setView("athlete");
@@ -1664,6 +1702,60 @@ async function applyProfile(profile) {
     console.warn("Messages realtime bootstrap failed", err);
   });
   refreshLanguageUI();
+  startProfilePhotoRealtimeSync();
+  syncVisibleProfileAvatars(profile);
+}
+
+function stopProfilePhotoRealtimeSync() {
+  if (profilePhotoRealtimeUnsub) {
+    try {
+      profilePhotoRealtimeUnsub();
+    } catch {
+      // ignore unsubscribe errors
+    }
+    profilePhotoRealtimeUnsub = null;
+  }
+}
+
+function startProfilePhotoRealtimeSync() {
+  const authUser = getAuthUser();
+  const profile = getProfile();
+  if (!authUser?.id || !profile || !firebaseFirestoreInstance) {
+    stopProfilePhotoRealtimeSync();
+    return;
+  }
+  if (profilePhotoRealtimeUnsub) return;
+  profilePhotoRealtimeUnsub = firebaseFirestoreInstance
+    .collection(FIREBASE_USERS_COLLECTION)
+    .doc(authUser.id)
+    .onSnapshot((snapshot) => {
+      const exists = typeof snapshot?.exists === "function" ? snapshot.exists() : Boolean(snapshot?.exists);
+      if (!exists) return;
+      const remoteData = snapshot.data() || {};
+      const hasRemotePhotoField = ["photo", "photoUrl", "profilePhoto"].some((key) =>
+        Object.prototype.hasOwnProperty.call(remoteData, key)
+      );
+      if (!hasRemotePhotoField) return;
+      const remotePhoto = String(remoteData.photo || remoteData.photoUrl || remoteData.profilePhoto || "").trim();
+      const currentPhoto = String(profile.photo || profile.photoUrl || profile.profilePhoto || "").trim();
+      if (remotePhoto !== currentPhoto) {
+        const updatedProfile = { ...profile, photo: remotePhoto };
+        setProfile(updatedProfile, { sync: false });
+        syncVisibleProfileAvatars(updatedProfile);
+
+        if (aPhoto && isAthleteRole(profile.role)) {
+          aPhoto.value = remotePhoto;
+          renderAthleteProfilePhotoPreview({
+            photoValue: remotePhoto,
+            profileName: updatedProfile.name || "",
+            statusMessage: currentLang === "es"
+              ? "Foto actualizada desde otro dispositivo."
+              : "Photo updated from another device.",
+            statusTone: "ok"
+          });
+        }
+      }
+    }, (err) => console.warn("Profile photo realtime sync failed", err));
 }
 
 const LANG_FLAGS = {
@@ -7899,14 +7991,16 @@ const QUICK_ACTIONS = [
   "Add Athlete",
   "Create Plan",
   "Send Assignment",
-  "Open Competition Mode"
+  "Open Competition Mode",
+  "Edit Profile"
 ];
 
 const QUICK_ACTIONS_ES = [
   "Agregar atleta",
   "Crear plan",
   "Enviar asignacion",
-  "Abrir modo competencia"
+  "Abrir modo competencia",
+  "Editar perfil"
 ];
 
 const HOME_COMPETITIONS = [
@@ -9743,7 +9837,7 @@ function getCoachAccountData() {
   const authUser = getAuthUser() || {};
   const role = getRoleLabel(profile.role || "coach", currentLang);
   const view = getViewLabel(resolveViewForRole(normalizeAuthRole(profile.role || "coach"), profile.view), currentLang);
-  const photoState = String(profile.photo || "").trim()
+  const photoState = getProfilePhotoValue(profile)
     ? (currentLang === "es" ? "Subida" : "Uploaded")
     : (currentLang === "es" ? "Sin foto" : "No photo");
   return [
@@ -13962,13 +14056,13 @@ function fillAthleteProfileForm(profile) {
   aName.value = profile.name || "";
   if (aRole) aRole.value = normalizeAuthRole(profile.role);
   if (aAge) aAge.value = profile.age || "";
-  aPhoto.value = profile.photo || "";
+  aPhoto.value = getProfilePhotoValue(profile);
   if (aPhotoFile) aPhotoFile.value = "";
   renderAthleteProfilePhotoPreview({
-    photoValue: profile.photo || "",
+    photoValue: getProfilePhotoValue(profile),
     profileName: profile.name || "",
-    statusMessage: getAthleteProfilePhotoIdleMessage(Boolean(profile.photo)),
-    statusTone: profile.photo ? "ok" : ""
+    statusMessage: getAthleteProfilePhotoIdleMessage(Boolean(getProfilePhotoValue(profile))),
+    statusTone: getProfilePhotoValue(profile) ? "ok" : ""
   });
   aCountry.value = profile.country || "";
   aCity.value = profile.city || "";
@@ -14242,7 +14336,7 @@ async function syncAthleteProfileToCoachWorkspace(profile = getProfile(), authUs
     coachName: String(getAthleteLinkedCoachName(profile) || profile.linkedCoachName || "").trim(),
     coachEmail: normalizeEmail(profile.linkedCoachEmail || ""),
     age: String(profile.age || "").trim(),
-    photo: String(profile.photo || "").trim(),
+    photo: getProfilePhotoValue(profile),
     country: String(profile.country || "").trim(),
     city: String(profile.city || "").trim(),
     schoolClub: String(profile.schoolClub || "").trim(),
@@ -24273,7 +24367,12 @@ function renderDashboard() {
     () => focusRoutePanel("athletes", { selector: "#athleteSearchInput", selectText: true }),
     () => focusRoutePanel("plans", { selector: "#wtpPlanDate", selectText: true }),
     () => focusRoutePanel("plans", { selector: "#plannerOpenLibraryBtn" }),
-    () => focusRoutePanel("competition-preview")
+    () => focusRoutePanel("competition-preview"),
+    () => {
+      openEditableCurrentProfile().catch((err) => {
+        console.warn("Could not open current profile from home", err);
+      });
+    }
   ];
   getQuickActionsData().forEach((action, index) => {
     const btn = document.createElement("button");
@@ -24371,7 +24470,7 @@ function renderCoachProfile() {
     ].filter(Boolean).join(" • ");
   }
   renderAvatarElement(coachProfileAvatar, {
-    photo: profile.photo || "",
+    photo: getProfilePhotoValue(profile),
     name: profile.name || authUser.email || "",
     fallback: currentLang === "es" ? "CE" : "CO"
   });
@@ -26476,7 +26575,7 @@ function renderCoachAthleteProfile(athleteName = getSelectedCoachAthleteName()) 
     : `<p class="small muted">${currentLang === "es" ? "No hay journal reciente." : "No recent journal update."}</p>`;
 
   renderAvatarElement(coachAthleteProfileAvatar, {
-    photo: rawAthlete.photo || athlete.photo || "",
+    photo: getProfilePhotoValue(rawAthlete || athlete),
     name: athlete.name,
     fallback: initials || "AT"
   });
@@ -30385,7 +30484,7 @@ function getMessagesCurrentUser() {
     email,
     role,
     name: String(profile.name || authUser.email || "").trim() || "User",
-    photo: String(profile.photo || "").trim(),
+    photo: getProfilePhotoValue(profile),
     linkedCoachUid: String(profile.linkedCoachUid || "").trim(),
     linkedAthleteId: String(profile.linkedAthleteId || "").trim(),
     linkedAthleteUid: String(profile.linkedAthleteUid || "").trim(),

@@ -11,8 +11,12 @@ final class WebViewModel: ObservableObject {
     @Published var canGoForward = false
 
     private weak var webView: WKWebView?
-    private let initialBaseURLString = "https://jaimeespinalpr.github.io/wrest8858/"
-    private let syncProbeURLString = "https://jaimeespinalpr.github.io/wrest8858/"
+    private var initialBaseURLString: String {
+        devServerURL(for: "WPL_WEB_BASE_URL", fallback: "https://jaimeespinalpr.github.io/wrest8858/")
+    }
+    private var syncProbeURLString: String {
+        devServerURL(for: "WPL_SYNC_BASE_URL", fallback: initialBaseURLString)
+    }
     private var lastKnownViewportSize: CGSize = .zero
     private var lastWebProcessRecoveryAt: Date = .distantPast
     private var isRecoveringWebProcess = false
@@ -21,6 +25,11 @@ final class WebViewModel: ObservableObject {
     private var hasStartedAutomaticSync = false
     private var isSyncCheckInFlight = false
     private var syncTimer: Timer?
+
+    private func devServerURL(for key: String, fallback: String) -> String {
+        let value = ProcessInfo.processInfo.environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return value.isEmpty ? fallback : value
+    }
 
     func attach(_ webView: WKWebView) {
         self.webView = webView

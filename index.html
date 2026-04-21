@@ -34,12 +34,12 @@
           <h3 id="authTitle">Log in</h3>
           <p id="authSubtitle" class="small muted">Securely access your Wrestling Performance Lab workspace.</p>
         </div>
-        <div class="auth-panel">
-          <div class="auth-form-wrap" id="loginFormWrap">
-            <form id="loginForm" class="auth-form">
-              <label>
-                <span>Email</span>
-                <input id="loginEmail" type="email" required autocomplete="username">
+          <div class="auth-panel">
+            <div class="auth-form-wrap" id="loginFormWrap">
+              <form id="loginForm" class="auth-form">
+                <label>
+                  <span>Email</span>
+                  <input id="loginEmail" type="email" required autocomplete="username">
               </label>
               <label>
                 <span>Password</span>
@@ -47,12 +47,13 @@
               </label>
               <button type="submit" class="primary full">Log In</button>
               <p class="small muted">Firebase Auth protects your account and keeps the history safe.</p>
-            </form>
+              </form>
+            </div>
+            <button type="button" id="guestCoachBtn" class="ghost full">Continue as Coach Guest</button>
+            <button type="button" id="createAccountBtn" class="ghost full">Create an account</button>
           </div>
-          <button type="button" id="createAccountBtn" class="ghost full">Create an account</button>
         </div>
       </div>
-    </div>
   </div>
 
   <div id="registerModal" class="register-modal hidden" role="dialog" aria-modal="true" aria-labelledby="registerTitle">
@@ -2438,7 +2439,7 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260414-trackfix3"></script>
-  <script src="coach-planner.js?v=20260414-trackfix3"></script>
+  <script src="app.js?v=20260420-profilefix1"></script>
+  <script src="coach-planner.js?v=20260420-profilefix1"></script>
 </body>
 </html>
