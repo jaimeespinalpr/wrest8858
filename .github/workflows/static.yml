@@ -32,23 +32,23 @@ jobs:
           FIREBASE_APP_ID_CLEAN="$(printf '%s' "${{ secrets.FIREBASE_APP_ID }}" | tr -d '\r\n')"
           FIREBASE_MEASUREMENT_ID_CLEAN="$(printf '%s' "${{ secrets.FIREBASE_MEASUREMENT_ID }}" | tr -d '\r\n')"
           if [ -n "$FIREBASE_API_KEY_CLEAN" ] && [ -n "$FIREBASE_AUTH_DOMAIN_CLEAN" ] && [ -n "$FIREBASE_PROJECT_ID_CLEAN" ] && [ -n "$FIREBASE_STORAGE_BUCKET_CLEAN" ] && [ -n "$FIREBASE_MESSAGING_SENDER_ID_CLEAN" ] && [ -n "$FIREBASE_APP_ID_CLEAN" ]; then
-            cat <<EOF > firebase-config.public.js
-            window.FIREBASE_CONFIG = {
-              apiKey: "${FIREBASE_API_KEY_CLEAN}",
-              authDomain: "${FIREBASE_AUTH_DOMAIN_CLEAN}",
-              projectId: "${FIREBASE_PROJECT_ID_CLEAN}",
-              storageBucket: "${FIREBASE_STORAGE_BUCKET_CLEAN}",
-              messagingSenderId: "${FIREBASE_MESSAGING_SENDER_ID_CLEAN}",
-              appId: "${FIREBASE_APP_ID_CLEAN}",
-              measurementId: "${FIREBASE_MEASUREMENT_ID_CLEAN}"
-            };
-
-            window.FIREBASE_USERS_COLLECTION = "users";
-            window.FIREBASE_SHARED_COLLECTION = "shared_app";
-            window.FIREBASE_MEDIA_TREE_DOC = "media_tree";
-            window.WPL_MEDIA_UPLOADS_ROOT = "media_uploads";
-            window.WPL_MEDIA_BASE_URL = "";
-            EOF
+            {
+              echo "window.FIREBASE_CONFIG = {"
+              echo "  apiKey: \"${FIREBASE_API_KEY_CLEAN}\","
+              echo "  authDomain: \"${FIREBASE_AUTH_DOMAIN_CLEAN}\","
+              echo "  projectId: \"${FIREBASE_PROJECT_ID_CLEAN}\","
+              echo "  storageBucket: \"${FIREBASE_STORAGE_BUCKET_CLEAN}\","
+              echo "  messagingSenderId: \"${FIREBASE_MESSAGING_SENDER_ID_CLEAN}\","
+              echo "  appId: \"${FIREBASE_APP_ID_CLEAN}\","
+              echo "  measurementId: \"${FIREBASE_MEASUREMENT_ID_CLEAN}\""
+              echo "};"
+              echo ""
+              echo "window.FIREBASE_USERS_COLLECTION = \"users\";"
+              echo "window.FIREBASE_SHARED_COLLECTION = \"shared_app\";"
+              echo "window.FIREBASE_MEDIA_TREE_DOC = \"media_tree\";"
+              echo "window.WPL_MEDIA_UPLOADS_ROOT = \"media_uploads\";"
+              echo "window.WPL_MEDIA_BASE_URL = \"\";"
+            } > firebase-config.public.js
             echo "firebase-config.public.js generated from GitHub Secrets."
           else
             echo "Firebase secrets not fully set. Using repository firebase-config.public.js."
