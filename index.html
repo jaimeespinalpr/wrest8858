@@ -15,7 +15,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Teko:wght@500;600;700&display=swap"
     rel="stylesheet"
   >
-  <link rel="stylesheet" href="styles.css?v=20260414-trackfix4" >
+  <link rel="stylesheet" href="styles.css?v=20260421-tournamentview1" >
 </head>
 
 <body>
@@ -220,6 +220,7 @@
         <button type="button" class="tab" data-tab="favorites" data-role="athlete">Favorites</button>
         <button type="button" class="tab" data-tab="announcements" data-role="athlete coach" data-views="athlete">Announcements</button>
         <button type="button" class="tab" data-tab="competition-preview" data-role="athlete" data-views="athlete">Competition</button>
+        <button type="button" class="tab" data-tab="tournament-view" data-role="athlete coach parent admin">Tournament View</button>
 
         <button type="button" class="tab" data-tab="parent-home" data-role="parent" data-views="parent">Parent Home</button>
         <button type="button" class="tab" data-tab="parent-scouting" data-role="parent" data-views="parent">Scouting</button>
@@ -382,6 +383,88 @@
             <div class="mini-card parent-portal-card">
               <h3>Recent Scouting Notes</h3>
               <div class="completion-list" id="parentScoutingList"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel hidden" id="panel-tournament-view">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2>Tournament View</h2>
+              <p class="small muted" id="tournamentViewIntro">Choose an athlete, add someone new if needed, and write scouting notes about the opponent.</p>
+            </div>
+            <button type="button" class="ghost" id="tournamentBackBtn">Back</button>
+          </div>
+          <div class="tournament-view-grid">
+            <div class="mini-card">
+              <div class="card-header">
+                <div>
+                  <h3>Roster</h3>
+                  <p class="small muted" id="tournamentSelectedMeta">Select one athlete to work from this screen.</p>
+                </div>
+              </div>
+              <div class="tournament-athlete-list" id="tournamentAthleteList"></div>
+            </div>
+            <div class="mini-card">
+              <div class="card-header">
+                <div>
+                  <h3>Add Athlete</h3>
+                  <p class="small muted">Quick add for tournament day.</p>
+                </div>
+              </div>
+              <form id="tournamentAddAthleteForm" class="tournament-add-form">
+                <label>
+                  <span>Athlete name</span>
+                  <input id="tournamentAddAthleteName" type="text" placeholder="e.g., Carlos Vega" required>
+                </label>
+                <label>
+                  <span>Weight class</span>
+                  <input id="tournamentAddAthleteWeight" type="text" placeholder="e.g., 74 kg">
+                </label>
+                <label>
+                  <span>Team / club</span>
+                  <input id="tournamentAddAthleteTeam" type="text" placeholder="e.g., United Wrestling Club">
+                </label>
+                <div class="row">
+                  <button type="submit" class="primary">Add athlete</button>
+                  <span class="small muted" id="tournamentAddAthleteStatus"></span>
+                </div>
+              </form>
+            </div>
+          </div>
+          <div class="section-grid tournament-workspace-grid">
+            <div class="mini-card">
+              <div class="card-header">
+                <div>
+                  <h3>Opponent Scouting</h3>
+                  <p class="small muted" id="tournamentScoutingTarget">Select an athlete above to start scouting.</p>
+                </div>
+              </div>
+              <form id="tournamentScoutingForm">
+                <label>
+                  <span>Opponent name</span>
+                  <input id="tournamentOpponentName" type="text" placeholder="e.g., Mateo Rivera" required>
+                </label>
+                <label>
+                  <span>Scouting notes</span>
+                  <textarea id="tournamentScoutingNotes" rows="6" placeholder="Stance, best attacks, pressure habits, weaknesses, mat behavior, key reminders..."></textarea>
+                </label>
+                <div class="row">
+                  <button type="submit" class="primary">Save scouting</button>
+                  <span class="small muted" id="tournamentScoutingStatus"></span>
+                </div>
+              </form>
+            </div>
+            <div class="mini-card">
+              <div class="card-header">
+                <div>
+                  <h3>Saved Scouting</h3>
+                  <p class="small muted">Recent opponent notes for the selected athlete.</p>
+                </div>
+              </div>
+              <div class="tournament-scouting-list" id="tournamentScoutingList"></div>
             </div>
           </div>
         </div>
@@ -1438,10 +1521,10 @@
         <div class="card">
           <div class="card-header">
             <div>
-              <h2>Athlete Roster</h2>
+              <h2>All Athletes</h2>
               <p class="small muted" id="coachAthleteRosterIntro">Start here. Pick an athlete first, then open the profile, summary, or messages.</p>
             </div>
-            <div class="chip">Start here</div>
+            <div class="chip">Coach board</div>
           </div>
           <div class="filter-row" id="athleteFilters"></div>
           <input id="athleteSearchInput" class="search-input" type="text" placeholder="Search athletes by name" aria-label="Search athletes" >
@@ -1463,24 +1546,13 @@
               <p class="small muted" id="coachAthleteProfileMeta"></p>
             </div>
           </div>
-          <div class="profile-subtabs coach-athlete-profile-tabs" role="tablist" aria-label="Athlete profile sections">
-            <button type="button" class="profile-subtab active" data-coach-profile-tab="identity" id="coachProfileTabIdentity">Identity</button>
-            <button type="button" class="profile-subtab" data-coach-profile-tab="style" id="coachProfileTabStyle">Style</button>
-            <button type="button" class="profile-subtab" data-coach-profile-tab="performance" id="coachProfileTabPerformance">Performance</button>
-            <button type="button" class="profile-subtab" data-coach-profile-tab="notes" id="coachProfileTabNotes">Coach Notes</button>
-            <button type="button" class="profile-subtab" data-coach-profile-tab="corner" id="coachProfileTabCorner">Corner View</button>
-          </div>
           <div class="coach-athlete-profile-status" id="coachAthleteProfileStatus"></div>
           <div class="coach-athlete-profile-content" id="coachAthleteProfileContent"></div>
         </div>
       </section>
 
       <section class="panel hidden coach-match-panel" id="panel-coach-match">
-        <div class="card coach-match-selector-card">
-          <div class="card-header">
-            <h3 id="coachMatchPickerTitle">Select Athlete First</h3>
-            <div class="small muted coach-match-selector-meta" id="coachMatchPickerHint">Competition setup</div>
-          </div>
+        <div class="hidden" aria-hidden="true">
           <label class="inline-field coach-match-select-field">
             <span id="coachMatchSelectLabel">Select athlete</span>
             <select id="coachMatchSelect"></select>
@@ -1520,10 +1592,6 @@
             </div>
             <div class="onepager-grid">
               <div class="mini-card" id="summarySafetyBoard"></div>
-              <div class="mini-card" id="summaryMentalBoard"></div>
-            </div>
-            <div class="onepager-grid">
-              <div class="mini-card" id="summaryCompetitionFocusBoard"></div>
               <div class="mini-card" id="summaryCornerScriptBoard"></div>
             </div>
             <div class="quick-actions">
@@ -2151,17 +2219,6 @@
         </div>
       </section>
 
-      <!-- COACH: SKILLS TRACKER -->
-      <section class="panel hidden" id="panel-skills">
-        <div class="card">
-          <div class="card-header">
-            <h2>Skills Tracker</h2>
-            <div class="chip">Best clips by move</div>
-          </div>
-          <div class="skills-grid" id="skillsGrid"></div>
-        </div>
-      </section>
-
       <!-- COACH: JOURNAL MONITOR -->
       <section class="panel hidden" id="panel-journal-monitor">
         <div class="card">
@@ -2439,7 +2496,7 @@
     }());
   </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="app.js?v=20260420-profilefix1"></script>
+  <script src="app.js?v=20260421-tournamentview1"></script>
   <script src="coach-planner.js?v=20260420-profilefix1"></script>
 </body>
 </html>

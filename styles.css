@@ -710,6 +710,7 @@ button:active{
 .coach-athlete-roster-list{
   display: grid;
   gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
 .athlete-roster-item{
@@ -725,6 +726,10 @@ button:active{
   border-color: rgba(91,145,255,0.42);
   box-shadow: 0 14px 26px rgba(15,23,42,0.20);
   transform: translateY(-1px);
+}
+
+.coach-athlete-filter-field{
+  min-width: min(220px, 100%);
 }
 
 .coach-athlete-name-option{
@@ -751,17 +756,23 @@ button:active{
   line-height: 1.2;
 }
 
+.coach-athlete-name-option-copy h4 span:not(.small){
+  color: rgba(219, 232, 255, 0.82);
+  font-weight: 600;
+}
+
 .coach-athlete-name-line{
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 9px;
 }
 
 .coach-athlete-option-avatar{
-  width: 34px;
-  height: 34px;
-  border-radius: 12px;
-  font-size: 0.72rem;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  font-size: 0.95rem;
 }
 
 .coach-athlete-name-option-copy h4 .small{
@@ -1002,12 +1013,6 @@ button:active{
   overflow: hidden;
 }
 
-.coach-athlete-profile-tabs{
-  overflow-x: auto;
-  flex-wrap: nowrap;
-  padding-bottom: 8px;
-}
-
 .coach-athlete-profile-status{
   margin-bottom: 14px;
 }
@@ -1015,6 +1020,135 @@ button:active{
 .coach-athlete-profile-content{
   display: grid;
   gap: 12px;
+}
+
+.coach-athlete-overview-grid{
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.coach-athlete-overview-card,
+.coach-athlete-auto-summary-card,
+.coach-athlete-deep-dive-card{
+  display: grid;
+  gap: 12px;
+}
+
+.coach-athlete-summary-grid{
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.coach-athlete-summary-cell{
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(15,23,42,0.34);
+}
+
+.coach-athlete-summary-cell span{
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.58);
+}
+
+.coach-athlete-summary-cell strong{
+  display: block;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.coach-athlete-overview-list{
+  display: grid;
+  gap: 12px;
+}
+
+.tournament-view-grid,
+.tournament-workspace-grid{
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tournament-athlete-list,
+.tournament-scouting-list,
+.tournament-add-form{
+  display: grid;
+  gap: 12px;
+}
+
+.tournament-athlete-card{
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(15,23,42,0.42);
+  border-radius: 8px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.tournament-athlete-card.active{
+  border-color: rgba(125, 211, 252, 0.85);
+  box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.35);
+}
+
+.tournament-athlete-head{
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.tournament-athlete-avatar{
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+}
+
+.tournament-athlete-card h4,
+.tournament-scouting-item h4{
+  margin: 0;
+}
+
+.tournament-athlete-meta,
+.tournament-scouting-meta{
+  display: grid;
+  gap: 4px;
+}
+
+.tournament-scouting-item{
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(15,23,42,0.3);
+  border-radius: 8px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.tournament-empty{
+  border: 1px dashed rgba(255,255,255,0.14);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+@media (max-width: 900px){
+  .tournament-view-grid,
+  .tournament-workspace-grid{
+    grid-template-columns: 1fr;
+  }
+}
+
+.coach-athlete-auto-summary-copy{
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #e7f0ff;
 }
 
 .coach-profile-section-grid{
@@ -5934,6 +6068,8 @@ textarea:focus{
   .stat-grid,
   .action-grid,
   .athlete-grid,
+  .coach-athlete-overview-grid,
+  .coach-athlete-summary-grid,
   .coach-profile-section-grid,
   .tech-grid,
   .onepager-grid,
@@ -5953,6 +6089,10 @@ textarea:focus{
   }
   .coach-athlete-roster-shell,
   .athlete-roster-summary{
+    grid-template-columns: 1fr;
+  }
+
+  .coach-athlete-roster-list{
     grid-template-columns: 1fr;
   }
   .athlete-card-header{
@@ -11880,6 +12020,8 @@ body.viewport-mobile .app{
   .stat-grid,
   .action-grid,
   .athlete-grid,
+  .coach-athlete-overview-grid,
+  .coach-athlete-summary-grid,
   .coach-profile-section-grid,
   .tech-grid,
   .onepager-grid,
@@ -11899,6 +12041,10 @@ body.viewport-mobile .app{
 
   .coach-athlete-roster-shell,
   .athlete-roster-summary{
+    grid-template-columns: 1fr !important;
+  }
+
+  .coach-athlete-roster-list{
     grid-template-columns: 1fr !important;
   }
 
