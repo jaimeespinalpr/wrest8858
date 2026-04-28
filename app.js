@@ -10,6 +10,10 @@ const DEFAULT_LANG = "en";
 const APP_TIMEZONE = "America/New_York";
 const SUPPORTED_LANGS = new Set(["en", "es", "uz", "ru"]);
 const PUBLISH_READY_MODE = String(window.WPL_PUBLISH_READY_MODE || "true").toLowerCase() !== "false";
+const DOMAIN_ASSET_VERSION = "20260428-domain-split1";
+const PDF_LIB_SRC = "https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js";
+const COACH_PLANNER_DOMAIN_SRC = `coach-planner.js?v=${DOMAIN_ASSET_VERSION}`;
+const WPL_SCRIPT_LOADS = new Map();
 const CALENDAR_COPY = {
   title: {
     en: "Calendar",
@@ -27,6 +31,65 @@ const CALENDAR_COPY = {
 let currentLang = DEFAULT_LANG;
 let langChangeLocked = false;
 let profileTagState = new Set();
+
+function getLazyScriptId(src) {
+  return `wpl-lazy-${String(src || "").replace(/[^a-z0-9_-]+/gi, "-")}`;
+}
+
+function loadScriptOnce(src, { globalCheck = null } = {}) {
+  if (typeof globalCheck === "function") {
+    try {
+      if (globalCheck()) return Promise.resolve();
+    } catch {
+      // Fall through and try the script load.
+    }
+  }
+  const safeSrc = String(src || "").trim();
+  if (!safeSrc) return Promise.reject(new Error("missing_script_src"));
+  const existingLoad = WPL_SCRIPT_LOADS.get(safeSrc);
+  if (existingLoad) return existingLoad;
+
+  const promise = new Promise((resolve, reject) => {
+    const scriptId = getLazyScriptId(safeSrc);
+    const existingScript = document.getElementById(scriptId);
+    if (existingScript?.dataset.loaded === "true") {
+      resolve();
+      return;
+    }
+    if (existingScript) {
+      existingScript.addEventListener("load", () => resolve(), { once: true });
+      existingScript.addEventListener("error", () => reject(new Error(`script_load_failed:${safeSrc}`)), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.id = scriptId;
+    script.src = safeSrc;
+    script.async = true;
+    script.dataset.wplLazySrc = safeSrc;
+    script.addEventListener("load", () => {
+      script.dataset.loaded = "true";
+      resolve();
+    }, { once: true });
+    script.addEventListener("error", () => reject(new Error(`script_load_failed:${safeSrc}`)), { once: true });
+    document.body.appendChild(script);
+  });
+  WPL_SCRIPT_LOADS.set(safeSrc, promise);
+  return promise;
+}
+
+async function ensurePdfLibLoaded() {
+  await loadScriptOnce(PDF_LIB_SRC, {
+    globalCheck: () => Boolean(window.PDFLib?.PDFDocument)
+  });
+  if (!window.PDFLib?.PDFDocument) {
+    throw new Error("pdf_lib_unavailable");
+  }
+  return window.PDFLib;
+}
+
+async function ensureCoachPlannerDomainLoaded() {
+  await loadScriptOnce(COACH_PLANNER_DOMAIN_SRC);
+}
 
 // ---------- STORAGE ----------
 // Firebase is the only remote data/auth layer. LocalStorage is local-only cache.
@@ -10288,8 +10351,19 @@ async function showTab(name) {
     el.classList.toggle("hidden", orderIndex === -1);
   });
 
-  if (visiblePanels.includes("plans") && !document.getElementById("coachPlannerApp") && templatePdfBytes && window.PDFLib) {
-    await generateFilledPdf({ download: false });
+  if (visiblePanels.includes("plans")) {
+    try {
+      await ensureCoachPlannerDomainLoaded();
+    } catch (error) {
+      console.warn("Coach planner domain failed to load.", error);
+      toast(pickCopy({
+        en: "Planner is still loading. Try opening Plans again.",
+        es: "El planificador todavia esta cargando. Intenta abrir Planes otra vez."
+      }));
+    }
+    if (!hasModernCoachPlanner() && templatePdfBytes) {
+      await generateFilledPdf({ download: false });
+    }
   }
 
   if (visiblePanels.includes("coach-match") && coachMatchSelect?.value) {
@@ -12699,7 +12773,10 @@ async function generateFilledPdf({ download } = {}) {
     }
     return null;
   }
-  if (!window.PDFLib) {
+  try {
+    await ensurePdfLibLoaded();
+  } catch (error) {
+    console.warn("PDF library failed to load.", error);
     if (templateStatus) {
       templateStatus.textContent = pickCopy({
         en: "PDF library not available.",
@@ -12709,7 +12786,7 @@ async function generateFilledPdf({ download } = {}) {
     return null;
   }
   const data = getDailyPlanData();
-  const pdfDoc = await PDFLib.PDFDocument.load(templatePdfBytes);
+  const pdfDoc = await window.PDFLib.PDFDocument.load(templatePdfBytes);
   const form = pdfDoc.getForm();
   const fields = {
     intro: formatPdfField(data.intro),
@@ -12790,7 +12867,7 @@ if (saveDailyPlan) {
 if (doneDailyPlan) {
   doneDailyPlan.addEventListener("click", async () => {
     localStorage.setItem("wpl_daily_plan", JSON.stringify(collectDailySelections()));
-    if (templatePdfBytes && window.PDFLib) {
+    if (templatePdfBytes) {
       await generateFilledPdf({ download: false });
     }
     await saveCoachPlan({ createAssignments: false, navigateAfterSave: true });
