@@ -2080,18 +2080,8 @@
       }
     } catch {}
 
-    const cropModal = document.getElementById("profilePhotoCropModal");
-    if (cropModal && !cropModal.classList.contains("hidden")) {
-      try {
-        if (typeof window.closeProfilePhotoCropModal === "function") {
-          window.closeProfilePhotoCropModal({ resolveValue: null });
-        } else {
-          cropModal.classList.add("hidden");
-        }
-      } catch {
-        cropModal.classList.add("hidden");
-      }
-    }
+    // The profile cropper is a user-controlled modal shared across views.
+    // Planner rerenders can happen while it is open, so leave it mounted.
   }
 
   function renderTrackPanels() {

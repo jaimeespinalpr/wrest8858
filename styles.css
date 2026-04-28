@@ -1199,7 +1199,18 @@ button:active{
 }
 
 .profile-photo-input{
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.register-modal.profile-photo-crop-modal{
+  align-items: center;
+  justify-content: center;
+  z-index: 2300;
 }
 
 .profile-photo-action{
@@ -1236,6 +1247,7 @@ button:active{
   align-items: center;
   justify-content: center;
   padding: 18px;
+  z-index: 2300;
 }
 
 .profile-photo-crop-card{

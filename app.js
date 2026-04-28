@@ -205,8 +205,9 @@ function buildCoachPlannerTemplateSettings(name = "") {
   };
 }
 const MEDIA_THUMBNAIL_QUALITY = 0.82;
-const PROFILE_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+const PROFILE_PHOTO_MAX_BYTES = 25 * 1024 * 1024;
 const PROFILE_PHOTO_MAX_DATA_URL_CHARS = 420000;
+const PROFILE_PHOTO_LOAD_TIMEOUT_MS = 30000;
 
 // Client debug logging helper (sends logs to Cloud Function when enabled)
 if (typeof window !== "undefined") {
@@ -1737,13 +1738,14 @@ function startProfilePhotoRealtimeSync() {
       );
       if (!hasRemotePhotoField) return;
       const remotePhoto = String(remoteData.photo || remoteData.photoUrl || remoteData.profilePhoto || "").trim();
-      const currentPhoto = String(profile.photo || profile.photoUrl || profile.profilePhoto || "").trim();
+      const currentProfile = getProfile() || profile || {};
+      const currentPhoto = getProfilePhotoValue(currentProfile);
       if (remotePhoto !== currentPhoto) {
-        const updatedProfile = { ...profile, photo: remotePhoto };
+        const updatedProfile = { ...currentProfile, photo: remotePhoto };
         setProfile(updatedProfile, { sync: false });
         syncVisibleProfileAvatars(updatedProfile);
 
-        if (aPhoto && isAthleteRole(profile.role)) {
+        if (aPhoto && isAthleteRole(updatedProfile.role)) {
           aPhoto.value = remotePhoto;
           renderAthleteProfilePhotoPreview({
             photoValue: remotePhoto,
@@ -4182,7 +4184,7 @@ function buildSharedUserDirectoryPayload(uid, data = {}) {
     uid: String(uid || "").trim(),
     name,
     email,
-    photo: String(data?.photo || "").trim(),
+    photo: getProfilePhotoValue(data),
     role,
     view,
     status: normalizeParentVerificationStatus(data?.status),
@@ -4716,7 +4718,7 @@ function normalizeCoachAthleteRecord(id, data = {}) {
     id,
     name: stripUserDisplayNumber(data.name || ""),
     age: String(data.age || "").trim(),
-    photo: String(data.photo || "").trim(),
+    photo: getProfilePhotoValue(data),
     country: String(data.country || "").trim(),
     city: String(data.city || "").trim(),
     athleteUid: String(data.athleteUid || "").trim(),
@@ -9415,7 +9417,7 @@ function buildCoachAthleteSeedFromUser(user, {
     style: String(user?.style || "").trim(),
     availability: "Active",
     age: String(user?.age || "").trim(),
-    photo: String(user?.photo || "").trim(),
+    photo: getProfilePhotoValue(user),
     country: String(user?.country || "").trim(),
     city: String(user?.city || "").trim(),
     schoolClub: String(user?.schoolClub || "").trim(),
@@ -10414,7 +10416,7 @@ function getTournamentViewAthletes() {
     acc.push({
       id: String(athlete.id || slugifyKey(name)).trim(),
       name,
-      photo: String(athlete.photo || "").trim(),
+      photo: getProfilePhotoValue(athlete),
       weightClass: String(athlete.weightClass || "").trim(),
       team: String(athlete.team || athlete.schoolName || athlete.clubName || athlete.schoolClub || "").trim()
     });
@@ -10469,7 +10471,7 @@ function renderTournamentView() {
         <div class="small muted">${currentLang === "es" ? "Scouting guardado" : "Saved scouting"}: ${noteCount}</div>
       `;
       renderAvatarElement(card.querySelector("[data-tournament-avatar]"), {
-        photo: athlete.photo || "",
+        photo: getProfilePhotoValue(athlete),
         name: athlete.name,
         fallback: (athlete.name || "AT").split(/\s+/).map((part) => part[0] || "").join("").slice(0, 2).toUpperCase() || "AT"
       });
@@ -13879,7 +13881,221 @@ function renderRegisterProfilePhotoPreview({
   }
 }
 
+function getProfilePhotoErrorMessage(err, fallback = "") {
+  const code = String(err?.message || err?.code || "");
+  if (code === "profile_photo_file_too_large") {
+    return currentLang === "es"
+      ? "La foto es demasiado grande. Usa una imagen menor de 25MB."
+      : "Photo is too large. Use an image under 25MB.";
+  }
+  if (code === "profile_photo_data_too_large") {
+    return currentLang === "es"
+      ? "La foto no se pudo reducir lo suficiente. Intenta otra imagen."
+      : "Photo could not be compressed enough. Try another image.";
+  }
+  if (code === "profile_photo_remote_not_editable") {
+    return currentLang === "es"
+      ? "Esta foto guardada no se puede editar directamente. Sube una imagen nueva desde tu dispositivo."
+      : "This saved photo cannot be edited directly. Upload a new image from your device.";
+  }
+  return fallback || (currentLang === "es"
+    ? "No se pudo procesar la foto. Intenta otra imagen."
+    : "Could not process the photo. Try another image.");
+}
+
+function dataUrlToBlob(dataUrl = "") {
+  const raw = String(dataUrl || "");
+  const match = raw.match(/^data:([^;,]+)(;base64)?,(.*)$/);
+  if (!match) throw new Error("profile_photo_invalid_data_url");
+  const mimeType = match[1] || "image/jpeg";
+  const isBase64 = Boolean(match[2]);
+  const body = match[3] || "";
+  const binary = isBase64 ? atob(body) : decodeURIComponent(body);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return new Blob([bytes], { type: mimeType });
+}
+
+async function resolveProfilePhotoStorageValue(dataUrl = "") {
+  const photo = String(dataUrl || "").trim();
+  if (!photo || !photo.startsWith("data:image/")) return photo;
+  if (!firebaseStorageInstance || !getAuthUser()?.id) return photo;
+  try {
+    const blob = dataUrlToBlob(photo);
+    const upload = await uploadBlobToFirebase(blob, `profile-photo-${Date.now()}.jpg`, {
+      kind: "profile_photos",
+      contentType: blob.type || "image/jpeg",
+      customMetadata: {
+        uploaderUid: getAuthUser()?.id || "",
+        source: "profile-photo-crop"
+      }
+    });
+    return upload.downloadURL || photo;
+  } catch (err) {
+    console.warn("Profile photo storage upload failed; using compressed data URL fallback", err);
+    return photo;
+  }
+}
+
+function patchCoachAthletePhotoCache(profile = {}, photo = "") {
+  const nextPhoto = String(photo || "").trim();
+  const targetId = normalizeAthleteId(
+    profile.linkedAthleteId || profile.id || profile.athleteId,
+    profile.name
+  );
+  const targetUid = normalizeUid(profile.linkedAthleteUid || profile.athleteUid || profile.user_id);
+  const targetName = normalizeName(profile.name || profile.athleteName || "");
+  const matchesProfile = (record = {}) => {
+    const recordId = normalizeAthleteId(record.id || record.linkedAthleteId || record.athleteId, record.name);
+    const recordUid = normalizeUid(record.athleteUid || record.linkedAthleteUid || record.user_id);
+    const recordName = normalizeName(record.name || record.athleteName || "");
+    return Boolean(
+      (targetId && recordId && targetId === recordId)
+      || (targetUid && recordUid && targetUid === recordUid)
+      || (targetName && recordName && targetName === recordName)
+    );
+  };
+
+  coachAthletesCache = coachAthletesCache.map((record) =>
+    matchesProfile(record) ? { ...record, photo: nextPhoto } : record
+  );
+  athletePortalAthleteCache = athletePortalAthleteCache && matchesProfile(athletePortalAthleteCache)
+    ? { ...athletePortalAthleteCache, photo: nextPhoto }
+    : athletePortalAthleteCache;
+}
+
+async function persistAthleteEditorPhoto(dataUrl) {
+  const photo = await resolveProfilePhotoStorageValue(dataUrl);
+  if (!photo) return false;
+
+  if (isCoachAthleteProfileEditActive()) {
+    const editContext = coachAthleteProfileEditContext || {};
+    const authUser = getAuthUser();
+    const coachProfile = getProfile();
+    const baseProfile = editContext.profile
+      || getCoachAthleteRecordByIdentity(editContext.athleteId || editContext.athleteName)
+      || {};
+    const updatedProfile = {
+      ...baseProfile,
+      name: aName?.value.trim() || editContext.athleteName || baseProfile.name || "",
+      photo,
+      role: "athlete",
+      view: "athlete",
+      linkedAthleteId: editContext.athleteId || baseProfile.linkedAthleteId || baseProfile.id || "",
+      linkedAthleteUid: editContext.athleteUid || baseProfile.linkedAthleteUid || baseProfile.athleteUid || "",
+      linkedCoachUid: editContext.coachUid || authUser?.id || baseProfile.linkedCoachUid || "",
+      linkedCoachName: editContext.coachName || coachProfile?.name || baseProfile.linkedCoachName || "",
+      linkedCoachEmail: normalizeEmail(editContext.coachEmail || coachProfile?.email || baseProfile.linkedCoachEmail || ""),
+      updatedAt: new Date().toISOString()
+    };
+    const resolvedAthleteEmail = normalizeEmail(editContext.athleteEmail || baseProfile.athleteEmail || baseProfile.email || "");
+    if (resolvedAthleteEmail) updatedProfile.email = resolvedAthleteEmail;
+
+    patchCoachAthletePhotoCache(updatedProfile, photo);
+    coachAthleteProfileEditContext = {
+      ...editContext,
+      profile: {
+        ...(editContext.profile || {}),
+        ...updatedProfile
+      }
+    };
+
+    await syncAthleteProfileToCoachWorkspace(updatedProfile, {
+      id: updatedProfile.linkedAthleteUid,
+      email: resolvedAthleteEmail
+    });
+    if (updatedProfile.linkedAthleteUid) {
+      await persistFirebaseProfile(updatedProfile.linkedAthleteUid, stripUndefinedDeep({
+        ...updatedProfile,
+        user_id: updatedProfile.linkedAthleteUid
+      }), { required: false });
+    }
+    renderAthleteManagement();
+    renderCoachAthleteProfile(updatedProfile.name || editContext.athleteName || "");
+    renderCoachMatchView(updatedProfile.name || editContext.athleteName || "");
+    return photo;
+  }
+
+  const authUser = getAuthUser();
+  const currentProfile = getProfile();
+  if (!currentProfile) return false;
+  const updatedProfile = {
+    ...currentProfile,
+    photo,
+    updatedAt: new Date().toISOString()
+  };
+  setProfile(updatedProfile, { sync: false });
+  syncVisibleProfileAvatars(updatedProfile);
+  patchCoachAthletePhotoCache(updatedProfile, photo);
+  if (authUser?.id) {
+    await persistFirebaseProfile(authUser.id, stripUndefinedDeep({
+      ...updatedProfile,
+      user_id: authUser.id,
+      email: normalizeEmail(updatedProfile.email || authUser.email || "")
+    }), { required: true });
+  }
+  try {
+    await syncCurrentUserMessageParticipantPhoto(photo);
+  } catch (err) {
+    console.warn("Message participant photo sync failed", err);
+  }
+  if (isAthleteRole(updatedProfile.role)) {
+    await syncAthleteProfileToCoachWorkspace(updatedProfile, authUser);
+  }
+  await applyProfile(updatedProfile);
+  renderCoachProfile();
+  renderAthleteManagement();
+  return photo;
+}
+
+function applyProfilePhotoImmediately(photoValue = "") {
+  const photo = String(photoValue || "").trim();
+  if (!photo) return;
+
+  if (isCoachAthleteProfileEditActive()) {
+    const editContext = coachAthleteProfileEditContext || {};
+    const baseProfile = editContext.profile
+      || getCoachAthleteRecordByIdentity(editContext.athleteId || editContext.athleteName)
+      || {};
+    const updatedProfile = {
+      ...baseProfile,
+      name: aName?.value.trim() || editContext.athleteName || baseProfile.name || "",
+      photo,
+      linkedAthleteId: editContext.athleteId || baseProfile.linkedAthleteId || baseProfile.id || "",
+      linkedAthleteUid: editContext.athleteUid || baseProfile.linkedAthleteUid || baseProfile.athleteUid || ""
+    };
+    patchCoachAthletePhotoCache(updatedProfile, photo);
+    coachAthleteProfileEditContext = {
+      ...editContext,
+      profile: {
+        ...(editContext.profile || {}),
+        ...updatedProfile
+      }
+    };
+    renderAthleteManagement();
+    renderCoachAthleteProfile(updatedProfile.name || editContext.athleteName || "");
+    renderCoachMatchView(updatedProfile.name || editContext.athleteName || "");
+    return;
+  }
+
+  const currentProfile = getProfile();
+  if (!currentProfile) return;
+  const updatedProfile = {
+    ...currentProfile,
+    photo,
+    updatedAt: new Date().toISOString()
+  };
+  setProfile(updatedProfile, { sync: false });
+  syncVisibleProfileAvatars(updatedProfile);
+  patchCoachAthletePhotoCache(updatedProfile, photo);
+  renderCoachProfile();
+  renderAthleteManagement();
+}
+
 let profilePhotoCropSession = null;
+let profilePhotoCropOpenedAt = 0;
 
 function getProfilePhotoCropCopy(target = "athlete") {
   const isRegister = target === "register";
@@ -14048,6 +14264,21 @@ async function openProfilePhotoCropModal(source, {
   if (isStringSource) {
     src = String(source || "").trim();
     if (!src) return null;
+    if (/^https?:\/\//i.test(src)) {
+      try {
+        const response = await fetch(src, { mode: "cors" });
+        if (!response.ok) throw new Error("profile_photo_remote_fetch_failed");
+        const blob = await response.blob();
+        const blobType = String(blob?.type || "").toLowerCase();
+        if (!blobType.startsWith("image/")) throw new Error("profile_photo_remote_invalid_type");
+        objectUrl = URL.createObjectURL(blob);
+        src = objectUrl;
+      } catch (err) {
+        const nextErr = new Error("profile_photo_remote_not_editable");
+        nextErr.cause = err;
+        throw nextErr;
+      }
+    }
   } else {
     const mimeType = String(source.type || "").toLowerCase();
     if (!mimeType.startsWith("image/")) {
@@ -14085,13 +14316,11 @@ async function openProfilePhotoCropModal(source, {
   if (profilePhotoCropSaveBtn) profilePhotoCropSaveBtn.disabled = false;
   if (profilePhotoCropImage) profilePhotoCropImage.removeAttribute("src");
 
+  profilePhotoCropOpenedAt = Date.now();
   profilePhotoCropModal.classList.remove("hidden");
   focusOpenedWindow(profilePhotoCropModal);
 
   const image = new Image();
-  if (isStringSource && !src.startsWith("data:")) {
-    image.crossOrigin = "anonymous";
-  }
   const state = {
     target,
     profileName,
@@ -14127,12 +14356,12 @@ async function openProfilePhotoCropModal(source, {
     const timeoutId = setTimeout(() => {
       if (settled) return;
       settled = true;
-      const info = { reason: 'timeout', timeoutMs: FIREBASE_OP_TIMEOUT_MS || 10000 };
+      const info = { reason: 'timeout', timeoutMs: PROFILE_PHOTO_LOAD_TIMEOUT_MS };
       console.error("Photo crop image load timeout", info);
       try { window._sendClientDebugLog && window._sendClientDebugLog('image_load_timeout', info); } catch (e) {}
       toast(currentLang === "es" ? "La foto tardó demasiado en cargar." : "Photo took too long to load.");
       closeProfilePhotoCropModal({ resolveValue: null });
-    }, FIREBASE_OP_TIMEOUT_MS || 10000);
+    }, PROFILE_PHOTO_LOAD_TIMEOUT_MS);
     
     profilePhotoCropSession.resolve = resolve;
     image.onload = () => {
@@ -14147,10 +14376,7 @@ async function openProfilePhotoCropModal(source, {
         if (vpWidth < 1 || vpHeight < 1) {
           throw new Error("viewport_dimensions_invalid");
         }
-        state.viewportSize = Math.max(
-          240,
-          Math.min(Math.round(vpWidth), Math.round(vpHeight))
-        );
+        state.viewportSize = Math.max(1, Math.min(Math.round(vpWidth), Math.round(vpHeight)));
         state.baseScale = Math.max(
           state.viewportSize / state.naturalWidth,
           state.viewportSize / state.naturalHeight
@@ -14177,7 +14403,12 @@ async function openProfilePhotoCropModal(source, {
       console.error("Photo crop image load failed:", info);
       try { window._sendClientDebugLog && window._sendClientDebugLog('image_load_failed', info); } catch (e) {}
       toast(currentLang === "es" ? "No se pudo abrir la foto." : "Could not open the photo.");
-      closeProfilePhotoCropModal({ resolveValue: null });
+      if (profilePhotoCropSaveBtn) profilePhotoCropSaveBtn.disabled = true;
+      if (profilePhotoCropHint) {
+        profilePhotoCropHint.textContent = currentLang === "es"
+          ? "No se pudo abrir esta foto. Elige una imagen nueva desde tu dispositivo."
+          : "Could not open this photo. Choose a new image from your device.";
+      }
     };
     image.src = src;
   });
@@ -14273,8 +14504,21 @@ if (profilePhotoCropSaveBtn) {
 }
 
 if (profilePhotoCropModal) {
+  ["click", "pointerdown", "mousedown", "touchstart"].forEach((eventName) => {
+    profilePhotoCropModal.addEventListener(eventName, (event) => {
+      if (event.target !== profilePhotoCropModal) {
+        event.stopPropagation();
+      }
+    });
+  });
+
   profilePhotoCropModal.addEventListener("click", (event) => {
     if (event.target === profilePhotoCropModal) {
+      if (Date.now() - profilePhotoCropOpenedAt < 700) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       closeProfilePhotoCropModal({ resolveValue: null });
     }
   });
@@ -14508,9 +14752,7 @@ if (pPhotoEditBtn) {
       renderRegisterProfilePhotoPreview({
         photoValue: pPhoto?.value || "",
         profileName: pName?.value || "",
-        statusMessage: currentLang === "es"
-          ? "No se pudo recortar la foto. Intenta otra vez."
-          : "Could not crop the photo. Try again.",
+        statusMessage: getProfilePhotoErrorMessage(err),
         statusTone: "error"
       });
     } finally {
@@ -14560,9 +14802,7 @@ if (pPhotoFile) {
       renderRegisterProfilePhotoPreview({
         photoValue: pPhoto?.value || "",
         profileName: pName?.value || "",
-        statusMessage: currentLang === "es"
-          ? "No se pudo recortar la foto. Intenta otra imagen."
-          : "Could not crop the photo. Try another image.",
+        statusMessage: getProfilePhotoErrorMessage(err),
         statusTone: "error"
       });
     } finally {
@@ -15560,7 +15800,7 @@ function renderCompetitionPreview(profile) {
   const selectedCoachName = String(getSelectedCoachAthleteName() || "").trim();
   const quickSnapshot = buildCompetitionQuickSnapshot(selectedProfile || {});
   renderAvatarElement(competitionSummaryQuickAvatar, {
-    photo: selectedProfile?.photo || "",
+    photo: getProfilePhotoValue(selectedProfile),
     name: selectedName,
     fallback: selectedName ? selectedName.slice(0, 2).toUpperCase() : "AT"
   });
@@ -15817,7 +16057,7 @@ function renderCompetitionPreview(profile) {
         const athleteName = String(avatar.getAttribute("data-competition-favorite-avatar") || "").trim();
         const athleteRecord = getCoachAthleteRecordByIdentity(athleteName) || athletes.find((entry) => entry.name === athleteName) || null;
         renderAvatarElement(avatar, {
-          photo: athleteRecord?.photo || "",
+          photo: getProfilePhotoValue(athleteRecord),
           name: athleteName,
           fallback: "AT"
         });
@@ -15875,7 +16115,7 @@ function renderCompetitionPreview(profile) {
           const athleteName = String(avatar.getAttribute("data-competition-athlete-avatar") || "").trim();
           const athleteRecord = getCoachAthleteRecordByIdentity(athleteName) || athletes.find((entry) => entry.name === athleteName) || null;
           renderAvatarElement(avatar, {
-            photo: athleteRecord?.photo || "",
+            photo: getProfilePhotoValue(athleteRecord),
             name: athleteName,
             fallback: "AT"
           });
@@ -16602,23 +16842,49 @@ if (aPhotoEditBtn) {
       });
       if (dataUrl) {
         aPhoto.value = dataUrl;
+        applyProfilePhotoImmediately(dataUrl);
         renderAthleteProfilePhotoPreview({
           photoValue: dataUrl,
           profileName: aName?.value || "",
           statusMessage: currentLang === "es"
-            ? "Foto recortada. Guarda el perfil para aplicar el cambio."
-            : "Photo cropped. Save the profile to apply the change.",
+            ? "Foto aplicada. Guardando..."
+            : "Photo applied. Saving...",
           statusTone: "ok"
         });
+        persistAthleteEditorPhoto(dataUrl)
+          .then((savedPhoto) => {
+            const finalPhoto = savedPhoto || dataUrl;
+            if (finalPhoto !== aPhoto.value) {
+              aPhoto.value = finalPhoto;
+              applyProfilePhotoImmediately(finalPhoto);
+            }
+            renderAthleteProfilePhotoPreview({
+              photoValue: finalPhoto,
+              profileName: aName?.value || "",
+              statusMessage: currentLang === "es"
+                ? "Foto recortada y guardada."
+                : "Photo cropped and saved.",
+              statusTone: "ok"
+            });
+          })
+          .catch((err) => {
+            console.warn("Athlete profile photo background save failed", err);
+            renderAthleteProfilePhotoPreview({
+              photoValue: aPhoto?.value || dataUrl,
+              profileName: aName?.value || "",
+              statusMessage: currentLang === "es"
+                ? "Foto aplicada en este dispositivo. No se pudo sincronizar ahora."
+                : "Photo applied on this device. Could not sync right now.",
+              statusTone: "ok"
+            });
+          });
       }
     } catch (err) {
       console.warn("Athlete profile photo recrop failed", err);
       renderAthleteProfilePhotoPreview({
         photoValue: aPhoto?.value || "",
         profileName: aName?.value || "",
-        statusMessage: currentLang === "es"
-          ? "No se pudo recortar la foto. Intenta otra vez."
-          : "Could not crop the photo. Try again.",
+        statusMessage: getProfilePhotoErrorMessage(err),
         statusTone: "error"
       });
     } finally {
@@ -16648,14 +16914,42 @@ if (aPhotoFile) {
       });
       if (dataUrl) {
         if (aPhoto) aPhoto.value = dataUrl;
+        applyProfilePhotoImmediately(dataUrl);
         renderAthleteProfilePhotoPreview({
           photoValue: dataUrl,
           profileName: aName?.value || "",
           statusMessage: currentLang === "es"
-            ? "Foto recortada. Guarda el perfil para aplicar el cambio."
-            : "Photo cropped. Save the profile to apply the change.",
+            ? "Foto aplicada. Guardando..."
+            : "Photo applied. Saving...",
           statusTone: "ok"
         });
+        persistAthleteEditorPhoto(dataUrl)
+          .then((savedPhoto) => {
+            const finalPhoto = savedPhoto || dataUrl;
+            if (aPhoto && finalPhoto !== aPhoto.value) {
+              aPhoto.value = finalPhoto;
+              applyProfilePhotoImmediately(finalPhoto);
+            }
+            renderAthleteProfilePhotoPreview({
+              photoValue: finalPhoto,
+              profileName: aName?.value || "",
+              statusMessage: currentLang === "es"
+                ? "Foto recortada y guardada."
+                : "Photo cropped and saved.",
+              statusTone: "ok"
+            });
+          })
+          .catch((err) => {
+            console.warn("Athlete profile photo background save failed", err);
+            renderAthleteProfilePhotoPreview({
+              photoValue: aPhoto?.value || dataUrl,
+              profileName: aName?.value || "",
+              statusMessage: currentLang === "es"
+                ? "Foto aplicada en este dispositivo. No se pudo sincronizar ahora."
+                : "Photo applied on this device. Could not sync right now.",
+              statusTone: "ok"
+            });
+          });
       } else {
         renderAthleteProfilePhotoPreview({
           photoValue: aPhoto?.value || "",
@@ -16669,9 +16963,7 @@ if (aPhotoFile) {
       renderAthleteProfilePhotoPreview({
         photoValue: aPhoto?.value || "",
         profileName: aName?.value || "",
-        statusMessage: currentLang === "es"
-          ? "No se pudo recortar la foto. Intenta otra imagen."
-          : "Could not crop the photo. Try another image.",
+        statusMessage: getProfilePhotoErrorMessage(err),
         statusTone: "error"
       });
     } finally {
@@ -27568,7 +27860,7 @@ function renderAthleteManagement() {
       <div class="small muted">${currentLang === "es" ? "Tap to make this the active athlete across coach workflow." : "Tap to make this the active athlete across coach workflow."}</div>
     `;
     renderAvatarElement(card.querySelector("[data-athlete-avatar]"), {
-      photo: rawAthlete.photo || athlete.photo || "",
+      photo: getProfilePhotoValue(rawAthlete || athlete),
       name: athlete.name,
       fallback: "AT"
     });
@@ -28177,7 +28469,7 @@ function normalizeManagedUserRecord(uid, data = {}) {
     phone: String(data.phone || data.phoneNumber || data.mobile || data.cell || "").trim(),
     whatsapp: String(data.whatsapp || data.whatsappNumber || "").trim(),
     age: String(data.age || "").trim(),
-    photo: String(data.photo || "").trim(),
+    photo: getProfilePhotoValue(data),
     country: String(data.country || "").trim(),
     city: String(data.city || "").trim(),
     schoolClub: String(data.schoolClub || "").trim(),
@@ -28615,7 +28907,7 @@ function buildOnePagerBase(athlete) {
   if (!athlete) return null;
   return {
     name: athlete.name,
-    photo: athlete.photo || "",
+    photo: getProfilePhotoValue(athlete),
     style: athlete.style,
     currentWeight: athlete.currentWeight || athlete.weight,
     weightClass: athlete.weightClass || athlete.weight,
@@ -28735,7 +29027,7 @@ function renderOnePager(athleteName) {
       </div>
     `;
     renderAvatarElement(onePagerHeader.querySelector(".onepager-avatar"), {
-      photo: athlete.photo || "",
+      photo: getProfilePhotoValue(athlete),
       name: athlete.name,
       fallback: initials || "AT"
     });
@@ -29036,7 +29328,7 @@ function buildCoachMatchData(athleteName) {
   const cueWords = saved.cueWords || athlete.cueWords || athlete.profile?.cueWords || [];
   return {
     name: athlete.name,
-    photo: athlete.photo || "",
+    photo: getProfilePhotoValue(athlete),
     style: athlete.style,
     experienceYears: extractExperienceYears(athlete),
     currentWeight: athlete.currentWeight || athlete.weight || "",
@@ -29184,7 +29476,7 @@ function renderCoachMatchView(athleteName) {
 
   if (coachMatchSelectLabel) coachMatchSelectLabel.textContent = matchCopy("selectAthlete");
   renderAvatarElement(coachMatchAvatar, {
-    photo: data.photo || "",
+    photo: getProfilePhotoValue(data),
     name: data.name,
     fallback: initials || "AT"
   });
@@ -31066,7 +31358,7 @@ function normalizeMessageParticipantProfile(data = {}) {
     uid,
     email,
     name: stripUserDisplayNumber(data.name || data.displayName || data.email || "") || "User",
-    photo: String(data.photo || "").trim(),
+    photo: getProfilePhotoValue(data),
     role: normalizeMessageParticipantRole(data.role, email),
     phone: String(data.phone || data.phoneNumber || data.mobile || data.cell || "").trim(),
     whatsapp: String(data.whatsapp || data.whatsappNumber || "").trim(),
@@ -31102,7 +31394,7 @@ function buildMessageThreadPayload(participants = [], extras = {}) {
       uid: participant.uid,
       name: participant.name,
       email: participant.email,
-      photo: participant.photo || "",
+      photo: getProfilePhotoValue(participant),
       role: participant.role,
       phone: participant.phone || "",
       whatsapp: participant.whatsapp || "",
@@ -31118,6 +31410,46 @@ function buildMessageThreadPayload(participants = [], extras = {}) {
     threadKind: "direct",
     ...extras
   });
+}
+
+async function syncCurrentUserMessageParticipantPhoto(photo = "") {
+  const current = getMessagesCurrentUser();
+  const nextPhoto = String(photo || "").trim();
+  if (!current?.uid) return;
+
+  messagesThreadRows = messagesThreadRows.map((thread) => ({
+    ...thread,
+    participantProfiles: buildMessageParticipantProfiles(
+      (Array.isArray(thread.participantProfiles) ? thread.participantProfiles : []).map((participant) =>
+        participant.uid === current.uid ? { ...participant, photo: nextPhoto } : participant
+      )
+    )
+  }));
+  renderMessages();
+
+  const threadsRef = getMessageThreadsCollectionRef();
+  if (!threadsRef?.where) return;
+  const snapshot = await withTimeout(
+    threadsRef.where("participantIds", "array-contains", current.uid).get(),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_message_photo_sync_timeout"
+  );
+  const updates = [];
+  snapshot.forEach((doc) => {
+    const data = doc.data() || {};
+    const profiles = buildMessageParticipantProfiles(
+      Array.isArray(data.participantProfiles) ? data.participantProfiles : []
+    );
+    if (!profiles.some((participant) => participant.uid === current.uid)) return;
+    const nextProfiles = profiles.map((participant) =>
+      participant.uid === current.uid ? { ...participant, photo: nextPhoto } : participant
+    );
+    updates.push(doc.ref.set(stripUndefinedDeep({
+      participantProfiles: nextProfiles,
+      serverUpdatedAt: getFirestoreServerTimestamp()
+    }), { merge: true }));
+  });
+  await Promise.all(updates);
 }
 
 function normalizeLooseTagList(raw = "") {
@@ -31334,7 +31666,7 @@ function getMessageOtherParticipant(thread, currentUid) {
   return {
     uid: otherParticipant.uid,
     name: otherParticipant.name || "User",
-    photo: String(otherParticipant.photo || "").trim(),
+    photo: getProfilePhotoValue(otherParticipant),
     role: normalizeMessageParticipantRole(otherParticipant.role, otherParticipant.email || ""),
     email: normalizeEmail(otherParticipant.email || "")
   };
@@ -32223,7 +32555,7 @@ function buildMessageContactCard(contact, current, { priority = false, onSelect 
     </span>
   `;
   renderAvatarElement(card.querySelector(".messages-contact-avatar"), {
-    photo: contact.photo || "",
+    photo: getProfilePhotoValue(contact),
     name: contact.name || contact.email || "Contact",
     fallback: "U"
   });
@@ -33253,7 +33585,7 @@ function renderMessagesThreadList(current) {
       ${unread ? '<span class="message-thread-unread-badge"></span>' : ""}
     `;
     renderAvatarElement(card.querySelector(".message-thread-avatar"), {
-      photo: other.photo || "",
+      photo: getProfilePhotoValue(other),
       name: other.name || "User",
       fallback: initials || "U"
     });
@@ -33896,7 +34228,7 @@ function renderMessages() {
   if (messagesThreadTitle) messagesThreadTitle.textContent = other.name || pickCopy(MESSAGES_COPY.title);
   if (messagesThreadAvatar) {
     renderAvatarElement(messagesThreadAvatar, {
-      photo: other.photo || "",
+      photo: getProfilePhotoValue(other),
       name: other.name || "User",
       fallback: getMessageContactInitials(other.name || "U")
     });
