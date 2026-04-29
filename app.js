@@ -14,6 +14,8 @@ const DOMAIN_ASSET_VERSION = "20260429-domain-split2";
 const PDF_LIB_SRC = "https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js";
 const COACH_PLANNER_DOMAIN_SRC = `coach-planner.js?v=${DOMAIN_ASSET_VERSION}`;
 const WPL_SCRIPT_LOADS = new Map();
+const TEAM_CHAT_THREAD_ID = "team-chat";
+const TEAM_CHAT_TITLE = "Team chat";
 const CALENDAR_COPY = {
   title: {
     en: "Calendar",
@@ -29830,10 +29832,10 @@ const messagesShareHelp = document.getElementById("messagesShareHelp");
 const MESSAGES_COPY = {
   title: { en: "Messages", es: "Mensajes" },
   subtitle: {
-    en: "Direct 1:1 messaging between coaches, athletes, and parents.",
-    es: "Mensajeria directa 1:1 entre coaches, atletas y padres."
+    en: "Team chat plus direct messaging between coaches, athletes, and parents.",
+    es: "Chat del equipo y mensajeria directa entre coaches, atletas y padres."
   },
-  chip: { en: "Direct threads", es: "Chats directos" },
+  chip: { en: "Team + direct chats", es: "Equipo + chats directos" },
   workspaceChats: { en: "Chats", es: "Chats" },
   workspaceCalls: { en: "Calls", es: "Llamadas" },
   workspaceContacts: { en: "Contacts", es: "Contactos" },
@@ -30092,6 +30094,7 @@ const MESSAGES_COPY = {
   openThread: { en: "Open thread", es: "Ver chat" },
   contactReady: { en: "Available for direct chat", es: "Disponible para chat directo" },
   privateBadge: { en: "Direct", es: "Directo" },
+  teamBadge: { en: "Team", es: "Equipo" },
   you: { en: "You", es: "Tu" },
   needText: { en: "Write a message before sending.", es: "Escribe un mensaje antes de enviar." },
   signedOut: { en: "Signed out", es: "Sesion cerrada" },
@@ -31456,6 +31459,11 @@ function buildDirectMessageThreadId(uidA, uidB) {
   return [String(uidA || "").trim(), String(uidB || "").trim()].filter(Boolean).sort().join("__");
 }
 
+function isTeamChatThread(thread = {}) {
+  return String(thread?.id || "").trim() === TEAM_CHAT_THREAD_ID
+    || String(thread?.threadKind || "").trim().toLowerCase() === "team";
+}
+
 function getDirectMessageThreadParticipantIds(threadId = "") {
   return uniqueMessageIds(
     String(threadId || "")
@@ -31743,6 +31751,8 @@ function normalizeMessageThreadRecord(doc) {
     userUid: String(data.userUid || "").trim(),
     userName: String(data.userName || "").trim() || participantProfiles.find((participant) => participant.uid !== data.coachUid)?.name || "User",
     userRole: normalizeMessageParticipantRole(data.userRole || participantProfiles.find((participant) => participant.uid !== data.coachUid)?.role || "athlete"),
+    threadKind: String(data.threadKind || "").trim().toLowerCase() || "direct",
+    title: String(data.title || "").trim(),
     typingByUid: data.typingByUid && typeof data.typingByUid === "object" ? data.typingByUid : {},
     lastMessageText: String(data.lastMessageText || latestHistoryEntry?.text || "").trim(),
     lastMessageAt: data.lastMessageAt || data.updatedAt || latestHistoryEntry?.createdAt || data.createdAt || "",
@@ -31778,6 +31788,13 @@ function getSelectedMessageThread() {
 }
 
 function getMessageOtherParticipantProfile(thread, currentUid) {
+  if (isTeamChatThread(thread)) {
+    return normalizeMessageParticipantProfile({
+      uid: TEAM_CHAT_THREAD_ID,
+      name: TEAM_CHAT_TITLE,
+      role: "team"
+    });
+  }
   const participants = Array.isArray(thread?.participantProfiles) ? thread.participantProfiles : [];
   const otherParticipant = participants.find((participant) => participant.uid !== currentUid) || participants[0] || null;
   if (otherParticipant) return normalizeMessageParticipantProfile(otherParticipant);
@@ -31811,7 +31828,7 @@ function dedupeMessageThreads(currentUid, items = []) {
   const byKey = new Map();
   items.forEach((thread) => {
     const otherParticipant = getMessageOtherParticipantProfile(thread, currentUid);
-    const key = getMessageContactIdentityKey(otherParticipant);
+    const key = isTeamChatThread(thread) ? `thread:${TEAM_CHAT_THREAD_ID}` : getMessageContactIdentityKey(otherParticipant);
     const existing = byKey.get(key);
     if (!existing || messageTimestampToMillis(thread.updatedAt) > messageTimestampToMillis(existing.updatedAt)) {
       byKey.set(key, thread);
@@ -31980,12 +31997,20 @@ function sortMessageThreads(items = []) {
     }
   });
   return Array.from(byId.values()).sort(
-    (left, right) => messageTimestampToMillis(right.updatedAt || right.lastMessageAt) - messageTimestampToMillis(left.updatedAt || left.lastMessageAt)
+    (left, right) => {
+      const leftTeam = isTeamChatThread(left) ? 1 : 0;
+      const rightTeam = isTeamChatThread(right) ? 1 : 0;
+      if (leftTeam !== rightTeam) return rightTeam - leftTeam;
+      return messageTimestampToMillis(right.updatedAt || right.lastMessageAt) - messageTimestampToMillis(left.updatedAt || left.lastMessageAt);
+    }
   );
 }
 
 function sortMessageThreadsForInbox(items = [], current = getMessagesCurrentUser()) {
   return items.slice().sort((left, right) => {
+    const leftTeam = isTeamChatThread(left) ? 1 : 0;
+    const rightTeam = isTeamChatThread(right) ? 1 : 0;
+    if (leftTeam !== rightTeam) return rightTeam - leftTeam;
     const leftUnread = isMessageThreadUnread(left, current) ? 1 : 0;
     const rightUnread = isMessageThreadUnread(right, current) ? 1 : 0;
     if (leftUnread !== rightUnread) return rightUnread - leftUnread;
@@ -32054,6 +32079,13 @@ function getKnownMessageContactByUid(uid = "") {
 }
 
 function resolveMessageThreadContact(thread = {}, currentUid = "") {
+  if (isTeamChatThread(thread)) {
+    return normalizeMessageContactRecord(TEAM_CHAT_THREAD_ID, {
+      uid: TEAM_CHAT_THREAD_ID,
+      name: TEAM_CHAT_TITLE,
+      role: "team"
+    });
+  }
   const otherProfile = getMessageOtherParticipantProfile(thread, currentUid);
   const known = getKnownMessageContactByUid(otherProfile?.uid);
   if (known) return normalizeMessageContactRecord(known.uid, known);
@@ -32076,6 +32108,7 @@ function canMessageThread(current = getMessagesCurrentUser(), thread = null) {
     ? thread.participantIds.map((value) => String(value || "").trim()).filter(Boolean)
     : [];
   if (!participantIds.includes(current.uid)) return false;
+  if (isTeamChatThread(thread)) return true;
   const candidate = resolveMessageThreadContact(thread, current.uid);
   return canMessageContact(current, candidate);
 }
@@ -32321,6 +32354,102 @@ function subscribeToMessageThreads(current) {
 	    });
 }
 
+function buildTeamChatParticipantProfiles(current = getMessagesCurrentUser(), existingProfiles = []) {
+  return buildMessageParticipantProfiles([
+    ...(Array.isArray(existingProfiles) ? existingProfiles : []),
+    current
+  ].filter(Boolean));
+}
+
+function createLocalTeamChatThreadRecord(current = getMessagesCurrentUser(), existing = {}) {
+  const timestamp = existing.updatedAt || existing.createdAt || new Date().toISOString();
+  const participantProfiles = buildTeamChatParticipantProfiles(current, existing.participantProfiles || []);
+  const participantIds = uniqueMessageIds([
+    ...(Array.isArray(existing.participantIds) ? existing.participantIds : []),
+    ...participantProfiles.map((participant) => participant.uid)
+  ]).sort();
+  return normalizeMessageThreadRecord({
+    id: TEAM_CHAT_THREAD_ID,
+    data: () => ({
+      threadKind: "team",
+      title: TEAM_CHAT_TITLE,
+      participantIds,
+      participants: participantIds.reduce((acc, uid) => {
+        acc[uid] = true;
+        return acc;
+      }, {}),
+      participantProfiles,
+      createdAt: existing.createdAt || timestamp,
+      updatedAt: timestamp,
+      lastMessageAt: existing.lastMessageAt || "",
+      lastMessageText: existing.lastMessageText || "",
+      lastSenderUid: existing.lastSenderUid || "",
+      messageHistory: existing.messageHistory || []
+    })
+  });
+}
+
+async function ensureTeamChatThread(current = getMessagesCurrentUser()) {
+  const threadsRef = getMessageThreadsCollectionRef();
+  if (!current?.uid || !threadsRef) return null;
+  const threadRef = threadsRef.doc(TEAM_CHAT_THREAD_ID);
+  const now = new Date().toISOString();
+  const snapshot = await withTimeout(
+    threadRef.get(),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_team_chat_get_timeout"
+  );
+  const existingData = snapshot?.exists ? (snapshot.data() || {}) : {};
+  const participantProfiles = buildTeamChatParticipantProfiles(current, existingData.participantProfiles || []);
+  const participantIds = uniqueMessageIds([
+    ...(Array.isArray(existingData.participantIds) ? existingData.participantIds : []),
+    ...participantProfiles.map((participant) => participant.uid),
+    current.uid
+  ]).sort();
+  const participants = participantIds.reduce((acc, uid) => {
+    acc[uid] = true;
+    return acc;
+  }, {});
+  const payload = stripUndefinedDeep({
+    threadKind: "team",
+    title: TEAM_CHAT_TITLE,
+    participantIds,
+    participants,
+    participantProfiles: participantProfiles.map((participant) => ({
+      uid: participant.uid,
+      name: participant.name,
+      email: participant.email,
+      photo: getProfilePhotoValue(participant),
+      role: participant.role,
+      phone: participant.phone || "",
+      whatsapp: participant.whatsapp || "",
+      linkedCoachUid: participant.linkedCoachUid,
+      linkedAthleteId: participant.linkedAthleteId,
+      linkedAthleteUid: participant.linkedAthleteUid
+    })),
+    createdAt: existingData.createdAt || now,
+    updatedAt: existingData.updatedAt || now,
+    lastMessageAt: existingData.lastMessageAt || "",
+    lastMessageText: existingData.lastMessageText || "",
+    lastSenderUid: existingData.lastSenderUid || "",
+    serverUpdatedAt: getFirestoreServerTimestamp()
+  });
+  await withTimeout(
+    threadRef.set(payload, { merge: true }),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_team_chat_set_timeout"
+  );
+  const localRecord = createLocalTeamChatThreadRecord(current, {
+    ...existingData,
+    ...payload
+  });
+  messagesThreadRows = sortMessageThreads([localRecord, ...messagesThreadRows]);
+  if (!messagesSelectedThreadId) {
+    selectMessageThread(TEAM_CHAT_THREAD_ID, { openInCompact: false });
+  }
+  return TEAM_CHAT_THREAD_ID;
+}
+
 async function startMessagesRealtimeSync({ forceRefreshContacts = false } = {}) {
   const current = getMessagesCurrentUser();
   if (!current || !firebaseFirestoreInstance) {
@@ -32347,12 +32476,18 @@ async function startMessagesRealtimeSync({ forceRefreshContacts = false } = {}) 
     messagesThreadsPrimed = false;
     renderMessages();
     await loadMessageContactsDirectory();
+    await ensureTeamChatThread(current).catch((err) => {
+      console.warn("Failed to ensure team chat", err);
+    });
     subscribeToMessageThreads(current);
     subscribeToMessageContacts(current);
   } else {
     if (forceRefreshContacts || (!messagesContactRows.length && !messagesContactUnsubs.length)) {
       await loadMessageContactsDirectory();
     }
+    await ensureTeamChatThread(current).catch((err) => {
+      console.warn("Failed to ensure team chat", err);
+    });
     if (!messagesThreadsUnsub) {
       subscribeToMessageThreads(current);
     }
@@ -32488,6 +32623,8 @@ async function appendMessageToThread({
   createdAt = ""
 }) {
   const threadsRef = getMessageThreadsCollectionRef();
+  const safeThreadId = String(threadId || "").trim();
+  const isTeamThread = safeThreadId === TEAM_CHAT_THREAD_ID;
   const safeText = String(text || "").trim();
   const senderProfile = normalizeMessageParticipantProfile(sender || {});
   const participantProfiles = buildMessageParticipantProfiles(participants);
@@ -32495,10 +32632,10 @@ async function appendMessageToThread({
     ? attachments.map((entry) => normalizeMessageAttachment(entry)).filter((entry) => entry.assetPath)
     : [];
   const normalizedTags = normalizeLooseTagList(messageTags);
-  if (!threadsRef || !threadId || !safeText || !senderProfile.uid || participantProfiles.length < 2) {
+  if (!threadsRef || !safeThreadId || !safeText || !senderProfile.uid || (!isTeamThread && participantProfiles.length < 2)) {
     throw new Error("firestore_not_configured");
   }
-  const threadRef = threadsRef.doc(threadId);
+  const threadRef = threadsRef.doc(safeThreadId);
   const messageRef = threadRef.collection("messages").doc();
   const localMessage = {
     id: messageRef.id,
@@ -32515,7 +32652,7 @@ async function appendMessageToThread({
     readAt: ""
   };
   const messagePayload = {
-    threadId,
+    threadId: safeThreadId,
     clientMessageId: localMessage.clientMessageId,
     text: safeText,
     senderUid: senderProfile.uid,
@@ -32529,7 +32666,8 @@ async function appendMessageToThread({
     readByUid: "",
     readAt: ""
   };
-  const threadPayload = buildMessageThreadPayload(participantProfiles, {
+  const threadPayload = buildMessageThreadPayload(participantProfiles.length ? participantProfiles : [senderProfile], {
+    ...(isTeamThread ? { threadKind: "team", title: TEAM_CHAT_TITLE } : {}),
     updatedAt: localMessage.createdAt,
     lastMessageAt: localMessage.createdAt,
     serverUpdatedAt: getFirestoreServerTimestamp(),
@@ -33289,7 +33427,7 @@ function renderMessagesThreadHeaderActions(current, selectedThread) {
   }
   const canCall = Boolean(current?.uid && selectedThread);
   const canShareProgress = Boolean(current?.uid && selectedThread && isCoachMessagingUser(current));
-  const canOpenThreadMenu = Boolean(current?.uid && selectedThread);
+  const canOpenThreadMenu = Boolean(current?.uid && selectedThread && !isTeamChatThread(selectedThread));
   if (messagesShareProgressBtn) messagesShareProgressBtn.disabled = !canShareProgress;
   if (messagesThreadVoiceBtn) messagesThreadVoiceBtn.disabled = !canCall;
   if (messagesThreadVideoBtn) messagesThreadVideoBtn.disabled = !canCall;
@@ -33322,6 +33460,9 @@ function ensureLocalMessageThreadParticipants(threadId = "", participants = []) 
 function getMessageThreadParticipantsForSend(selectedThread, current) {
   const thread = selectedThread || {};
   const sender = normalizeMessageParticipantProfile(current || {});
+  if (isTeamChatThread(thread)) {
+    return buildTeamChatParticipantProfiles(sender, thread.participantProfiles || []);
+  }
   const byUid = new Map();
   const participantIdsFromThreadId = getDirectMessageThreadParticipantIds(thread.id);
   const addParticipant = (candidate) => {
@@ -33701,13 +33842,14 @@ function renderMessagesThreadList(current) {
     const meta = formatMessageTimestamp(thread.lastMessageAt || thread.updatedAt);
     const initials = getMessageContactInitials(other.name || "U");
     const unreadCount = unread ? 1 : 0;
+    const roleLabel = isTeamChatThread(thread) ? pickCopy(MESSAGES_COPY.teamBadge) : getRoleLabelEnglish(other.role);
     card.innerHTML = `
       <span class="message-thread-avatar">${escapeHtml(initials)}</span>
       <span class="message-thread-main">
         <span class="message-thread-card-top">
           <span>
             <h4>${escapeHtml(other.name || "Conversation")}</h4>
-            <small>${escapeHtml(getRoleLabelEnglish(other.role))}</small>
+            <small>${escapeHtml(roleLabel)}</small>
           </span>
           <small class="message-thread-time">${escapeHtml(meta)}</small>
         </span>
@@ -33716,7 +33858,7 @@ function renderMessagesThreadList(current) {
           ${unreadCount ? `<span class="message-thread-unread-count">${unreadCount}</span>` : ""}
         </span>
       </span>
-      <button type="button" class="ghost message-thread-delete-trigger" aria-label="${escapeHtml(pickCopy(MESSAGES_COPY.threadMoreBtn))}" title="${escapeHtml(pickCopy(MESSAGES_COPY.threadMoreBtn))}">${escapeHtml(pickCopy(MESSAGES_COPY.deleteMessageBtn))}</button>
+      ${isTeamChatThread(thread) ? "" : `<button type="button" class="ghost message-thread-delete-trigger" aria-label="${escapeHtml(pickCopy(MESSAGES_COPY.threadMoreBtn))}" title="${escapeHtml(pickCopy(MESSAGES_COPY.threadMoreBtn))}">${escapeHtml(pickCopy(MESSAGES_COPY.deleteMessageBtn))}</button>`}
       ${unread ? '<span class="message-thread-unread-badge"></span>' : ""}
     `;
     renderAvatarElement(card.querySelector(".message-thread-avatar"), {
@@ -33735,7 +33877,7 @@ function renderMessagesThreadList(current) {
         queueMessageThreadSwipeDelete(thread, current);
       });
     }
-    if (threadId) {
+    if (threadId && !isTeamChatThread(thread)) {
       bindSwipeDeleteGesture(card, {
         key: getMessageThreadSwipeDeleteKey(threadId),
         onSwipeDelete: () => {
@@ -34369,13 +34511,17 @@ function renderMessages() {
     });
   }
   if (messagesThreadMeta) {
-    const metaBits = [getRoleLabelEnglish(other.role)];
+    const metaBits = [isTeamChatThread(selectedThread) ? TEAM_CHAT_TITLE : getRoleLabelEnglish(other.role)];
     if (selectedThread.lastMessageAt) {
       metaBits.push(formatMessageTimestamp(selectedThread.lastMessageAt));
     }
     messagesThreadMeta.textContent = metaBits.filter(Boolean).join(" - ");
   }
-  if (messagesThreadBadge) messagesThreadBadge.textContent = pickCopy(MESSAGES_COPY.privateBadge);
+  if (messagesThreadBadge) {
+    messagesThreadBadge.textContent = pickCopy(isTeamChatThread(selectedThread)
+      ? MESSAGES_COPY.teamBadge
+      : MESSAGES_COPY.privateBadge);
+  }
   if (messagesStatus) {
     messagesStatus.textContent = pickCopy(messagesStatusCopy);
     messagesStatus.dataset.state = messagesStatusType || "";
@@ -34427,7 +34573,7 @@ async function handleMessageComposerSubmit(event) {
   setThreadTypingState(threadId, false).catch(() => {});
   const sendParticipants = getMessageThreadParticipantsForSend(selectedThread, current);
   const receiver = resolveMessageThreadContact(selectedThread, current.uid);
-  if (!canMessageContact(current, receiver)) {
+  if (!isTeamChatThread(selectedThread) && !canMessageContact(current, receiver)) {
     setMessagesStatus({
       en: "This recipient is not available in your linked messaging scope.",
       es: "Este destinatario no esta disponible en tu alcance de mensajeria vinculada."
@@ -34435,7 +34581,7 @@ async function handleMessageComposerSubmit(event) {
     renderMessages();
     return;
   }
-  if (sendParticipants.length < 2) {
+  if (!isTeamChatThread(selectedThread) && sendParticipants.length < 2) {
     setMessagesStatus(
       {
         en: "Could not resolve participants for this chat. Open a new chat and try again.",
@@ -34645,7 +34791,7 @@ async function sendVoiceMessageBlob(blob, mimeType = "audio/webm") {
     return;
   }
   const sendParticipants = getMessageThreadParticipantsForSend(selectedThread, current);
-  if (sendParticipants.length < 2) {
+  if (!isTeamChatThread(selectedThread) && sendParticipants.length < 2) {
     setMessageVoiceStatus(MESSAGES_COPY.voiceError, "error");
     return;
   }
