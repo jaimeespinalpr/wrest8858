@@ -10,7 +10,7 @@ const DEFAULT_LANG = "en";
 const APP_TIMEZONE = "America/New_York";
 const SUPPORTED_LANGS = new Set(["en", "es", "uz", "ru"]);
 const PUBLISH_READY_MODE = String(window.WPL_PUBLISH_READY_MODE || "true").toLowerCase() !== "false";
-const DOMAIN_ASSET_VERSION = "20260428-domain-split1";
+const DOMAIN_ASSET_VERSION = "20260429-domain-split2";
 const PDF_LIB_SRC = "https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js";
 const COACH_PLANNER_DOMAIN_SRC = `coach-planner.js?v=${DOMAIN_ASSET_VERSION}`;
 const WPL_SCRIPT_LOADS = new Map();
@@ -89,6 +89,44 @@ async function ensurePdfLibLoaded() {
 
 async function ensureCoachPlannerDomainLoaded() {
   await loadScriptOnce(COACH_PLANNER_DOMAIN_SRC);
+}
+
+function runWhenBrowserIsIdle(callback, { timeout = 1500 } = {}) {
+  if (typeof callback !== "function") return;
+  const runner = () => {
+    try {
+      callback();
+    } catch (error) {
+      console.warn("Deferred domain task failed.", error);
+    }
+  };
+  if (typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(runner, { timeout });
+    return;
+  }
+  window.setTimeout(runner, Math.min(Math.max(timeout, 0), 1500));
+}
+
+function startMessagesRealtimeWhenIdle(options = {}) {
+  runWhenBrowserIsIdle(() => {
+    startMessagesRealtimeSync(options).catch((err) => {
+      console.warn("Messages realtime bootstrap failed", err);
+    });
+  }, { timeout: 2500 });
+}
+
+function startMediaDomainSyncWhenIdle() {
+  runWhenBrowserIsIdle(() => {
+    ensureMediaDomainSyncNow().catch((err) => {
+      console.warn("Failed to hydrate shared media in deferred domain sync", err);
+    });
+  }, { timeout: 2200 });
+}
+
+async function ensureMediaDomainSyncNow() {
+  await hydrateMediaTreeFromSharedStore();
+  startMediaRealtimeSync();
+  renderMedia();
 }
 
 // ---------- STORAGE ----------
@@ -1760,10 +1798,8 @@ async function applyProfile(profile) {
   } else {
     stopAdminUsersRealtimeSync();
   }
-  startMessagesRealtimeSync({
+  startMessagesRealtimeWhenIdle({
     forceRefreshContacts: true
-  }).catch((err) => {
-    console.warn("Messages realtime bootstrap failed", err);
   });
   refreshLanguageUI();
   startProfilePhotoRealtimeSync();
@@ -7405,19 +7441,14 @@ async function handleSuccessfulAuth(result, { showWelcome = false } = {}) {
   setProfile(profile, { sync: resolvedRole !== "parent" });
   startUserClientStateSync();
   try {
-    await hydrateMediaTreeFromSharedStore();
-    startMediaRealtimeSync();
-  } catch (err) {
-    console.warn("Failed to hydrate shared media after auth", err);
-  }
-  startCoachWorkspaceRealtimeSync();
-  try {
     await applyProfile(profile);
+    startMediaDomainSyncWhenIdle();
     hideOnboarding();
   } catch (err) {
     console.warn("Failed to apply profile after auth", err);
     setView(targetView);
     refreshLanguageUI();
+    startMediaDomainSyncWhenIdle();
     hideOnboarding();
   }
   questionnairePromptShownForUserId = authUser?.id || "";
@@ -10211,6 +10242,7 @@ function getDayAbbr() {
 const tabBtns = Array.from(document.querySelectorAll(".tab"));
 let currentTopTab = "";
 let currentFocusedPanel = "";
+let appDomainRenderReady = false;
 const panels = {
   today: document.getElementById("panel-today"),
   "tournament-view": document.getElementById("panel-tournament-view"),
@@ -10351,7 +10383,7 @@ async function showTab(name) {
     el.classList.toggle("hidden", orderIndex === -1);
   });
 
-  if (visiblePanels.includes("plans")) {
+  if (appDomainRenderReady && visiblePanels.includes("plans")) {
     try {
       await ensureCoachPlannerDomainLoaded();
     } catch (error) {
@@ -10390,11 +10422,37 @@ async function showTab(name) {
     renderCalendarManager();
   }
 
-  if (visiblePanels.includes("permissions")) {
+  if (appDomainRenderReady && visiblePanels.includes("media")) {
+    ensureMediaDomainSyncNow().catch((err) => {
+      console.warn("Failed to open media domain", err);
+      renderMedia();
+    });
+  }
+
+  if (appDomainRenderReady && visiblePanels.includes("dashboard")) {
+    renderDashboard();
+    renderCoachProfile();
+  }
+
+  if (appDomainRenderReady && visiblePanels.includes("assignments")) {
+    renderCoachAssignments();
+    renderCompletionTracking();
+  }
+
+  if (appDomainRenderReady && visiblePanels.includes("athletes")) {
+    renderAthleteManagement();
+    renderAthleteNotes();
+  }
+
+  if (appDomainRenderReady && visiblePanels.includes("journal-monitor")) {
+    renderJournalMonitor();
+  }
+
+  if (appDomainRenderReady && visiblePanels.includes("permissions")) {
     maybeRefreshAdminUsers();
   }
 
-  if (visiblePanels.includes("messages")) {
+  if (appDomainRenderReady && visiblePanels.includes("messages")) {
     if (isCompactMessagesViewport()) {
       messagesCompactThreadVisible = false;
     }
@@ -35268,6 +35326,10 @@ async function startApp() {
   ensureSeedJournalEntries();
   renderJournalEntries();
   await bootProfile();
+  appDomainRenderReady = true;
+  if (currentTopTab) {
+    await showTab(currentTopTab);
+  }
   queueUserNameDecoration(document.body);
   startClock();
   const currentDayIndex = getCurrentAppDayIndex();
@@ -35276,19 +35338,21 @@ async function startApp() {
   renderFeelingScale();
   renderPlanGrid(currentDayIndex);
   renderCalendar(currentDayKey);
-  renderCalendarManager();
-  renderMedia();
   renderAnnouncements();
-  renderCoachAssignments();
-  renderCompletionTracking();
   renderDashboard();
   renderCoachProfile();
-  renderAthleteManagement();
-  renderJournalMonitor();
   renderPermissions();
-  renderMessages();
-  renderSkills();
-  initializePlanSelectors();
+  runWhenBrowserIsIdle(() => {
+    renderCalendarManager();
+    renderMedia();
+    renderCoachAssignments();
+    renderCompletionTracking();
+    renderAthleteManagement();
+    renderJournalMonitor();
+    renderMessages();
+    renderSkills();
+    initializePlanSelectors();
+  }, { timeout: 1800 });
 }
 
 startApp();
