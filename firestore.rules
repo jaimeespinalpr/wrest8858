@@ -469,6 +469,18 @@ service cloud.firestore {
       }
     }
 
+    // Public read-only competition snapshots created intentionally by coaches.
+    match /public_competition_shares/{shareId} {
+      allow read: if resource.data.type == "competition_profile"
+        && resource.data.revoked != true
+        && (!("expiresAt" in resource.data) || request.time < resource.data.expiresAt);
+      allow create: if isCoachOrAdminUser()
+        && request.resource.data.type == "competition_profile"
+        && request.resource.data.coachUid == request.auth.uid;
+      allow update, delete: if isCoachOrAdminUser()
+        && resource.data.coachUid == request.auth.uid;
+    }
+
     // Shared media tree is collaborative between authenticated users.
     match /shared_app/{docId} {
       allow read, write: if signedIn();

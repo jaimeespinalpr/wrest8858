@@ -15,7 +15,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Teko:wght@500;600;700&display=swap"
     rel="stylesheet"
   >
-  <link rel="stylesheet" href="styles.css?v=20260501-complete-profile1" >
+  <link rel="stylesheet" href="styles.css?v=20260501-competition-share1" >
 </head>
 
 <body>
@@ -1173,6 +1173,23 @@
               <div class="form-actions">
                 <button type="button" class="primary" id="competitionSummarySaveBtn">Save competition summary</button>
                 <span class="small muted" id="competitionSummaryStatus"></span>
+              </div>
+              <div class="competition-share-card" id="competitionShareCard">
+                <div>
+                  <h3 id="competitionShareTitle">Share athlete competition view</h3>
+                  <p class="small muted" id="competitionShareHint">Create a read-only link for this athlete's Competition section.</p>
+                </div>
+                <label>
+                  <span id="competitionShareUrlLabel">Share link</span>
+                  <input id="competitionShareUrl" type="text" readonly placeholder="Select an athlete and create a link">
+                </label>
+                <div class="competition-share-actions">
+                  <button type="button" class="primary" id="competitionShareCreateBtn">Create share link</button>
+                  <button type="button" class="ghost" id="competitionShareCopyBtn">Copy</button>
+                  <button type="button" class="ghost" id="competitionShareEmailBtn">Email</button>
+                  <button type="button" class="ghost" id="competitionShareSmsBtn">Text</button>
+                </div>
+                <span class="small muted" id="competitionShareStatus"></span>
               </div>
             </section>
           </div>
@@ -2493,6 +2510,6 @@
       document.write('<script src="firebase-config.js"><\\/script>');
     }());
   </script>
-  <script src="app.js?v=20260501-complete-profile1"></script>
+  <script src="app.js?v=20260501-competition-share1"></script>
 </body>
 </html>

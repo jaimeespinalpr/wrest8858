@@ -10,7 +10,7 @@ const DEFAULT_LANG = "en";
 const APP_TIMEZONE = "America/New_York";
 const SUPPORTED_LANGS = new Set(["en", "es", "uz", "ru"]);
 const PUBLISH_READY_MODE = String(window.WPL_PUBLISH_READY_MODE || "true").toLowerCase() !== "false";
-const DOMAIN_ASSET_VERSION = "20260501-complete-profile1";
+const DOMAIN_ASSET_VERSION = "20260501-competition-share1";
 const PDF_LIB_SRC = "https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js";
 const COACH_PLANNER_DOMAIN_SRC = `coach-planner.js?v=${DOMAIN_ASSET_VERSION}`;
 const WPL_SCRIPT_LOADS = new Map();
@@ -149,6 +149,7 @@ const FIREBASE_SHARED_COLLECTION = window.FIREBASE_SHARED_COLLECTION || "shared_
 const FIREBASE_MEDIA_TREE_DOC = window.FIREBASE_MEDIA_TREE_DOC || "media_tree";
 const FIREBASE_SHARED_USER_DIRECTORY_DOC = "global_user_directory";
 const FIREBASE_SHARED_USER_DIRECTORY_ITEMS = "items";
+const FIREBASE_PUBLIC_COMPETITION_SHARES_COLLECTION = window.FIREBASE_PUBLIC_COMPETITION_SHARES_COLLECTION || "public_competition_shares";
 const FIREBASE_MESSAGE_THREADS_COLLECTION = "message_threads";
 const FIREBASE_COACH_WORKSPACES_COLLECTION = "coach_workspaces";
 const FIREBASE_USER_CLIENT_STATE_COLLECTION = "client_state";
@@ -738,6 +739,10 @@ let selectedCompetitionId = "";
 let competitionCreateOpen = false;
 let competitionPreviewGroup = "summary";
 let competitionAthleteSearchQuery = "";
+let publicCompetitionShare = null;
+let publicCompetitionShareError = "";
+let currentCompetitionShareUrl = "";
+let currentCompetitionShareAthleteName = "";
 let responsiveViewportEventsBound = false;
 const headerViewButtons = Array.from(document.querySelectorAll("#headerMenu button[data-action^='view-']"));
 
@@ -10358,10 +10363,11 @@ const APP_LAUNCH_CONFIG = (() => {
     const routeTab = resolveAppTabFromRoutePath() || String(window.WPL_ROUTE_TAB || "").trim();
     return {
       tab: String(params.get("openTab") || routeTab || "").trim(),
-      contactUid: normalizeUid(params.get("contactUid") || "")
+      contactUid: normalizeUid(params.get("contactUid") || ""),
+      competitionShareId: String(params.get("share") || params.get("competitionShare") || "").trim()
     };
   } catch (_err) {
-    return { tab: "", contactUid: "" };
+    return { tab: "", contactUid: "", competitionShareId: "" };
   }
 })();
 let launchConfigApplied = false;
@@ -10426,6 +10432,10 @@ function buildMessagesWindowUrl(contactUid = "") {
 async function applyLaunchConfig() {
   if (launchConfigApplied) return;
   launchConfigApplied = true;
+  if (APP_LAUNCH_CONFIG.competitionShareId) {
+    await openPublicCompetitionShare(APP_LAUNCH_CONFIG.competitionShareId);
+    return;
+  }
   if (!APP_LAUNCH_CONFIG.tab) return;
   await showTab(APP_LAUNCH_CONFIG.tab);
   if (APP_LAUNCH_CONFIG.contactUid) {
@@ -13284,6 +13294,16 @@ const competitionSummaryWorkOnsInput = document.getElementById("competitionSumma
 const competitionSummaryCuesInput = document.getElementById("competitionSummaryCuesInput");
 const competitionSummarySaveBtn = document.getElementById("competitionSummarySaveBtn");
 const competitionSummaryStatus = document.getElementById("competitionSummaryStatus");
+const competitionShareCard = document.getElementById("competitionShareCard");
+const competitionShareTitle = document.getElementById("competitionShareTitle");
+const competitionShareHint = document.getElementById("competitionShareHint");
+const competitionShareUrlLabel = document.getElementById("competitionShareUrlLabel");
+const competitionShareUrlInput = document.getElementById("competitionShareUrl");
+const competitionShareCreateBtn = document.getElementById("competitionShareCreateBtn");
+const competitionShareCopyBtn = document.getElementById("competitionShareCopyBtn");
+const competitionShareEmailBtn = document.getElementById("competitionShareEmailBtn");
+const competitionShareSmsBtn = document.getElementById("competitionShareSmsBtn");
+const competitionShareStatus = document.getElementById("competitionShareStatus");
 const openCoachMatchBtn = document.getElementById("openCoachMatchBtn");
 const openCompetitionPreviewBtn = document.getElementById("openCompetitionPreviewBtn");
 const coachQuickPreview = document.getElementById("coachQuickPreview");
@@ -15993,9 +16013,247 @@ function buildCompetitionQuickSnapshot(profile = {}) {
   };
 }
 
+function getPublicCompetitionShareRef(shareId = "") {
+  const safeShareId = String(shareId || "").trim();
+  if (!firebaseFirestoreInstance || !safeShareId) return null;
+  return firebaseFirestoreInstance
+    .collection(FIREBASE_PUBLIC_COMPETITION_SHARES_COLLECTION)
+    .doc(safeShareId);
+}
+
+function createCompetitionShareId() {
+  const randomPart = typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function"
+    ? Array.from(crypto.getRandomValues(new Uint8Array(16))).map((value) => value.toString(16).padStart(2, "0")).join("")
+    : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+  return `comp_${randomPart}`;
+}
+
+function getCompetitionShareUrl(shareId = "") {
+  const safeShareId = encodeURIComponent(String(shareId || "").trim());
+  const basePath = getAppBasePathForRoutes();
+  return `${window.location.origin}${basePath}competition/?share=${safeShareId}`;
+}
+
+function buildCompetitionShareProfileSnapshot(profile = {}) {
+  const safeProfile = profile && typeof profile === "object" ? profile : {};
+  const allowedKeys = [
+    "id",
+    "name",
+    "photo",
+    "currentWeight",
+    "weight",
+    "weightClass",
+    "style",
+    "level",
+    "years",
+    "experienceYears",
+    "favoritePosition",
+    "position",
+    "strategy",
+    "international",
+    "internationalEvents",
+    "internationalYears",
+    "coachCues",
+    "trainingFocus",
+    "competitionCue",
+    "competitionSummaryProfile",
+    "competitionSummaryWorkOns",
+    "competitionSummaryCues",
+    "coachSignal",
+    "pressureError",
+    "resultsHistory",
+    "strategyA",
+    "strategyB",
+    "strategyC",
+    "challengeOne",
+    "challengeTwo",
+    "challengeThree"
+  ];
+  const snapshot = {};
+  allowedKeys.forEach((key) => {
+    const value = safeProfile[key];
+    if (typeof value === "string" || typeof value === "number") {
+      snapshot[key] = String(value || "").trim();
+    }
+  });
+  [
+    "offenseTop3",
+    "defenseTop3",
+    "setupsTop3",
+    "mentalReminders",
+    "safetyWarnings",
+    "physicalLimitations",
+    "cueWords"
+  ].forEach((key) => {
+    if (Array.isArray(safeProfile[key])) {
+      snapshot[key] = safeProfile[key].map((item) => String(item || "").trim()).filter(Boolean).slice(0, 6);
+    }
+  });
+  snapshot.defaultTechniques = {
+    leadLeg: String(safeProfile.defaultTechniques?.leadLeg || safeProfile.leadLeg || "").trim()
+  };
+  return stripUndefinedDeep(snapshot);
+}
+
+function buildCompetitionSharePayload(profile = {}) {
+  const authUser = getAuthUser();
+  const coachProfile = getProfile() || {};
+  const athleteName = String(profile?.name || "").trim();
+  return stripUndefinedDeep({
+    type: "competition_profile",
+    version: 1,
+    athleteName,
+    athleteId: normalizeAthleteId(profile?.id, athleteName),
+    coachUid: normalizeUid(authUser?.id),
+    coachName: String(coachProfile?.name || authUser?.email || "").trim(),
+    profile: buildCompetitionShareProfileSnapshot(profile),
+    createdAt: getFirestoreServerTimestamp(),
+    updatedAt: getFirestoreServerTimestamp(),
+    expiresAt: typeof firebase !== "undefined" && firebase.firestore?.Timestamp?.fromDate
+      ? firebase.firestore.Timestamp.fromDate(new Date(Date.now() + 1000 * 60 * 60 * 24 * 30))
+      : new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString(),
+    revoked: false
+  });
+}
+
+async function createCompetitionShareLink(profile = getSelectedCoachAthleteRecord()) {
+  const athleteRecord = profile || getSelectedCoachAthleteRecord();
+  if (!athleteRecord?.name) {
+    throw new Error("competition_share_missing_athlete");
+  }
+  const shareId = createCompetitionShareId();
+  const ref = getPublicCompetitionShareRef(shareId);
+  if (!ref) throw new Error("competition_share_store_unavailable");
+  await withTimeout(
+    ref.set(buildCompetitionSharePayload(athleteRecord)),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_competition_share_create_timeout"
+  );
+  return getCompetitionShareUrl(shareId);
+}
+
+function getCompetitionShareMessage(shareUrl = "", profile = {}) {
+  const athleteName = String(profile?.name || publicCompetitionShare?.athleteName || "").trim() || (currentLang === "es" ? "este atleta" : "this athlete");
+  return currentLang === "es"
+    ? `Te comparto la vista de Competition de ${athleteName}: ${shareUrl}`
+    : `Sharing ${athleteName}'s Competition view: ${shareUrl}`;
+}
+
+function openCompetitionShareEmailDraft(shareUrl = "", profile = {}) {
+  if (!shareUrl) return;
+  const athleteName = String(profile?.name || "").trim() || "athlete";
+  const subject = currentLang === "es"
+    ? `Competition view - ${athleteName}`
+    : `Competition view - ${athleteName}`;
+  const body = getCompetitionShareMessage(shareUrl, profile);
+  window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+function openCompetitionShareSmsDraft(shareUrl = "", profile = {}) {
+  if (!shareUrl) return;
+  const body = getCompetitionShareMessage(shareUrl, profile);
+  const separator = /iPhone|iPad|iPod/i.test(navigator.userAgent || "") ? "&" : "?";
+  window.location.href = `sms:${separator}body=${encodeURIComponent(body)}`;
+}
+
+async function copyCompetitionShareUrl(shareUrl = "") {
+  if (!shareUrl) return false;
+  try {
+    await navigator.clipboard.writeText(shareUrl);
+    return true;
+  } catch (_err) {
+    if (!competitionShareUrlInput) return false;
+    competitionShareUrlInput.focus();
+    competitionShareUrlInput.select();
+    return document.execCommand("copy");
+  }
+}
+
+async function loadPublicCompetitionShare(shareId = "") {
+  const ref = getPublicCompetitionShareRef(shareId);
+  if (!ref) throw new Error("competition_share_ref_unavailable");
+  const snapshot = await withTimeout(
+    ref.get(),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_competition_share_load_timeout"
+  );
+  if (!snapshot.exists) throw new Error("competition_share_not_found");
+  const data = snapshot.data() || {};
+  if (data.revoked) throw new Error("competition_share_revoked");
+  const expiresAt = typeof data.expiresAt?.toMillis === "function"
+    ? data.expiresAt.toMillis()
+    : Date.parse(String(data.expiresAt || ""));
+  if (expiresAt && expiresAt < Date.now()) throw new Error("competition_share_expired");
+  publicCompetitionShare = {
+    id: shareId,
+    athleteName: String(data.athleteName || data.profile?.name || "").trim(),
+    coachName: String(data.coachName || "").trim(),
+    profile: normalizeCoachAthleteRecord(
+      normalizeAthleteId(data.athleteId || data.profile?.id, data.athleteName || data.profile?.name),
+      data.profile || {}
+    )
+  };
+  publicCompetitionShareError = "";
+  document.body.classList.add("competition-public-share-mode");
+  return publicCompetitionShare;
+}
+
+async function openPublicCompetitionShare(shareId = "") {
+  try {
+    const share = await loadPublicCompetitionShare(shareId);
+    appDomainRenderReady = true;
+    isApplyingBrowserRoute = true;
+    await showTab("competition-preview");
+    isApplyingBrowserRoute = false;
+    renderCompetitionPreview(share.profile);
+  } catch (error) {
+    console.warn("Competition share load failed", error);
+    publicCompetitionShare = null;
+    publicCompetitionShareError = String(error?.code || error?.message || "competition_share_load_failed");
+    document.body.classList.add("competition-public-share-mode");
+    await showTab("competition-preview");
+    if (competitionPreview) {
+      competitionPreview.innerHTML = `
+        <div class="mini-card">
+          <h3>${currentLang === "es" ? "Enlace no disponible" : "Share link unavailable"}</h3>
+          <p class="small muted">${currentLang === "es" ? "Este enlace expiro, fue removido o no se pudo cargar." : "This link expired, was removed, or could not be loaded."}</p>
+        </div>
+      `;
+    }
+  } finally {
+    isApplyingBrowserRoute = false;
+  }
+}
+
 function renderCompetitionPreview(profile) {
-  const isCoachContext = isCoachRouteContext();
+  const isPublicShare = Boolean(publicCompetitionShare);
+  const isPublicShareRoute = Boolean(APP_LAUNCH_CONFIG.competitionShareId);
+  if (isPublicShareRoute && !publicCompetitionShare && publicCompetitionShareError) {
+    document.body.classList.add("competition-public-share-mode");
+    if (competitionManager) competitionManager.classList.add("hidden");
+    if (competitionSharedLayout) {
+      competitionSharedLayout.classList.remove("coach-roster-active");
+      competitionSharedLayout.classList.add("hidden");
+    }
+    if (competitionPreview) {
+      competitionPreview.innerHTML = `
+        <div class="mini-card">
+          <h3>${currentLang === "es" ? "Enlace no disponible" : "Share link unavailable"}</h3>
+          <p class="small muted">${currentLang === "es" ? "Este enlace expiro, fue removido o no se pudo cargar." : "This link expired, was removed, or could not be loaded."}</p>
+        </div>
+      `;
+    }
+    [competitionSummaryProfileInput, competitionSummaryWorkOnsInput, competitionSummaryCuesInput, competitionSummarySaveBtn].forEach((control) => {
+      if (control) control.disabled = true;
+    });
+    return;
+  }
+  const selectedProfile = isPublicShare && publicCompetitionShare?.profile
+    ? publicCompetitionShare.profile
+    : (profile || null);
+  const isCoachContext = !isPublicShare && isCoachRouteContext();
   if (competitionSharedLayout) {
+    competitionSharedLayout.classList.remove("hidden");
     competitionSharedLayout.classList.toggle("coach-roster-active", isCoachContext);
   }
   if (competitionAthleteListTitle) {
@@ -16043,9 +16301,14 @@ function renderCompetitionPreview(profile) {
       ? "Cues cortos para esquina y triggers de reset"
       : "Short corner cues and reset triggers";
   }
-  const selectedProfile = profile || null;
   const selectedName = String(selectedProfile?.name || "").trim();
   const selectedCoachName = String(getSelectedCoachAthleteName() || "").trim();
+  if (selectedName && currentCompetitionShareAthleteName && currentCompetitionShareAthleteName !== selectedName) {
+    currentCompetitionShareUrl = "";
+  }
+  if (selectedName) {
+    currentCompetitionShareAthleteName = selectedName;
+  }
   const quickSnapshot = buildCompetitionQuickSnapshot(selectedProfile || {});
   renderAvatarElement(competitionSummaryQuickAvatar, {
     photo: getProfilePhotoValue(selectedProfile),
@@ -16093,6 +16356,96 @@ function renderCompetitionPreview(profile) {
     competitionSummarySaveBtn.textContent = currentLang === "es"
       ? "Guardar resumen de competencia"
       : "Save competition summary";
+  }
+  if (competitionShareCard) {
+    competitionShareCard.classList.toggle("hidden", !isCoachContext);
+  }
+  if (competitionShareTitle) {
+    competitionShareTitle.textContent = currentLang === "es"
+      ? "Compartir vista de Competition"
+      : "Share athlete competition view";
+  }
+  if (competitionShareHint) {
+    competitionShareHint.textContent = currentLang === "es"
+      ? "Crea un enlace de solo lectura para que alguien vea solo Competition de este atleta."
+      : "Create a read-only link so someone can view only this athlete's Competition section.";
+  }
+  if (competitionShareUrlLabel) {
+    competitionShareUrlLabel.textContent = currentLang === "es" ? "Enlace" : "Share link";
+  }
+  if (competitionShareCreateBtn) {
+    competitionShareCreateBtn.textContent = currentLang === "es" ? "Crear enlace" : "Create share link";
+    competitionShareCreateBtn.disabled = !isCoachContext || !selectedName;
+  }
+  if (competitionShareCopyBtn) {
+    competitionShareCopyBtn.textContent = currentLang === "es" ? "Copiar" : "Copy";
+    competitionShareCopyBtn.disabled = !currentCompetitionShareUrl;
+  }
+  if (competitionShareEmailBtn) {
+    competitionShareEmailBtn.textContent = currentLang === "es" ? "Email" : "Email";
+    competitionShareEmailBtn.disabled = !currentCompetitionShareUrl;
+  }
+  if (competitionShareSmsBtn) {
+    competitionShareSmsBtn.textContent = currentLang === "es" ? "Texto" : "Text";
+    competitionShareSmsBtn.disabled = !currentCompetitionShareUrl;
+  }
+  if (competitionShareUrlInput) {
+    competitionShareUrlInput.value = currentCompetitionShareUrl;
+    competitionShareUrlInput.placeholder = currentLang === "es"
+      ? "Selecciona un atleta y crea un enlace"
+      : "Select an athlete and create a link";
+  }
+  if (competitionShareStatus) {
+    competitionShareStatus.textContent = selectedName
+      ? (currentCompetitionShareUrl
+          ? (currentLang === "es" ? "Enlace listo para copiar, email o texto." : "Link ready to copy, email, or text.")
+          : (currentLang === "es" ? "El enlace incluira solo el snapshot de Competition de este atleta." : "The link will include only this athlete's Competition snapshot."))
+      : (currentLang === "es" ? "Selecciona un atleta para compartir." : "Select an athlete to share.");
+  }
+  if (competitionShareCreateBtn) {
+    competitionShareCreateBtn.onclick = async () => {
+      try {
+        competitionShareCreateBtn.disabled = true;
+        if (competitionShareStatus) {
+          competitionShareStatus.textContent = currentLang === "es" ? "Creando enlace..." : "Creating link...";
+        }
+        currentCompetitionShareUrl = await createCompetitionShareLink(selectedProfile);
+        if (competitionShareUrlInput) competitionShareUrlInput.value = currentCompetitionShareUrl;
+        if (competitionShareStatus) {
+          competitionShareStatus.textContent = currentLang === "es"
+            ? "Enlace creado. Puedes copiarlo, abrir email o abrir texto."
+            : "Link created. You can copy it, open email, or open text.";
+        }
+        [competitionShareCopyBtn, competitionShareEmailBtn, competitionShareSmsBtn].forEach((button) => {
+          if (button) button.disabled = false;
+        });
+      } catch (error) {
+        console.warn("Competition share link create failed", error);
+        if (competitionShareStatus) {
+          competitionShareStatus.textContent = currentLang === "es"
+            ? "No se pudo crear el enlace."
+            : "Could not create the link.";
+        }
+      } finally {
+        competitionShareCreateBtn.disabled = !selectedName;
+      }
+    };
+  }
+  if (competitionShareCopyBtn) {
+    competitionShareCopyBtn.onclick = async () => {
+      const copied = await copyCompetitionShareUrl(currentCompetitionShareUrl);
+      if (competitionShareStatus) {
+        competitionShareStatus.textContent = copied
+          ? (currentLang === "es" ? "Enlace copiado." : "Link copied.")
+          : (currentLang === "es" ? "No se pudo copiar automaticamente." : "Could not copy automatically.");
+      }
+    };
+  }
+  if (competitionShareEmailBtn) {
+    competitionShareEmailBtn.onclick = () => openCompetitionShareEmailDraft(currentCompetitionShareUrl, selectedProfile);
+  }
+  if (competitionShareSmsBtn) {
+    competitionShareSmsBtn.onclick = () => openCompetitionShareSmsDraft(currentCompetitionShareUrl, selectedProfile);
   }
   const favoriteAthleteNames = new Set(
     getFavoriteAthleteEntries().map((entry) => normalizeName(entry.targetAthlete || entry.label))
@@ -16400,7 +16753,7 @@ function renderCompetitionPreview(profile) {
   const summaryWorkOns = String(safeProfile.competitionSummaryWorkOns || workOnsFallback || "").trim();
   const summaryCues = String(safeProfile.competitionSummaryCues || cuesFallback || "").trim();
 
-  const canEdit = isCoachContext || isAthleteRole(getProfile()?.role);
+  const canEdit = !isPublicShare && (isCoachContext || isAthleteRole(getProfile()?.role));
   const hasTargetAthlete = Boolean(selectedName);
   const disableEditor = !canEdit || (isCoachContext && !hasTargetAthlete);
   if (competitionSummaryProfileInput) {
@@ -16432,7 +16785,12 @@ function renderCompetitionPreview(profile) {
     }
   }
 
-  renderCompetitionManager(profile);
+  if (competitionManager) {
+    competitionManager.classList.toggle("hidden", isPublicShare);
+  }
+  if (!isPublicShare) {
+    renderCompetitionManager(profile);
+  }
   if (!competitionPreview) return;
   competitionPreview.innerHTML = "";
   const sections = buildCompetitionPreview(profile);

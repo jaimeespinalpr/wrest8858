@@ -4918,6 +4918,49 @@ textarea:focus{
   resize: vertical;
 }
 
+.competition-share-card{
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(111, 182, 255, 0.24);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.16), rgba(15, 23, 42, 0.3));
+}
+
+.competition-share-card h3{
+  margin: 0;
+}
+
+.competition-share-card p{
+  margin: 4px 0 0;
+}
+
+.competition-share-card input{
+  font-size: 0.86rem;
+}
+
+.competition-share-actions{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.competition-public-share-mode .topbar,
+.competition-public-share-mode .app-header,
+.competition-public-share-mode .tabs,
+.competition-public-share-mode .parent-view-notice,
+.competition-public-share-mode #competitionManager,
+.competition-public-share-mode #competitionAthleteListCard,
+.competition-public-share-mode #backToProfileBtn,
+.competition-public-share-mode #competitionShareCard,
+.competition-public-share-mode #loginFormWrap{
+  display: none !important;
+}
+
+.competition-public-share-mode main{
+  margin-top: 0;
+}
+
 .competition-current-card{
   display: grid;
   gap: 10px;
