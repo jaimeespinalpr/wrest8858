@@ -10,7 +10,7 @@ const DEFAULT_LANG = "en";
 const APP_TIMEZONE = "America/New_York";
 const SUPPORTED_LANGS = new Set(["en", "es", "uz", "ru"]);
 const PUBLISH_READY_MODE = String(window.WPL_PUBLISH_READY_MODE || "true").toLowerCase() !== "false";
-const DOMAIN_ASSET_VERSION = "20260429-domain-split2";
+const DOMAIN_ASSET_VERSION = "20260501-domain-routes1";
 const PDF_LIB_SRC = "https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js";
 const COACH_PLANNER_DOMAIN_SRC = `coach-planner.js?v=${DOMAIN_ASSET_VERSION}`;
 const WPL_SCRIPT_LOADS = new Map();
@@ -10281,6 +10281,64 @@ const COACH_ROUTE_PANELS = {
   "coach-competition": ["competition-preview"],
   "coach-messages": ["messages"]
 };
+const APP_ROUTE_BY_TAB = {
+  today: "today",
+  "athlete-profile": "profile",
+  plans: "training",
+  calendar: "calendar",
+  media: "media",
+  journal: "journal",
+  favorites: "favorites",
+  announcements: "announcements",
+  "competition-preview": "competition",
+  "tournament-view": "tournament",
+  "parent-home": "parent",
+  "parent-scouting": "scouting",
+  "coach-home": "home",
+  "coach-athletes": "athletes",
+  "coach-plans": "plans",
+  "coach-competition": "competition",
+  "coach-messages": "messages",
+  "coach-profile": "coach-profile",
+  messages: "messages",
+  permissions: "permissions"
+};
+const APP_ROUTE_NAMES = Array.from(new Set(Object.values(APP_ROUTE_BY_TAB)));
+const APP_ROUTE_TO_TAB = {
+  today: "today",
+  profile: "athlete-profile",
+  training: "plans",
+  calendar: "calendar",
+  media: "media",
+  journal: "journal",
+  favorites: "favorites",
+  announcements: "announcements",
+  competition: {
+    athlete: "competition-preview",
+    coach: "coach-competition",
+    admin: "coach-competition"
+  },
+  tournament: "tournament-view",
+  parent: "parent-home",
+  scouting: "parent-scouting",
+  home: {
+    coach: "coach-home",
+    admin: "coach-home",
+    parent: "parent-home",
+    athlete: "today"
+  },
+  athletes: "coach-athletes",
+  plans: "coach-plans",
+  messages: {
+    coach: "coach-messages",
+    admin: "coach-messages",
+    athlete: "messages",
+    parent: "messages"
+  },
+  "coach-profile": "coach-profile",
+  permissions: "permissions"
+};
+let isApplyingBrowserRoute = false;
 const COACH_ROUTE_DEFAULT_PANEL = {
   "coach-home": "dashboard",
   "coach-athletes": "athletes",
@@ -10297,8 +10355,9 @@ const COACH_ROUTE_BY_PANEL = Object.entries(COACH_ROUTE_PANELS).reduce((acc, [ro
 const APP_LAUNCH_CONFIG = (() => {
   try {
     const params = new URLSearchParams(window.location.search || "");
+    const routeTab = resolveAppTabFromRoutePath() || String(window.WPL_ROUTE_TAB || "").trim();
     return {
-      tab: String(params.get("openTab") || "").trim(),
+      tab: String(params.get("openTab") || routeTab || "").trim(),
       contactUid: normalizeUid(params.get("contactUid") || "")
     };
   } catch (_err) {
@@ -10306,6 +10365,52 @@ const APP_LAUNCH_CONFIG = (() => {
   }
 })();
 let launchConfigApplied = false;
+
+function getCurrentAppRouteName() {
+  const path = String(window.location?.pathname || "").replace(/\/+$/, "");
+  const last = path.split("/").filter(Boolean).pop() || "";
+  return APP_ROUTE_NAMES.includes(last) ? last : "";
+}
+
+function resolveRouteTargetForView(target) {
+  if (!target || typeof target !== "object") return String(target || "").trim();
+  const view = currentView || "athlete";
+  return String(target[view] || target[normalizeAuthRole(getProfile()?.role)] || target.athlete || "").trim();
+}
+
+function resolveAppTabFromRoutePath() {
+  const route = getCurrentAppRouteName();
+  if (!route) return "";
+  return resolveRouteTargetForView(APP_ROUTE_TO_TAB[route]);
+}
+
+function getAppBasePathForRoutes() {
+  const path = String(window.location?.pathname || "/");
+  const normalizedPath = path.endsWith("/") ? path : path.replace(/[^/]*$/, "");
+  const currentRoute = getCurrentAppRouteName();
+  if (currentRoute) {
+    const marker = `/${currentRoute}/`;
+    const markerIndex = `${path}/`.lastIndexOf(marker);
+    if (markerIndex >= 0) return `${path.slice(0, markerIndex + 1)}`;
+  }
+  if (path.endsWith("/index.html")) return path.slice(0, -"index.html".length);
+  return normalizedPath || "/";
+}
+
+function getRouteUrlForTab(tabKey) {
+  const route = APP_ROUTE_BY_TAB[tabKey] || "";
+  if (!route) return "";
+  const basePath = getAppBasePathForRoutes();
+  return `${basePath}${route}/`;
+}
+
+function syncBrowserRouteForTab(tabKey, { replace = false } = {}) {
+  if (isApplyingBrowserRoute || !appDomainRenderReady || !window.history?.pushState) return;
+  const nextUrl = getRouteUrlForTab(tabKey);
+  if (!nextUrl || nextUrl === window.location.pathname) return;
+  const method = replace ? "replaceState" : "pushState";
+  window.history[method]({ tab: tabKey }, "", nextUrl);
+}
 
 function buildMessagesWindowUrl(contactUid = "") {
   const base = `${window.location.origin}${window.location.pathname}`;
@@ -10321,8 +10426,8 @@ function buildMessagesWindowUrl(contactUid = "") {
 async function applyLaunchConfig() {
   if (launchConfigApplied) return;
   launchConfigApplied = true;
-  if (APP_LAUNCH_CONFIG.tab !== "messages") return;
-  await showTab("messages");
+  if (!APP_LAUNCH_CONFIG.tab) return;
+  await showTab(APP_LAUNCH_CONFIG.tab);
   if (APP_LAUNCH_CONFIG.contactUid) {
     await openDirectMessageThreadWithRetry(APP_LAUNCH_CONFIG.contactUid);
   }
@@ -10376,6 +10481,7 @@ async function showTab(name) {
     : (COACH_ROUTE_DEFAULT_PANEL[safeTab] || "");
   currentTopTab = safeTab;
   currentFocusedPanel = focusPanel || safeTab;
+  syncBrowserRouteForTab(safeTab);
 
   tabBtns.forEach((b) => b.classList.toggle("active", b.dataset.tab === safeTab));
   Object.entries(panels).forEach(([k, el]) => {
@@ -10779,9 +10885,6 @@ function setRoleUI(role, view = "athlete") {
   toggleParentViewNotice(view);
   enforceStrictAuthUI();
   showTab(defaultTab);
-  applyLaunchConfig().catch((err) => {
-    console.warn("Could not apply launch config", err);
-  });
 }
 
 tabBtns.forEach(btn => btn.addEventListener("click", () => showTab(btn.dataset.tab)));
@@ -10793,6 +10896,14 @@ window.addEventListener("pageshow", () => {
 });
 window.addEventListener("load", () => {
   resetViewportToTop();
+});
+window.addEventListener("popstate", () => {
+  const nextTab = resolveAppTabFromRoutePath();
+  if (!nextTab) return;
+  isApplyingBrowserRoute = true;
+  Promise.resolve(showTab(nextTab)).finally(() => {
+    isApplyingBrowserRoute = false;
+  });
 });
 
 // ---------- PLAN SUBTABS ----------
@@ -35473,6 +35584,9 @@ async function startApp() {
   renderJournalEntries();
   await bootProfile();
   appDomainRenderReady = true;
+  await applyLaunchConfig().catch((err) => {
+    console.warn("Could not apply launch config", err);
+  });
   if (currentTopTab) {
     await showTab(currentTopTab);
   }

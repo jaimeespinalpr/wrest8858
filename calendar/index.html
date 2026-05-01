@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wrestling Performance Lab - calendar</title>
+  <script>
+    (function loadWplRoute() {
+      var routeName = "calendar";
+      window.WPL_ROUTE_TAB = routeName;
+
+      function runScripts(scripts, index) {
+        if (index >= scripts.length) return;
+        var original = scripts[index];
+        var script = document.createElement("script");
+        Array.prototype.forEach.call(original.attributes, function(attr) {
+          if (attr.name !== "src") script.setAttribute(attr.name, attr.value);
+        });
+        script.onload = function() { runScripts(scripts, index + 1); };
+        script.onerror = function() { runScripts(scripts, index + 1); };
+        if (original.src || original.getAttribute("src")) {
+          script.src = original.getAttribute("src") || original.src;
+          document.head.appendChild(script);
+          return;
+        }
+        script.textContent = original.textContent || "";
+        document.head.appendChild(script);
+        runScripts(scripts, index + 1);
+      }
+
+      fetch("../index.html", { cache: "no-store" })
+        .then(function(response) {
+          if (!response.ok) throw new Error("route_index_fetch_failed");
+          return response.text();
+        })
+        .then(function(html) {
+          var parser = new DOMParser();
+          var doc = parser.parseFromString(html, "text/html");
+          var base = doc.createElement("base");
+          base.setAttribute("href", "../");
+          doc.head.insertBefore(base, doc.head.firstChild);
+          document.title = doc.title || document.title;
+          document.head.innerHTML = doc.head.innerHTML;
+          document.body.innerHTML = doc.body.innerHTML;
+          var scripts = Array.prototype.slice.call(document.querySelectorAll("script"));
+          scripts.forEach(function(script) { script.parentNode.removeChild(script); });
+          runScripts(scripts, 0);
+        })
+        .catch(function(error) {
+          console.error(error);
+          window.location.replace("../index.html?openTab=" + encodeURIComponent(routeName));
+        });
+    }());
+  </script>
+</head>
+<body>
+  <p>Loading Wrestling Performance Lab...</p>
+</body>
+</html>
