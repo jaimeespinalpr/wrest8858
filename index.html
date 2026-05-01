@@ -15,7 +15,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Teko:wght@500;600;700&display=swap"
     rel="stylesheet"
   >
-  <link rel="stylesheet" href="styles.css?v=20260501-section-numbering2" >
+  <link rel="stylesheet" href="styles.css?v=20260501-stable-routes1" >
 </head>
 
 <body>
@@ -2507,9 +2507,14 @@
       const wantsLocalOverride = params.get("firebaseConfig") === "local"
         || window.localStorage.getItem("wplFirebaseConfigOverride") === "local";
       if (!wantsLocalOverride) return;
-      document.write('<script src="firebase-config.js"><\\/script>');
+      const script = document.createElement("script");
+      script.src = "firebase-config.js";
+      script.async = false;
+      const currentScript = document.currentScript;
+      const parent = currentScript?.parentNode || document.head;
+      parent.insertBefore(script, currentScript ? currentScript.nextSibling : null);
     }());
   </script>
-  <script src="app.js?v=20260501-section-numbering2"></script>
+  <script src="app.js?v=20260501-stable-routes1"></script>
 </body>
 </html>

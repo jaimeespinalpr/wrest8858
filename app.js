@@ -10,7 +10,7 @@ const DEFAULT_LANG = "en";
 const APP_TIMEZONE = "America/New_York";
 const SUPPORTED_LANGS = new Set(["en", "es", "uz", "ru"]);
 const PUBLISH_READY_MODE = String(window.WPL_PUBLISH_READY_MODE || "true").toLowerCase() !== "false";
-const DOMAIN_ASSET_VERSION = "20260501-section-numbering2";
+const DOMAIN_ASSET_VERSION = "20260501-stable-routes1";
 const PDF_LIB_SRC = "https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js";
 const COACH_PLANNER_DOMAIN_SRC = `coach-planner.js?v=${DOMAIN_ASSET_VERSION}`;
 const WPL_SCRIPT_LOADS = new Map();
@@ -1593,7 +1593,6 @@ function refreshLanguageUI() {
   syncPlanSaveButtons();
   updateParentFab();
   queueUserNameDecoration(document.body);
-  scheduleSectionNumbers();
 }
 
 function setLanguage(lang, { source = "system", skipConfirm = false, refresh = true } = {}) {
@@ -10358,32 +10357,6 @@ const COACH_ROUTE_BY_PANEL = Object.entries(COACH_ROUTE_PANELS).reduce((acc, [ro
   });
   return acc;
 }, {});
-const PANEL_ROUTE_ALIASES = {
-  training: "plans"
-};
-const SECTION_NUMBER_ITEM_SELECTOR = [
-  ".mini-card",
-  ".athlete-roster-item",
-  ".athlete-card",
-  ".competition-athlete-list-row",
-  ".competition-preview-card",
-  ".competition-share-card",
-  ".competition-current-card",
-  ".competition-timeline-card",
-  ".tournament-athlete-card",
-  ".assignment-card",
-  ".message-thread-row",
-  ".messages-sidebar-block",
-  ".messages-empty-state",
-  ".messages-thread-view",
-  ".coach-athlete-summary-cell",
-  ".coach-athlete-complete-profile-list > div",
-  ".plan-month-panel",
-  ".multi-month-panel",
-  ".calendar-day-card",
-  ".skill-card"
-].join(", ");
-let sectionNumberRenderQueued = false;
 const APP_LAUNCH_CONFIG = (() => {
   try {
     const params = new URLSearchParams(window.location.search || "");
@@ -10443,78 +10416,6 @@ function syncBrowserRouteForTab(tabKey, { replace = false } = {}) {
   if (!nextUrl || nextUrl === window.location.pathname) return;
   const method = replace ? "replaceState" : "pushState";
   window.history[method]({ tab: tabKey }, "", nextUrl);
-}
-
-function isElementVisibleForNumbering(element) {
-  if (!element || element.classList?.contains("hidden") || element.hidden) return false;
-  if (element.closest("[hidden], .hidden")) return false;
-  if (!window.getComputedStyle) return true;
-  const style = window.getComputedStyle(element);
-  return style.display !== "none" && style.visibility !== "hidden";
-}
-
-function getVisibleSectionTabs() {
-  return tabBtns.filter((button) => {
-    if (!button || button.classList.contains("tab-profile-hidden")) return false;
-    if (button.hidden || button.classList.contains("hidden")) return false;
-    const style = window.getComputedStyle ? window.getComputedStyle(button) : null;
-    return !style || style.display !== "none";
-  });
-}
-
-function getPanelOwnerRoute(panelKey) {
-  return COACH_ROUTE_BY_PANEL[panelKey] || PANEL_ROUTE_ALIASES[panelKey] || panelKey;
-}
-
-function clearSectionNumberMarkers(root = document) {
-  root.querySelectorAll(".section-number-badge, .section-row-number-badge").forEach((badge) => badge.remove());
-  root.querySelectorAll("[data-section-number], [data-section-row-number]").forEach((element) => {
-    delete element.dataset.sectionNumber;
-    delete element.dataset.sectionRowNumber;
-    delete element.dataset.sectionNumberLabel;
-  });
-}
-
-function applySectionNumbers() {
-  if (publicCompetitionShare) return;
-  clearSectionNumberMarkers();
-  const visibleTabs = getVisibleSectionTabs();
-  const routeNumberMap = new Map();
-  visibleTabs.forEach((button, index) => {
-    const route = String(button.dataset.tab || "").trim();
-    const number = String(index + 1);
-    routeNumberMap.set(route, number);
-    button.dataset.sectionNumber = number;
-  });
-
-  Object.entries(panels).forEach(([panelKey, panel]) => {
-    if (!panel || !isElementVisibleForNumbering(panel)) return;
-    const route = getPanelOwnerRoute(panelKey);
-    const sectionNumber = routeNumberMap.get(route);
-    if (!sectionNumber) return;
-    panel.dataset.sectionNumber = sectionNumber;
-    const header = panel.querySelector(":scope > .card > .card-header") || panel.querySelector(".card-header");
-    if (header) {
-      header.dataset.sectionNumber = sectionNumber;
-      header.dataset.sectionNumberLabel = `${currentLang === "es" ? "Seccion" : "Section"} ${sectionNumber}`;
-    }
-    const items = Array.from(panel.querySelectorAll(SECTION_NUMBER_ITEM_SELECTOR))
-      .filter((item) => item.closest(".panel") === panel)
-      .filter((item) => isElementVisibleForNumbering(item))
-      .slice(0, 80);
-    items.forEach((item, index) => {
-      item.dataset.sectionRowNumber = `${sectionNumber}.${index + 1}`;
-    });
-  });
-}
-
-function scheduleSectionNumbers() {
-  if (sectionNumberRenderQueued) return;
-  sectionNumberRenderQueued = true;
-  requestAnimationFrame(() => {
-    sectionNumberRenderQueued = false;
-    applySectionNumbers();
-  });
 }
 
 function buildMessagesWindowUrl(contactUid = "") {
@@ -10682,7 +10583,6 @@ async function showTab(name) {
   }
 
   resetViewportToTop();
-  scheduleSectionNumbers();
 }
 
 function flashActionTarget(element) {
@@ -36116,9 +36016,7 @@ async function startApp() {
     renderMessages();
     renderSkills();
     initializePlanSelectors();
-    scheduleSectionNumbers();
   }, { timeout: 1800 });
-  scheduleSectionNumbers();
 }
 
 startApp();
