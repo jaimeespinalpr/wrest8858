@@ -197,8 +197,10 @@ button:active{
   border-color: rgba(255,255,255,0.18);
 }
 
-.section-number-badge,
-.section-row-number-badge{
+.tab[data-section-number]::before,
+.card-header[data-section-number-label]::before,
+[data-section-row-number]::before{
+  content: attr(data-section-number);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -216,9 +218,10 @@ button:active{
   letter-spacing: 0.03em;
   line-height: 1;
   flex: 0 0 auto;
+  pointer-events: none;
 }
 
-.tab > .section-number-badge{
+.tab[data-section-number]::before{
   margin-right: 6px;
   min-width: 24px;
   min-height: 22px;
@@ -226,12 +229,14 @@ button:active{
   font-size: 0.82rem;
 }
 
-.card-header > .section-number-badge{
+.card-header[data-section-number-label]::before{
+  content: attr(data-section-number-label);
   order: -1;
   margin-right: 4px;
 }
 
-.section-row-number-badge{
+[data-section-row-number]::before{
+  content: attr(data-section-row-number);
   margin: 0 0 8px;
   border-color: rgba(200, 16, 46, 0.24);
   background: rgba(200, 16, 46, 0.1);
