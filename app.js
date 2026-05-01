@@ -10,7 +10,7 @@ const DEFAULT_LANG = "en";
 const APP_TIMEZONE = "America/New_York";
 const SUPPORTED_LANGS = new Set(["en", "es", "uz", "ru"]);
 const PUBLISH_READY_MODE = String(window.WPL_PUBLISH_READY_MODE || "true").toLowerCase() !== "false";
-const DOMAIN_ASSET_VERSION = "20260501-domain-routes1";
+const DOMAIN_ASSET_VERSION = "20260501-complete-profile1";
 const PDF_LIB_SRC = "https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js";
 const COACH_PLANNER_DOMAIN_SRC = `coach-planner.js?v=${DOMAIN_ASSET_VERSION}`;
 const WPL_SCRIPT_LOADS = new Map();
@@ -27497,11 +27497,84 @@ function getSelectedCoachAthleteRecord() {
     || null;
 }
 
+function normalizeCompleteProfileValue(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => normalizeCompleteProfileValue(item))
+      .filter(Boolean)
+      .join(", ");
+  }
+  if (value && typeof value === "object") return "";
+  return String(value ?? "").trim();
+}
+
+function getFirstCompleteProfileValue(sources = [], keys = []) {
+  for (const source of sources) {
+    if (!source || typeof source !== "object") continue;
+    for (const key of keys) {
+      const value = normalizeCompleteProfileValue(source[key]);
+      if (value) return value;
+    }
+  }
+  return "";
+}
+
+function getMergedCompleteProfileValues(sources = [], keys = [], extraValues = []) {
+  const values = [];
+  const addValue = (value) => {
+    const normalized = normalizeCompleteProfileValue(value);
+    if (!normalized) return;
+    normalized
+      .split(/\s*(?:,|;|\n|\u2022|\|)\s*/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .forEach((item) => values.push(item));
+  };
+  sources.forEach((source) => {
+    if (!source || typeof source !== "object") return;
+    keys.forEach((key) => addValue(source[key]));
+  });
+  extraValues.forEach(addValue);
+  const seen = new Set();
+  return values.filter((value) => {
+    const key = normalizeName(value);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function renderCompleteProfileRows(rows = []) {
+  const visibleRows = rows.filter((row) => normalizeCompleteProfileValue(row?.value));
+  if (!visibleRows.length) {
+    return `<p class="small muted">${currentLang === "es" ? "No hay datos guardados todavia." : "No saved data yet."}</p>`;
+  }
+  return `
+    <dl class="coach-athlete-complete-profile-list">
+      ${visibleRows.map((row) => `
+        <div>
+          <dt>${escapeHtml(row.label)}</dt>
+          <dd>${escapeHtml(normalizeCompleteProfileValue(row.value))}</dd>
+        </div>
+      `).join("")}
+    </dl>
+  `;
+}
+
+function renderCompleteProfileCategory(title, rows = []) {
+  return `
+    <div class="mini-card coach-athlete-overview-card">
+      <h3>${escapeHtml(title)}</h3>
+      ${renderCompleteProfileRows(rows)}
+    </div>
+  `;
+}
+
 function renderCoachAthleteProfile(athleteName = getSelectedCoachAthleteName()) {
   if (!coachAthleteProfileName || !coachAthleteProfileMeta || !coachAthleteProfileContent) return;
 
   if (coachAthleteProfileCardTitle) {
-    coachAthleteProfileCardTitle.textContent = currentLang === "es" ? "Perfil del atleta" : "Athlete Profile";
+    coachAthleteProfileCardTitle.textContent = currentLang === "es" ? "Complete Athlete Profile" : "Complete Athlete Profile";
   }
   if (coachAthleteProfileCardChip) {
     coachAthleteProfileCardChip.textContent = currentLang === "es" ? "Atleta seleccionado" : "Selected athlete";
@@ -27606,141 +27679,114 @@ function renderCoachAthleteProfile(athleteName = getSelectedCoachAthleteName()) 
       .join("");
   }
 
-  const quickProfileHtml = `
-    <div class="coach-athlete-summary-grid">
-      ${[
-        [currentLang === "es" ? "Age" : "Age", rawAthlete.age || notSet],
-        [currentLang === "es" ? "Weight class" : "Weight class", rawAthlete.weightClass || athlete.weightClass || notSet],
-        [currentLang === "es" ? "Experience" : "Experience", athlete.level || experienceYears || notSet],
-        [currentLang === "es" ? "Stance" : "Stance", questionnaireStance || notSet],
-        [currentLang === "es" ? "Style" : "Style", athlete.style || notSet],
-        [currentLang === "es" ? "Preferred position" : "Preferred position", favoritePosition || notSet],
-        [currentLang === "es" ? "Archetype" : "Archetype", [rawAthlete.archetype, rawAthlete.bodyType].filter(Boolean).join(" • ") || notSet],
-        [currentLang === "es" ? "Team" : "Team", overview.teamLabel || notSet]
-      ].map(([label, value]) => `
-        <div class="coach-athlete-summary-cell">
-          <span>${escapeHtml(label)}</span>
-          <strong>${escapeHtml(value || notSet)}</strong>
-        </div>
-      `).join("")}
-    </div>
-  `;
-
-  const workingOnHtml = `
-    <div class="coach-athlete-overview-list">
-      <div>
-        <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Current training focus" : "Current training focus"}</p>
-        ${overview.currentFocus.length ? `<ul class="list tight">${overview.currentFocus.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : `<p class="small muted">${currentLang === "es" ? "No recent training activity yet." : "No recent training activity yet."}</p>`}
-      </div>
-      <div>
-        <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Recent assignments" : "Recent assignments"}</p>
-        ${overview.openAssignments.length ? `<ul class="list tight">${overview.openAssignments.map((item) => `<li>${escapeHtml(item.title || item.type || (currentLang === "es" ? "Task" : "Task"))}</li>`).join("")}</ul>` : `<p class="small muted">${currentLang === "es" ? "No recent training activity yet." : "No recent training activity yet."}</p>`}
-      </div>
-      <div>
-        <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Recent completed tasks" : "Recent completed tasks"}</p>
-        ${overview.completedAssignments.length ? `<ul class="list tight">${overview.completedAssignments.map((item) => `<li>${escapeHtml(item.title || item.type || (currentLang === "es" ? "Task" : "Task"))}</li>`).join("")}</ul>` : `<p class="small muted">${currentLang === "es" ? "No completed tasks yet." : "No completed tasks yet."}</p>`}
-      </div>
-      <div>
-        <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Recent coach notes" : "Recent coach notes"}</p>
-        ${overview.recentNotes.length ? `<ul class="list tight">${overview.recentNotes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : `<p class="small muted">${currentLang === "es" ? "No coach notes yet." : "No coach notes yet."}</p>`}
-      </div>
-      <div>
-        <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Journal / readiness" : "Journal / readiness"}</p>
-        ${overview.readinessLines.length ? `<ul class="list tight">${overview.readinessLines.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : `<p class="small muted">${currentLang === "es" ? "No recent training activity yet." : "No recent training activity yet."}</p>`}
-      </div>
-    </div>
-  `;
-
-  const cornerSummaryHtml = `
-    <div class="coach-athlete-overview-list">
-      <div>
-        <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Top 3 offense moves" : "Top 3 offense moves"}</p>
-        ${overview.offenseMoves.length ? `<ul class="list tight">${overview.offenseMoves.slice(0, 3).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : `<p class="small muted">${currentLang === "es" ? "Corner cues not completed yet." : "Corner cues not completed yet."}</p>`}
-      </div>
-      <div>
-        <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Top 3 defense moves" : "Top 3 defense moves"}</p>
-        ${overview.defenseMoves.length ? `<ul class="list tight">${overview.defenseMoves.slice(0, 3).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : `<p class="small muted">${currentLang === "es" ? "Corner cues not completed yet." : "Corner cues not completed yet."}</p>`}
-      </div>
-      <div>
-        <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Favorite competition position" : "Favorite competition position"}</p>
-        <p class="small">${escapeHtml(favoritePosition || notSet)}</p>
-      </div>
-      <div>
-        <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Cue words" : "Cue words"}</p>
-        <p class="small">${escapeHtml(overview.cueWords.join(", ") || notSet)}</p>
-      </div>
-      <div>
-        <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Common mistake under pressure" : "Common mistake under pressure"}</p>
-        <p class="small">${escapeHtml(overview.pressureError || notSet)}</p>
-      </div>
-      <div>
-        <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Safety warnings or physical limitations" : "Safety warnings or physical limitations"}</p>
-        <p class="small">${escapeHtml([...overview.safetyWarnings, ...overview.physicalLimitations].join(" • ") || notSet)}</p>
-      </div>
-      <div>
-        <p class="small coach-athlete-profile-label">${currentLang === "es" ? "What to say in the corner" : "What to say in the corner"}</p>
-        <p class="small">${escapeHtml(String(cornerPlan.competitionCue || rawAthlete.competitionCue || rawAthlete.coachSignal || "").trim() || (currentLang === "es" ? "Corner cues not completed yet." : "Corner cues not completed yet."))}</p>
-      </div>
-    </div>
-  `;
-
-  const supportHtml = `
-    <div class="coach-athlete-overview-list">
-      <div>
-        <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Mental reminder" : "Mental reminder"}</p>
-        <p class="small">${escapeHtml(overview.mentalReminder || notSet)}</p>
-      </div>
-      <div>
-        <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Journal / readiness" : "Journal / readiness"}</p>
-        ${readinessListHtml}
-      </div>
-      <div>
-        <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Pending tasks" : "Pending tasks"}</p>
-        ${taskListHtml}
-      </div>
-      <div>
-        <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Recent notes" : "Recent notes"}</p>
-        ${overview.recentNotes.length ? `<ul class="list tight">${overview.recentNotes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : `<p class="small muted">${currentLang === "es" ? "No coach notes yet." : "No coach notes yet."}</p>`}
-      </div>
-      <div>
-        <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Latest match analysis" : "Latest match analysis"}</p>
-        <p class="small">${escapeHtml(latestAnalysis?.summary || notSet)}</p>
-      </div>
-      <div>
-        <p class="small coach-athlete-profile-label">${currentLang === "es" ? "Alerts" : "Alerts"}</p>
-        ${alertListHtml}
-      </div>
-      <div class="row">
-        <button type="button" id="coachAthleteOpenFullProfileBtn" class="primary">${currentLang === "es" ? "Editar formulario completo" : "Edit full profile form"}</button>
-        <button type="button" id="coachProfileOpenSummaryBtn">${currentLang === "es" ? "Abrir Athlete Summary" : "Open Athlete Summary"}</button>
-        <button type="button" id="coachProfileOpenCompetitionBtn">${currentLang === "es" ? "Abrir Competition" : "Open Competition"}</button>
-      </div>
-      <p class="small">${questionnaireUpdatedLabel || questionnaireUpdatedBy ? `${currentLang === "es" ? "Last update" : "Last update"}: ${escapeHtml([questionnaireUpdatedBy, questionnaireUpdatedLabel].filter(Boolean).join(" - "))}` : ""}</p>
-    </div>
-  `;
+  const profileSources = [rawAthlete, athlete, noteBoard, latestAnalysis].filter(Boolean);
+  const assignedGroupNames = getCoachAthleteGroupMemberships(athlete).map((group) => group.name);
+  const assignedPlanTitles = uniqueNames([
+    ...overview.openAssignments,
+    ...overview.completedAssignments
+  ].map((item) => String(item.title || item.type || "").trim()).filter(Boolean));
+  const fullName = getFirstCompleteProfileValue(profileSources, ["fullName", "name", "athleteName", "profileName"]) || athlete.name;
+  const weightClass = getFirstCompleteProfileValue(profileSources, ["weightClass", "targetWeightClass"]) || athlete.weightClass;
+  const coachTargetWeight = getFirstCompleteProfileValue(profileSources, ["targetWeight", "coachTargetWeight", "targetWeightClass"]);
+  const stance = getFirstCompleteProfileValue(profileSources, ["stance"]) || questionnaireStance;
+  const experience = getFirstCompleteProfileValue(profileSources, ["experienceYears", "years", "experience_years", "level"]) || experienceYears;
+  const preferredMoves = getMergedCompleteProfileValues(profileSources, ["preferredMoves", "preferred_moves", "preferred", "coachCues"], [
+    ...overview.offenseMoves.slice(0, 3),
+    favoritePosition !== notSet ? favoritePosition : ""
+  ]);
+  const goals = getMergedCompleteProfileValues(profileSources, ["goals", "goal", "athleteGoal", "trainingFocus", "strategy"], [
+    ...overview.currentFocus,
+    ...(Array.isArray(rawAthlete.challenges) ? rawAthlete.challenges : [])
+  ]);
+  const injuries = getMergedCompleteProfileValues(profileSources, ["injuries", "injuryNotes", "physicalLimitations", "safetyWarnings"], [
+    ...overview.physicalLimitations,
+    ...overview.safetyWarnings
+  ]);
+  const coachNotes = getMergedCompleteProfileValues(profileSources, ["coachNotes", "coachQuestionnaireNotes", "questionnaireNotes", "notes"], overview.recentNotes);
+  const technicalEvaluation = getMergedCompleteProfileValues(profileSources, ["technicalEvaluation", "coachCorrection", "cueNotes", "pressureError", "coachSignal", "strategyA", "strategyB", "strategyC"], [
+    latestAnalysis?.summary || "",
+    overview.pressureError || "",
+    cornerPlan.planA || "",
+    cornerPlan.planB || "",
+    cornerPlan.planC || ""
+  ]);
+  const competitionNotes = getMergedCompleteProfileValues(profileSources, ["competitionNotes", "competitionCue", "competitionSummaryProfile", "competitionSummaryWorkOns", "competitionSummaryCues"], [
+    cornerPlan.competitionCue || "",
+    overview.cueWords.join(", ")
+  ]);
+  const readinessSummary = getMergedCompleteProfileValues([], [], [
+    ...overview.readinessLines,
+    ...(localizedJournal ? [
+      localizedJournal.sleep ? `${currentLang === "es" ? "Sueno" : "Sleep"}: ${localizedJournal.sleep}` : "",
+      localizedJournal.energy ? `${currentLang === "es" ? "Energia" : "Energy"}: ${localizedJournal.energy}` : "",
+      localizedJournal.soreness ? `${currentLang === "es" ? "Dolor" : "Soreness"}: ${localizedJournal.soreness}` : "",
+      localizedJournal.mood ? `${currentLang === "es" ? "Animo" : "Mood"}: ${localizedJournal.mood}` : ""
+    ].filter(Boolean) : [])
+  ]);
+  const experienceLooksNumeric = /^\d+(\.\d+)?$/.test(String(experience || "").trim());
+  const profileMetaLine = [
+    weightClass ? `${weightClass}` : "",
+    stance ? `${stance} ${currentLang === "es" ? "stance" : "stance"}` : "",
+    experience ? `${experience}${experienceLooksNumeric ? ` ${currentLang === "es" ? "anos de experiencia" : "years experience"}` : ""}` : ""
+  ].filter(Boolean).join(" - ");
 
   coachAthleteProfileContent.innerHTML = `
     <div class="mini-card coach-athlete-auto-summary-card">
-      <p class="eyebrow">${currentLang === "es" ? "Automatic coach summary" : "Automatic coach summary"}</p>
+      <p class="eyebrow">${currentLang === "es" ? "Unified athlete record" : "Unified athlete record"}</p>
+      <p class="small muted">${escapeHtml(profileMetaLine || overview.recommendation || selectHint)}</p>
       <p class="coach-athlete-auto-summary-copy">${escapeHtml(overview.recommendation)}</p>
-      ${quickProfileHtml}
     </div>
     <div class="coach-athlete-overview-grid">
+      ${renderCompleteProfileCategory(currentLang === "es" ? "Basic Info" : "Basic Info", [
+        { label: currentLang === "es" ? "Age" : "Age", value: getFirstCompleteProfileValue(profileSources, ["age"]) },
+        { label: currentLang === "es" ? "Weight class" : "Weight class", value: weightClass },
+        { label: currentLang === "es" ? "Coach target" : "Coach target", value: coachTargetWeight && normalizeName(coachTargetWeight) !== normalizeName(weightClass) ? coachTargetWeight : "" },
+        { label: currentLang === "es" ? "Team" : "Team", value: overview.teamLabel },
+        { label: currentLang === "es" ? "Tags" : "Tags", value: normalizeSmartTags(rawAthlete.tags).map((tag) => formatSmartTag(tag)).join(", ") }
+      ])}
+      ${renderCompleteProfileCategory(currentLang === "es" ? "Wrestling Profile" : "Wrestling Profile", [
+        { label: currentLang === "es" ? "Stance" : "Stance", value: stance },
+        { label: currentLang === "es" ? "Experience" : "Experience", value: experience },
+        { label: currentLang === "es" ? "Style" : "Style", value: athlete.style },
+        { label: currentLang === "es" ? "Preferred position" : "Preferred position", value: favoritePosition !== notSet ? favoritePosition : "" },
+        { label: currentLang === "es" ? "Preferred moves" : "Preferred moves", value: preferredMoves.join(", ") },
+        { label: currentLang === "es" ? "Top defense" : "Top defense", value: overview.defenseMoves.slice(0, 3).join(", ") },
+        { label: currentLang === "es" ? "Archetype" : "Archetype", value: [rawAthlete.archetype, rawAthlete.bodyType].filter(Boolean).join(", ") }
+      ])}
+      ${renderCompleteProfileCategory(currentLang === "es" ? "Health / Readiness" : "Health / Readiness", [
+        { label: currentLang === "es" ? "Readiness" : "Readiness", value: readinessSummary.join(", ") },
+        { label: currentLang === "es" ? "Injuries / limits" : "Injuries / limits", value: injuries.join(", ") },
+        { label: currentLang === "es" ? "Alerts" : "Alerts", value: alerts.join(", ") }
+      ])}
+      ${renderCompleteProfileCategory(currentLang === "es" ? "Goals" : "Goals", [
+        { label: currentLang === "es" ? "Athlete goal" : "Athlete goal", value: goals.join(", ") },
+        { label: currentLang === "es" ? "Mental reminder" : "Mental reminder", value: overview.mentalReminder }
+      ])}
+      ${renderCompleteProfileCategory(currentLang === "es" ? "Coach Evaluation" : "Coach Evaluation", [
+        { label: currentLang === "es" ? "Coach note" : "Coach note", value: coachNotes.join(", ") },
+        { label: currentLang === "es" ? "Coach correction" : "Coach correction", value: technicalEvaluation.join(", ") }
+      ])}
+      ${renderCompleteProfileCategory(currentLang === "es" ? "Assignments / Groups" : "Assignments / Groups", [
+        { label: currentLang === "es" ? "Assigned groups" : "Assigned groups", value: assignedGroupNames.join(", ") || overview.teamLabel },
+        { label: currentLang === "es" ? "Assigned plans" : "Assigned plans", value: assignedPlanTitles.join(", ") },
+        { label: currentLang === "es" ? "Pending tasks" : "Pending tasks", value: board.tasks.join(", ") }
+      ])}
+      ${renderCompleteProfileCategory(currentLang === "es" ? "Competition Notes" : "Competition Notes", [
+        { label: currentLang === "es" ? "Competition notes" : "Competition notes", value: competitionNotes.join(", ") },
+        { label: currentLang === "es" ? "Cue words" : "Cue words", value: overview.cueWords.join(", ") },
+        { label: currentLang === "es" ? "Corner cue" : "Corner cue", value: String(cornerPlan.competitionCue || rawAthlete.competitionCue || rawAthlete.coachSignal || "").trim() }
+      ])}
       <div class="mini-card coach-athlete-overview-card">
-        <h3>${currentLang === "es" ? "What They Are Working On" : "What They Are Working On"}</h3>
-        ${workingOnHtml}
-      </div>
-      <div class="mini-card coach-athlete-overview-card">
-        <h3>${currentLang === "es" ? "Competition / Corner Summary" : "Competition / Corner Summary"}</h3>
-        ${cornerSummaryHtml}
-      </div>
-      <div class="mini-card coach-athlete-overview-card">
-        <h3>${currentLang === "es" ? "Coach support" : "Coach support"}</h3>
-        ${supportHtml}
+        <h3>${currentLang === "es" ? "Actions" : "Actions"}</h3>
+        <div class="row">
+          <button type="button" id="coachAthleteOpenFullProfileBtn" class="primary">${currentLang === "es" ? "Editar formulario completo" : "Edit full profile form"}</button>
+          <button type="button" id="coachProfileOpenSummaryBtn">${currentLang === "es" ? "Abrir Athlete Summary" : "Open Athlete Summary"}</button>
+          <button type="button" id="coachProfileOpenCompetitionBtn">${currentLang === "es" ? "Abrir Competition" : "Open Competition"}</button>
+        </div>
+        <p class="small">${questionnaireUpdatedLabel || questionnaireUpdatedBy ? `${currentLang === "es" ? "Last update" : "Last update"}: ${escapeHtml([questionnaireUpdatedBy, questionnaireUpdatedLabel].filter(Boolean).join(" - "))}` : ""}</p>
       </div>
     </div>
   `;
-
   const coachProfileOpenSummaryBtn = document.getElementById("coachProfileOpenSummaryBtn");
   if (coachProfileOpenSummaryBtn) {
     coachProfileOpenSummaryBtn.addEventListener("click", () => openAthleteSummaryView(athlete.name));
