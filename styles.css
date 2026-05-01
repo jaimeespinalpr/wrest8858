@@ -197,6 +197,48 @@ button:active{
   border-color: rgba(255,255,255,0.18);
 }
 
+.section-number-badge,
+.section-row-number-badge{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  min-width: 28px;
+  min-height: 24px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(18, 52, 98, 0.24);
+  background: rgba(18, 52, 98, 0.1);
+  color: #123462;
+  font-family: "Teko", "Inter Tight", sans-serif;
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.tab > .section-number-badge{
+  margin-right: 6px;
+  min-width: 24px;
+  min-height: 22px;
+  padding: 2px 7px;
+  font-size: 0.82rem;
+}
+
+.card-header > .section-number-badge{
+  order: -1;
+  margin-right: 4px;
+}
+
+.section-row-number-badge{
+  margin: 0 0 8px;
+  border-color: rgba(200, 16, 46, 0.24);
+  background: rgba(200, 16, 46, 0.1);
+  color: #8f0d25;
+  font-size: 0.8rem;
+}
+
 /* Keep profile tabs available for menu shortcuts, but not visible in main nav */
 .tab-profile-hidden{
   display: none !important;
