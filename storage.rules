@@ -7,11 +7,20 @@ service firebase.storage {
     }
 
     match /media_uploads/{uid}/{allPaths=**} {
-      allow read, write: if 
-        isSignedIn() && 
+      allow read: if
+        isSignedIn() &&
+        request.auth.uid == uid;
+
+      allow create, update: if
+        isSignedIn() &&
         request.auth.uid == uid &&
+        request.resource != null &&
         request.resource.contentType.matches('image/.*|video/.*|audio/.*') &&
         request.resource.size < 100 * 1024 * 1024;
+
+      allow delete: if
+        isSignedIn() &&
+        request.auth.uid == uid;
     }
   }
 }
