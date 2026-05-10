@@ -29,8 +29,12 @@ Started: 2026-05-10 00:06 America/New_York
    - 2026-05-10 00:43 America/New_York: measured current branch locally with Playwright/static server for `/` plus routed pages.
    - Results saved to `reports/phase2/baseline-route-metrics.md` and `reports/phase2/baseline-route-metrics.json`.
    - Verification: 19 routes measured, 0 failed same-origin requests in the report; routed pages show panel pruning active.
-3. [ ] Audit `app.js` dependencies around `messages` and `media`; identify the lowest-risk real JS split candidate.
+3. [x] Audit `app.js` dependencies around `messages` and `media`; identify the lowest-risk real JS split candidate.
+   - 2026-05-10 01:11 America/New_York: audited `app.js` messages/media dependencies and saved findings to `reports/phase2/js-split-audit.md`.
+   - Lowest-risk real split candidate: guarded Messages domain lazy split using app-level wrappers plus a lazily loaded `messages-domain.js` registered as `window.WPLMessagesDomain`.
+   - Media whole-domain split is not the next safest candidate because media tree/upload helpers are reused by assignments, parent/athlete uploads, coach workspace sync, and message attachment save-to-media.
 4. [ ] Implement one guarded lazy-load boundary only if safe; otherwise document exact blockers.
+   - Next safe step: add the Messages domain lazy-load boundary/wrappers first, without changing Firebase schemas, upload helpers, auth, or routes.
 5. [ ] Verify login/register inputs, route loading, plans, assignments, messages, and training locally with Playwright.
 6. [ ] Commit/push the next safe improvement.
 7. [ ] Repeat measurement and compare with baseline.
