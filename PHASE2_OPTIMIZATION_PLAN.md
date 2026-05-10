@@ -47,9 +47,14 @@ Started: 2026-05-10 00:06 America/New_York
 6. [x] Commit/push the next safe improvement.
    - Next safe step: commit and push the verified lazy-boundary verification artifacts and plan update only if branch state remains clean/stable.
    - 2026-05-10 02:41 America/New_York: re-ran `node --check reports/phase2/verify-ui-smoke.js` and `node reports/phase2/verify-ui-smoke.js`; UI smoke passed again with 6 routes and 0 failures. Ready to commit/push the plan update plus `verify-ui-smoke` script/report artifacts.
-7. [ ] Repeat measurement and compare with baseline.
+7. [x] Repeat measurement and compare with baseline.
    - Next safe step: re-run route metrics after the Messages lazy boundary and compare against `reports/phase2/baseline-route-metrics.json`.
+   - 2026-05-10 03:18 America/New_York: added and ran `reports/phase2/measure-route-metrics.js` locally with Playwright/static server after the Messages lazy split.
+   - Results saved to `reports/phase2/post-lazy-route-metrics.json` and `reports/phase2/post-lazy-route-metrics.md`: 19 routes measured, 0 same-origin request failures, 0 page errors.
+   - Comparison result: non-message routes avoided `messages-domain.js` and each saved about 215,597 same-origin script bytes versus baseline; `/messages/` loaded `messages-domain.js` as expected and changed by +2,174 same-origin script bytes versus baseline.
+   - Limitation: local static measurement only; authenticated Firebase data flows and deploy behavior were not exercised.
 8. [ ] If branch is stable, prepare final merge/deploy instructions for Jaime.
+   - Next safe step: prepare final merge/deploy instructions for Jaime without deploying to Firebase.
 9. [ ] If Firebase service key file still exists locally, delete local copy after confirming no more deploy actions are needed; do not print contents.
 10. [ ] Final status: notify Jaime. Email is only possible if a configured mail sender/tool exists; otherwise report that email delivery is blocked and send Telegram completion.
 
