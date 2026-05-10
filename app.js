@@ -11,8 +11,20 @@ const APP_TIMEZONE = "America/New_York";
 const SUPPORTED_LANGS = new Set(["en", "es", "uz", "ru"]);
 const PUBLISH_READY_MODE = String(window.WPL_PUBLISH_READY_MODE || "true").toLowerCase() !== "false";
 const DOMAIN_ASSET_VERSION = "20260501-stable-routes1";
+const APP_ASSET_BASE_URL = (() => {
+  const currentScriptSrc = document.currentScript?.src || "";
+  const appScriptSrc = currentScriptSrc || Array.from(document.scripts || [])
+    .map((script) => script.src || "")
+    .reverse()
+    .find((src) => /(?:^|\/)app\.js(?:\?|$)/.test(src)) || window.location.href;
+  try {
+    return new URL(".", appScriptSrc).href;
+  } catch {
+    return new URL(".", window.location.href).href;
+  }
+})();
 const PDF_LIB_SRC = "https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js";
-const COACH_PLANNER_DOMAIN_SRC = `coach-planner.js?v=${DOMAIN_ASSET_VERSION}`;
+const COACH_PLANNER_DOMAIN_SRC = new URL(`coach-planner.js?v=${DOMAIN_ASSET_VERSION}`, APP_ASSET_BASE_URL).href;
 const WPL_SCRIPT_LOADS = new Map();
 const TEAM_CHAT_THREAD_ID = "team-chat";
 const TEAM_CHAT_TITLE = "Team chat";

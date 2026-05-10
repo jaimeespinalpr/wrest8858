@@ -19,7 +19,8 @@
         script.onload = function() { runScripts(scripts, index + 1); };
         script.onerror = function() { runScripts(scripts, index + 1); };
         if (original.src || original.getAttribute("src")) {
-          script.src = original.getAttribute("src") || original.src;
+          var rawSrc = original.getAttribute("src") || original.src;
+          script.src = new URL(rawSrc, new URL("../", window.location.href)).href;
           document.head.appendChild(script);
           return;
         }
