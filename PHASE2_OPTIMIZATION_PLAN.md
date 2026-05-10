@@ -25,7 +25,10 @@ Started: 2026-05-10 00:06 America/New_York
    - 2026-05-10 00:11 America/New_York: branch `ardi/phase2-lazy-domains` re-checked and aligned with `origin/ardi/phase2-lazy-domains` at `c8cbc25` after `git fetch origin`.
    - GitHub CLI is unavailable and no GitHub token was detected in environment variables, so API/CLI PR creation is blocked here.
    - Manual PR body saved at `reports/phase2/pr-body.md`; use base `main` and compare `ardi/phase2-lazy-domains`.
-2. [ ] Measure baseline payload/DOM/script counts for root and routed pages; save results under `reports/phase2/`.
+2. [x] Measure baseline payload/DOM/script counts for root and routed pages; save results under `reports/phase2/`.
+   - 2026-05-10 00:43 America/New_York: measured current branch locally with Playwright/static server for `/` plus routed pages.
+   - Results saved to `reports/phase2/baseline-route-metrics.md` and `reports/phase2/baseline-route-metrics.json`.
+   - Verification: 19 routes measured, 0 failed same-origin requests in the report; routed pages show panel pruning active.
 3. [ ] Audit `app.js` dependencies around `messages` and `media`; identify the lowest-risk real JS split candidate.
 4. [ ] Implement one guarded lazy-load boundary only if safe; otherwise document exact blockers.
 5. [ ] Verify login/register inputs, route loading, plans, assignments, messages, and training locally with Playwright.
