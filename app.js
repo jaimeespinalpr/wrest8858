@@ -10481,6 +10481,20 @@ function resolveTabPanelForCurrentView(tabKey) {
   return safeTabKey;
 }
 
+function shouldReloadForPrunedRoutePanels(tabKey, visiblePanels = []) {
+  if (!window.WPL_ROUTED_PANEL_PRUNING) return false;
+  if (!Array.isArray(visiblePanels) || !visiblePanels.length) return false;
+  const missingPanel = visiblePanels.some((panelKey) => !panels[panelKey]);
+  if (!missingPanel) return false;
+  const nextUrl = getRouteUrlForTab(tabKey);
+  if (!nextUrl) return false;
+  try {
+    return new URL(nextUrl, window.location.origin).pathname !== window.location.pathname;
+  } catch {
+    return nextUrl !== window.location.pathname;
+  }
+}
+
 async function showTab(name) {
   const resolved = resolveRouteTabRequest(name);
   if (athleteCalendarActionModal && resolved.tab !== "calendar") {
@@ -10498,6 +10512,11 @@ async function showTab(name) {
   }
   const primaryPanel = resolveTabPanelForCurrentView(safeTab);
   const visiblePanels = COACH_ROUTE_PANELS[safeTab] || [primaryPanel];
+  if (shouldReloadForPrunedRoutePanels(safeTab, visiblePanels)) {
+    const nextUrl = getRouteUrlForTab(safeTab);
+    if (nextUrl) window.location.assign(nextUrl);
+    return;
+  }
   const focusPanel = visiblePanels.includes(resolved.focusPanel)
     ? resolved.focusPanel
     : (COACH_ROUTE_DEFAULT_PANEL[safeTab] || "");
