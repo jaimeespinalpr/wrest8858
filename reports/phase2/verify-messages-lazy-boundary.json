@@ -1,0 +1,105 @@
+[
+  {
+    "route": "/",
+    "activePanels": 1,
+    "loginEmailVisible": true,
+    "registerNameVisible": false,
+    "messagePanelVisible": false,
+    "messagesDomainLoaded": false,
+    "messagesScriptRequested": false,
+    "sameOriginFailures": [],
+    "consoleErrors": [],
+    "pageErrors": [],
+    "scriptUrls": [
+      "/firebase-config.public.js",
+      "/app.js?v=20260510-phase2-msg1"
+    ]
+  },
+  {
+    "route": "/messages/",
+    "activePanels": 1,
+    "loginEmailVisible": true,
+    "registerNameVisible": false,
+    "messagePanelVisible": true,
+    "messagesDomainLoaded": true,
+    "messagesScriptRequested": true,
+    "sameOriginFailures": [],
+    "consoleErrors": [],
+    "pageErrors": [],
+    "scriptUrls": [
+      "/route-loader.js?v=20260510-phase2-dom1",
+      "/firebase-config.public.js",
+      "/app.js?v=20260510-phase2-msg1",
+      "/messages-domain.js?v=20260510-phase2-msg1"
+    ]
+  },
+  {
+    "route": "/plans/",
+    "activePanels": 2,
+    "loginEmailVisible": true,
+    "registerNameVisible": false,
+    "messagePanelVisible": false,
+    "messagesDomainLoaded": false,
+    "messagesScriptRequested": false,
+    "sameOriginFailures": [],
+    "consoleErrors": [],
+    "pageErrors": [],
+    "scriptUrls": [
+      "/route-loader.js?v=20260510-phase2-dom1",
+      "/firebase-config.public.js",
+      "/app.js?v=20260510-phase2-msg1",
+      "/coach-planner.js?v=20260510-phase2-msg1"
+    ]
+  },
+  {
+    "route": "/training/",
+    "activePanels": 1,
+    "loginEmailVisible": true,
+    "registerNameVisible": false,
+    "messagePanelVisible": false,
+    "messagesDomainLoaded": false,
+    "messagesScriptRequested": false,
+    "sameOriginFailures": [],
+    "consoleErrors": [],
+    "pageErrors": [],
+    "scriptUrls": [
+      "/route-loader.js?v=20260510-phase2-dom1",
+      "/firebase-config.public.js",
+      "/app.js?v=20260510-phase2-msg1"
+    ]
+  },
+  {
+    "route": "/home/",
+    "activePanels": 1,
+    "loginEmailVisible": true,
+    "registerNameVisible": false,
+    "messagePanelVisible": false,
+    "messagesDomainLoaded": false,
+    "messagesScriptRequested": false,
+    "sameOriginFailures": [],
+    "consoleErrors": [],
+    "pageErrors": [],
+    "scriptUrls": [
+      "/route-loader.js?v=20260510-phase2-dom1",
+      "/firebase-config.public.js",
+      "/app.js?v=20260510-phase2-msg1"
+    ]
+  },
+  {
+    "route": "/media/",
+    "activePanels": 1,
+    "loginEmailVisible": true,
+    "registerNameVisible": false,
+    "messagePanelVisible": false,
+    "messagesDomainLoaded": false,
+    "messagesScriptRequested": false,
+    "sameOriginFailures": [],
+    "consoleErrors": [],
+    "pageErrors": [],
+    "scriptUrls": [
+      "/route-loader.js?v=20260510-phase2-dom1",
+      "/firebase-config.public.js",
+      "/app.js?v=20260510-phase2-msg1"
+    ]
+  }
+]

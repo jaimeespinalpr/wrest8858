@@ -33,9 +33,13 @@ Started: 2026-05-10 00:06 America/New_York
    - 2026-05-10 01:11 America/New_York: audited `app.js` messages/media dependencies and saved findings to `reports/phase2/js-split-audit.md`.
    - Lowest-risk real split candidate: guarded Messages domain lazy split using app-level wrappers plus a lazily loaded `messages-domain.js` registered as `window.WPLMessagesDomain`.
    - Media whole-domain split is not the next safest candidate because media tree/upload helpers are reused by assignments, parent/athlete uploads, coach workspace sync, and message attachment save-to-media.
-4. [ ] Implement one guarded lazy-load boundary only if safe; otherwise document exact blockers.
+4. [x] Implement one guarded lazy-load boundary only if safe; otherwise document exact blockers.
    - Next safe step: add the Messages domain lazy-load boundary/wrappers first, without changing Firebase schemas, upload helpers, auth, or routes.
+   - 2026-05-10 01:52 America/New_York: implemented guarded Messages lazy boundary. The concentrated Messages domain was moved to `messages-domain.js`; `app.js` now keeps loader/wrapper entry points for render, realtime sync, direct-open, append, and route-open prep. Firebase schemas, upload helpers, auth paths, and route URLs were not changed.
+   - Cache-busted app/domain asset version to `20260510-phase2-msg1` so browsers request the updated app shell and lazy domain file together.
+   - Verification: `node --check app.js`, `node --check messages-domain.js`, and `node reports/phase2/verify-messages-lazy-boundary.js` passed. Local Playwright route smoke confirmed `/messages/` loads `messages-domain.js`, while `/`, `/plans/`, `/training/`, `/home/`, and `/media/` did not request it; 0 same-origin failures and 0 page errors in the report.
 5. [ ] Verify login/register inputs, route loading, plans, assignments, messages, and training locally with Playwright.
+   - Next safe step: run the broader authenticated/UI smoke where possible, including login/register controls, messages open state, plans/assignments panels, training, and route loading after the lazy split.
 6. [ ] Commit/push the next safe improvement.
 7. [ ] Repeat measurement and compare with baseline.
 8. [ ] If branch is stable, prepare final merge/deploy instructions for Jaime.
