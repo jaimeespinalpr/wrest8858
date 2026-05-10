@@ -53,9 +53,12 @@ Started: 2026-05-10 00:06 America/New_York
    - Results saved to `reports/phase2/post-lazy-route-metrics.json` and `reports/phase2/post-lazy-route-metrics.md`: 19 routes measured, 0 same-origin request failures, 0 page errors.
    - Comparison result: non-message routes avoided `messages-domain.js` and each saved about 215,597 same-origin script bytes versus baseline; `/messages/` loaded `messages-domain.js` as expected and changed by +2,174 same-origin script bytes versus baseline.
    - Limitation: local static measurement only; authenticated Firebase data flows and deploy behavior were not exercised.
-8. [ ] If branch is stable, prepare final merge/deploy instructions for Jaime.
+8. [x] If branch is stable, prepare final merge/deploy instructions for Jaime.
    - Next safe step: prepare final merge/deploy instructions for Jaime without deploying to Firebase.
+   - 2026-05-10 03:41 America/New_York: prepared final merge/deploy instructions at `reports/phase2/final-merge-deploy-instructions.md`. No Firebase deploy was performed.
+   - Instructions include PR/merge path, authorized deploy command, post-deploy smoke checklist, known limitations, and rollback note.
 9. [ ] If Firebase service key file still exists locally, delete local copy after confirming no more deploy actions are needed; do not print contents.
+   - Next safe step: check for a local Firebase service key file without printing contents; delete only if confirmed no more deploy actions are needed.
 10. [ ] Final status: notify Jaime. Email is only possible if a configured mail sender/tool exists; otherwise report that email delivery is blocked and send Telegram completion.
 
 ## Current blocker notes
