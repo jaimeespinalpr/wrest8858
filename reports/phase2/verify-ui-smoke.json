@@ -1,0 +1,195 @@
+{
+  "generatedAt": "2026-05-10T06:13:54.975Z",
+  "baseUrl": "http://127.0.0.1:4174",
+  "note": "Authenticated Firebase workflows were not exercised because no test credentials/secrets are available in this environment; this smoke verifies unauthenticated login/register controls, route loading, expected panel DOM, and guarded messages lazy loading.",
+  "results": [
+    {
+      "route": "/",
+      "loginControls": {
+        "loginEmailVisible": true,
+        "loginPasswordVisible": true,
+        "createAccountVisible": true,
+        "guestCoachVisible": false
+      },
+      "registerControls": {
+        "modalVisible": true,
+        "nameVisible": true,
+        "emailVisible": true,
+        "passwordVisible": true,
+        "roleVisible": true
+      },
+      "panelChecks": {},
+      "activePanels": [
+        "panel-today"
+      ],
+      "appRootHidden": true,
+      "messagesDomainLoaded": false,
+      "messagesScriptRequested": false,
+      "sameOriginFailures": [],
+      "pageErrors": [],
+      "consoleErrors": [],
+      "scriptUrls": [
+        "/firebase-config.public.js",
+        "/app.js?v=20260510-phase2-msg1"
+      ]
+    },
+    {
+      "route": "/home/",
+      "loginControls": {
+        "loginEmailVisible": true,
+        "loginPasswordVisible": true,
+        "createAccountVisible": true,
+        "guestCoachVisible": false
+      },
+      "registerControls": null,
+      "panelChecks": {
+        "panel-dashboard": {
+          "exists": true,
+          "hidden": true
+        }
+      },
+      "activePanels": [
+        "panel-today"
+      ],
+      "appRootHidden": true,
+      "messagesDomainLoaded": false,
+      "messagesScriptRequested": false,
+      "sameOriginFailures": [],
+      "pageErrors": [],
+      "consoleErrors": [],
+      "scriptUrls": [
+        "/route-loader.js?v=20260510-phase2-dom1",
+        "/firebase-config.public.js",
+        "/app.js?v=20260510-phase2-msg1"
+      ]
+    },
+    {
+      "route": "/plans/",
+      "loginControls": {
+        "loginEmailVisible": true,
+        "loginPasswordVisible": true,
+        "createAccountVisible": true,
+        "guestCoachVisible": false
+      },
+      "registerControls": null,
+      "panelChecks": {
+        "panel-plans": {
+          "exists": true,
+          "hidden": false
+        },
+        "panel-assignments": {
+          "exists": true,
+          "hidden": false
+        }
+      },
+      "activePanels": [
+        "panel-plans",
+        "panel-assignments"
+      ],
+      "appRootHidden": true,
+      "messagesDomainLoaded": false,
+      "messagesScriptRequested": false,
+      "sameOriginFailures": [],
+      "pageErrors": [],
+      "consoleErrors": [],
+      "scriptUrls": [
+        "/route-loader.js?v=20260510-phase2-dom1",
+        "/firebase-config.public.js",
+        "/app.js?v=20260510-phase2-msg1",
+        "/coach-planner.js?v=20260510-phase2-msg1"
+      ]
+    },
+    {
+      "route": "/messages/",
+      "loginControls": {
+        "loginEmailVisible": true,
+        "loginPasswordVisible": true,
+        "createAccountVisible": true,
+        "guestCoachVisible": false
+      },
+      "registerControls": null,
+      "panelChecks": {
+        "panel-messages": {
+          "exists": true,
+          "hidden": false
+        }
+      },
+      "activePanels": [
+        "panel-messages"
+      ],
+      "appRootHidden": true,
+      "messagesDomainLoaded": true,
+      "messagesScriptRequested": true,
+      "sameOriginFailures": [],
+      "pageErrors": [],
+      "consoleErrors": [],
+      "scriptUrls": [
+        "/route-loader.js?v=20260510-phase2-dom1",
+        "/firebase-config.public.js",
+        "/app.js?v=20260510-phase2-msg1",
+        "/messages-domain.js?v=20260510-phase2-msg1"
+      ]
+    },
+    {
+      "route": "/training/",
+      "loginControls": {
+        "loginEmailVisible": true,
+        "loginPasswordVisible": true,
+        "createAccountVisible": true,
+        "guestCoachVisible": false
+      },
+      "registerControls": null,
+      "panelChecks": {
+        "panel-training": {
+          "exists": true,
+          "hidden": false
+        }
+      },
+      "activePanels": [
+        "panel-training"
+      ],
+      "appRootHidden": true,
+      "messagesDomainLoaded": false,
+      "messagesScriptRequested": false,
+      "sameOriginFailures": [],
+      "pageErrors": [],
+      "consoleErrors": [],
+      "scriptUrls": [
+        "/route-loader.js?v=20260510-phase2-dom1",
+        "/firebase-config.public.js",
+        "/app.js?v=20260510-phase2-msg1"
+      ]
+    },
+    {
+      "route": "/media/",
+      "loginControls": {
+        "loginEmailVisible": true,
+        "loginPasswordVisible": true,
+        "createAccountVisible": true,
+        "guestCoachVisible": false
+      },
+      "registerControls": null,
+      "panelChecks": {
+        "panel-media": {
+          "exists": true,
+          "hidden": false
+        }
+      },
+      "activePanels": [
+        "panel-media"
+      ],
+      "appRootHidden": true,
+      "messagesDomainLoaded": false,
+      "messagesScriptRequested": false,
+      "sameOriginFailures": [],
+      "pageErrors": [],
+      "consoleErrors": [],
+      "scriptUrls": [
+        "/route-loader.js?v=20260510-phase2-dom1",
+        "/firebase-config.public.js",
+        "/app.js?v=20260510-phase2-msg1"
+      ]
+    }
+  ],
+  "failures": []
+}

@@ -38,10 +38,17 @@ Started: 2026-05-10 00:06 America/New_York
    - 2026-05-10 01:52 America/New_York: implemented guarded Messages lazy boundary. The concentrated Messages domain was moved to `messages-domain.js`; `app.js` now keeps loader/wrapper entry points for render, realtime sync, direct-open, append, and route-open prep. Firebase schemas, upload helpers, auth paths, and route URLs were not changed.
    - Cache-busted app/domain asset version to `20260510-phase2-msg1` so browsers request the updated app shell and lazy domain file together.
    - Verification: `node --check app.js`, `node --check messages-domain.js`, and `node reports/phase2/verify-messages-lazy-boundary.js` passed. Local Playwright route smoke confirmed `/messages/` loads `messages-domain.js`, while `/`, `/plans/`, `/training/`, `/home/`, and `/media/` did not request it; 0 same-origin failures and 0 page errors in the report.
-5. [ ] Verify login/register inputs, route loading, plans, assignments, messages, and training locally with Playwright.
+5. [x] Verify login/register inputs, route loading, plans, assignments, messages, and training locally with Playwright.
    - Next safe step: run the broader authenticated/UI smoke where possible, including login/register controls, messages open state, plans/assignments panels, training, and route loading after the lazy split.
-6. [ ] Commit/push the next safe improvement.
+   - 2026-05-10 02:13 America/New_York: added and ran `reports/phase2/verify-ui-smoke.js` locally with Playwright after the guarded Messages lazy split.
+   - Verification covered login inputs, register modal controls, route loading for `/`, `/home/`, `/plans/`, `/messages/`, `/training/`, and `/media/`, expected panels for plans/assignments/messages/training/media/home-dashboard, and same-origin/page-error checks.
+   - Result saved to `reports/phase2/verify-ui-smoke.json` and summarized in `reports/phase2/verify-ui-smoke.md`: 0 failures, 0 same-origin request failures, 0 page errors. `messages-domain.js` loaded only on `/messages/`.
+   - Limitation: real authenticated Firebase login/register/plans/messages writes were not exercised because no test credentials/secrets are available here; no Firebase deploy was attempted.
+6. [x] Commit/push the next safe improvement.
+   - Next safe step: commit and push the verified lazy-boundary verification artifacts and plan update only if branch state remains clean/stable.
+   - 2026-05-10 02:41 America/New_York: re-ran `node --check reports/phase2/verify-ui-smoke.js` and `node reports/phase2/verify-ui-smoke.js`; UI smoke passed again with 6 routes and 0 failures. Ready to commit/push the plan update plus `verify-ui-smoke` script/report artifacts.
 7. [ ] Repeat measurement and compare with baseline.
+   - Next safe step: re-run route metrics after the Messages lazy boundary and compare against `reports/phase2/baseline-route-metrics.json`.
 8. [ ] If branch is stable, prepare final merge/deploy instructions for Jaime.
 9. [ ] If Firebase service key file still exists locally, delete local copy after confirming no more deploy actions are needed; do not print contents.
 10. [ ] Final status: notify Jaime. Email is only possible if a configured mail sender/tool exists; otherwise report that email delivery is blocked and send Telegram completion.
