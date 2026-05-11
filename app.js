@@ -28,6 +28,8 @@ const COACH_PLANNER_DOMAIN_SRC = new URL(`coach-planner.js?v=${DOMAIN_ASSET_VERS
 const WPL_SCRIPT_LOADS = new Map();
 const TEAM_CHAT_THREAD_ID = "team-chat";
 const TEAM_CHAT_TITLE = "Team chat";
+const CLIENT_ERROR_LOG_KEY = "wpl_client_error_log";
+const CLIENT_ERROR_LOG_LIMIT = 25;
 const CALENDAR_COPY = {
   title: {
     en: "Calendar",
@@ -45,6 +47,44 @@ const CALENDAR_COPY = {
 let currentLang = DEFAULT_LANG;
 let langChangeLocked = false;
 let profileTagState = new Set();
+
+function recordClientError(eventType, detail = {}) {
+  if (typeof window === "undefined" || typeof localStorage === "undefined") return;
+  try {
+    const current = JSON.parse(localStorage.getItem(CLIENT_ERROR_LOG_KEY) || "[]");
+    const rows = Array.isArray(current) ? current : [];
+    rows.unshift({
+      type: String(eventType || "error"),
+      message: String(detail.message || detail.reason || ""),
+      source: String(detail.source || detail.filename || window.location.href || ""),
+      line: Number(detail.lineno || 0) || 0,
+      column: Number(detail.colno || 0) || 0,
+      at: new Date().toISOString()
+    });
+    localStorage.setItem(CLIENT_ERROR_LOG_KEY, JSON.stringify(rows.slice(0, CLIENT_ERROR_LOG_LIMIT)));
+  } catch {
+    // Avoid making error handling itself noisy.
+  }
+}
+
+if (typeof window !== "undefined" && !window.WPL_CLIENT_ERROR_MONITOR_READY) {
+  window.WPL_CLIENT_ERROR_MONITOR_READY = true;
+  window.WPL_CLIENT_ERROR_LOG_KEY = CLIENT_ERROR_LOG_KEY;
+  window.addEventListener("error", (event) => {
+    recordClientError("error", {
+      message: event.message,
+      filename: event.filename,
+      lineno: event.lineno,
+      colno: event.colno
+    });
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    const reason = event.reason;
+    recordClientError("unhandledrejection", {
+      message: reason?.message || String(reason || "")
+    });
+  });
+}
 
 function getLazyScriptId(src) {
   return `wpl-lazy-${String(src || "").replace(/[^a-z0-9_-]+/gi, "-")}`;

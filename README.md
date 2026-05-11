@@ -29,8 +29,43 @@ This repository already includes:
 
 Flow:
 1. Push changes to `main`.
-2. Verify Pages is set to `GitHub Actions` in repository settings.
-3. Check the workflow run in the Actions tab.
+2. The workflow stamps static asset URLs with the commit SHA so browsers do not keep old `app.js`, `styles.css`, or route-loader files.
+3. Verify Pages is set to `GitHub Actions` in repository settings.
+4. Check the workflow run in the Actions tab.
+
+## Release Checklist
+
+Before publishing an important change:
+
+```powershell
+.\scripts\release-check.ps1 -BaseUrl "http://localhost:5173"
+```
+
+Manual smoke test:
+
+- Open `/competition/` and confirm the athlete list loads.
+- Open `/athletes/` and confirm roster/profile data loads.
+- Test login or guest coach access.
+- Test profile photo edit/save if the change touched profiles.
+- Test messages if the change touched chat, users, or Firebase rules.
+
+After pushing:
+
+- Confirm the GitHub Actions deploy finished successfully.
+- Open the GitHub Pages URL with a hard refresh.
+- If production still looks old, confirm the public page is loading the latest commit-stamped asset version.
+
+## Client Error Log
+
+The app keeps a small local browser error log for troubleshooting production issues.
+
+Open DevTools console and run:
+
+```js
+JSON.parse(localStorage.getItem("wpl_client_error_log") || "[]")
+```
+
+This log stays in the user's browser only and keeps the latest 25 client errors.
 
 Optional repository secrets for production Firebase config:
 - `FIREBASE_API_KEY`

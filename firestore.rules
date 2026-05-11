@@ -476,8 +476,13 @@ service cloud.firestore {
         && (!("expiresAt" in resource.data) || request.time < resource.data.expiresAt);
       allow create: if isCoachOrAdminUser()
         && request.resource.data.type == "competition_profile"
-        && request.resource.data.coachUid == request.auth.uid;
-      allow update, delete: if isCoachOrAdminUser()
+        && request.resource.data.coachUid == request.auth.uid
+        && request.resource.data.revoked == false;
+      allow update: if isCoachOrAdminUser()
+        && resource.data.coachUid == request.auth.uid
+        && request.resource.data.type == resource.data.type
+        && request.resource.data.coachUid == resource.data.coachUid;
+      allow delete: if isCoachOrAdminUser()
         && resource.data.coachUid == request.auth.uid;
     }
 
