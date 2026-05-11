@@ -13,11 +13,11 @@ fi
 if [[ "${DEPLOY_STORAGE_RULES:-0}" == "1" ]]; then
   echo "[deploy-spark] DEPLOY_STORAGE_RULES=1 -> attempting Storage rules"
   if [[ -n "$PROJECT" ]]; then
-    if ! firebase deploy --only storage:rules --project "$PROJECT"; then
+    if ! firebase deploy --only storage --project "$PROJECT"; then
       echo "[deploy-spark] Storage rules deploy skipped (bucket not configured or not available on current plan)."
     fi
   else
-    if ! firebase deploy --only storage:rules; then
+    if ! firebase deploy --only storage; then
       echo "[deploy-spark] Storage rules deploy skipped (bucket not configured or not available on current plan)."
     fi
   fi
