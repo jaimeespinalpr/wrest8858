@@ -1011,7 +1011,7 @@ function resolveProfileShortcutTab(role = getProfile()?.role) {
   const normalized = normalizeAuthRole(role);
   if (normalized === "admin") return "permissions";
   if (normalized === "coach") return "athlete-profile";
-  if (normalized === "parent") return "parent-home";
+  if (normalized === "parent") return "athlete-profile";
   return "athlete-profile";
 }
 
@@ -1070,7 +1070,7 @@ function handleHeaderMenuAction(action) {
   }
   if (action === "profile") {
     const role = normalizeAuthRole(getProfile()?.role || "athlete");
-    if (role === "coach" || role === "athlete") {
+    if (role === "coach" || role === "athlete" || role === "parent") {
       openEditableCurrentProfile().catch((err) => {
         console.warn("Could not open editable profile", err);
       });
@@ -4118,9 +4118,9 @@ if (editProfileBtn) {
   editProfileBtn.addEventListener("click", (event) => {
     event.stopPropagation();
     const profile = getProfile();
-    const isCoachOrAthlete = isCoachRole(profile?.role) || isAthleteRole(profile?.role);
+    const canEditOwnProfile = isCoachRole(profile?.role) || isAthleteRole(profile?.role) || isParentRole(profile?.role);
     const alreadyOnEditableProfile = currentFocusedPanel === "athlete-profile";
-    if (isCoachOrAthlete && !alreadyOnEditableProfile) {
+    if (canEditOwnProfile && !alreadyOnEditableProfile) {
       openEditableCurrentProfile().catch((err) => {
         console.warn("Could not open editable profile from header", err);
       });
@@ -13567,11 +13567,16 @@ function renderAthleteProfileFormMode() {
   const notice = ensureCoachAthleteProfileEditNotice();
   const submitBtn = getAthleteProfileFormSubmitBtn();
 
+  const sourceRole = normalizeAuthRole(getAthleteProfileFormSourceProfile()?.role || getProfile()?.role || "athlete");
+  const isParentSelfEditing = !isCoachContext && sourceRole === "parent";
+
   if (athleteProfileHeaderTitle) {
     athleteProfileHeaderTitle.textContent = isCoachEditing
       ? (currentLang === "es" ? "Perfil del atleta (editor completo)" : "Athlete Profile (Full Editor)")
       : isCoachSelfEditing
         ? (currentLang === "es" ? "Mi perfil (editor completo)" : "My Profile (Full Editor)")
+      : isParentSelfEditing
+        ? (currentLang === "es" ? "Mi perfil de padre/madre" : "My Parent Profile")
       : (isCoachContext
           ? (currentLang === "es" ? "Perfil del atleta (selecciona atleta primero)" : "Athlete Profile (select athlete first)")
           : (currentLang === "es" ? "Perfil del atleta" : "Athlete Profile"));
@@ -13581,6 +13586,8 @@ function renderAthleteProfileFormMode() {
       ? (currentLang === "es" ? "Coach editando" : "Coach editing")
       : isCoachSelfEditing
         ? (currentLang === "es" ? "Perfil del coach" : "Coach profile")
+      : isParentSelfEditing
+        ? (currentLang === "es" ? "Perfil de padres" : "Parent profile")
       : (isCoachContext
           ? (currentLang === "es" ? "Selecciona en Athletes" : "Select in Athletes")
           : (currentLang === "es" ? "Crear y editar" : "Create & Edit"));
@@ -13590,6 +13597,8 @@ function renderAthleteProfileFormMode() {
       ? (currentLang === "es" ? "Guardar perfil del atleta" : "Save Athlete Profile")
       : isCoachSelfEditing
         ? (currentLang === "es" ? "Guardar mi perfil" : "Save My Profile")
+      : isParentSelfEditing
+        ? (currentLang === "es" ? "Guardar perfil de padre/madre" : "Save Parent Profile")
       : (currentLang === "es" ? "Guardar perfil" : "Save Profile");
     submitBtn.disabled = isCoachContext && !isCoachEditing && !isCoachSelfEditing;
   }
@@ -13598,6 +13607,8 @@ function renderAthleteProfileFormMode() {
       ? (currentLang === "es" ? "Guardar y volver a Athletes" : "Save and return to Athletes")
       : isCoachSelfEditing
         ? (currentLang === "es" ? "Guardar y volver a Home" : "Save and return Home")
+      : isParentSelfEditing
+        ? (currentLang === "es" ? "Guardar y volver a Parent Home" : "Save and return to Parent Home")
       : (isCoachContext
           ? (currentLang === "es" ? "Ir a Athletes" : "Go to Athletes")
           : pickCopy(BUTTON_COPY.continueQuestionnaireLaterBtn));
@@ -17404,6 +17415,8 @@ if (continueQuestionnaireLaterBtn) {
         focusRoutePanel("dashboard");
       } else if (isAthleteRole(getProfile()?.role)) {
         showTab("today");
+      } else if (isParentRole(getProfile()?.role)) {
+        showTab("parent-home");
       } else if (isCoachRouteContext()) {
         focusRoutePanel("coach-athletes");
       } else {
