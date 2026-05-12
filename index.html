@@ -1873,12 +1873,19 @@
                     <div id="plannerSettingsLogoPlaceholder">No logo</div>
                   </div>
                   <div class="planner-logo-buttons">
-                    <label class="ghost planner-file-label">
-                      Upload Logo
-                      <input type="file" id="plannerSettingsLogoInput" accept="image/*" hidden>
-                    </label>
-                    <button type="button" class="ghost" id="plannerSettingsChangeLogoBtn">Change Logo</button>
-                    <button type="button" class="ghost" id="plannerSettingsRemoveLogoBtn">Remove Logo</button>
+                    <input type="file" id="plannerSettingsLogoInput" accept="image/*" class="planner-file-input-hidden">
+                    <button type="button" class="planner-logo-action planner-logo-upload" id="plannerSettingsUploadLogoBtn">
+                      <span class="planner-logo-action-icon">⬆</span>
+                      <span>Upload Logo</span>
+                    </button>
+                    <button type="button" class="planner-logo-action planner-logo-change" id="plannerSettingsChangeLogoBtn">
+                      <span class="planner-logo-action-icon">✎</span>
+                      <span>Change Logo</span>
+                    </button>
+                    <button type="button" class="planner-logo-action planner-logo-remove" id="plannerSettingsRemoveLogoBtn">
+                      <span class="planner-logo-action-icon">×</span>
+                      <span>Remove Logo</span>
+                    </button>
                   </div>
                 </div>
                 <section class="planner-logo-color-suggestion hidden" id="plannerLogoColorSuggestion" aria-live="polite">

@@ -994,6 +994,7 @@
       season: LEGACY_PLANNER_SEASON,
       logoUrl: DEFAULT_PLANNER_LOGO_URL,
       footerMessage: "",
+      logoHidden: false,
       printAutoColors: false,
       printBorderColor: DEFAULT_PRINT_BORDER_COLOR,
       printTextColor: DEFAULT_PRINT_TEXT_COLOR
@@ -1022,7 +1023,8 @@
       clubName: String(source.clubName || "").trim(),
       coach: String(source.coach || "").trim(),
       season: String(source.season || "").trim(),
-      logoUrl: sanitizePlannerLogoUrl(source.logoUrl, defaults.logoUrl),
+      logoHidden: Boolean(source.logoHidden),
+      logoUrl: Boolean(source.logoHidden) ? "" : sanitizePlannerLogoUrl(source.logoUrl, defaults.logoUrl),
       footerMessage: String(source.footerMessage || "").trim(),
       printAutoColors: false,
       printBorderColor: normalizeHexColor(source.printBorderColor, defaults.printBorderColor),
@@ -1035,12 +1037,12 @@
       if (shouldUseDefaultClubName(next.clubName)) next.clubName = defaults.clubName;
       if (shouldUseDefaultCoachName(next.coach)) next.coach = defaults.coach;
       if (shouldUseDefaultSeason(next.season)) next.season = defaults.season;
-      if (!next.logoUrl) next.logoUrl = defaults.logoUrl;
+      if (!next.logoHidden && !next.logoUrl) next.logoUrl = defaults.logoUrl;
     } else {
       next.clubName = next.clubName || defaults.clubName;
       next.coach = next.coach || defaults.coach;
       next.season = next.season || defaults.season;
-      next.logoUrl = next.logoUrl || defaults.logoUrl;
+      next.logoUrl = next.logoHidden ? "" : (next.logoUrl || defaults.logoUrl);
       next.footerMessage = next.footerMessage || defaults.footerMessage;
       next.printBorderColor = normalizeHexColor(next.printBorderColor, defaults.printBorderColor);
       next.printTextColor = normalizeHexColor(next.printTextColor, defaults.printTextColor);
@@ -1202,6 +1204,7 @@
     settingsPrintBorderInput: document.getElementById("wtpPrintBorderColor"),
     settingsPrintTextInput: document.getElementById("wtpPrintTextColor"),
     settingsLogoInput: document.getElementById("plannerSettingsLogoInput"),
+    settingsUploadLogoBtn: document.getElementById("plannerSettingsUploadLogoBtn"),
     settingsLogoPreview: document.getElementById("plannerSettingsLogoPreview"),
     settingsLogoPlaceholder: document.getElementById("plannerSettingsLogoPlaceholder"),
     settingsChangeLogoBtn: document.getElementById("plannerSettingsChangeLogoBtn"),
@@ -4901,7 +4904,7 @@
   }
 
   function updateLogos() {
-    const hasLogo = Boolean(state.settings.logoUrl);
+    const hasLogo = Boolean(state.settings.logoUrl) && !state.settings.logoHidden;
     if (els.logoPreview && els.logoPlaceholder) {
       if (hasLogo) {
         els.logoPreview.src = state.settings.logoUrl;
@@ -7392,7 +7395,7 @@
 
   function renderSettingsLogoPreview() {
     if (!els.settingsLogoPreview || !els.settingsLogoPlaceholder) return;
-    const logo = state.tempSettings?.logoUrl || "";
+    const logo = state.tempSettings?.logoHidden ? "" : (state.tempSettings?.logoUrl || "");
     if (logo) {
       els.settingsLogoPreview.src = logo;
       els.settingsLogoPreview.classList.remove("hidden");
@@ -7988,8 +7991,9 @@
     if (els.settingsCloseBtn) els.settingsCloseBtn.textContent = tr({ en: "Close", es: "Cerrar" });
     if (els.settingsCancelBtn) els.settingsCancelBtn.textContent = tr({ en: "Cancel", es: "Cancelar" });
     if (els.settingsSaveBtn) els.settingsSaveBtn.textContent = tr({ en: "Save changes", es: "Guardar cambios" });
-    if (els.settingsChangeLogoBtn) els.settingsChangeLogoBtn.textContent = tr({ en: "Change logo", es: "Cambiar logo" });
-    if (els.settingsRemoveLogoBtn) els.settingsRemoveLogoBtn.textContent = tr({ en: "Remove logo", es: "Quitar logo" });
+    if (els.settingsUploadLogoBtn) (els.settingsUploadLogoBtn.querySelector("span:last-child") || els.settingsUploadLogoBtn).textContent = tr({ en: "Upload logo", es: "Subir logo" });
+    if (els.settingsChangeLogoBtn) (els.settingsChangeLogoBtn.querySelector("span:last-child") || els.settingsChangeLogoBtn).textContent = tr({ en: "Change logo", es: "Cambiar logo" });
+    if (els.settingsRemoveLogoBtn) (els.settingsRemoveLogoBtn.querySelector("span:last-child") || els.settingsRemoveLogoBtn).textContent = tr({ en: "Remove logo", es: "Quitar logo" });
     if (els.applyLogoColorsBtn) els.applyLogoColorsBtn.textContent = tr({ en: "Use logo colors", es: "Usar colores del logo" });
     if (els.dismissLogoColorsBtn) els.dismissLogoColorsBtn.textContent = tr({ en: "Keep current colors", es: "Mantener colores actuales" });
     if (els.liftingShareBtn) els.liftingShareBtn.textContent = tr({ en: "Share plan", es: "Compartir plan" });
@@ -8517,16 +8521,21 @@
     els.settingsCloseBtn?.addEventListener("click", closeSettingsModal);
     els.settingsCancelBtn?.addEventListener("click", closeSettingsModal);
     els.settingsSaveBtn?.addEventListener("click", saveSettings);
+    const openLogoPicker = () => {
+      if (state.readOnly) return;
+      els.settingsLogoInput?.click();
+    };
     els.settingsRemoveLogoBtn?.addEventListener("click", () => {
       if (!state.tempSettings) return;
-      state.tempSettings.logoUrl = sanitizePlannerLogoUrl("", DEFAULT_PLANNER_LOGO_URL);
+      state.tempSettings.logoHidden = true;
+      state.tempSettings.logoUrl = "";
       state.logoPaletteSuggestion = null;
       renderSettingsLogoPreview();
       renderLogoColorSuggestion();
+      triggerToast(tr({ en: "Logo removed. Save changes to keep it removed.", es: "Logo quitado. Guarda los cambios para mantenerlo quitado." }));
     });
-    els.settingsChangeLogoBtn?.addEventListener("click", () => {
-      els.settingsLogoInput?.click();
-    });
+    els.settingsUploadLogoBtn?.addEventListener("click", openLogoPicker);
+    els.settingsChangeLogoBtn?.addEventListener("click", openLogoPicker);
     els.applyLogoColorsBtn?.addEventListener("click", applySuggestedLogoColors);
     els.dismissLogoColorsBtn?.addEventListener("click", () => {
       state.logoPaletteSuggestion = null;
@@ -8543,6 +8552,7 @@
           }));
           return;
         }
+        state.tempSettings.logoHidden = false;
         state.tempSettings.logoUrl = sanitizePlannerLogoUrl(nextLogo, state.settings?.logoUrl || DEFAULT_PLANNER_LOGO_URL);
         renderSettingsLogoPreview();
         suggestColorsFromLogo(state.tempSettings.logoUrl).catch(() => {});
