@@ -733,6 +733,7 @@
     }, { migrateLegacy: true });
     persistSettings();
     updateFooter();
+    applyPlannerAppTheme();
     updateLogos();
     if (sync) {
       queuePlannerSettingsSync();
@@ -1025,7 +1026,9 @@
       footerMessage: String(source.footerMessage || "").trim(),
       printAutoColors: false,
       printBorderColor: normalizeHexColor(source.printBorderColor, defaults.printBorderColor),
-      printTextColor: normalizeHexColor(source.printTextColor, defaults.printTextColor)
+      printTextColor: normalizeHexColor(source.printTextColor, defaults.printTextColor),
+      appPrimaryColor: normalizeHexColor(source.appPrimaryColor || source.printBorderColor, defaults.printBorderColor),
+      appAccentColor: normalizeHexColor(source.appAccentColor || source.printTextColor || source.printBorderColor, defaults.printTextColor)
     };
 
     if (migrateLegacy) {
@@ -1041,8 +1044,12 @@
       next.footerMessage = next.footerMessage || defaults.footerMessage;
       next.printBorderColor = normalizeHexColor(next.printBorderColor, defaults.printBorderColor);
       next.printTextColor = normalizeHexColor(next.printTextColor, defaults.printTextColor);
+      next.appPrimaryColor = normalizeHexColor(next.appPrimaryColor, next.printBorderColor);
+      next.appAccentColor = normalizeHexColor(next.appAccentColor, next.printTextColor);
     }
 
+    next.appPrimaryColor = normalizeHexColor(next.appPrimaryColor, next.printBorderColor);
+    next.appAccentColor = normalizeHexColor(next.appAccentColor, next.printTextColor);
     return next;
   }
 
@@ -1197,7 +1204,14 @@
     settingsLogoInput: document.getElementById("plannerSettingsLogoInput"),
     settingsLogoPreview: document.getElementById("plannerSettingsLogoPreview"),
     settingsLogoPlaceholder: document.getElementById("plannerSettingsLogoPlaceholder"),
+    settingsChangeLogoBtn: document.getElementById("plannerSettingsChangeLogoBtn"),
     settingsRemoveLogoBtn: document.getElementById("plannerSettingsRemoveLogoBtn"),
+    logoColorSuggestion: document.getElementById("plannerLogoColorSuggestion"),
+    logoColorSuggestionTitle: document.getElementById("plannerLogoColorSuggestionTitle"),
+    logoColorSuggestionText: document.getElementById("plannerLogoColorSuggestionText"),
+    logoColorSwatches: document.getElementById("plannerLogoColorSwatches"),
+    applyLogoColorsBtn: document.getElementById("plannerApplyLogoColorsBtn"),
+    dismissLogoColorsBtn: document.getElementById("plannerDismissLogoColorsBtn"),
 
     libraryModal: document.getElementById("plannerLibraryModal"),
     libraryCloseBtn: document.getElementById("plannerLibraryCloseBtn"),
@@ -1316,6 +1330,7 @@
     state.settings = normalized;
     persistSettings();
     updateFooter();
+    applyPlannerAppTheme();
     updateLogos();
     const shouldRefreshAutoPalette = Boolean(normalized.printAutoColors)
       && String(normalized.logoUrl || "").trim() !== String(previous.logoUrl || "").trim();
@@ -2029,6 +2044,27 @@
     if (els.footerClub) els.footerClub.textContent = state.settings.clubName || defaults.clubName;
     if (els.footerCoach) els.footerCoach.textContent = state.settings.coach || defaults.coach;
     if (els.footerSeason) els.footerSeason.textContent = state.settings.season || defaults.season;
+  }
+
+  function applyPlannerAppTheme(settings = state.settings || {}) {
+    const primary = normalizeHexColor(settings.appPrimaryColor || settings.printBorderColor, DEFAULT_PRINT_BORDER_COLOR);
+    const accent = normalizeHexColor(settings.appAccentColor || settings.printTextColor || primary, primary);
+    const darkPrimary = ensureDarkPrintColor(primary, DEFAULT_PRINT_BORDER_COLOR);
+    const softPrimary = mixHexColors(primary, "#ffffff", 0.78);
+    const softAccent = mixHexColors(accent, "#ffffff", 0.84);
+    const target = document.documentElement;
+    target.style.setProperty("--teal", primary);
+    target.style.setProperty("--blue", darkPrimary);
+    target.style.setProperty("--orange", accent);
+    target.style.setProperty("--red", accent);
+    target.style.setProperty("--stroke", mixHexColors(primary, "#ffffff", 0.58));
+    target.style.setProperty("--bg", softPrimary);
+    if (root) {
+      root.style.setProperty("--planner-brand-primary", primary);
+      root.style.setProperty("--planner-brand-accent", accent);
+      root.style.setProperty("--planner-brand-soft", softPrimary);
+      root.style.setProperty("--planner-brand-accent-soft", softAccent);
+    }
   }
 
   function getTrackUiCopy(track) {
@@ -7306,10 +7342,13 @@
         state.tempSettings.printTextColor,
         state.tempSettings.printBorderColor
       );
+      state.tempSettings.appPrimaryColor = state.tempSettings.printBorderColor;
     } else {
       state.tempSettings.printTextColor = normalizeHexColor(value, DEFAULT_PRINT_TEXT_COLOR);
+      state.tempSettings.appAccentColor = state.tempSettings.printTextColor;
     }
     renderSettingsPrintColorInputs();
+    applyPlannerAppTheme(state.tempSettings);
   }
 
   function applyTempPrintPreset(borderColor, textColor) {
@@ -7322,24 +7361,33 @@
     state.tempSettings.printAutoColors = false;
     state.tempSettings.printBorderColor = safeBorder;
     state.tempSettings.printTextColor = safeText;
+    state.tempSettings.appPrimaryColor = safeBorder;
+    state.tempSettings.appAccentColor = safeText;
     renderSettingsPrintColorInputs();
+    applyPlannerAppTheme(state.tempSettings);
   }
 
   function openSettingsModal() {
     state.tempSettings = { ...state.settings };
     state.tempSettings.printAutoColors = false;
+    state.logoPaletteSuggestion = null;
     if (els.settingsClubInput) els.settingsClubInput.value = state.tempSettings.clubName || "";
     if (els.settingsCoachInput) els.settingsCoachInput.value = state.tempSettings.coach || "";
     if (els.settingsSeasonInput) els.settingsSeasonInput.value = state.tempSettings.season || "";
     if (els.settingsFooterInput) els.settingsFooterInput.value = state.tempSettings.footerMessage || "";
     renderSettingsPrintColorInputs();
     renderSettingsLogoPreview();
+    renderLogoColorSuggestion();
+    applyPlannerAppTheme(state.tempSettings);
     els.settingsModal?.classList.remove("hidden");
     focusPlannerWindow(els.settingsModal, { smooth: true });
   }
 
   function closeSettingsModal() {
     els.settingsModal?.classList.add("hidden");
+    state.logoPaletteSuggestion = null;
+    renderLogoColorSuggestion();
+    applyPlannerAppTheme(state.settings);
   }
 
   function renderSettingsLogoPreview() {
@@ -7353,6 +7401,61 @@
       els.settingsLogoPreview.removeAttribute("src");
       els.settingsLogoPreview.classList.add("hidden");
       els.settingsLogoPlaceholder.classList.remove("hidden");
+    }
+  }
+
+  function renderLogoColorSuggestion() {
+    if (!els.logoColorSuggestion) return;
+    const palette = state.logoPaletteSuggestion || null;
+    if (!palette) {
+      els.logoColorSuggestion.classList.add("hidden");
+      if (els.logoColorSwatches) els.logoColorSwatches.innerHTML = "";
+      return;
+    }
+    els.logoColorSuggestion.classList.remove("hidden");
+    if (els.logoColorSuggestionTitle) {
+      els.logoColorSuggestionTitle.textContent = tr({ en: "Logo colors detected", es: "Colores del logo detectados" });
+    }
+    if (els.logoColorSuggestionText) {
+      els.logoColorSuggestionText.textContent = tr({
+        en: "Do you want to update the app and print colors based on this logo?",
+        es: "Quieres cambiar los colores de la aplicacion y del print usando este logo como referencia?"
+      });
+    }
+    if (els.logoColorSwatches) {
+      els.logoColorSwatches.innerHTML = [palette.borderColor, palette.textColor]
+        .map((color) => `<span class="planner-logo-color-chip" style="--logo-color:${escapeHtml(color)}" title="${escapeHtml(color)}"></span>`)
+        .join("");
+    }
+  }
+
+  function applySuggestedLogoColors() {
+    if (!state.tempSettings || !state.logoPaletteSuggestion) return;
+    const border = normalizeHexColor(state.logoPaletteSuggestion.borderColor, DEFAULT_PRINT_BORDER_COLOR);
+    const text = ensureDarkPrintColor(state.logoPaletteSuggestion.textColor, border);
+    state.tempSettings.printAutoColors = false;
+    state.tempSettings.printBorderColor = border;
+    state.tempSettings.printTextColor = text;
+    state.tempSettings.appPrimaryColor = border;
+    state.tempSettings.appAccentColor = text;
+    renderSettingsPrintColorInputs();
+    applyPlannerAppTheme(state.tempSettings);
+    triggerToast(tr({ en: "Logo colors applied. Save to keep them.", es: "Colores del logo aplicados. Guarda para mantenerlos." }));
+  }
+
+  async function suggestColorsFromLogo(logoUrl) {
+    const cleanLogo = String(logoUrl || "").trim();
+    if (!cleanLogo || !state.tempSettings) return;
+    try {
+      const palette = await derivePrintPaletteFromLogo(cleanLogo);
+      state.logoPaletteSuggestion = {
+        borderColor: normalizeHexColor(palette.borderColor, DEFAULT_PRINT_BORDER_COLOR),
+        textColor: ensureDarkPrintColor(palette.textColor, palette.borderColor)
+      };
+      renderLogoColorSuggestion();
+    } catch {
+      state.logoPaletteSuggestion = null;
+      renderLogoColorSuggestion();
     }
   }
 
@@ -7885,7 +7988,10 @@
     if (els.settingsCloseBtn) els.settingsCloseBtn.textContent = tr({ en: "Close", es: "Cerrar" });
     if (els.settingsCancelBtn) els.settingsCancelBtn.textContent = tr({ en: "Cancel", es: "Cancelar" });
     if (els.settingsSaveBtn) els.settingsSaveBtn.textContent = tr({ en: "Save changes", es: "Guardar cambios" });
+    if (els.settingsChangeLogoBtn) els.settingsChangeLogoBtn.textContent = tr({ en: "Change logo", es: "Cambiar logo" });
     if (els.settingsRemoveLogoBtn) els.settingsRemoveLogoBtn.textContent = tr({ en: "Remove logo", es: "Quitar logo" });
+    if (els.applyLogoColorsBtn) els.applyLogoColorsBtn.textContent = tr({ en: "Use logo colors", es: "Usar colores del logo" });
+    if (els.dismissLogoColorsBtn) els.dismissLogoColorsBtn.textContent = tr({ en: "Keep current colors", es: "Mantener colores actuales" });
     if (els.liftingShareBtn) els.liftingShareBtn.textContent = tr({ en: "Share plan", es: "Compartir plan" });
     if (els.liftingPrintBtn) els.liftingPrintBtn.textContent = tr({ en: "Print", es: "Imprimir" });
     if (els.liftingSaveProtocolBtn) els.liftingSaveProtocolBtn.textContent = tr({ en: "Save Protocol", es: "Guardar Protocolo" });
@@ -7946,6 +8052,7 @@
     if (els.totalTimeInput) els.totalTimeInput.value = state.docInfo.totalTime || "90";
     updatePrintMetaValues();
     updateFooter();
+    applyPlannerAppTheme();
     updateLogos();
     renderCategorySelectOptions();
     renderRows();
@@ -8413,7 +8520,17 @@
     els.settingsRemoveLogoBtn?.addEventListener("click", () => {
       if (!state.tempSettings) return;
       state.tempSettings.logoUrl = sanitizePlannerLogoUrl("", DEFAULT_PLANNER_LOGO_URL);
+      state.logoPaletteSuggestion = null;
       renderSettingsLogoPreview();
+      renderLogoColorSuggestion();
+    });
+    els.settingsChangeLogoBtn?.addEventListener("click", () => {
+      els.settingsLogoInput?.click();
+    });
+    els.applyLogoColorsBtn?.addEventListener("click", applySuggestedLogoColors);
+    els.dismissLogoColorsBtn?.addEventListener("click", () => {
+      state.logoPaletteSuggestion = null;
+      renderLogoColorSuggestion();
     });
     els.settingsLogoInput?.addEventListener("change", (event) => {
       const file = event.target.files && event.target.files[0];
@@ -8428,11 +8545,18 @@
         }
         state.tempSettings.logoUrl = sanitizePlannerLogoUrl(nextLogo, state.settings?.logoUrl || DEFAULT_PLANNER_LOGO_URL);
         renderSettingsLogoPreview();
+        suggestColorsFromLogo(state.tempSettings.logoUrl).catch(() => {});
+        triggerToast(tr({
+          en: "Logo loaded. You can apply matching colors below.",
+          es: "Logo cargado. Puedes aplicar colores combinados abajo."
+        }));
       }).catch(() => {
         triggerToast(tr({
           en: "Could not load logo file. Try another image.",
           es: "No se pudo cargar el logo. Intenta con otra imagen."
         }));
+      }).finally(() => {
+        if (els.settingsLogoInput) els.settingsLogoInput.value = "";
       });
     });
 

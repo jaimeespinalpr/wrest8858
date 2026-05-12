@@ -1877,9 +1877,21 @@
                       Upload Logo
                       <input type="file" id="plannerSettingsLogoInput" accept="image/*" hidden>
                     </label>
+                    <button type="button" class="ghost" id="plannerSettingsChangeLogoBtn">Change Logo</button>
                     <button type="button" class="ghost" id="plannerSettingsRemoveLogoBtn">Remove Logo</button>
                   </div>
                 </div>
+                <section class="planner-logo-color-suggestion hidden" id="plannerLogoColorSuggestion" aria-live="polite">
+                  <div>
+                    <strong id="plannerLogoColorSuggestionTitle">Logo colors detected</strong>
+                    <p class="small muted" id="plannerLogoColorSuggestionText">Do you want to update the app and print colors based on this logo?</p>
+                  </div>
+                  <div class="planner-logo-color-swatches" id="plannerLogoColorSwatches"></div>
+                  <div class="row row-wrap">
+                    <button type="button" class="primary" id="plannerApplyLogoColorsBtn">Use logo colors</button>
+                    <button type="button" class="ghost" id="plannerDismissLogoColorsBtn">Keep current colors</button>
+                  </div>
+                </section>
                 <label>
                   <span>Club / School</span>
                   <input type="text" id="wtpClubName" placeholder="Club / School">

@@ -11482,6 +11482,30 @@ svg{
   gap: 8px;
 }
 
+.planner-logo-color-suggestion{
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(140, 209, 170, 0.38);
+  background: linear-gradient(160deg, rgba(13, 107, 74, 0.12), rgba(15, 76, 129, 0.08));
+}
+
+.planner-logo-color-swatches{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.planner-logo-color-chip{
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.82);
+  background: var(--logo-color, #0d6b4a);
+  box-shadow: 0 6px 16px rgba(8, 19, 35, 0.22);
+}
+
 .planner-file-label{
   display: inline-flex;
   align-items: center;
@@ -11535,6 +11559,22 @@ svg{
 .planner-print-preset.is-active{
   border-color: rgba(140, 209, 170, 0.9);
   box-shadow: 0 0 0 1px rgba(140, 209, 170, 0.3), 0 8px 20px rgba(9, 20, 36, 0.36);
+}
+
+#coachPlannerApp .primary,
+#coachPlannerApp button.primary{
+  background: linear-gradient(135deg, var(--planner-brand-primary, var(--teal)), var(--planner-brand-accent, var(--blue)));
+  border-color: color-mix(in srgb, var(--planner-brand-primary, var(--teal)) 72%, #000 28%);
+}
+
+#coachPlannerApp .planner-brand-badge,
+#coachPlannerApp .planner-time-badge,
+#coachPlannerApp .planner-sheet-header{
+  border-color: color-mix(in srgb, var(--planner-brand-primary, var(--teal)) 42%, transparent);
+}
+
+#coachPlannerApp .planner-brand-badge{
+  background: linear-gradient(135deg, var(--planner-brand-primary, var(--teal)), var(--planner-brand-accent, var(--blue)));
 }
 
 .planner-print-preset-swatches{
