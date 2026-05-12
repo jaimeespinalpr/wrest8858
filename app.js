@@ -10689,6 +10689,9 @@ const TOURNAMENT_SCOUTING_NOTES_KEY = "wpl_tournament_scouting_notes";
 const tournamentBackBtn = document.getElementById("tournamentBackBtn");
 const tournamentAthleteList = document.getElementById("tournamentAthleteList");
 const tournamentSelectedMeta = document.getElementById("tournamentSelectedMeta");
+const tournamentAthleteDetailTitle = document.getElementById("tournamentAthleteDetailTitle");
+const tournamentAthleteDetailHint = document.getElementById("tournamentAthleteDetailHint");
+const tournamentAthleteDetail = document.getElementById("tournamentAthleteDetail");
 const tournamentScoutingTarget = document.getElementById("tournamentScoutingTarget");
 const tournamentAddAthleteForm = document.getElementById("tournamentAddAthleteForm");
 const tournamentAddAthleteName = document.getElementById("tournamentAddAthleteName");
@@ -10753,10 +10756,11 @@ function getTournamentViewAthletes() {
     const name = String(athlete?.name || "").trim();
     if (!name || acc.some((item) => normalizeName(item.name) === normalizeName(name))) return acc;
     acc.push({
+      ...athlete,
       id: String(athlete.id || slugifyKey(name)).trim(),
       name,
       photo: getProfilePhotoValue(athlete),
-      weightClass: String(athlete.weightClass || "").trim(),
+      weightClass: String(athlete.weightClass || athlete.weight_class || "").trim(),
       team: String(athlete.team || athlete.schoolName || athlete.clubName || athlete.schoolClub || "").trim()
     });
     return acc;
@@ -10767,6 +10771,148 @@ function getDefaultTournamentReturnTab() {
   if (currentView === "parent") return "parent-home";
   if (currentView === "coach" || currentView === "admin") return "coach-home";
   return "today";
+}
+
+function getTournamentAthleteDetailRows(athlete = {}) {
+  const profile = athlete && typeof athlete === "object" ? athlete : {};
+  return [
+    [currentLang === "es" ? "Categoria" : "Weight class", profile.weightClass || profile.weight_class],
+    [currentLang === "es" ? "Peso actual" : "Current weight", profile.currentWeight || profile.weight],
+    [currentLang === "es" ? "Nivel" : "Level", translateOptionValue("aLevel", profile.level) || profile.level],
+    [currentLang === "es" ? "Estilo" : "Style", translateOptionValue("aStyle", profile.style) || profile.style],
+    [currentLang === "es" ? "Posicion" : "Position", translateOptionValue("aPosition", profile.position) || profile.position],
+    [currentLang === "es" ? "Estrategia" : "Strategy", translateOptionValue("aStrategy", profile.strategy) || profile.strategy],
+    [currentLang === "es" ? "Pierna de ataque" : "Lead leg", profile.defaultTechniques?.leadLeg],
+    [currentLang === "es" ? "Ataque izquierda" : "Left attack", profile.defaultTechniques?.leftAttack],
+    [currentLang === "es" ? "Ataque derecha" : "Right attack", profile.defaultTechniques?.rightAttack],
+    [currentLang === "es" ? "Agarres preferidos" : "Preferred ties", profile.defaultTechniques?.preferredTies]
+  ].map(([label, value]) => ({ label, value: normalizeProfileDisplayValue(value) })).filter((row) => row.value);
+}
+
+function getTournamentAthleteWorkOns(athlete = {}, assignments = []) {
+  const profile = athlete && typeof athlete === "object" ? athlete : {};
+  const values = [
+    profile.competitionSummaryWorkOns,
+    profile.trainingFocus,
+    profile.preferredMoves || profile.preferred_moves,
+    profile.safeMoves,
+    profile.riskyMoves,
+    profile.strategyA,
+    profile.strategyB,
+    profile.strategyC,
+    ...(Array.isArray(profile.challenges) ? profile.challenges : []),
+    profile.challengeOne,
+    profile.challengeTwo,
+    profile.challengeThree,
+    ...assignments.slice(0, 4).map((item) => item.title || item.planTitle || item.mediaTitle || item.assigneeName || "")
+  ];
+  return values.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 8);
+}
+
+function renderTournamentAthleteDetail(athlete = null, scoutingNotes = []) {
+  if (!tournamentAthleteDetail) return;
+  if (tournamentAthleteDetailTitle) {
+    tournamentAthleteDetailTitle.textContent = currentLang === "es" ? "Resumen competitivo del atleta" : "Athlete Competition Snapshot";
+  }
+  if (!athlete) {
+    if (tournamentAthleteDetailHint) {
+      tournamentAthleteDetailHint.textContent = currentLang === "es"
+        ? "Selecciona un atleta del roster para ver su informacion competitiva."
+        : "Select an athlete from the roster to see competition details.";
+    }
+    tournamentAthleteDetail.innerHTML = `<div class="tournament-empty small muted">${currentLang === "es" ? "No hay atleta seleccionado." : "No athlete selected."}</div>`;
+    return;
+  }
+
+  const athleteName = String(athlete.name || "").trim();
+  const assignments = getPlanAssignmentsForAthlete(athleteName).slice(0, 5);
+  const latestJournal = getLatestCoachJournalRecord(athleteName);
+  const latestNote = getCoachNoteRecord(athleteName);
+  const latestMatch = getLatestCoachMatchAnalysisForAthlete(athleteName);
+  const detailRows = getTournamentAthleteDetailRows(athlete);
+  const workOns = getTournamentAthleteWorkOns(athlete, assignments);
+  const cueWords = [
+    ...(Array.isArray(athlete.cueWords) ? athlete.cueWords : []),
+    ...(Array.isArray(athlete.cornerCoachCues) ? athlete.cornerCoachCues : []),
+    athlete.coachSignal,
+    athlete.competitionCue,
+    athlete.competitionSummaryCues
+  ].map((item) => String(item || "").trim()).filter(Boolean).slice(0, 8);
+  const alerts = [
+    ...(Array.isArray(athlete.safetyWarnings) ? athlete.safetyWarnings : []),
+    ...(Array.isArray(athlete.physicalLimitations) ? athlete.physicalLimitations : []),
+    athlete.injuryNotes,
+    athlete.pressureError
+  ].map((item) => String(item || "").trim()).filter(Boolean).slice(0, 6);
+  const recentScouting = scoutingNotes.slice(0, 3);
+
+  if (tournamentAthleteDetailHint) {
+    tournamentAthleteDetailHint.textContent = currentLang === "es"
+      ? "Competencia, trabajo reciente, cues y alertas para leer rapido en torneo."
+      : "Competition profile, recent work-ons, cues, and alerts for quick tournament reading.";
+  }
+
+  const renderList = (items, emptyText) => items.length
+    ? `<ul class="list tight">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+    : `<p class="small muted">${escapeHtml(emptyText)}</p>`;
+  const renderAssignment = (item) => {
+    const title = String(item.title || item.planTitle || item.mediaTitle || (currentLang === "es" ? "Asignacion" : "Assignment")).trim();
+    const status = String(item.status || item.completionStatus || item.assignmentStatus || "").trim();
+    const due = String(item.dueDateKey || item.scheduledDateKey || item.dateKey || "").trim();
+    return `<li>${escapeHtml([title, status, due].filter(Boolean).join(" • "))}</li>`;
+  };
+
+  tournamentAthleteDetail.innerHTML = `
+    <div class="profile-photo-callout-header tournament-detail-header">
+      <div>
+        <p class="eyebrow">${currentLang === "es" ? "Atleta activo" : "Active athlete"}</p>
+        <h3>${escapeHtml(athleteName || (currentLang === "es" ? "Atleta" : "Athlete"))}</h3>
+        <p class="small muted">${escapeHtml([athlete.weightClass || athlete.weight_class, athlete.team, athlete.level].filter(Boolean).join(" • ") || (currentLang === "es" ? "Sin detalles principales" : "No primary details"))}</p>
+      </div>
+      <div class="wpl-avatar wpl-avatar-lg" data-tournament-detail-avatar>${escapeHtml((athleteName || "AT").split(/\s+/).map((part) => part[0] || "").join("").slice(0, 2).toUpperCase() || "AT")}</div>
+    </div>
+    <div class="section-grid tournament-detail-grid">
+      <div class="mini-card">
+        <h4>${currentLang === "es" ? "Perfil de competencia" : "Competition profile"}</h4>
+        ${detailRows.length ? `<dl class="coach-athlete-complete-profile-list">${detailRows.map((row) => `<div><dt>${escapeHtml(row.label)}</dt><dd>${escapeHtml(row.value)}</dd></div>`).join("")}</dl>` : `<p class="small muted">${currentLang === "es" ? "Falta completar informacion competitiva." : "Competition info still needs completion."}</p>`}
+      </div>
+      <div class="mini-card">
+        <h4>${currentLang === "es" ? "Trabajando ultimamente" : "Recent work-ons"}</h4>
+        ${renderList(workOns, currentLang === "es" ? "No hay trabajos recientes registrados." : "No recent work-ons recorded.")}
+      </div>
+      <div class="mini-card">
+        <h4>${currentLang === "es" ? "Cues para esquina" : "Corner cues"}</h4>
+        ${renderList(cueWords, currentLang === "es" ? "No hay cues registrados." : "No cues recorded.")}
+      </div>
+      <div class="mini-card">
+        <h4>${currentLang === "es" ? "Alertas" : "Alerts"}</h4>
+        ${renderList(alerts, currentLang === "es" ? "Sin alertas registradas." : "No alerts recorded.")}
+      </div>
+    </div>
+    <div class="section-grid tournament-detail-grid">
+      <div class="mini-card">
+        <h4>${currentLang === "es" ? "Asignaciones activas" : "Active assignments"}</h4>
+        ${assignments.length ? `<ul class="list tight">${assignments.map(renderAssignment).join("")}</ul>` : `<p class="small muted">${currentLang === "es" ? "Sin asignaciones activas." : "No active assignments."}</p>`}
+      </div>
+      <div class="mini-card">
+        <h4>${currentLang === "es" ? "Notas recientes" : "Recent notes"}</h4>
+        ${renderList([
+          latestJournal?.notes || latestJournal?.summary || latestJournal?.readinessNote,
+          latestNote?.note || latestNote?.body || latestNote?.text,
+          latestMatch?.summary || latestMatch?.analysis || latestMatch?.notes
+        ].map((item) => String(item || "").trim()).filter(Boolean).slice(0, 3), currentLang === "es" ? "No hay notas recientes." : "No recent notes.")}
+      </div>
+      <div class="mini-card">
+        <h4>${currentLang === "es" ? "Scouting del torneo" : "Tournament scouting"}</h4>
+        ${recentScouting.length ? `<ul class="list tight">${recentScouting.map((note) => `<li><strong>${escapeHtml(note.opponentName || (currentLang === "es" ? "Oponente" : "Opponent"))}</strong>: ${escapeHtml(note.note || "")}</li>`).join("")}</ul>` : `<p class="small muted">${currentLang === "es" ? "Sin scouting guardado todavia." : "No tournament scouting saved yet."}</p>`}
+      </div>
+    </div>
+  `;
+  renderAvatarElement(tournamentAthleteDetail.querySelector("[data-tournament-detail-avatar]"), {
+    photo: getProfilePhotoValue(athlete),
+    name: athleteName,
+    fallback: (athleteName || "AT").split(/\s+/).map((part) => part[0] || "").join("").slice(0, 2).toUpperCase() || "AT"
+  });
 }
 
 function renderTournamentView() {
@@ -10832,6 +10978,8 @@ function renderTournamentView() {
       ? `${currentLang === "es" ? "Scouting para" : "Scouting for"} ${selectedAthlete.name}`
       : (currentLang === "es" ? "Selecciona un atleta arriba para empezar scouting." : "Select an athlete above to start scouting.");
   }
+
+  renderTournamentAthleteDetail(selectedAthlete, notes);
 
   tournamentScoutingList.innerHTML = "";
   if (!notes.length) {
