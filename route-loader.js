@@ -8,6 +8,27 @@
 
   window.WPL_ROUTED_BOOTSTRAP = true;
 
+  var ROUTE_PANEL_MAP = {
+    today: ["panel-today"],
+    profile: ["panel-athlete-profile"],
+    training: ["panel-training", "panel-plans", "panel-assignments"],
+    calendar: ["panel-calendar", "panel-calendar-manager"],
+    media: ["panel-media"],
+    journal: ["panel-journal", "panel-journal-monitor"],
+    favorites: ["panel-favorites"],
+    announcements: ["panel-announcements"],
+    competition: ["panel-competition-preview", "panel-coach-match"],
+    tournament: ["panel-tournament-view", "panel-competition-preview"],
+    parent: ["panel-parent-home"],
+    scouting: ["panel-parent-scouting"],
+    home: ["panel-dashboard", "panel-coach-profile", "panel-parent-home", "panel-today"],
+    athletes: ["panel-athletes", "panel-coach-match", "panel-journal-monitor", "panel-athlete-notes"],
+    plans: ["panel-plans", "panel-assignments", "panel-completion-tracking", "panel-training"],
+    messages: ["panel-messages"],
+    "coach-profile": ["panel-coach-profile"],
+    permissions: ["panel-permissions"]
+  };
+
   function getAppRootUrl() {
     try {
       return new URL("../", window.location.href).href;
@@ -27,7 +48,10 @@
   }
 
   function runScripts(scripts, index) {
-    if (index >= scripts.length) return;
+    if (index >= scripts.length) {
+      pruneRoutePanels(document);
+      return;
+    }
     var original = scripts[index];
     var script = document.createElement("script");
     Array.prototype.forEach.call(original.attributes || [], function(attr) {
@@ -54,6 +78,23 @@
       if (!href || /^(?:https?:|data:|mailto:|tel:|#)/i.test(href)) return;
       link.setAttribute("href", resolveAppAssetUrl(href));
     });
+  }
+
+  function pruneRoutePanels(doc) {
+    var keepList = ROUTE_PANEL_MAP[routeName] || [];
+    if (!keepList.length) return;
+    var keep = new Set(keepList);
+    var removed = 0;
+    Array.prototype.forEach.call(doc.querySelectorAll(".panel[id]"), function(panel) {
+      if (keep.has(panel.id)) return;
+      if (panel.parentNode) {
+        panel.parentNode.removeChild(panel);
+        removed += 1;
+      }
+    });
+    window.WPL_ROUTED_PANEL_PRUNING = true;
+    window.WPL_ROUTE_PRESERVED_PANELS = keepList.slice();
+    window.WPL_ROUTE_REMOVED_PANEL_COUNT = removed;
   }
 
   fetch(resolveAppAssetUrl("index.html"), { cache: "no-store" })

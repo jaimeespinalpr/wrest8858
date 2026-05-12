@@ -15,7 +15,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Teko:wght@500;600;700&display=swap"
     rel="stylesheet"
   >
-  <link rel="stylesheet" href="styles.css?v=20260501-stable-routes1" >
+  <link rel="stylesheet" href="styles.css?v=20260510-phase2-msg1" >
 </head>
 
 <body>
@@ -406,6 +406,11 @@
                 </div>
               </div>
               <div class="tournament-athlete-list" id="tournamentAthleteList"></div>
+            </div>
+            <div class="mini-card tournament-athlete-detail-card">
+              <h3 id="tournamentAthleteDetailTitle">Athlete Competition Snapshot</h3>
+              <p class="small muted" id="tournamentAthleteDetailHint">Select an athlete to see competition profile, recent work-ons, and coach notes.</p>
+              <div id="tournamentAthleteDetail" class="tournament-athlete-detail"></div>
             </div>
             <div class="mini-card">
               <div class="card-header">
@@ -1868,13 +1873,32 @@
                     <div id="plannerSettingsLogoPlaceholder">No logo</div>
                   </div>
                   <div class="planner-logo-buttons">
-                    <label class="ghost planner-file-label">
-                      Upload Logo
-                      <input type="file" id="plannerSettingsLogoInput" accept="image/*" hidden>
-                    </label>
-                    <button type="button" class="ghost" id="plannerSettingsRemoveLogoBtn">Remove Logo</button>
+                    <input type="file" id="plannerSettingsLogoInput" accept="image/*" class="planner-file-input-hidden">
+                    <button type="button" class="planner-logo-action planner-logo-upload" id="plannerSettingsUploadLogoBtn">
+                      <span class="planner-logo-action-icon">⬆</span>
+                      <span>Upload Logo</span>
+                    </button>
+                    <button type="button" class="planner-logo-action planner-logo-change" id="plannerSettingsChangeLogoBtn">
+                      <span class="planner-logo-action-icon">✎</span>
+                      <span>Change Logo</span>
+                    </button>
+                    <button type="button" class="planner-logo-action planner-logo-remove" id="plannerSettingsRemoveLogoBtn">
+                      <span class="planner-logo-action-icon">×</span>
+                      <span>Remove Logo</span>
+                    </button>
                   </div>
                 </div>
+                <section class="planner-logo-color-suggestion hidden" id="plannerLogoColorSuggestion" aria-live="polite">
+                  <div>
+                    <strong id="plannerLogoColorSuggestionTitle">Logo colors detected</strong>
+                    <p class="small muted" id="plannerLogoColorSuggestionText">Do you want to update the app and print colors based on this logo?</p>
+                  </div>
+                  <div class="planner-logo-color-swatches" id="plannerLogoColorSwatches"></div>
+                  <div class="row row-wrap">
+                    <button type="button" class="primary" id="plannerApplyLogoColorsBtn">Use logo colors</button>
+                    <button type="button" class="ghost" id="plannerDismissLogoColorsBtn">Keep current colors</button>
+                  </div>
+                </section>
                 <label>
                   <span>Club / School</span>
                   <input type="text" id="wtpClubName" placeholder="Club / School">
@@ -2515,6 +2539,6 @@
       parent.insertBefore(script, currentScript ? currentScript.nextSibling : null);
     }());
   </script>
-  <script src="app.js?v=20260501-stable-routes1"></script>
+  <script src="app.js?v=20260510-phase2-msg1"></script>
 </body>
 </html>
