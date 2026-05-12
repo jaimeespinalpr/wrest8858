@@ -13681,6 +13681,7 @@ function renderProfileTagPicker(tags = profileTagState) {
       profileTagState = selected;
       renderProfileTagPicker(selected);
       renderCoachQuickPreview(readAthleteProfileForm(getAthleteProfileFormSourceProfile()));
+      queueAthleteProfileAutosave({ reason: "tag" });
     });
     aTags.appendChild(btn);
   });
@@ -17142,6 +17143,49 @@ if (profileSubtabButtons.length) {
   showProfileSubtab(currentProfileSubtab);
 }
 
+let athleteProfileAutosaveTimer = null;
+let athleteProfileAutosaveInFlight = false;
+let athleteProfileAutosaveQueued = false;
+
+function canAutosaveAthleteProfile() {
+  if (!athleteProfileForm) return false;
+  if (!getProfile()) return false;
+  if (isCoachRouteContext() && !isCoachAthleteProfileEditActive() && !isCoachSelfProfileEditActive()) {
+    return false;
+  }
+  return true;
+}
+
+function queueAthleteProfileAutosave({ delay = 900, reason = "field" } = {}) {
+  if (!canAutosaveAthleteProfile()) return;
+  athleteProfileAutosaveQueued = true;
+  if (athleteProfileAutosaveTimer) clearTimeout(athleteProfileAutosaveTimer);
+  athleteProfileAutosaveTimer = window.setTimeout(() => {
+    athleteProfileAutosaveTimer = null;
+    flushAthleteProfileAutosave(reason);
+  }, delay);
+}
+
+async function flushAthleteProfileAutosave(reason = "field") {
+  if (!athleteProfileAutosaveQueued || !canAutosaveAthleteProfile()) return;
+  if (athleteProfileAutosaveInFlight) {
+    queueAthleteProfileAutosave({ delay: 900, reason });
+    return;
+  }
+  athleteProfileAutosaveQueued = false;
+  athleteProfileAutosaveInFlight = true;
+  try {
+    await saveAthleteProfileFromForm({ successToast: "" });
+  } catch (err) {
+    console.warn("Athlete profile autosave failed", { reason, err });
+  } finally {
+    athleteProfileAutosaveInFlight = false;
+    if (athleteProfileAutosaveQueued) {
+      queueAthleteProfileAutosave({ delay: 900, reason: "queued" });
+    }
+  }
+}
+
 async function saveAthleteProfileFromForm({
   successToast = pickCopy({ en: "Profile saved.", es: "Perfil guardado." })
 } = {}) {
@@ -17314,6 +17358,11 @@ async function saveCoachEditedAthleteProfileFromForm({
 if (athleteProfileForm) {
   athleteProfileForm.addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (athleteProfileAutosaveTimer) {
+      clearTimeout(athleteProfileAutosaveTimer);
+      athleteProfileAutosaveTimer = null;
+    }
+    athleteProfileAutosaveQueued = false;
     try {
       await saveAthleteProfileFromForm();
     } catch (err) {
@@ -17324,6 +17373,18 @@ if (athleteProfileForm) {
       }));
     }
   });
+
+  const queueAutosaveForEditableProfileField = (event) => {
+    const target = event.target;
+    if (!target || !target.matches?.("input, select, textarea")) return;
+    if (["file", "button", "submit", "reset", "password"].includes(String(target.type || "").toLowerCase())) return;
+    queueAthleteProfileAutosave({
+      delay: event.type === "change" ? 350 : 900,
+      reason: target.id || target.name || event.type
+    });
+  };
+  athleteProfileForm.addEventListener("input", queueAutosaveForEditableProfileField);
+  athleteProfileForm.addEventListener("change", queueAutosaveForEditableProfileField);
 }
 
 if (continueQuestionnaireLaterBtn) {
@@ -17515,6 +17576,7 @@ if (aPhotoClearBtn) {
       statusMessage: getAthleteProfilePhotoIdleMessage(false),
       statusTone: ""
     });
+    queueAthleteProfileAutosave({ delay: 350, reason: "photo-clear" });
   });
 }
 
