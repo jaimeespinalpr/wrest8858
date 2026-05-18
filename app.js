@@ -10393,7 +10393,7 @@ const panels = {
 let lastTournamentReturnTab = "";
 const COACH_ROUTE_PANELS = {
   "coach-home": ["dashboard", "coach-profile"],
-  "coach-athletes": ["athletes", "coach-match", "journal-monitor", "athlete-notes"],
+  "coach-athletes": ["athletes", "athlete-profile", "coach-match", "journal-monitor", "athlete-notes"],
   "coach-plans": ["plans", "assignments"],
   "coach-competition": ["competition-preview"],
   "coach-messages": ["messages"]
