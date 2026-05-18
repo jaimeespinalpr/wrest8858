@@ -258,6 +258,7 @@ service cloud.firestore {
         "competitionSummaryProfile",
         "competitionSummaryWorkOns",
         "competitionSummaryCues",
+        "appTheme",
         "pressureError",
         "coachSignal",
         "tags",

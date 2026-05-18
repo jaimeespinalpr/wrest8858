@@ -591,6 +591,7 @@
               <button type="button" class="profile-subtab active" data-profile-tab="training" id="profileSubtabTraining">Training</button>
               <button type="button" class="profile-subtab" data-profile-tab="competition" id="profileSubtabCompetition">Competition</button>
               <button type="button" class="profile-subtab" data-profile-tab="coaching" id="profileSubtabCoaching">Coaching Quick</button>
+              <button type="button" class="profile-subtab" data-profile-tab="customize" id="profileSubtabCustomize">Customize Page</button>
             </div>
 
             <div class="profile-subpanel" data-profile-panel="training">
@@ -1062,6 +1063,60 @@
                 <div class="row">
                   <button type="button" id="openCoachMatchBtn">Open Athlete Summary</button>
                   <button type="button" id="openCompetitionPreviewBtn" class="ghost">Open Competition Preview</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="profile-subpanel hidden" data-profile-panel="customize">
+              <div class="form-section profile-theme-section">
+                <h3>Customize page</h3>
+                <p class="small muted">
+                  Choose the colors for this profile. These colors affect the full app when this user is signed in.
+                </p>
+                <div class="grid profile-theme-grid">
+                  <label>
+                    <span>Background color</span>
+                    <input id="aThemeBackgroundColor" type="color" value="#f5f9ff" >
+                  </label>
+                  <label>
+                    <span>Letter color</span>
+                    <input id="aThemeTextColor" type="color" value="#0f1726" >
+                  </label>
+                  <label>
+                    <span>Muted letter color</span>
+                    <input id="aThemeMutedTextColor" type="color" value="#64748b" >
+                  </label>
+                  <label>
+                    <span>Panel color</span>
+                    <input id="aThemePanelColor" type="color" value="#ffffff" >
+                  </label>
+                  <label>
+                    <span>Card color</span>
+                    <input id="aThemeCardColor" type="color" value="#ffffff" >
+                  </label>
+                  <label>
+                    <span>Column color</span>
+                    <input id="aThemeColumnColor" type="color" value="#eef4ff" >
+                  </label>
+                  <label>
+                    <span>Button / accent color</span>
+                    <input id="aThemeAccentColor" type="color" value="#123462" >
+                  </label>
+                  <label>
+                    <span>Warning / highlight color</span>
+                    <input id="aThemeHighlightColor" type="color" value="#c8102e" >
+                  </label>
+                </div>
+                <div class="profile-theme-preview">
+                  <div class="profile-theme-preview-card">
+                    <span class="profile-theme-preview-chip">Preview</span>
+                    <strong>Profile card</strong>
+                    <p class="small">Background, letters, cards, columns, and buttons update from this theme.</p>
+                    <button type="button" class="primary">Sample button</button>
+                  </div>
+                </div>
+                <div class="row">
+                  <button type="button" id="aThemeResetBtn" class="ghost">Reset default colors</button>
                 </div>
               </div>
             </div>

@@ -1871,8 +1871,116 @@ function setProfile(profile, { sync = true } = {}) {
   }
 }
 
+const DEFAULT_APP_THEME = {
+  backgroundColor: "#f5f9ff",
+  textColor: "#0f1726",
+  mutedTextColor: "#64748b",
+  panelColor: "#ffffff",
+  cardColor: "#ffffff",
+  columnColor: "#eef4ff",
+  accentColor: "#123462",
+  highlightColor: "#c8102e"
+};
+
+function isValidHexColor(value = "") {
+  return /^#[0-9a-f]{6}$/i.test(String(value || "").trim());
+}
+
+function normalizeHexColor(value = "", fallback = "#000000") {
+  const safeValue = String(value || "").trim();
+  return isValidHexColor(safeValue) ? safeValue.toLowerCase() : fallback;
+}
+
+function hexToRgb(value = "#000000") {
+  const hex = normalizeHexColor(value, "#000000").slice(1);
+  return {
+    r: parseInt(hex.slice(0, 2), 16),
+    g: parseInt(hex.slice(2, 4), 16),
+    b: parseInt(hex.slice(4, 6), 16)
+  };
+}
+
+function hexToRgba(value = "#000000", alpha = 1) {
+  const rgb = hexToRgb(value);
+  const safeAlpha = Math.max(0, Math.min(1, Number(alpha) || 0));
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${safeAlpha})`;
+}
+
+function normalizeAppTheme(theme = {}) {
+  const safeTheme = theme && typeof theme === "object" ? theme : {};
+  return {
+    backgroundColor: normalizeHexColor(safeTheme.backgroundColor, DEFAULT_APP_THEME.backgroundColor),
+    textColor: normalizeHexColor(safeTheme.textColor, DEFAULT_APP_THEME.textColor),
+    mutedTextColor: normalizeHexColor(safeTheme.mutedTextColor, DEFAULT_APP_THEME.mutedTextColor),
+    panelColor: normalizeHexColor(safeTheme.panelColor, DEFAULT_APP_THEME.panelColor),
+    cardColor: normalizeHexColor(safeTheme.cardColor, DEFAULT_APP_THEME.cardColor),
+    columnColor: normalizeHexColor(safeTheme.columnColor, DEFAULT_APP_THEME.columnColor),
+    accentColor: normalizeHexColor(safeTheme.accentColor, DEFAULT_APP_THEME.accentColor),
+    highlightColor: normalizeHexColor(safeTheme.highlightColor, DEFAULT_APP_THEME.highlightColor)
+  };
+}
+
+function hasCustomAppTheme(theme = {}) {
+  if (!theme || typeof theme !== "object") return false;
+  const normalized = normalizeAppTheme(theme);
+  return Object.keys(DEFAULT_APP_THEME).some((key) => normalized[key] !== DEFAULT_APP_THEME[key]);
+}
+
+function applyAppTheme(theme = null) {
+  const root = document.documentElement;
+  if (!root) return;
+  const body = document.body;
+  if (!theme || !hasCustomAppTheme(theme)) {
+    Object.keys(DEFAULT_APP_THEME).forEach((key) => {
+      const cssName = key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+      root.style.removeProperty(`--theme-${cssName}`);
+    });
+    [
+      "--bg",
+      "--text",
+      "--muted",
+      "--panel",
+      "--card",
+      "--stroke",
+      "--theme-background",
+      "--theme-panel",
+      "--theme-panel-soft",
+      "--theme-card",
+      "--theme-column",
+      "--theme-accent",
+      "--theme-highlight",
+      "--theme-accent-soft",
+      "--theme-highlight-soft",
+      "--theme-accent-border"
+    ].forEach((name) => root.style.removeProperty(name));
+    if (body) delete body.dataset.themeCustom;
+    return;
+  }
+
+  const normalized = normalizeAppTheme(theme);
+  const stroke = hexToRgba(normalized.accentColor, 0.28);
+  root.style.setProperty("--bg", normalized.backgroundColor);
+  root.style.setProperty("--text", normalized.textColor);
+  root.style.setProperty("--muted", normalized.mutedTextColor);
+  root.style.setProperty("--panel", hexToRgba(normalized.panelColor, 0.9));
+  root.style.setProperty("--card", hexToRgba(normalized.cardColor, 0.96));
+  root.style.setProperty("--stroke", stroke);
+  root.style.setProperty("--theme-background", normalized.backgroundColor);
+  root.style.setProperty("--theme-panel", hexToRgba(normalized.panelColor, 0.92));
+  root.style.setProperty("--theme-panel-soft", hexToRgba(normalized.panelColor, 0.72));
+  root.style.setProperty("--theme-card", hexToRgba(normalized.cardColor, 0.94));
+  root.style.setProperty("--theme-column", hexToRgba(normalized.columnColor, 0.9));
+  root.style.setProperty("--theme-accent", normalized.accentColor);
+  root.style.setProperty("--theme-highlight", normalized.highlightColor);
+  root.style.setProperty("--theme-accent-soft", hexToRgba(normalized.accentColor, 0.14));
+  root.style.setProperty("--theme-highlight-soft", hexToRgba(normalized.highlightColor, 0.14));
+  root.style.setProperty("--theme-accent-border", hexToRgba(normalized.accentColor, 0.45));
+  if (body) body.dataset.themeCustom = "true";
+}
+
 async function applyProfile(profile) {
   if (!profile) {
+    applyAppTheme(null);
     stopCoachWorkspaceRealtimeSync();
     stopParentPortalRealtimeSync();
     stopAthletePortalRealtimeSync();
@@ -1885,6 +1993,7 @@ async function applyProfile(profile) {
     return;
   }
 
+  applyAppTheme(profile.appTheme);
   const role = normalizeAuthRole(profile.role);
   const view = resolveViewForRole(role, profile.view);
   setLanguage(profile.lang || getPreferredLang(), { skipConfirm: true, refresh: false });
@@ -4983,6 +5092,7 @@ function normalizeCoachAthleteRecord(id, data = {}) {
     competitionSummaryProfile: String(data.competitionSummaryProfile || "").trim(),
     competitionSummaryWorkOns: String(data.competitionSummaryWorkOns || "").trim(),
     competitionSummaryCues: String(data.competitionSummaryCues || "").trim(),
+    appTheme: normalizeAppTheme(data.appTheme || {}),
     pressureError: String(data.pressureError || "").trim(),
     coachSignal: String(data.coachSignal || "").trim(),
     tags: normalizeSmartTags(data.tags || []),
@@ -13676,6 +13786,15 @@ const aSafetyWarning2 = document.getElementById("aSafetyWarning2");
 const aPhysicalLimitation1 = document.getElementById("aPhysicalLimitation1");
 const aPhysicalLimitation2 = document.getElementById("aPhysicalLimitation2");
 const aCompetitionCue = document.getElementById("aCompetitionCue");
+const aThemeBackgroundColor = document.getElementById("aThemeBackgroundColor");
+const aThemeTextColor = document.getElementById("aThemeTextColor");
+const aThemeMutedTextColor = document.getElementById("aThemeMutedTextColor");
+const aThemePanelColor = document.getElementById("aThemePanelColor");
+const aThemeCardColor = document.getElementById("aThemeCardColor");
+const aThemeColumnColor = document.getElementById("aThemeColumnColor");
+const aThemeAccentColor = document.getElementById("aThemeAccentColor");
+const aThemeHighlightColor = document.getElementById("aThemeHighlightColor");
+const aThemeResetBtn = document.getElementById("aThemeResetBtn");
 
 function collectTechniques(selector) {
   return Array.from(document.querySelectorAll(selector))
@@ -13896,6 +14015,32 @@ function getProfileTags() {
   return normalizeSmartTags(Array.from(profileTagState));
 }
 
+function readAppThemeForm(existingTheme = {}) {
+  return normalizeAppTheme({
+    ...existingTheme,
+    backgroundColor: aThemeBackgroundColor?.value,
+    textColor: aThemeTextColor?.value,
+    mutedTextColor: aThemeMutedTextColor?.value,
+    panelColor: aThemePanelColor?.value,
+    cardColor: aThemeCardColor?.value,
+    columnColor: aThemeColumnColor?.value,
+    accentColor: aThemeAccentColor?.value,
+    highlightColor: aThemeHighlightColor?.value
+  });
+}
+
+function fillAppThemeForm(theme = {}) {
+  const normalized = normalizeAppTheme(theme);
+  if (aThemeBackgroundColor) aThemeBackgroundColor.value = normalized.backgroundColor;
+  if (aThemeTextColor) aThemeTextColor.value = normalized.textColor;
+  if (aThemeMutedTextColor) aThemeMutedTextColor.value = normalized.mutedTextColor;
+  if (aThemePanelColor) aThemePanelColor.value = normalized.panelColor;
+  if (aThemeCardColor) aThemeCardColor.value = normalized.cardColor;
+  if (aThemeColumnColor) aThemeColumnColor.value = normalized.columnColor;
+  if (aThemeAccentColor) aThemeAccentColor.value = normalized.accentColor;
+  if (aThemeHighlightColor) aThemeHighlightColor.value = normalized.highlightColor;
+}
+
 function tendencyFallback(strategy) {
   return strategyToTendency(strategy);
 }
@@ -13989,7 +14134,8 @@ function readAthleteProfileForm(existing = {}) {
     mentalReminders,
     safetyWarnings,
     physicalLimitations,
-    competitionCue: aCompetitionCue?.value.trim() || ""
+    competitionCue: aCompetitionCue?.value.trim() || "",
+    appTheme: readAppThemeForm(existing.appTheme)
   };
 }
 
@@ -15237,6 +15383,7 @@ function fillAthleteProfileForm(profile) {
   fillTechniques(".a-tech-bottom", profile.techniques?.bottom || []);
   fillTechniques(".a-tech-defense", profile.techniques?.defense || []);
 
+  fillAppThemeForm(profile.appTheme || DEFAULT_APP_THEME);
   setProfileTags(profile.tags || []);
   renderCoachQuickPreview(profile);
 }
@@ -15429,6 +15576,7 @@ async function syncAthleteProfileToCoachWorkspace(profile = getProfile(), authUs
     competitionSummaryProfile: String(profile.competitionSummaryProfile || "").trim(),
     competitionSummaryWorkOns: String(profile.competitionSummaryWorkOns || "").trim(),
     competitionSummaryCues: String(profile.competitionSummaryCues || "").trim(),
+    appTheme: normalizeAppTheme(profile.appTheme || {}),
     pressureError: String(profile.pressureError || "").trim(),
     coachSignal: String(profile.coachSignal || "").trim(),
     tags: normalizeSmartTags(profile.tags || []),
@@ -17577,6 +17725,9 @@ if (athleteProfileForm) {
     const target = event.target;
     if (!target || !target.matches?.("input, select, textarea")) return;
     if (["file", "button", "submit", "reset", "password"].includes(String(target.type || "").toLowerCase())) return;
+    if (String(target.id || "").startsWith("aTheme") && !isCoachAthleteProfileEditActive()) {
+      applyAppTheme(readAppThemeForm(getAthleteProfileFormSourceProfile()?.appTheme));
+    }
     queueAthleteProfileAutosave({
       delay: event.type === "change" ? 350 : 900,
       reason: target.id || target.name || event.type
@@ -17584,6 +17735,16 @@ if (athleteProfileForm) {
   };
   athleteProfileForm.addEventListener("input", queueAutosaveForEditableProfileField);
   athleteProfileForm.addEventListener("change", queueAutosaveForEditableProfileField);
+}
+
+if (aThemeResetBtn) {
+  aThemeResetBtn.addEventListener("click", () => {
+    fillAppThemeForm(DEFAULT_APP_THEME);
+    if (!isCoachAthleteProfileEditActive()) {
+      applyAppTheme(null);
+    }
+    queueAthleteProfileAutosave({ delay: 250, reason: "theme-reset" });
+  });
 }
 
 if (continueQuestionnaireLaterBtn) {

@@ -67,6 +67,54 @@ body{
   padding-right: var(--safe-right);
 }
 
+body[data-theme-custom="true"]{
+  color: var(--text);
+  background-color: var(--bg);
+  background:
+    radial-gradient(circle at 8% 4%, var(--theme-accent-soft), transparent 34%),
+    radial-gradient(circle at 88% 10%, var(--theme-highlight-soft), transparent 36%),
+    linear-gradient(180deg, var(--theme-background), var(--theme-background));
+}
+
+body[data-theme-custom="true"] .card{
+  background: linear-gradient(180deg, var(--theme-panel), var(--theme-panel-soft));
+}
+
+body[data-theme-custom="true"] .mini-card,
+body[data-theme-custom="true"] .coach-athlete-action-card,
+body[data-theme-custom="true"] .coach-athlete-roster-shell,
+body[data-theme-custom="true"] .messages-sidebar-block,
+body[data-theme-custom="true"] .message-thread-row,
+body[data-theme-custom="true"] .calendar-day-card,
+body[data-theme-custom="true"] .assignment-card,
+body[data-theme-custom="true"] .competition-preview-card{
+  background: var(--theme-column);
+}
+
+body[data-theme-custom="true"] input,
+body[data-theme-custom="true"] textarea,
+body[data-theme-custom="true"] select{
+  color: var(--text);
+  background: var(--theme-card);
+  border-color: var(--stroke);
+}
+
+body[data-theme-custom="true"] .primary,
+body[data-theme-custom="true"] .tab.active,
+body[data-theme-custom="true"] .profile-subtab.active{
+  color: #ffffff;
+  border-color: var(--theme-accent-border);
+  background: linear-gradient(90deg, var(--theme-accent), var(--theme-highlight));
+}
+
+body[data-theme-custom="true"] .chip,
+body[data-theme-custom="true"] .status-pill,
+body[data-theme-custom="true"] .tag-chip.active{
+  border-color: var(--theme-accent-border);
+  background: var(--theme-accent-soft);
+  color: var(--text);
+}
+
 body::before{
   content: "";
   position: fixed;
@@ -1450,6 +1498,50 @@ button:active{
 .profile-subpanel{
   display: grid;
   gap: 12px;
+}
+
+.profile-theme-section{
+  display: grid;
+  gap: 14px;
+}
+
+.profile-theme-grid label{
+  align-content: start;
+}
+
+.profile-theme-grid input[type="color"]{
+  min-height: 48px;
+  padding: 4px;
+  cursor: pointer;
+}
+
+.profile-theme-preview{
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid var(--stroke);
+  background:
+    radial-gradient(circle at 10% 10%, var(--theme-accent-soft, rgba(18,52,98,0.14)), transparent 36%),
+    var(--theme-background, rgba(255,255,255,0.06));
+}
+
+.profile-theme-preview-card{
+  display: grid;
+  gap: 8px;
+  max-width: 360px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--stroke);
+  color: var(--text);
+  background: var(--theme-card, rgba(255,255,255,0.1));
+}
+
+.profile-theme-preview-chip{
+  width: max-content;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--theme-accent-border, rgba(255,255,255,0.18));
+  background: var(--theme-accent-soft, rgba(255,255,255,0.1));
+  font-size: 12px;
 }
 
 .profile-grid{
