@@ -1573,7 +1573,7 @@ function syncVisibleProfileAvatars(profile = getProfile()) {
     name,
     fallback: currentLang === "es" ? "AT" : "AT"
   });
-  renderAvatarElement(document.getElementById("messagesThreadAvatar"), {
+  renderAvatarElement(messagesThreadAvatar, {
     photo,
     name,
     fallback: currentLang === "es" ? "MS" : "MS"
