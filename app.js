@@ -10472,14 +10472,15 @@ const COACH_ROUTE_BY_PANEL = Object.entries(COACH_ROUTE_PANELS).reduce((acc, [ro
 const APP_LAUNCH_CONFIG = (() => {
   try {
     const params = new URLSearchParams(window.location.search || "");
-    const routeTab = resolveAppTabFromRoutePath() || String(window.WPL_ROUTE_TAB || "").trim();
+    const routeName = getCurrentAppRouteName() || String(window.WPL_ROUTE_TAB || "").trim();
     return {
-      tab: String(params.get("openTab") || routeTab || "").trim(),
+      tab: String(params.get("openTab") || "").trim(),
+      routeName,
       contactUid: normalizeUid(params.get("contactUid") || ""),
       competitionShareId: String(params.get("share") || params.get("competitionShare") || "").trim()
     };
   } catch (_err) {
-    return { tab: "", contactUid: "", competitionShareId: "" };
+    return { tab: "", routeName: "", contactUid: "", competitionShareId: "" };
   }
 })();
 let launchConfigApplied = false;
@@ -10548,8 +10549,9 @@ async function applyLaunchConfig() {
     await openPublicCompetitionShare(APP_LAUNCH_CONFIG.competitionShareId);
     return;
   }
-  if (!APP_LAUNCH_CONFIG.tab) return;
-  await showTab(APP_LAUNCH_CONFIG.tab);
+  const launchTab = APP_LAUNCH_CONFIG.tab || resolveRouteTargetForView(APP_ROUTE_TO_TAB[APP_LAUNCH_CONFIG.routeName]) || "";
+  if (!launchTab) return;
+  await showTab(launchTab);
   if (APP_LAUNCH_CONFIG.contactUid) {
     await openDirectMessageThreadWithRetry(APP_LAUNCH_CONFIG.contactUid);
   }
@@ -10593,6 +10595,24 @@ function shouldReloadForPrunedRoutePanels(tabKey, visiblePanels = []) {
   } catch {
     return nextUrl !== window.location.pathname;
   }
+}
+
+function ensureCoachHomeRendered() {
+  const isCoachHomeContext = (currentView === "coach" || currentView === "admin")
+    && (getCurrentAppRouteName() === "home" || currentTopTab === "coach-home");
+  if (!isCoachHomeContext) return;
+  const dashboardPanel = panels.dashboard || document.getElementById("panel-dashboard");
+  const coachProfilePanel = panels["coach-profile"] || document.getElementById("panel-coach-profile");
+  if (dashboardPanel) {
+    dashboardPanel.classList.remove("hidden");
+    dashboardPanel.style.order = "1";
+  }
+  if (coachProfilePanel) {
+    coachProfilePanel.classList.remove("hidden");
+    coachProfilePanel.style.order = "2";
+  }
+  renderDashboard();
+  renderCoachProfile();
 }
 
 async function showTab(name) {
@@ -10712,6 +10732,7 @@ async function showTab(name) {
   }
 
   resetViewportToTop();
+  ensureCoachHomeRendered();
 }
 
 function flashActionTarget(element) {
@@ -25688,6 +25709,7 @@ function renderDashboard() {
   if (homeAlertsTitle) homeAlertsTitle.textContent = currentLang === "es" ? "Alertas importantes" : "Important Alerts";
   if (homeParentApprovalsTitle) homeParentApprovalsTitle.textContent = currentLang === "es" ? "Solicitudes de acceso de padres" : "Parent Access Requests";
   if (homeParentScoutingTitle) homeParentScoutingTitle.textContent = currentLang === "es" ? "Scouting de padres" : "Parent Scouting Feed";
+  if (!teamStats || !teamOverview || !quickActions || !alertList) return;
 
   const athletes = getAthletesData();
   const assignmentRecords = getCoachAssignmentRecords();
