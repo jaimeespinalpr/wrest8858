@@ -10362,34 +10362,71 @@ const tabBtns = Array.from(document.querySelectorAll(".tab"));
 let currentTopTab = "";
 let currentFocusedPanel = "";
 let appDomainRenderReady = false;
-const panels = {
-  today: document.getElementById("panel-today"),
-  "tournament-view": document.getElementById("panel-tournament-view"),
-  "parent-home": document.getElementById("panel-parent-home"),
-  "parent-scouting": document.getElementById("panel-parent-scouting"),
-  "athlete-profile": document.getElementById("panel-athlete-profile"),
-  training: document.getElementById("panel-training"),
-  calendar: document.getElementById("panel-calendar"),
-  media: document.getElementById("panel-media"),
-  journal: document.getElementById("panel-journal"),
-  favorites: document.getElementById("panel-favorites"),
-  announcements: document.getElementById("panel-announcements"),
-  dashboard: document.getElementById("panel-dashboard"),
-  "coach-profile": document.getElementById("panel-coach-profile"),
-  athletes: document.getElementById("panel-athletes"),
-  "coach-match": document.getElementById("panel-coach-match"),
-  plans: document.getElementById("panel-plans"),
-  assignments: document.getElementById("panel-assignments"),
-  "calendar-manager": document.getElementById("panel-calendar-manager"),
-  "completion-tracking": document.getElementById("panel-completion-tracking"),
-  "athlete-notes": document.getElementById("panel-athlete-notes"),
-  skills: document.getElementById("panel-skills"),
-  "journal-monitor": document.getElementById("panel-journal-monitor"),
-  messages: document.getElementById("panel-messages"),
-  permissions: document.getElementById("panel-permissions"),
-  future: document.getElementById("panel-future"),
-  "competition-preview": document.getElementById("panel-competition-preview")
+const PANEL_ELEMENT_IDS = {
+  today: "panel-today",
+  "tournament-view": "panel-tournament-view",
+  "parent-home": "panel-parent-home",
+  "parent-scouting": "panel-parent-scouting",
+  "athlete-profile": "panel-athlete-profile",
+  training: "panel-training",
+  calendar: "panel-calendar",
+  media: "panel-media",
+  journal: "panel-journal",
+  favorites: "panel-favorites",
+  announcements: "panel-announcements",
+  dashboard: "panel-dashboard",
+  "coach-profile": "panel-coach-profile",
+  athletes: "panel-athletes",
+  "coach-match": "panel-coach-match",
+  plans: "panel-plans",
+  assignments: "panel-assignments",
+  "calendar-manager": "panel-calendar-manager",
+  "completion-tracking": "panel-completion-tracking",
+  "athlete-notes": "panel-athlete-notes",
+  skills: "panel-skills",
+  "journal-monitor": "panel-journal-monitor",
+  messages: "panel-messages",
+  permissions: "panel-permissions",
+  future: "panel-future",
+  "competition-preview": "panel-competition-preview"
 };
+const panels = {
+  today: document.getElementById(PANEL_ELEMENT_IDS.today),
+  "tournament-view": document.getElementById(PANEL_ELEMENT_IDS["tournament-view"]),
+  "parent-home": document.getElementById(PANEL_ELEMENT_IDS["parent-home"]),
+  "parent-scouting": document.getElementById(PANEL_ELEMENT_IDS["parent-scouting"]),
+  "athlete-profile": document.getElementById(PANEL_ELEMENT_IDS["athlete-profile"]),
+  training: document.getElementById(PANEL_ELEMENT_IDS.training),
+  calendar: document.getElementById(PANEL_ELEMENT_IDS.calendar),
+  media: document.getElementById(PANEL_ELEMENT_IDS.media),
+  journal: document.getElementById(PANEL_ELEMENT_IDS.journal),
+  favorites: document.getElementById(PANEL_ELEMENT_IDS.favorites),
+  announcements: document.getElementById(PANEL_ELEMENT_IDS.announcements),
+  dashboard: document.getElementById(PANEL_ELEMENT_IDS.dashboard),
+  "coach-profile": document.getElementById(PANEL_ELEMENT_IDS["coach-profile"]),
+  athletes: document.getElementById(PANEL_ELEMENT_IDS.athletes),
+  "coach-match": document.getElementById(PANEL_ELEMENT_IDS["coach-match"]),
+  plans: document.getElementById(PANEL_ELEMENT_IDS.plans),
+  assignments: document.getElementById(PANEL_ELEMENT_IDS.assignments),
+  "calendar-manager": document.getElementById(PANEL_ELEMENT_IDS["calendar-manager"]),
+  "completion-tracking": document.getElementById(PANEL_ELEMENT_IDS["completion-tracking"]),
+  "athlete-notes": document.getElementById(PANEL_ELEMENT_IDS["athlete-notes"]),
+  skills: document.getElementById(PANEL_ELEMENT_IDS.skills),
+  "journal-monitor": document.getElementById(PANEL_ELEMENT_IDS["journal-monitor"]),
+  messages: document.getElementById(PANEL_ELEMENT_IDS.messages),
+  permissions: document.getElementById(PANEL_ELEMENT_IDS.permissions),
+  future: document.getElementById(PANEL_ELEMENT_IDS.future),
+  "competition-preview": document.getElementById(PANEL_ELEMENT_IDS["competition-preview"])
+};
+
+function refreshPanelRefs() {
+  Object.entries(PANEL_ELEMENT_IDS).forEach(([key, id]) => {
+    const current = panels[key];
+    if (!current || !current.isConnected) {
+      panels[key] = document.getElementById(id);
+    }
+  });
+}
 let lastTournamentReturnTab = "";
 const COACH_ROUTE_PANELS = {
   "coach-home": ["dashboard", "coach-profile"],
@@ -10598,6 +10635,7 @@ function shouldReloadForPrunedRoutePanels(tabKey, visiblePanels = []) {
 }
 
 function ensureCoachHomeRendered() {
+  refreshPanelRefs();
   const isCoachHomeContext = (currentView === "coach" || currentView === "admin")
     && (getCurrentAppRouteName() === "home" || currentTopTab === "coach-home");
   if (!isCoachHomeContext) return;
@@ -10616,6 +10654,7 @@ function ensureCoachHomeRendered() {
 }
 
 async function showTab(name) {
+  refreshPanelRefs();
   const resolved = resolveRouteTabRequest(name);
   if (athleteCalendarActionModal && resolved.tab !== "calendar") {
     closeAthleteCalendarActionModal();
@@ -11139,6 +11178,7 @@ if (tournamentScoutingForm) {
 function focusRoutePanel(panelKey, { selector = "", selectText = false } = {}) {
   Promise.resolve(showTab(panelKey)).finally(() => {
     requestAnimationFrame(() => {
+      refreshPanelRefs();
       const panel = panels[panelKey] || null;
       const target = selector
         ? (panel?.querySelector(selector) || document.querySelector(selector))
@@ -11183,13 +11223,16 @@ function setRoleUI(role, view = "athlete") {
       : VIEW_META_TEXT.athlete.en;
   }
 
-  const defaultTab = view === "admin"
+  const launchRouteTab = !appDomainRenderReady
+    ? (APP_LAUNCH_CONFIG.tab || resolveRouteTargetForView(APP_ROUTE_TO_TAB[APP_LAUNCH_CONFIG.routeName]) || "")
+    : "";
+  const defaultTab = launchRouteTab || (view === "admin"
     ? "permissions"
     : view === "parent"
       ? "parent-home"
       : view === "coach" || isCoachRole(roleName)
         ? "coach-home"
-        : "today";
+        : "today");
   toggleParentViewNotice(view);
   enforceStrictAuthUI();
   showTab(defaultTab);
