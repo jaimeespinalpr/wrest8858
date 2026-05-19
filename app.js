@@ -10,7 +10,7 @@ const DEFAULT_LANG = "en";
 const APP_TIMEZONE = "America/New_York";
 const SUPPORTED_LANGS = new Set(["en", "es", "uz", "ru"]);
 const PUBLISH_READY_MODE = String(window.WPL_PUBLISH_READY_MODE || "true").toLowerCase() !== "false";
-const DOMAIN_ASSET_VERSION = "20260510-phase2-msg1";
+const DOMAIN_ASSET_VERSION = "20260519-msg-hotfix1";
 const APP_ASSET_BASE_URL = (() => {
   const currentScriptSrc = document.currentScript?.src || "";
   const appScriptSrc = currentScriptSrc || Array.from(document.scripts || [])
@@ -143,6 +143,87 @@ async function appendMessageToThread(payload = {}) {
     throw new Error("messages_append_unavailable");
   }
   return domain.appendMessageToThread(payload);
+}
+
+function normalizeMessageParticipantRole(role, email = "") {
+  const normalizedRole = normalizeAuthRole(role);
+  if (normalizedRole === "coach" || normalizedRole === "parent" || normalizedRole === "athlete") {
+    return normalizedRole;
+  }
+  if (normalizedRole === "admin" || isForcedAdminEmail(email) || OFFICIAL_COACH_EMAILS.has(normalizeEmail(email))) {
+    return "coach";
+  }
+  return "athlete";
+}
+
+function getMessagesCurrentUser() {
+  const authUser = getAuthUser();
+  if (!authUser?.id) return null;
+  const profile = getProfile() || {};
+  const email = normalizeEmail(authUser.email || profile.email || "");
+  const role = normalizeMessageParticipantRole(profile.role || authUser.role, email);
+  return {
+    uid: String(authUser.id || "").trim(),
+    email,
+    role,
+    name: String(profile.name || authUser.email || "").trim() || "User",
+    linkedCoachUid: String(profile.linkedCoachUid || "").trim(),
+    linkedAthleteId: String(profile.linkedAthleteId || "").trim(),
+    linkedAthleteUid: String(profile.linkedAthleteUid || "").trim(),
+    status: normalizeParentVerificationStatus(profile.status)
+  };
+}
+
+function isCoachMessagingUser(user) {
+  return normalizeMessageParticipantRole(user?.role, user?.email) === "coach";
+}
+
+async function ensureDirectMessageThread(contact) {
+  const domain = await ensureMessagesDomainLoaded();
+  if (typeof domain.ensureDirectMessageThread !== "function") {
+    throw new Error("messages_thread_unavailable");
+  }
+  return domain.ensureDirectMessageThread(contact);
+}
+
+function markMessageThreadSeen(threadId = "", timestamp = 0) {
+  ensureMessagesDomainLoaded()
+    .then((domain) => domain.markMessageThreadSeen?.(threadId, timestamp))
+    .catch((err) => console.warn("Message seen sync unavailable", err));
+}
+
+function getFirestoreServerTimestamp() {
+  if (typeof firebase !== "undefined" && firebase.firestore?.FieldValue?.serverTimestamp) {
+    return firebase.firestore.FieldValue.serverTimestamp();
+  }
+  return new Date().toISOString();
+}
+
+function getFirestoreArrayUnion(...values) {
+  if (typeof firebase !== "undefined" && firebase.firestore?.FieldValue?.arrayUnion) {
+    return firebase.firestore.FieldValue.arrayUnion(...values);
+  }
+  return values;
+}
+
+function messageTimestampToMillis(value) {
+  if (!value) return 0;
+  if (typeof value.toMillis === "function") return value.toMillis();
+  if (typeof value.toDate === "function") return value.toDate().getTime();
+  return parseIsoTimestamp(value);
+}
+
+function formatMessageTimestamp(value) {
+  const ms = messageTimestampToMillis(value);
+  if (!ms) return "";
+  const locale = currentLang === "es" ? "es-ES" : "en-US";
+  return new Date(ms).toLocaleString(locale, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: APP_TIMEZONE
+  });
 }
 
 async function prepareMessagesDomainForOpen() {

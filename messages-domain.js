@@ -5510,7 +5510,9 @@ window.WPLMessagesDomain = {
   renderMessages,
   startMessagesRealtimeSync,
   openDirectMessageThreadWithRetry,
+  ensureDirectMessageThread,
   appendMessageToThread,
+  markMessageThreadSeen,
   prepareForOpen() {
     if (isCompactMessagesViewport()) {
       messagesCompactThreadVisible = false;
