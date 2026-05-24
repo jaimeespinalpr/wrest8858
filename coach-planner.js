@@ -599,7 +599,7 @@
     }
     try {
       const image = await loadImageForPalette(rawDataUrl);
-      const maxEdge = 920;
+      const maxEdge = 320;
       const sourceWidth = Math.max(1, Number(image.naturalWidth || image.width || 0));
       const sourceHeight = Math.max(1, Number(image.naturalHeight || image.height || 0));
       const scale = Math.min(1, maxEdge / Math.max(sourceWidth, sourceHeight));
