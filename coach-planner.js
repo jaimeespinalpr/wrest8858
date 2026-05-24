@@ -418,10 +418,10 @@
     };
   }
 
-  const DEFAULT_PLANNER_LOGO_URL = "https://united-wc.com/assets/uwc-logo.png";
+  const DEFAULT_PLANNER_LOGO_URL = "uwc-logo.png";
   const DEFAULT_PRINT_BORDER_COLOR = "#0d6b4a";
   const DEFAULT_PRINT_TEXT_COLOR = "#0d6b4a";
-  const MAX_LOGO_DATA_URL_LENGTH = 240000;
+  const MAX_LOGO_DATA_URL_LENGTH = 600000;
   const LEGACY_PLANNER_CLUB_NAME = "ARCHMERE AUKS";
   const LEGACY_PLANNER_COACH_NAME = "Coach Espinal";
   const LEGACY_PLANNER_SEASON = "Season 2025-2026";
@@ -520,7 +520,9 @@
 
   function sanitizePlannerLogoUrl(value, fallback = DEFAULT_PLANNER_LOGO_URL) {
     const clean = String(value || "").trim();
-    if (!clean) return String(fallback || "").trim();
+    if (!clean || clean === "https://united-wc.com/assets/uwc-logo.png" || clean === "https://www.united-wc.com/assets/uwc-logo.png") {
+      return String(fallback || "").trim();
+    }
     if (isInlineImageDataUrl(clean) && clean.length > MAX_LOGO_DATA_URL_LENGTH) {
       return String(fallback || "").trim() || DEFAULT_PLANNER_LOGO_URL;
     }
@@ -599,7 +601,7 @@
     }
     try {
       const image = await loadImageForPalette(rawDataUrl);
-      const maxEdge = 320;
+      const maxEdge = 480;
       const sourceWidth = Math.max(1, Number(image.naturalWidth || image.width || 0));
       const sourceHeight = Math.max(1, Number(image.naturalHeight || image.height || 0));
       const scale = Math.min(1, maxEdge / Math.max(sourceWidth, sourceHeight));
@@ -7402,6 +7404,21 @@
     renderRows();
   }
 
+  function moveScheduleItem(categoryId, itemId, direction) {
+    const safeCategoryId = normalizeCategoryId(categoryId);
+    const list = [...(state.schedule[safeCategoryId] || [])];
+    const idx = list.findIndex((item) => item.id === itemId);
+    if (idx === -1) return;
+    const nextIdx = idx + direction;
+    if (nextIdx < 0 || nextIdx >= list.length) return;
+    const temp = list[idx];
+    list[idx] = list[nextIdx];
+    list[nextIdx] = temp;
+    state.schedule[safeCategoryId] = list;
+    persistDaily();
+    renderRows();
+  }
+
   function updateScheduleItem(categoryId, itemId, nextName) {
     const safeCategoryId = normalizeCategoryId(categoryId);
     state.schedule[safeCategoryId] = (state.schedule[safeCategoryId] || []).map((item) => {
@@ -7507,6 +7524,26 @@
     renderLibraryGroups();
     renderCoachLibraries();
     triggerToast(tr({ en: "Section added.", es: "Seccion agregada." }));
+  }
+
+  function movePlannerCategory(categoryId, direction) {
+    const safeCategoryId = String(categoryId || "").trim();
+    if (!safeCategoryId) return;
+    const categories = getPlannerCategories();
+    const idx = categories.findIndex((c) => c.id === safeCategoryId);
+    if (idx === -1) return;
+    const nextIdx = idx + direction;
+    if (nextIdx < 0 || nextIdx >= categories.length) return;
+    const next = [...categories];
+    const temp = next[idx];
+    next[idx] = next[nextIdx];
+    next[nextIdx] = temp;
+    state.wrestlingCategories = next;
+    persistCategories();
+    persistCategoryNames();
+    renderRows();
+    renderLibraryGroups();
+    renderCategorySelectOptions();
   }
 
   function removePlannerCategory(categoryId) {
@@ -7786,9 +7823,15 @@
         .map((entry) => `<option value="${escapeHtml(entry.name)}">${escapeHtml(entry.name)}</option>`)
         .join("");
       const itemsHtml = items
-        .map((item) => {
+        .map((item, idx) => {
+          const isFirst = idx === 0;
+          const isLast = idx === items.length - 1;
           return `
             <li>
+              <div class="planner-item-move-btns">
+                <button type="button" class="ghost planner-move-btn" data-action="move-item-up" data-category="${category.id}" data-item-id="${item.id}" ${isFirst ? "disabled" : ""} title="Move up">▲</button>
+                <button type="button" class="ghost planner-move-btn" data-action="move-item-down" data-category="${category.id}" data-item-id="${item.id}" ${isLast ? "disabled" : ""} title="Move down">▼</button>
+              </div>
               <textarea
                 class="wtp-notes"
                 name="notes"
@@ -7805,10 +7848,18 @@
         })
         .join("");
 
+      const categoryIndex = categories.indexOf(category);
+      const isCatFirst = categoryIndex === 0;
+      const isCatLast = categoryIndex === categories.length - 1;
+
       return `
         <tr class="planner-row" data-plan-row>
           <td>
             <div class="planner-category-title">
+              <div class="planner-section-move-btns">
+                <button type="button" class="ghost planner-move-btn" data-action="move-category-up" data-category="${category.id}" ${isCatFirst ? "disabled" : ""} title="Move section up">▲</button>
+                <button type="button" class="ghost planner-move-btn" data-action="move-category-down" data-category="${category.id}" ${isCatLast ? "disabled" : ""} title="Move section down">▼</button>
+              </div>
               <input
                 type="text"
                 class="planner-library-category-input planner-row-category-input wtp-activity"
@@ -7986,6 +8037,22 @@
     }
     if (action === "remove-item") {
       removeFromSchedule(trigger.dataset.category, trigger.dataset.itemId);
+      return;
+    }
+    if (action === "move-item-up") {
+      moveScheduleItem(trigger.dataset.category, trigger.dataset.itemId, -1);
+      return;
+    }
+    if (action === "move-item-down") {
+      moveScheduleItem(trigger.dataset.category, trigger.dataset.itemId, 1);
+      return;
+    }
+    if (action === "move-category-up") {
+      movePlannerCategory(trigger.dataset.category, -1);
+      return;
+    }
+    if (action === "move-category-down") {
+      movePlannerCategory(trigger.dataset.category, 1);
       return;
     }
     if (action === "delete-library") {

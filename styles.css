@@ -11258,6 +11258,13 @@ svg{
   margin-bottom: 6px;
 }
 
+.planner-section-move-btns{
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
 .planner-row-category-input{
   flex: 1;
   min-height: 36px;
@@ -11293,6 +11300,43 @@ svg{
   display: flex;
   gap: 8px;
   align-items: flex-start;
+}
+
+.planner-item-move-btns{
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+
+.planner-move-btn{
+  width: 24px;
+  height: 20px;
+  min-height: 0 !important;
+  padding: 0 !important;
+  font-size: 10px;
+  line-height: 1;
+  border-radius: 5px;
+  border: 1px solid rgba(124, 147, 183, 0.22);
+  background: rgba(8, 19, 36, 0.55);
+  color: rgba(147, 197, 253, 0.75);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, opacity 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.planner-move-btn:hover:not(:disabled){
+  background: rgba(59, 130, 246, 0.22);
+  color: #93c5fd;
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+.planner-move-btn:disabled{
+  opacity: 0.2;
+  cursor: default;
 }
 
 .planner-items-list textarea{
@@ -12498,6 +12542,7 @@ body.viewport-mobile .app{
   .planner-row-controls,
   .planner-row-category-delete,
   .planner-items-list button,
+  .planner-section-move-btns,
   .planner-toast,
   .planner-alert,
   .planner-modal,
@@ -12653,6 +12698,8 @@ body.viewport-mobile .app{
 .coach-planner-card.planner-readonly .planner-row-controls,
 .coach-planner-card.planner-readonly .planner-row-category-delete,
 .coach-planner-card.planner-readonly .planner-bottom-actions,
+.coach-planner-card.planner-readonly .planner-item-move-btns,
+.coach-planner-card.planner-readonly .planner-section-move-btns,
 .coach-planner-card.planner-readonly #plannerLiftingSaveProtocolBtn,
 .coach-planner-card.planner-readonly #plannerLiftingShareBtn,
 .coach-planner-card.planner-readonly #plannerLiftingAddCategoryBtn,

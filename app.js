@@ -330,7 +330,7 @@ const OFFICIAL_COACH_EMAILS = new Set([
 const COACH_PLANNER_DEFAULTS = {
   clubName: "United Wrestling Club",
   season: "Season 2025-2026",
-  logoUrl: "https://united-wc.com/assets/uwc-logo.png",
+  logoUrl: "uwc-logo.png",
   footerMessage: "",
   printAutoColors: false,
   printBorderColor: "#0d6b4a",
@@ -7580,6 +7580,10 @@ async function handleSuccessfulAuth(result, { showWelcome = false } = {}) {
     const currentSettings = profile.plannerTemplateSettings && typeof profile.plannerTemplateSettings === "object"
       ? profile.plannerTemplateSettings
       : {};
+    const rawLogo = String(currentSettings.logoUrl || "").trim();
+    if (rawLogo === "https://united-wc.com/assets/uwc-logo.png" || rawLogo === "https://www.united-wc.com/assets/uwc-logo.png") {
+      currentSettings.logoUrl = "uwc-logo.png";
+    }
     const mergedSettings = {
       ...buildCoachPlannerTemplateSettings(profile.name || resolvedAuthUser.email || ""),
       ...currentSettings
@@ -10626,7 +10630,10 @@ function resolveTabPanelForCurrentView(tabKey) {
 function shouldReloadForPrunedRoutePanels(tabKey, visiblePanels = []) {
   if (!window.WPL_ROUTED_PANEL_PRUNING) return false;
   if (!Array.isArray(visiblePanels) || !visiblePanels.length) return false;
-  const missingPanel = visiblePanels.some((panelKey) => !panels[panelKey]);
+  const missingPanel = visiblePanels.some((panelKey) => {
+    const el = panels[panelKey];
+    return !el || !document.body.contains(el);
+  });
   if (!missingPanel) return false;
   const nextUrl = getRouteUrlForTab(tabKey);
   if (!nextUrl) return false;
