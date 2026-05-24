@@ -6890,15 +6890,21 @@
   function isPlannerReadOnlyMode() {
     const coachPlansPanel = document.getElementById("panel-coach-plans") || document.getElementById("panel-plans");
     const coachPlansTabActive = Boolean(document.querySelector(".tab.active[data-tab='coach-plans']"));
-    if ((coachPlansPanel && !coachPlansPanel.classList.contains("hidden")) || coachPlansTabActive) return false;
     const profileRole = String(getPlannerProfile()?.role || "").trim().toLowerCase();
     const authRole = String(getPlannerAuthUser()?.role || "").trim().toLowerCase();
+    const effectiveRole = profileRole || authRole;
+
+    if (isCoachLikeRole(effectiveRole) || coachPlansTabActive) {
+      if ((coachPlansPanel && !coachPlansPanel.classList.contains("hidden")) || coachPlansTabActive) {
+        return false;
+      }
+    }
+
     if (isCoachLikeRole(profileRole) || isCoachLikeRole(authRole)) return false;
     const view = getPlannerCurrentView();
     if (view === "coach" || view === "admin") return false;
     if (isCoachPlannerRouteActive()) return false;
     if (view === "athlete" || view === "parent") return true;
-    const effectiveRole = profileRole || authRole;
     if (!effectiveRole) return false;
     return !isCoachLikeRole(effectiveRole);
   }
@@ -8507,6 +8513,17 @@
       window.addEventListener("wpl:view-changed", () => {
         applyPlannerAccessMode();
       });
+      const plansPanel = document.getElementById("panel-plans");
+      if (plansPanel) {
+        try {
+          const observer = new MutationObserver(() => {
+            applyPlannerAccessMode();
+          });
+          observer.observe(plansPanel, { attributes: true, attributeFilter: ["class"] });
+        } catch (err) {
+          console.warn("Planner MutationObserver failed", err);
+        }
+      }
       window.addEventListener("wpl:language-changed", () => {
         if (state.mentalView === "game") {
           stopMentalNarration();
