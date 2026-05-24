@@ -14,3 +14,13 @@ window.FIREBASE_SHARED_COLLECTION = "shared_app";
 window.FIREBASE_MEDIA_TREE_DOC = "media_tree";
 window.WPL_MEDIA_UPLOADS_ROOT = "media_uploads";
 window.WPL_MEDIA_BASE_URL = "";
+
+(function loadPlansPolishStyles() {
+  const id = "wpl-plans-polish-css";
+  if (document.getElementById(id)) return;
+  const link = document.createElement("link");
+  link.id = id;
+  link.rel = "stylesheet";
+  link.href = "plans-polish.css?v=20260524-plans-polish1";
+  document.head.appendChild(link);
+}());
