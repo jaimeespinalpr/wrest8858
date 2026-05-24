@@ -1614,6 +1614,7 @@ function syncVisibleProfileAvatars(profile = getProfile()) {
     name,
     fallback: currentLang === "es" ? "AT" : "AT"
   });
+  const messagesThreadAvatar = document.getElementById("messagesThreadAvatar");
   renderAvatarElement(messagesThreadAvatar, {
     photo,
     name,
