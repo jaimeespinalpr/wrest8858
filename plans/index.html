@@ -4,7 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Wrestling Performance Lab - plans</title>
-  <script>window.WPL_ROUTE_TAB = "plans";</script>
+  <script>
+    window.WPL_ROUTE_TAB = "plans";
+    try { sessionStorage.setItem("wpl_initial_route", "plans"); } catch (_) {}
+  </script>
   <script src="../route-loader.js?v=20260510-phase2-dom1"></script>
 </head>
 <body>

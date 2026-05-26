@@ -2139,7 +2139,11 @@ function isPlansRouteRequest() {
   const path = String(window.location?.pathname || "");
   const routeTab = String(window.WPL_ROUTE_TAB || "").trim();
   const launchTab = String(typeof APP_LAUNCH_CONFIG !== "undefined" ? APP_LAUNCH_CONFIG.tab : "").trim();
-  return routeTab === "plans" || launchTab === "coach-plans" || /\/plans\/?$/.test(path);
+  let initialRoute = "";
+  try {
+    initialRoute = String(sessionStorage.getItem("wpl_initial_route") || "").trim();
+  } catch {}
+  return initialRoute === "plans" || routeTab === "plans" || launchTab === "coach-plans" || /\/plans\/?$/.test(path);
 }
 
 async function enterPlansCoachGuestIfNeeded() {
