@@ -2139,11 +2139,12 @@ function isPlansRouteRequest() {
   const path = String(window.location?.pathname || "");
   const routeTab = String(window.WPL_ROUTE_TAB || "").trim();
   const launchTab = String(typeof APP_LAUNCH_CONFIG !== "undefined" ? APP_LAUNCH_CONFIG.tab : "").trim();
+  const guestPlans = Boolean(typeof APP_LAUNCH_CONFIG !== "undefined" && APP_LAUNCH_CONFIG.guestPlans);
   let initialRoute = "";
   try {
     initialRoute = String(sessionStorage.getItem("wpl_initial_route") || "").trim();
   } catch {}
-  return initialRoute === "plans" || routeTab === "plans" || launchTab === "coach-plans" || /\/plans\/?$/.test(path);
+  return guestPlans || initialRoute === "plans" || routeTab === "plans" || launchTab === "coach-plans" || /\/plans\/?$/.test(path);
 }
 
 async function enterPlansCoachGuestIfNeeded() {
@@ -10558,11 +10559,12 @@ const APP_LAUNCH_CONFIG = (() => {
     const routeTab = resolveAppTabFromRoutePath() || String(window.WPL_ROUTE_TAB || "").trim();
     return {
       tab: String(params.get("openTab") || routeTab || "").trim(),
+      guestPlans: params.get("guestPlans") === "1",
       contactUid: normalizeUid(params.get("contactUid") || ""),
       competitionShareId: String(params.get("share") || params.get("competitionShare") || "").trim()
     };
   } catch (_err) {
-    return { tab: "", contactUid: "", competitionShareId: "" };
+    return { tab: "", guestPlans: false, contactUid: "", competitionShareId: "" };
   }
 })();
 let launchConfigApplied = false;
