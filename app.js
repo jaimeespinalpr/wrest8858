@@ -2102,6 +2102,11 @@ function showOnboarding(prefillProfile = null) {
   appRoot.classList.add("blurred", "hidden");
   enforceStrictAuthUI();
   showAuthChoice();
+  if (isPlansRouteRequest()) {
+    window.setTimeout(() => {
+      continueAsGuest("coach").catch((err) => console.warn("Plans guest entry failed", err));
+    }, 0);
+  }
 }
 
 function hideOnboarding() {
@@ -2124,7 +2129,27 @@ async function bootProfile() {
       firebaseAuthInstance?.signOut().catch(() => {});
     }
   }
+  if (await enterPlansCoachGuestIfNeeded()) {
+    return;
+  }
   showOnboarding(null);
+}
+
+function isPlansRouteRequest() {
+  const path = String(window.location?.pathname || "");
+  const routeTab = String(window.WPL_ROUTE_TAB || "").trim();
+  const launchTab = String(typeof APP_LAUNCH_CONFIG !== "undefined" ? APP_LAUNCH_CONFIG.tab : "").trim();
+  return routeTab === "plans" || launchTab === "coach-plans" || /\/plans\/?$/.test(path);
+}
+
+async function enterPlansCoachGuestIfNeeded() {
+  if (!isPlansRouteRequest() || getAuthUser()) return false;
+  const profile = buildGuestProfile("coach");
+  setAuthUser(null);
+  setProfile(profile, { sync: false });
+  await applyProfile(profile);
+  hideOnboarding();
+  return true;
 }
 
 const HEADER_COPY = {
@@ -4169,7 +4194,7 @@ function buildGuestProfile(role) {
 }
 
 async function continueAsGuest(role) {
-  if (AUTH_STRICT) {
+  if (AUTH_STRICT && !isPlansRouteRequest()) {
     showOnboarding(null);
     showAuthChoice();
     return;
@@ -10595,6 +10620,7 @@ async function applyLaunchConfig() {
     return;
   }
   if (!APP_LAUNCH_CONFIG.tab) return;
+  await enterPlansCoachGuestIfNeeded();
   await showTab(APP_LAUNCH_CONFIG.tab);
   if (APP_LAUNCH_CONFIG.contactUid) {
     await openDirectMessageThreadWithRetry(APP_LAUNCH_CONFIG.contactUid);
