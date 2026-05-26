@@ -2148,11 +2148,15 @@ function isPlansRouteRequest() {
 
 async function enterPlansCoachGuestIfNeeded() {
   if (!isPlansRouteRequest() || getAuthUser()) return false;
+  const shouldOpenPlans = true;
   const profile = buildGuestProfile("coach");
   setAuthUser(null);
   setProfile(profile, { sync: false });
   await applyProfile(profile);
   hideOnboarding();
+  if (shouldOpenPlans) {
+    await showTab("coach-plans");
+  }
   return true;
 }
 
@@ -4198,7 +4202,8 @@ function buildGuestProfile(role) {
 }
 
 async function continueAsGuest(role) {
-  if (AUTH_STRICT && !isPlansRouteRequest()) {
+  const shouldOpenPlans = isPlansRouteRequest();
+  if (AUTH_STRICT && !shouldOpenPlans) {
     showOnboarding(null);
     showAuthChoice();
     return;
@@ -4208,7 +4213,7 @@ async function continueAsGuest(role) {
   setProfile(profile);
   await applyProfile(profile);
   hideOnboarding();
-  if (isPlansRouteRequest()) {
+  if (shouldOpenPlans) {
     await showTab("coach-plans");
   }
 }
