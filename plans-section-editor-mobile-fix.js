@@ -117,6 +117,28 @@
     if (status) status.textContent = text || "";
   }
 
+  function isPlansEntry() {
+    try {
+      if (String(sessionStorage.getItem("wpl_initial_route") || "").trim() === "plans") return true;
+    } catch (_) {}
+    return /\/plans\/?(?:$|[?#])/.test(window.location.pathname + window.location.search) ||
+      String(window.WPL_ROUTE_TAB || "").trim() === "plans";
+  }
+
+  function forcePlansWorkspaceVisible() {
+    if (!isPlansEntry()) return;
+    var onboarding = document.getElementById("onboarding");
+    var appRoot = document.getElementById("appRoot");
+    if (onboarding) onboarding.classList.add("hidden");
+    if (appRoot) appRoot.classList.remove("hidden", "blurred");
+    ["panel-plans", "panel-assignments", "panel-completion-tracking", "panel-training"].forEach(function (id, index) {
+      var panel = document.getElementById(id);
+      if (!panel) return;
+      panel.classList.toggle("hidden", false);
+      panel.style.order = String(index + 1);
+    });
+  }
+
   function getSectionInput(target) {
     return target && target.closest && target.closest("#wplSectionMobileFix input[data-section-name]");
   }
@@ -239,10 +261,15 @@
   }, true);
 
   function boot() {
+    forcePlansWorkspaceVisible();
     buildEditor();
+    forcePlansWorkspaceVisible();
     setTimeout(buildEditorUnlessEditing, 800);
     setTimeout(buildEditorUnlessEditing, 1800);
     setTimeout(buildEditorUnlessEditing, 3000);
+    setTimeout(forcePlansWorkspaceVisible, 800);
+    setTimeout(forcePlansWorkspaceVisible, 1800);
+    setTimeout(forcePlansWorkspaceVisible, 3000);
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
