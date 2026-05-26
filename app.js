@@ -2147,7 +2147,7 @@ function isPlansRouteRequest() {
 }
 
 async function enterPlansCoachGuestIfNeeded() {
-  if (!isPlansRouteRequest() || getAuthUser()) return false;
+  if (!isPlansRouteRequest()) return false;
   const shouldOpenPlans = true;
   const profile = buildGuestProfile("coach");
   setAuthUser(null);
