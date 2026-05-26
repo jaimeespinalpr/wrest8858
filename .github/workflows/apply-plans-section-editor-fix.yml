@@ -1,0 +1,60 @@
+name: Apply plans section editor fix
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/apply-plans-section-editor-fix.yml'
+      - '.github/workflows/.apply-plans-section-editor-trigger'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Patch plans route to load section editor fix
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('plans/index.html')
+          text = path.read_text(encoding='utf-8')
+          script = '  <script src="../plans-section-editor-fix.js?v=20260526-section-editor1"></script>\n'
+          original = text
+          if 'plans-section-editor-fix.js' not in text:
+              text = text.replace('</body>', script + '</body>')
+
+          # Keep the routed plans page from pruning coach-plan variants if those panels exist.
+          loader = Path('route-loader.js')
+          if loader.exists():
+              loader_text = loader.read_text(encoding='utf-8')
+              loader_original = loader_text
+              loader_text = loader_text.replace(
+                  'plans: ["panel-plans", "panel-assignments", "panel-completion-tracking", "panel-training"]',
+                  'plans: ["panel-plans", "panel-coach-plans", "panel-assignments", "panel-completion-tracking", "panel-training"]'
+              )
+              if loader_text != loader_original:
+                  loader.write_text(loader_text, encoding='utf-8')
+
+          if text != original:
+              path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit fix if changed
+        run: |
+          if git diff --quiet -- plans/index.html route-loader.js; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add plans/index.html route-loader.js
+          git commit -m "Load section editor on routed plans page"
+          git push
