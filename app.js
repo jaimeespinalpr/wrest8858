@@ -4204,6 +4204,9 @@ async function continueAsGuest(role) {
   setProfile(profile);
   await applyProfile(profile);
   hideOnboarding();
+  if (isPlansRouteRequest()) {
+    await showTab("coach-plans");
+  }
 }
 
 if (guestAthleteBtn) {
