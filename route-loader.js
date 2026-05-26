@@ -23,7 +23,7 @@
     scouting: ["panel-parent-scouting"],
     home: ["panel-dashboard", "panel-coach-profile", "panel-parent-home", "panel-today"],
     athletes: ["panel-athletes", "panel-coach-match", "panel-journal-monitor", "panel-athlete-notes"],
-    plans: ["panel-plans", "panel-assignments", "panel-completion-tracking", "panel-training"],
+    plans: ["panel-plans", "panel-coach-plans", "panel-assignments", "panel-completion-tracking", "panel-training"],
     messages: ["panel-messages"],
     "coach-profile": ["panel-coach-profile"],
     permissions: ["panel-permissions"]
