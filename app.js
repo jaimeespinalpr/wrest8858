@@ -30660,9 +30660,6 @@ async function startApp() {
   await applyLaunchConfig().catch((err) => {
     console.warn("Could not apply launch config", err);
   });
-  if (currentTopTab) {
-    await showTab(currentTopTab);
-  }
   queueUserNameDecoration(document.body);
   startClock();
   const currentDayIndex = getCurrentAppDayIndex();

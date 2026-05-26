@@ -20,18 +20,18 @@
     var style = document.createElement("style");
     style.id = "wplSectionMobileFixStyle";
     style.textContent = [
-      "#wplSectionMobileFix{position:relative;z-index:2147483647;margin:12px;padding:14px;border-radius:18px;background:#ffffff;color:#0f172a;box-shadow:0 18px 50px rgba(15,23,42,.28);border:1px solid rgba(15,23,42,.12);pointer-events:auto;touch-action:manipulation;-webkit-transform:translateZ(0);transform:translateZ(0)}",
-      "#wplSectionMobileFix *{box-sizing:border-box;pointer-events:auto;touch-action:manipulation}",
+      "#wplSectionMobileFix{position:relative;z-index:2147483647;margin:12px;padding:14px;border-radius:18px;background:#ffffff;color:#0f172a;box-shadow:0 18px 50px rgba(15,23,42,.28);border:1px solid rgba(15,23,42,.12);pointer-events:auto;-webkit-transform:translateZ(0);transform:translateZ(0)}",
+      "#wplSectionMobileFix *{box-sizing:border-box;pointer-events:auto}",
       "#wplSectionMobileFix h3{margin:0;font-size:18px;line-height:1.15;color:#0f172a}",
       "#wplSectionMobileFix p{margin:4px 0 0;color:#475569;font-size:13px;line-height:1.25}",
       "#wplSectionMobileFix .wpl-mobile-header{display:flex;gap:10px;justify-content:space-between;align-items:flex-start;margin-bottom:12px}",
       "#wplSectionMobileFix .wpl-mobile-list{display:grid;gap:10px;max-height:52vh;overflow:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px}",
       "#wplSectionMobileFix .wpl-mobile-row{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center;padding:10px;border:1px solid rgba(15,23,42,.12);border-radius:14px;background:#f8fafc}",
       "#wplSectionMobileFix .wpl-mobile-number{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:999px;background:#0f172a;color:#fff;font-size:13px;font-weight:800}",
-      "#wplSectionMobileFix input{grid-column:2;width:100%;min-height:46px;border:1px solid rgba(15,23,42,.24);border-radius:12px;background:#fff;color:#0f172a;font-size:16px!important;line-height:1.2;padding:10px 12px;-webkit-user-select:text;user-select:text;outline:none;appearance:none;-webkit-appearance:none}",
+      "#wplSectionMobileFix input{grid-column:2;width:100%;min-height:46px;border:1px solid rgba(15,23,42,.24);border-radius:12px;background:#fff;color:#0f172a;font-size:16px!important;line-height:1.2;padding:10px 12px;-webkit-user-select:text;user-select:text;caret-color:#0f172a;outline:none;appearance:none;-webkit-appearance:none;touch-action:auto}",
       "#wplSectionMobileFix input:focus{border-color:#0d6b4a;box-shadow:0 0 0 3px rgba(13,107,74,.18)}",
       "#wplSectionMobileFix .wpl-mobile-actions{grid-column:1 / -1;display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}",
-      "#wplSectionMobileFix button{min-height:40px;border:1px solid rgba(15,23,42,.18);border-radius:12px;background:#fff;color:#0f172a;font-size:14px;font-weight:700;padding:8px 10px;cursor:pointer;appearance:none;-webkit-appearance:none}",
+      "#wplSectionMobileFix button{min-height:40px;border:1px solid rgba(15,23,42,.18);border-radius:12px;background:#fff;color:#0f172a;font-size:14px;font-weight:700;padding:8px 10px;cursor:pointer;appearance:none;-webkit-appearance:none;touch-action:manipulation}",
       "#wplSectionMobileFix button.primary{background:#0d6b4a;color:#fff;border-color:#0d6b4a}",
       "#wplSectionMobileFix button:disabled{opacity:.45}",
       "#wplSectionMobileFix .wpl-mobile-footer{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}",
@@ -117,6 +117,20 @@
     if (status) status.textContent = text || "";
   }
 
+  function getSectionInput(target) {
+    return target && target.closest && target.closest("#wplSectionMobileFix input[data-section-name]");
+  }
+
+  function isEditingSectionName() {
+    return document.activeElement &&
+      document.activeElement.matches &&
+      document.activeElement.matches("#wplSectionMobileFix input[data-section-name]");
+  }
+
+  function buildEditorUnlessEditing() {
+    if (!isEditingSectionName()) buildEditor();
+  }
+
   function buildEditor() {
     injectStyle();
     var old = document.getElementById("wplSectionEditorFix");
@@ -179,14 +193,23 @@
     document.body.appendChild(btn);
   }
 
-  document.addEventListener("pointerdown", function (event) {
-    var input = event.target && event.target.closest && event.target.closest("#wplSectionMobileFix input[data-section-name]");
-    if (!input) return;
-    input.style.pointerEvents = "auto";
-    setTimeout(function () {
-      input.focus();
-      try { input.setSelectionRange(input.value.length, input.value.length); } catch (_) {}
-    }, 30);
+  ["pointerdown", "mousedown", "touchstart", "click"].forEach(function (eventName) {
+    document.addEventListener(eventName, function (event) {
+      var input = getSectionInput(event.target);
+      if (!input) return;
+      event.stopPropagation();
+      input.style.pointerEvents = "auto";
+      if (eventName === "touchstart") return;
+      setTimeout(function () {
+        input.focus();
+        try { input.setSelectionRange(input.value.length, input.value.length); } catch (_) {}
+      }, 0);
+    }, true);
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (!getSectionInput(event.target)) return;
+    event.stopPropagation();
   }, true);
 
   document.addEventListener("click", function (event) {
@@ -210,15 +233,16 @@
 
   document.addEventListener("input", function (event) {
     if (!event.target || !event.target.matches("#wplSectionMobileFix input[data-section-name]")) return;
+    event.stopPropagation();
     saveCategories(collect());
     setStatus("Saved locally.");
   }, true);
 
   function boot() {
     buildEditor();
-    setTimeout(buildEditor, 800);
-    setTimeout(buildEditor, 1800);
-    setTimeout(buildEditor, 3000);
+    setTimeout(buildEditorUnlessEditing, 800);
+    setTimeout(buildEditorUnlessEditing, 1800);
+    setTimeout(buildEditorUnlessEditing, 3000);
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });

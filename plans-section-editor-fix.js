@@ -153,6 +153,10 @@
     if (status) status.textContent = text || "";
   }
 
+  function getSectionInput(target) {
+    return target && target.closest && target.closest("#wplSectionEditorFix [data-section-name]");
+  }
+
   document.addEventListener("click", function (event) {
     var button = event.target && event.target.closest && event.target.closest("#wplSectionEditorFix [data-wpl-section-action]");
     if (!button) return;
@@ -211,8 +215,16 @@
 
   document.addEventListener("input", function (event) {
     if (!event.target || !event.target.matches("#wplSectionEditorFix [data-section-name]")) return;
+    event.stopPropagation();
     saveCategories(collectRows());
     setStatus("Saved locally.");
+  }, true);
+
+  ["pointerdown", "mousedown", "touchstart", "click", "keydown"].forEach(function (eventName) {
+    document.addEventListener(eventName, function (event) {
+      if (!getSectionInput(event.target)) return;
+      event.stopPropagation();
+    }, true);
   });
 
   function boot() {
