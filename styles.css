@@ -11289,6 +11289,20 @@ svg{
   flex: 1;
 }
 
+.planner-add-manual-btn,
+.planner-remove-item-btn{
+  width: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  padding: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .planner-items-list{
   margin: 0;
   padding-left: 18px;
@@ -11349,6 +11363,10 @@ svg{
   border: 1px solid rgba(124, 147, 183, 0.28);
   background: rgba(8, 19, 36, 0.62);
   color: #ebf2ff;
+}
+
+.planner-remove-item-btn{
+  flex: 0 0 38px;
 }
 
 .planner-time-cell{

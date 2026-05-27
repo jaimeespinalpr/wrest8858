@@ -7802,7 +7802,8 @@
     const activityLabel = tr({ en: "Activity", es: "Actividad" });
     const timeLabel = tr({ en: "Time", es: "Tiempo" });
     const chooseDrillLabel = tr({ en: "Choose saved drill...", es: "Elige ejercicio guardado..." });
-    const addTypeLabel = tr({ en: "+ Type", es: "+ Escribir" });
+    const addTypeLabel = "+";
+    const addTypeTitle = tr({ en: "Add typed drill", es: "Agregar ejercicio escrito" });
     const typeDrillPlaceholder = tr({ en: "Type drill here...", es: "Escribe el ejercicio aqui..." });
     const deleteLabel = tr({ en: "Delete", es: "Eliminar" });
     const deleteSectionLabel = tr({ en: "Delete section", es: "Eliminar seccion" });
@@ -7842,7 +7843,7 @@
                 placeholder="${escapeHtml(typeDrillPlaceholder)}"
               >${escapeHtml(item.name)}</textarea>
               <div class="planner-item-print-text">${escapeHtml(item.name || "-")}</div>
-              <button type="button" class="ghost" data-action="remove-item" data-category="${category.id}" data-item-id="${item.id}">${escapeHtml(deleteLabel)}</button>
+              <button type="button" class="ghost planner-remove-item-btn" data-action="remove-item" data-category="${category.id}" data-item-id="${item.id}" title="${escapeHtml(deleteLabel)}" aria-label="${escapeHtml(deleteLabel)}">-</button>
             </li>
           `;
         })
@@ -7875,7 +7876,7 @@
                 <option value="">${escapeHtml(chooseDrillLabel)}</option>
                 ${options}
               </select>
-              <button type="button" class="ghost" data-action="add-manual" data-category="${category.id}">${escapeHtml(addTypeLabel)}</button>
+              <button type="button" class="ghost planner-add-manual-btn" data-action="add-manual" data-category="${category.id}" title="${escapeHtml(addTypeTitle)}" aria-label="${escapeHtml(addTypeTitle)}">${escapeHtml(addTypeLabel)}</button>
             </div>
             <ul class="planner-items-list">${itemsHtml}</ul>
           </td>
