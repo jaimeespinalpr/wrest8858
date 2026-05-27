@@ -8371,7 +8371,29 @@
     handleMentalGoNoGoTap();
   }
 
+  function isPlannerTextEditTarget(target) {
+    return target instanceof HTMLElement && Boolean(target.closest([
+      "input[data-action='edit-category-name']",
+      "textarea[data-action='item-input']",
+      "input[data-action='library-draft-input']",
+      "input[data-action='edit-library-item']"
+    ].join(",")));
+  }
+
+  function protectPlannerTextFocus(event) {
+    const input = isPlannerTextEditTarget(event.target) ? event.target.closest("input, textarea") : null;
+    if (!input) return;
+    event.stopPropagation();
+    if (event.type === "touchstart") return;
+    window.setTimeout(() => {
+      input.focus();
+    }, 0);
+  }
+
   function bindStaticEvents() {
+    ["pointerdown", "mousedown", "touchstart", "click", "keydown"].forEach((eventName) => {
+      document.addEventListener(eventName, protectPlannerTextFocus, true);
+    });
     root.addEventListener("click", handleRootClick);
     root.addEventListener("pointerdown", handleRootPointerDown);
     root.addEventListener("change", handleRootChange);
