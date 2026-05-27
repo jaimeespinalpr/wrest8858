@@ -11266,8 +11266,13 @@ svg{
 }
 
 .planner-row-category-input{
+  position: relative;
+  z-index: 3;
   flex: 1;
   min-height: 36px;
+  pointer-events: auto;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .planner-row-category-delete{
@@ -11354,6 +11359,8 @@ svg{
 }
 
 .planner-items-list textarea{
+  position: relative;
+  z-index: 3;
   flex: 1;
   min-height: 24px;
   resize: none;
@@ -11363,6 +11370,9 @@ svg{
   border: 1px solid rgba(124, 147, 183, 0.28);
   background: rgba(8, 19, 36, 0.62);
   color: #ebf2ff;
+  pointer-events: auto;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .planner-remove-item-btn{

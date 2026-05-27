@@ -8392,10 +8392,29 @@
     }, 0);
   }
 
+  function focusPlannerFieldFromContainer(event) {
+    if (state.readOnly) return;
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.closest("button, select, input, textarea")) return;
+    const categoryTitle = target.closest(".planner-category-title");
+    const categoryInput = categoryTitle?.querySelector("input[data-action='edit-category-name']");
+    if (categoryInput instanceof HTMLInputElement) {
+      categoryInput.focus();
+      return;
+    }
+    const itemRow = target.closest(".planner-items-list li");
+    const itemTextarea = itemRow?.querySelector("textarea[data-action='item-input']");
+    if (itemTextarea instanceof HTMLTextAreaElement) {
+      itemTextarea.focus();
+    }
+  }
+
   function bindStaticEvents() {
     ["pointerdown", "mousedown", "touchstart", "click", "keydown"].forEach((eventName) => {
       document.addEventListener(eventName, protectPlannerTextFocus, true);
     });
+    root.addEventListener("click", focusPlannerFieldFromContainer, true);
     root.addEventListener("click", handleRootClick);
     root.addEventListener("pointerdown", handleRootPointerDown);
     root.addEventListener("change", handleRootChange);
