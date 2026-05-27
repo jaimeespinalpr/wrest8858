@@ -1484,17 +1484,18 @@
 
   function getRows() {
     return qa("[data-plan-row]").map((row) => {
-      const notesCombined = qa(".wtp-notes", row).map((node) => text(node)).filter(Boolean).join(" • ");
+      const noteLines = qa(".wtp-notes", row).map((node) => text(node)).filter(Boolean);
       return {
         activity: text(q(".wtp-activity", row)) || "Activity",
-        notes: notesCombined || text(q(".wtp-notes", row)) || "",
+        notes: noteLines,
         time: text(q(".wtp-time", row)) || ""
       };
-    }).filter((entry) => entry.activity || entry.notes || entry.time);
+    }).filter((entry) => entry.activity || entry.notes.length || entry.time);
   }
 
   function buildWrestlingBasicPrintMarkup() {
-    const titleLabel = tr({ en: "Daily Schedule", es: "Horario Diario" });
+    const titleLabel = String(state.activeTemplateName || "").trim()
+      || tr({ en: "Daily Schedule", es: "Horario Diario" });
     const clubLabel = tr({ en: "Club / School", es: "Club / Escuela" });
     const coachLabel = tr({ en: "Coach", es: "Entrenador" });
     const seasonLabel = tr({ en: "Season", es: "Temporada" });
@@ -1523,20 +1524,26 @@
       : "";
 
     const rowsMarkup = rows.length
-      ? rows.map((row) => `
+      ? rows.map((row) => {
+        const noteMarkup = row.notes.length
+          ? `<div class="wtp-print-notes-list">${row.notes.map((line) => `<div class="wtp-print-note-line">${escapePrintHtml(line)}</div>`).join("")}</div>`
+          : `<div class="wtp-print-note-line wtp-print-note-line-empty">&nbsp;</div>`;
+        const timeValue = row.time ? `${row.time} ${minutesLabel}` : "--";
+        return `
         <tr>
           <td>
             <div class="wtp-print-activity">${escapePrintHtml(row.activity || noDataLabel)}</div>
-            <div class="wtp-print-notes">${escapePrintHtml(row.notes || "")}</div>
+            ${noteMarkup}
           </td>
-          <td class="wtp-print-time">${escapePrintHtml(row.time || "--")}</td>
+          <td class="wtp-print-time">${escapePrintHtml(timeValue)}</td>
         </tr>
-      `).join("")
+      `;
+      }).join("")
       : `
         <tr>
           <td>
             <div class="wtp-print-activity">${escapePrintHtml(noDataLabel)}</div>
-            <div class="wtp-print-notes">${escapePrintHtml(noItemsLabel)}</div>
+            <div class="wtp-print-note-line">${escapePrintHtml(noItemsLabel)}</div>
           </td>
           <td class="wtp-print-time">--</td>
         </tr>
@@ -1613,7 +1620,7 @@
 
       .wtp-print-header-box {
         border: 5px solid var(--wtp-print-border);
-        border-radius: 16px;
+        border-radius: 10px;
         padding: 14px 16px 12px 16px;
         position: relative;
         overflow: hidden;
@@ -1686,12 +1693,14 @@
         border-collapse: collapse;
         table-layout: fixed;
         font-size: 13px;
+        border: 2px solid var(--wtp-print-border);
       }
 
       .wtp-print-table thead th {
         text-align: left;
         padding: 6px 8px;
-        border-bottom: 2px solid var(--wtp-print-border);
+        border: 1.25px solid var(--wtp-print-border);
+        background: #f3f7f6;
         color: var(--wtp-print-text);
         font-size: 13px;
       }
@@ -1702,14 +1711,15 @@
       }
 
       .wtp-print-table tbody td {
-        padding: 6px 8px;
+        padding: 7px 8px;
         vertical-align: top;
-        border-bottom: 1px solid var(--wtp-print-line);
+        border: 1.25px solid var(--wtp-print-line);
+        break-inside: avoid;
+        page-break-inside: avoid;
       }
 
       .wtp-print-table tbody td:last-child {
         text-align: center;
-        border-left: 1px solid var(--wtp-print-line);
         width: 82px;
       }
 
@@ -1719,11 +1729,22 @@
         margin-bottom: 4px;
       }
 
-      .wtp-print-notes {
+      .wtp-print-notes-list {
+        display: grid;
+        gap: 3px;
+      }
+
+      .wtp-print-note-line {
         white-space: pre-wrap;
         color: #1f2937;
         line-height: 1.35;
         min-height: 18px;
+        overflow-wrap: anywhere;
+      }
+
+      .wtp-print-note-line + .wtp-print-note-line {
+        border-top: 1px solid rgba(31, 41, 55, 0.14);
+        padding-top: 3px;
       }
 
       .wtp-print-footer {
@@ -1898,6 +1919,7 @@
   }
 
   let inlinePrintCleanupTimer = null;
+  let inlinePrintAfterprintHandler = null;
 
   function ensureInlinePrintHost() {
     let host = document.getElementById("wtp-print-root") || document.getElementById("plannerBasicPrintHost");
@@ -1917,6 +1939,10 @@
     if (inlinePrintCleanupTimer) {
       clearTimeout(inlinePrintCleanupTimer);
       inlinePrintCleanupTimer = null;
+    }
+    if (inlinePrintAfterprintHandler) {
+      window.removeEventListener("afterprint", inlinePrintAfterprintHandler);
+      inlinePrintAfterprintHandler = null;
     }
     document.body.removeAttribute("data-basic-print");
     document.body.classList.remove("wtp-print-mode");
@@ -1946,9 +1972,13 @@
     host.style.display = "block";
     document.body.setAttribute("data-basic-print", "true");
     document.body.classList.add("wtp-print-mode");
+    inlinePrintAfterprintHandler = () => {
+      window.setTimeout(clearInlinePrintMode, 250);
+    };
+    window.addEventListener("afterprint", inlinePrintAfterprintHandler, { once: true });
     inlinePrintCleanupTimer = window.setTimeout(() => {
       clearInlinePrintMode();
-    }, 2500);
+    }, 60000);
     try {
       // Keep print call inside the same user gesture turn for iOS Safari/WebView reliability.
       void host.offsetHeight;
