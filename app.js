@@ -10,7 +10,7 @@ const DEFAULT_LANG = "en";
 const APP_TIMEZONE = "America/New_York";
 const SUPPORTED_LANGS = new Set(["en", "es", "uz", "ru"]);
 const PUBLISH_READY_MODE = String(window.WPL_PUBLISH_READY_MODE || "true").toLowerCase() !== "false";
-const DOMAIN_ASSET_VERSION = "20260526-planner-focus3";
+const DOMAIN_ASSET_VERSION = "20260526-planner-mobile-focus1";
 const APP_ASSET_BASE_URL = (() => {
   const currentScriptSrc = document.currentScript?.src || "";
   const appScriptSrc = currentScriptSrc || Array.from(document.scripts || [])

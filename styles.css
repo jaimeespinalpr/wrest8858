@@ -12096,29 +12096,65 @@ svg{
   }
   .planner-category-title{
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
     gap: 8px;
     margin-bottom: 8px;
   }
+  .planner-section-move-btns{
+    align-self: stretch;
+  }
   .planner-row-category-input{
+    position: relative;
+    z-index: 5;
     width: 100%;
     min-width: 0;
     line-height: 1.2;
+    pointer-events: auto;
+    -webkit-user-select: text;
+    user-select: text;
+    touch-action: manipulation;
   }
   .planner-row-controls{
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) 44px;
     gap: 6px;
     margin-bottom: 8px;
   }
-  .planner-row-controls select,
-  .planner-row-controls button{
+  .planner-row-controls select{
     width: 100%;
+    min-width: 0;
+  }
+  .planner-row-controls .planner-add-manual-btn{
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    justify-self: end;
   }
   .planner-items-list{
     padding-left: 14px;
     gap: 6px;
+  }
+  .planner-items-list li{
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) 40px;
+    align-items: flex-start;
+  }
+  .planner-items-list textarea{
+    position: relative;
+    z-index: 5;
+    width: 100%;
+    min-width: 0;
+    pointer-events: auto;
+    -webkit-user-select: text;
+    user-select: text;
+    touch-action: manipulation;
+  }
+  .planner-remove-item-btn{
+    width: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    justify-self: end;
   }
   .planner-total-time-editor{
     grid-template-columns: 34px minmax(0, 1fr) 34px;
@@ -12144,6 +12180,16 @@ body.viewport-mobile select,
 body.viewport-mobile textarea,
 body.viewport-mobile button{
   font-size: 16px;
+}
+
+body.viewport-mobile .planner-row-category-input,
+body.viewport-mobile .planner-items-list textarea{
+  position: relative;
+  z-index: 5;
+  pointer-events: auto !important;
+  -webkit-user-select: text !important;
+  user-select: text !important;
+  touch-action: manipulation;
 }
 
 body.viewport-mobile .app{
