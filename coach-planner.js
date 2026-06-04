@@ -1512,13 +1512,6 @@
     const borderColor = ensureDarkPrintColor(settings.borderColor, DEFAULT_PRINT_BORDER_COLOR);
     const textColor = ensureDarkPrintColor(settings.textColor, borderColor);
     const lineColor = mixHexColors(borderColor, "#ffffff", 0.72);
-    const logoMarkup = settings.logoSrc
-      ? `
-        <div class="wtp-print-logo-wrap">
-          <img class="wtp-print-logo" src="${escapePrintHtml(settings.logoSrc)}" alt="Planner Logo">
-        </div>
-      `
-      : "";
     const watermarkMarkup = settings.logoSrc
       ? `<div class="wtp-print-watermark"><img src="${escapePrintHtml(settings.logoSrc)}" alt=""></div>`
       : "";
@@ -1551,7 +1544,6 @@
 
     return `
       <div class="wtp-print-sheet" style="--wtp-print-border: ${escapePrintHtml(borderColor)}; --wtp-print-text: ${escapePrintHtml(textColor)}; --wtp-print-line: ${escapePrintHtml(lineColor)};">
-        ${logoMarkup}
         <div class="wtp-print-header-box">
           ${watermarkMarkup}
           <div class="wtp-print-title">${escapePrintHtml(titleLabel)}</div>
