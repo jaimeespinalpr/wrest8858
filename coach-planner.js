@@ -6919,6 +6919,24 @@
     }
   }
 
+  function isPlansEditRouteRequest() {
+    try {
+      const path = String(window.location?.pathname || "");
+      const params = new URLSearchParams(window.location?.search || "");
+      const routeTab = String(window.WPL_ROUTE_TAB || "").trim();
+      const launchTab = String(window.APP_LAUNCH_CONFIG?.tab || "").trim();
+      return (
+        /\/plans\/?$/.test(path)
+        || routeTab === "plans"
+        || launchTab === "coach-plans"
+        || params.get("openTab") === "coach-plans"
+        || params.get("guestPlans") === "1"
+      );
+    } catch {
+      return false;
+    }
+  }
+
   function isPlannerReadOnlyMode() {
     const coachPlansPanel = document.getElementById("panel-coach-plans") || document.getElementById("panel-plans");
     const coachPlansTabActive = Boolean(document.querySelector(".tab.active[data-tab='coach-plans']"));
@@ -6933,6 +6951,7 @@
     }
 
     if (isCoachLikeRole(profileRole) || isCoachLikeRole(authRole)) return false;
+    if (isPlansEditRouteRequest() && (coachPlansPanel && !coachPlansPanel.classList.contains("hidden"))) return false;
     const view = getPlannerCurrentView();
     if (view === "coach" || view === "admin") return false;
     if (isCoachPlannerRouteActive()) return false;
@@ -8365,7 +8384,6 @@
       const categoryId = target.dataset.category;
       if (!categoryId) return;
       ensureItemInLibrary(categoryId, target.value);
-      renderRows();
       return;
     }
     if (target.matches("input[data-action='edit-category-name']")) {
