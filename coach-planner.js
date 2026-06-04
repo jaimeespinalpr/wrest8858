@@ -7751,6 +7751,8 @@
 
   function renderLibraryGroups() {
     if (!els.libraryGroups) return;
+    const activeSnapshot = getActivePlannerLibraryEditSnapshot();
+    applyPlannerLibraryEditSnapshotToState(activeSnapshot);
     const categories = getPlannerCategories();
     const addToPlanLabel = tr({ en: "Add to plan", es: "Agregar al plan" });
     const deleteLabel = tr({ en: "Delete", es: "Eliminar" });
@@ -7814,19 +7816,22 @@
       `;
     }).join("");
     els.libraryGroups.innerHTML = groupsHtml;
+    if (restorePlannerLibraryEditSnapshot(activeSnapshot)) {
+      state.pendingLibraryFocus = "";
+      state.pendingCategoryFocus = "";
+      return;
+    }
     if (state.pendingLibraryFocus) {
       const target = els.libraryGroups.querySelector(`input[data-action="edit-library-item"][data-id="${state.pendingLibraryFocus}"]`);
       if (target && target instanceof HTMLInputElement) {
-        target.focus();
-        target.select();
+        focusPlannerTextTarget(target, getPlannerEditSelection(target), { select: true });
       }
       state.pendingLibraryFocus = "";
     }
     if (state.pendingCategoryFocus) {
       const categoryInput = els.libraryGroups.querySelector(`input[data-action="edit-category-name"][data-category="${state.pendingCategoryFocus}"]`);
       if (categoryInput && categoryInput instanceof HTMLInputElement) {
-        categoryInput.focus();
-        categoryInput.select();
+        focusPlannerTextTarget(categoryInput, getPlannerEditSelection(categoryInput), { select: true });
       }
       state.pendingCategoryFocus = "";
     }
@@ -7839,8 +7844,215 @@
     });
   }
 
+  function escapePlannerSelectorValue(value) {
+    const raw = String(value || "");
+    if (window.CSS && typeof window.CSS.escape === "function") {
+      return window.CSS.escape(raw);
+    }
+    return raw.replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
+  }
+
+  function getPlannerEditSelection(target) {
+    const value = String(target?.value || "");
+    const fallback = value.length;
+    const start = Number.isFinite(target?.selectionStart) ? target.selectionStart : fallback;
+    const end = Number.isFinite(target?.selectionEnd) ? target.selectionEnd : start;
+    return {
+      value,
+      selectionStart: Math.max(0, Math.min(start, value.length)),
+      selectionEnd: Math.max(0, Math.min(end, value.length))
+    };
+  }
+
+  function focusPlannerTextTarget(target, snapshot, { select = false } = {}) {
+    if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) return false;
+    if (!target.isConnected) return false;
+    if (snapshot && target.value !== snapshot.value) {
+      target.value = snapshot.value;
+    }
+    try {
+      target.focus({ preventScroll: true });
+    } catch {
+      target.focus();
+    }
+    const restoreSelection = () => {
+      if (!target.isConnected) return;
+      if (select) {
+        try {
+          target.select();
+        } catch {
+          // ignore selection errors
+        }
+      } else if (snapshot) {
+        try {
+          const length = String(target.value || "").length;
+          const start = Math.max(0, Math.min(snapshot.selectionStart, length));
+          const end = Math.max(0, Math.min(snapshot.selectionEnd, length));
+          target.setSelectionRange(start, end);
+        } catch {
+          // ignore selection errors
+        }
+      }
+      if (target instanceof HTMLTextAreaElement) {
+        target.style.height = "auto";
+        target.style.height = `${target.scrollHeight}px`;
+      }
+    };
+    if (typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(restoreSelection);
+    } else {
+      window.setTimeout(restoreSelection, 0);
+    }
+    return true;
+  }
+
+  function getActivePlannerRowsEditSnapshot() {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement)) return null;
+    if (!els.rows || !els.rows.contains(active)) return null;
+    const selection = getPlannerEditSelection(active);
+    if (active.matches("textarea[data-action='item-input']")) {
+      return {
+        ...selection,
+        action: "item-input",
+        categoryId: normalizeCategoryId(active.dataset.category),
+        itemId: String(active.dataset.itemId || "").trim()
+      };
+    }
+    if (active.matches("input[data-action='edit-category-name']")) {
+      return {
+        ...selection,
+        action: "edit-category-name",
+        categoryId: normalizeCategoryId(active.dataset.category)
+      };
+    }
+    return null;
+  }
+
+  function getActivePlannerLibraryEditSnapshot() {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLInputElement)) return null;
+    if (!els.libraryGroups || !els.libraryGroups.contains(active)) return null;
+    const selection = getPlannerEditSelection(active);
+    if (active.matches("input[data-action='edit-category-name']")) {
+      return {
+        ...selection,
+        action: "edit-category-name",
+        categoryId: normalizeCategoryId(active.dataset.category)
+      };
+    }
+    if (active.matches("input[data-action='library-draft-input']")) {
+      return {
+        ...selection,
+        action: "library-draft-input",
+        categoryId: normalizeCategoryId(active.dataset.category)
+      };
+    }
+    if (active.matches("input[data-action='edit-library-item']")) {
+      return {
+        ...selection,
+        action: "edit-library-item",
+        categoryId: normalizeCategoryId(active.dataset.category),
+        itemId: String(active.dataset.id || "").trim()
+      };
+    }
+    return null;
+  }
+
+  function setPlannerCategoryNameDraft(categoryId, nextValue) {
+    const safeCategoryId = normalizeCategoryId(categoryId);
+    const value = String(nextValue || "");
+    let changed = String(state.categoryNames?.[safeCategoryId] || "") !== value;
+    state.categoryNames[safeCategoryId] = value;
+    state.wrestlingCategories = getPlannerCategories().map((category) => {
+      if (category.id !== safeCategoryId) return { ...category };
+      if (category.name !== value) changed = true;
+      return { ...category, name: value };
+    });
+    return changed;
+  }
+
+  function applyPlannerRowsEditSnapshotToState(snapshot) {
+    if (!snapshot) return;
+    if (snapshot.action === "item-input") {
+      const safeCategoryId = normalizeCategoryId(snapshot.categoryId);
+      const safeItemId = String(snapshot.itemId || "").trim();
+      if (!safeItemId) return;
+      let changed = false;
+      state.schedule[safeCategoryId] = (state.schedule[safeCategoryId] || []).map((item) => {
+        if (item.id !== safeItemId) return item;
+        if (item.name === snapshot.value) return item;
+        changed = true;
+        return { ...item, name: snapshot.value };
+      });
+      if (changed) persistDaily();
+      return;
+    }
+    if (snapshot.action === "edit-category-name" && setPlannerCategoryNameDraft(snapshot.categoryId, snapshot.value)) {
+      persistCategories();
+      persistCategoryNames();
+      queuePlannerLibrarySync();
+    }
+  }
+
+  function applyPlannerLibraryEditSnapshotToState(snapshot) {
+    if (!snapshot) return;
+    if (snapshot.action === "edit-category-name" && setPlannerCategoryNameDraft(snapshot.categoryId, snapshot.value)) {
+      persistCategories();
+      persistCategoryNames();
+      queuePlannerLibrarySync();
+      return;
+    }
+    if (snapshot.action === "library-draft-input") {
+      state.categoryDrafts[normalizeCategoryId(snapshot.categoryId)] = snapshot.value;
+      return;
+    }
+    if (snapshot.action === "edit-library-item") {
+      const safeItemId = String(snapshot.itemId || "").trim();
+      if (!safeItemId) return;
+      state.exerciseLibrary = state.exerciseLibrary.map((entry) => {
+        if (entry.id !== safeItemId) return entry;
+        return {
+          ...entry,
+          categoryId: normalizeCategoryId(snapshot.categoryId),
+          name: snapshot.value
+        };
+      });
+    }
+  }
+
+  function restorePlannerRowsEditSnapshot(snapshot) {
+    if (!snapshot || !els.rows) return false;
+    const categoryId = escapePlannerSelectorValue(snapshot.categoryId);
+    let target = null;
+    if (snapshot.action === "item-input") {
+      const itemId = escapePlannerSelectorValue(snapshot.itemId);
+      target = els.rows.querySelector(`textarea[data-action="item-input"][data-category="${categoryId}"][data-item-id="${itemId}"]`);
+    } else if (snapshot.action === "edit-category-name") {
+      target = els.rows.querySelector(`input[data-action="edit-category-name"][data-category="${categoryId}"]`);
+    }
+    return focusPlannerTextTarget(target, snapshot);
+  }
+
+  function restorePlannerLibraryEditSnapshot(snapshot) {
+    if (!snapshot || !els.libraryGroups) return false;
+    const categoryId = escapePlannerSelectorValue(snapshot.categoryId);
+    let target = null;
+    if (snapshot.action === "edit-category-name") {
+      target = els.libraryGroups.querySelector(`input[data-action="edit-category-name"][data-category="${categoryId}"]`);
+    } else if (snapshot.action === "library-draft-input") {
+      target = els.libraryGroups.querySelector(`input[data-action="library-draft-input"][data-category="${categoryId}"]`);
+    } else if (snapshot.action === "edit-library-item") {
+      const itemId = escapePlannerSelectorValue(snapshot.itemId);
+      target = els.libraryGroups.querySelector(`input[data-action="edit-library-item"][data-id="${itemId}"][data-category="${categoryId}"]`);
+    }
+    return focusPlannerTextTarget(target, snapshot);
+  }
+
   function renderRows() {
     if (!els.rows) return;
+    const activeSnapshot = getActivePlannerRowsEditSnapshot();
+    applyPlannerRowsEditSnapshotToState(activeSnapshot);
     const categories = getPlannerCategories();
     const activityLabel = tr({ en: "Activity", es: "Actividad" });
     const timeLabel = tr({ en: "Time", es: "Tiempo" });
@@ -7941,11 +8153,17 @@
     els.rows.innerHTML = rowsHtml;
     autoResizeAllTextareas();
 
+    if (restorePlannerRowsEditSnapshot(activeSnapshot)) {
+      state.pendingFocus = null;
+      state.pendingCategoryFocus = "";
+      return;
+    }
+
     if (state.pendingFocus) {
       const selector = `textarea[data-category='${state.pendingFocus.categoryId}'][data-item-id='${state.pendingFocus.itemId}']`;
       const target = root.querySelector(selector);
       if (target) {
-        target.focus();
+        focusPlannerTextTarget(target, getPlannerEditSelection(target));
       }
       state.pendingFocus = null;
     }
@@ -7953,8 +8171,7 @@
       const selector = `input[data-action='edit-category-name'][data-category='${state.pendingCategoryFocus}']`;
       const categoryInput = root.querySelector(selector);
       if (categoryInput && categoryInput instanceof HTMLInputElement) {
-        categoryInput.focus();
-        categoryInput.select();
+        focusPlannerTextTarget(categoryInput, getPlannerEditSelection(categoryInput), { select: true });
       }
       state.pendingCategoryFocus = "";
     }
@@ -8279,14 +8496,7 @@
     }
 
     if (target.matches("input[data-action='edit-category-name']")) {
-      const categoryId = normalizeCategoryId(target.dataset.category);
-      const nextValue = String(target.value || "");
-      state.categoryNames[categoryId] = nextValue;
-      state.wrestlingCategories = getPlannerCategories().map((category) => (
-        category.id === categoryId
-          ? { ...category, name: nextValue }
-          : { ...category }
-      ));
+      setPlannerCategoryNameDraft(target.dataset.category, target.value);
       persistCategories();
       persistCategoryNames();
       queuePlannerLibrarySync();
@@ -8428,7 +8638,7 @@
     if (!input) return;
     if (event.type === "keydown" || event.type === "touchstart") return;
     window.setTimeout(() => {
-      if (document.activeElement !== input) {
+      if (input.isConnected && document.activeElement !== input) {
         input.focus();
       }
     }, 0);
