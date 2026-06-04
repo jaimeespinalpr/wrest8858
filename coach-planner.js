@@ -1400,7 +1400,11 @@
 
   function formatDateForPrint(value) {
     if (!value) return "--";
-    const date = new Date(value);
+    const raw = String(value || "").trim();
+    const isoDateMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const date = isoDateMatch
+      ? new Date(Number(isoDateMatch[1]), Number(isoDateMatch[2]) - 1, Number(isoDateMatch[3]))
+      : new Date(raw);
     if (Number.isNaN(date.getTime())) return value;
     return date.toLocaleDateString(undefined, {
       year: "numeric",
@@ -1494,12 +1498,9 @@
   }
 
   function buildWrestlingBasicPrintMarkup() {
-    const titleLabel = String(state.activeTemplateName || "").trim()
-      || tr({ en: "Daily Schedule", es: "Horario Diario" });
     const clubLabel = tr({ en: "Club / School", es: "Club / Escuela" });
     const coachLabel = tr({ en: "Coach", es: "Entrenador" });
     const seasonLabel = tr({ en: "Season", es: "Temporada" });
-    const dateLabel = tr({ en: "Date", es: "Fecha" });
     const totalTimeLabel = tr({ en: "Total Time", es: "Tiempo Total" });
     const activityLabel = "ACTIVITY";
     const timeLabel = "TIME";
@@ -1508,6 +1509,12 @@
     const noItemsLabel = tr({ en: "No plan sections saved yet.", es: "Todavia no hay secciones del plan guardadas." });
 
     const settings = getSettings(root);
+    const printDateLabel = formatDateForPrint(settings.date || "");
+    const baseTitleLabel = String(state.activeTemplateName || "").trim()
+      || tr({ en: "Daily Schedule", es: "Horario Diario" });
+    const titleLabel = printDateLabel && printDateLabel !== "--" && !baseTitleLabel.includes(printDateLabel)
+      ? `${baseTitleLabel} - ${printDateLabel}`
+      : baseTitleLabel;
     const rows = getRows();
     const borderColor = ensureDarkPrintColor(settings.borderColor, DEFAULT_PRINT_BORDER_COLOR);
     const textColor = ensureDarkPrintColor(settings.textColor, borderColor);
@@ -1551,11 +1558,6 @@
           <div class="wtp-print-topline">
             <div class="wtp-print-subtitle">
               <strong>${escapePrintHtml(settings.club || clubLabel)}</strong>
-            </div>
-
-            <div class="wtp-print-field">
-              <span class="wtp-print-field-label">${escapePrintHtml(dateLabel)}</span>
-              <span class="wtp-print-field-line">${escapePrintHtml(settings.date || "--")}</span>
             </div>
 
             <div class="wtp-print-field">
@@ -1638,7 +1640,7 @@
         position: relative;
         z-index: 2;
         display: grid;
-        grid-template-columns: 1.2fr 1fr 0.9fr;
+        grid-template-columns: minmax(0, 1.2fr) minmax(150px, 0.8fr);
         gap: 10px;
         align-items: end;
         margin-bottom: 10px;
