@@ -1137,6 +1137,26 @@ async function openProfileShortcut() {
   await showTab(resolveProfileShortcutTab(role));
 }
 
+function clearPlansGuestEntryIntent() {
+  // The /plans/ route auto-enters a coach guest session. When the user
+  // explicitly logs out, drop every marker of that intent so showOnboarding
+  // shows the real sign-in screen instead of bouncing back into guest mode.
+  try { sessionStorage.removeItem("wpl_initial_route"); } catch {}
+  try {
+    if (typeof APP_LAUNCH_CONFIG !== "undefined" && APP_LAUNCH_CONFIG) {
+      APP_LAUNCH_CONFIG.guestPlans = false;
+      if (APP_LAUNCH_CONFIG.tab === "coach-plans") APP_LAUNCH_CONFIG.tab = "";
+    }
+  } catch {}
+  try { window.WPL_ROUTE_TAB = ""; } catch {}
+  try {
+    if (/\/plans\/?$/.test(String(window.location?.pathname || ""))) {
+      const basePath = new URL(".", APP_ASSET_BASE_URL).pathname;
+      window.history.replaceState({}, "", basePath);
+    }
+  } catch {}
+}
+
 function handleHeaderMenuAction(action) {
   if (!action) return;
   closeHeaderMenu();
@@ -1161,6 +1181,7 @@ function handleHeaderMenuAction(action) {
     return;
   }
   if (action === "logout") {
+    clearPlansGuestEntryIntent();
     firebaseAuthInstance?.signOut().catch(() => {});
     stopMediaRealtimeSync();
     stopCoachWorkspaceRealtimeSync();
@@ -1180,6 +1201,7 @@ function handleHeaderMenuAction(action) {
     return;
   }
   if (action === "switch") {
+    clearPlansGuestEntryIntent();
     firebaseAuthInstance?.signOut().catch(() => {});
     stopMediaRealtimeSync();
     stopCoachWorkspaceRealtimeSync();
