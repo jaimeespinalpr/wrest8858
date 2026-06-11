@@ -10,7 +10,7 @@ const DEFAULT_LANG = "en";
 const APP_TIMEZONE = "America/New_York";
 const SUPPORTED_LANGS = new Set(["en", "es", "uz", "ru"]);
 const PUBLISH_READY_MODE = String(window.WPL_PUBLISH_READY_MODE || "true").toLowerCase() !== "false";
-const DOMAIN_ASSET_VERSION = "20260604-planner-edit-resilience1";
+const DOMAIN_ASSET_VERSION = "20260611-planner-sync-defer1";
 const APP_ASSET_BASE_URL = (() => {
   const currentScriptSrc = document.currentScript?.src || "";
   const appScriptSrc = currentScriptSrc || Array.from(document.scripts || [])
@@ -330,7 +330,7 @@ const OFFICIAL_COACH_EMAILS = new Set([
 const COACH_PLANNER_DEFAULTS = {
   clubName: "United Wrestling Club",
   season: "Season 2025-2026",
-  logoUrl: "uwc-logo.png",
+  logoUrl: new URL("uwc-logo.png", APP_ASSET_BASE_URL).href,
   footerMessage: "",
   printAutoColors: false,
   printBorderColor: "#0d6b4a",
@@ -7619,8 +7619,12 @@ async function handleSuccessfulAuth(result, { showWelcome = false } = {}) {
       ? profile.plannerTemplateSettings
       : {};
     const rawLogo = String(currentSettings.logoUrl || "").trim();
-    if (rawLogo === "https://united-wc.com/assets/uwc-logo.png" || rawLogo === "https://www.united-wc.com/assets/uwc-logo.png") {
-      currentSettings.logoUrl = "uwc-logo.png";
+    if (
+      rawLogo === "uwc-logo.png" ||
+      rawLogo === "https://united-wc.com/assets/uwc-logo.png" ||
+      rawLogo === "https://www.united-wc.com/assets/uwc-logo.png"
+    ) {
+      currentSettings.logoUrl = new URL("uwc-logo.png", APP_ASSET_BASE_URL).href;
     }
     const mergedSettings = {
       ...buildCoachPlannerTemplateSettings(profile.name || resolvedAuthUser.email || ""),

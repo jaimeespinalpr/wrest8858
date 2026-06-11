@@ -418,7 +418,18 @@
     };
   }
 
-  const DEFAULT_PLANNER_LOGO_URL = "uwc-logo.png";
+  // Resolve against the coach-planner.js script URL, not the page URL: the app
+  // rewrites the address to routes like /plans/, which would break relative paths.
+  const DEFAULT_PLANNER_LOGO_URL = (() => {
+    try {
+      const scriptSrc = Array.from(document.scripts || [])
+        .map((script) => script.src || "")
+        .find((src) => /coach-planner\.js/.test(src)) || window.location.href;
+      return new URL("uwc-logo.png", scriptSrc).href;
+    } catch {
+      return "uwc-logo.png";
+    }
+  })();
   const DEFAULT_PRINT_BORDER_COLOR = "#0d6b4a";
   const DEFAULT_PRINT_TEXT_COLOR = "#0d6b4a";
   const MAX_LOGO_DATA_URL_LENGTH = 600000;
@@ -520,7 +531,12 @@
 
   function sanitizePlannerLogoUrl(value, fallback = DEFAULT_PLANNER_LOGO_URL) {
     const clean = String(value || "").trim();
-    if (!clean || clean === "https://united-wc.com/assets/uwc-logo.png" || clean === "https://www.united-wc.com/assets/uwc-logo.png") {
+    if (
+      !clean ||
+      clean === "uwc-logo.png" ||
+      clean === "https://united-wc.com/assets/uwc-logo.png" ||
+      clean === "https://www.united-wc.com/assets/uwc-logo.png"
+    ) {
       return String(fallback || "").trim();
     }
     if (isInlineImageDataUrl(clean) && clean.length > MAX_LOGO_DATA_URL_LENGTH) {
@@ -1579,7 +1595,7 @@
           </table>
         </div>
 
-        <div class="wtp-print-footer">${escapePrintHtml(settings.footerMessage || `${settings.coach || coachLabel}  ${settings.season || seasonLabel}` || noDataLabel)}</div>
+        <div class="wtp-print-footer">${escapePrintHtml(settings.footerMessage || [settings.coach || coachLabel, settings.season || seasonLabel].filter(Boolean).join(" • ") || noDataLabel)}</div>
       </div>
     `;
   }
@@ -4802,7 +4818,7 @@
     const protocolsRef = getLiftingProtocolsRef();
     if (protocolsRef?.onSnapshot) {
       state.liftingPlansUnsub = protocolsRef.onSnapshot((snapshot) => {
-        syncLiftingPlansFromSnapshot(snapshot);
+        runWhenPlannerIdle("lifting-plans", () => syncLiftingPlansFromSnapshot(snapshot));
       }, (err) => {
         console.warn("Lifting protocol snapshot failed", err);
       });
@@ -4811,17 +4827,21 @@
     const libraryDoc = getLiftingLibraryDocRef();
     if (libraryDoc?.onSnapshot) {
       state.liftingLibraryUnsub = libraryDoc.onSnapshot(async (docSnap) => {
+        // Ignore the local echo of our own pending writes; the UI is already current.
+        if (docSnap?.metadata?.hasPendingWrites) return;
         const hasSnapshotData = typeof docSnap?.exists === "function" ? docSnap.exists() : !!docSnap?.exists;
         if (hasSnapshotData) {
           const payload = docSnap.data() || {};
-          state.liftingLibrary = mergeLiftingLibraryMaps(
-            DEFAULT_LIFTING_LIBRARY,
-            payload.data || {}
-          );
-          persistLiftingLibraryLocal();
-          renderLiftingCategorySelect();
-          renderLiftingLibraryGroups();
-          renderLiftingOverview();
+          runWhenPlannerIdle("lifting-library", () => {
+            state.liftingLibrary = mergeLiftingLibraryMaps(
+              DEFAULT_LIFTING_LIBRARY,
+              payload.data || {}
+            );
+            persistLiftingLibraryLocal();
+            renderLiftingCategorySelect();
+            renderLiftingLibraryGroups();
+            renderLiftingOverview();
+          });
           const updatedBy = String(payload.updatedByName || "").trim();
           const updatedAt = formatLiftingUpdatedAt(payload.updatedAt);
           setLiftingStatus(updatedBy
@@ -6692,15 +6712,20 @@
     const docRef = getPlannerClientStateDocRef();
     if (!docRef?.onSnapshot) return;
     state.plannerClientStateUnsub = docRef.onSnapshot((docSnap) => {
+      // Ignore the local echo of our own pending writes: state is already current,
+      // and re-rendering here destroys the field the coach is typing in.
+      if (docSnap?.metadata?.hasPendingWrites) return;
       const exists = typeof docSnap?.exists === "function" ? docSnap.exists() : Boolean(docSnap?.exists);
       if (!exists) {
         state.plannerClientStateReady = true;
         syncPlannerClientStateNow().catch(() => {});
         return;
       }
-      applyPlannerClientStatePayload(docSnap.data() || {});
       state.plannerClientStateReady = true;
-      render();
+      runWhenPlannerIdle("planner-client-state", () => {
+        applyPlannerClientStatePayload(docSnap.data() || {});
+        render();
+      });
     }, (err) => {
       console.warn("Planner client state snapshot failed", err);
       state.plannerClientStateReady = false;
@@ -6804,12 +6829,14 @@
         return;
       }
       if (!localHasData || remoteMs > localMs + 1000) {
-        state.docInfo.date = String(remoteDraft?.date || "").trim();
-        state.docInfo.totalTime = String(remoteDraft?.totalTime || "90").trim() || "90";
-        state.schedule = normalizePlannerScheduleState(remoteDraft?.schedule || {}, getPlannerCategories());
-        state.categoryTimes = normalizePlannerCategoryTimesState(remoteDraft?.categoryTimes || {}, getPlannerCategories());
-        persistDaily({ syncCloud: false, updatedAt: remoteUpdatedAt || new Date().toISOString() });
-        render();
+        runWhenPlannerIdle("daily-draft-hydrate", () => {
+          state.docInfo.date = String(remoteDraft?.date || "").trim();
+          state.docInfo.totalTime = String(remoteDraft?.totalTime || "90").trim() || "90";
+          state.schedule = normalizePlannerScheduleState(remoteDraft?.schedule || {}, getPlannerCategories());
+          state.categoryTimes = normalizePlannerCategoryTimesState(remoteDraft?.categoryTimes || {}, getPlannerCategories());
+          persistDaily({ syncCloud: false, updatedAt: remoteUpdatedAt || new Date().toISOString() });
+          render();
+        });
       } else {
         persistDaily({ syncCloud: true, updatedAt: state.dailyDraftUpdatedAt });
       }
@@ -6864,8 +6891,10 @@
       const localSerialized = JSON.stringify(localSettings);
       if (remoteSerialized !== localSerialized) {
         if (raw?.plannerTemplateSettings && typeof raw.plannerTemplateSettings === "object" && Object.keys(raw.plannerTemplateSettings).length) {
-          mergePlannerSettings(remoteSettings, { sync: false });
-          render();
+          runWhenPlannerIdle("settings-hydrate", () => {
+            mergePlannerSettings(remoteSettings, { sync: false });
+            render();
+          });
         } else {
           mergePlannerSettings(localSettings, { sync: true });
         }
@@ -7237,6 +7266,9 @@
       es: "Cargando catalogo compartido del planificador..."
     });
     state.plannerCatalogUnsub = docRef.onSnapshot((docSnap) => {
+      // Ignore the local echo of our own pending writes; re-rendering on it
+      // rebuilds the planner DOM mid-keystroke and breaks editing.
+      if (docSnap?.metadata?.hasPendingWrites) return;
       const exists = typeof docSnap?.exists === "function" ? docSnap.exists() : Boolean(docSnap?.exists);
       if (!exists) {
         state.plannerCatalogReady = false;
@@ -7246,18 +7278,20 @@
         return;
       }
       const data = docSnap.data() || {};
-      const hasSharedCategories = Array.isArray(data?.categories) && data.categories.length > 0;
-      applySharedPlannerCatalogData(data, { mergeLocal: !hasSharedCategories });
-      state.plannerCatalogReady = true;
-      state.plannerCatalogStatus = tr({
-        en: "Shared planner catalog loaded.",
-        es: "Catalogo compartido del planificador cargado."
+      runWhenPlannerIdle("planner-catalog", () => {
+        const hasSharedCategories = Array.isArray(data?.categories) && data.categories.length > 0;
+        applySharedPlannerCatalogData(data, { mergeLocal: !hasSharedCategories });
+        state.plannerCatalogReady = true;
+        state.plannerCatalogStatus = tr({
+          en: "Shared planner catalog loaded.",
+          es: "Catalogo compartido del planificador cargado."
+        });
+        renderCategorySelectOptions();
+        renderRows();
+        renderLibraryGroups();
+        renderCoachLibraries();
+        updateTimeStatus();
       });
-      renderCategorySelectOptions();
-      renderRows();
-      renderLibraryGroups();
-      renderCoachLibraries();
-      updateTimeStatus();
     }, (err) => {
       console.warn("Shared planner catalog snapshot failed", err);
       state.plannerCatalogStatus = tr({
@@ -7303,12 +7337,14 @@
         .map((doc) => normalizeCoachLibraryFromUserDoc(doc.id, doc.data() || {}))
         .filter(Boolean)
         .sort((left, right) => left.name.localeCompare(right.name));
-      state.coachLibraries = rows;
-      state.coachLibrariesReady = true;
-      setCoachLibrariesStatus(rows.length
-        ? tr({ en: `${rows.length} coach libraries loaded.`, es: `${rows.length} librerias de entrenadores cargadas.` })
-        : tr({ en: "No coach libraries yet.", es: "Aun no hay librerias de entrenadores." }));
-      renderCoachLibraries();
+      runWhenPlannerIdle("coach-libraries", () => {
+        state.coachLibraries = rows;
+        state.coachLibrariesReady = true;
+        setCoachLibrariesStatus(rows.length
+          ? tr({ en: `${rows.length} coach libraries loaded.`, es: `${rows.length} librerias de entrenadores cargadas.` })
+          : tr({ en: "No coach libraries yet.", es: "Aun no hay librerias de entrenadores." }));
+        renderCoachLibraries();
+      });
     }, (err) => {
       console.warn("Failed to load coach libraries", err);
       setCoachLibrariesStatus(tr({ en: "Could not load coach libraries right now.", es: "No se pudieron cargar las librerias de entrenadores ahora." }));
@@ -8624,6 +8660,36 @@
     handleMentalGoNoGoTap();
   }
 
+  const deferredPlannerWork = new Map();
+
+  function isPlannerEditingActive() {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement)) return false;
+    return Boolean(root && root.contains(active));
+  }
+
+  function flushDeferredPlannerWork() {
+    if (isPlannerEditingActive()) return;
+    if (!deferredPlannerWork.size) return;
+    const jobs = Array.from(deferredPlannerWork.values());
+    deferredPlannerWork.clear();
+    jobs.forEach((job) => {
+      try {
+        Promise.resolve(job()).catch((err) => console.warn("Deferred planner update failed", err));
+      } catch (err) {
+        console.warn("Deferred planner update failed", err);
+      }
+    });
+  }
+
+  function runWhenPlannerIdle(tag, job) {
+    if (!isPlannerEditingActive()) {
+      job();
+      return;
+    }
+    deferredPlannerWork.set(tag, job);
+  }
+
   function isPlannerTextEditTarget(target) {
     return target instanceof HTMLElement && Boolean(target.closest([
       "input[data-action='edit-category-name']",
@@ -8672,6 +8738,9 @@
     root.addEventListener("change", handleRootChange);
     root.addEventListener("input", handleRootInput);
     root.addEventListener("blur", handleRootBlur, true);
+    root.addEventListener("focusout", () => {
+      window.setTimeout(flushDeferredPlannerWork, 120);
+    });
     root.addEventListener("keydown", handleRootKeydown);
 
     const handleTrackActivation = (btn, event) => {

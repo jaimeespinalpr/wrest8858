@@ -9,3 +9,5 @@ firebase-config.js
 # Xcode user state
 *.xcuserstate
 xcuserdata/
+
+.claude/
