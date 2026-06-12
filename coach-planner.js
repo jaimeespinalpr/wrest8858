@@ -533,14 +533,26 @@
     return /^data:image\//i.test(String(value || "").trim());
   }
 
+  function isDefaultPlannerLogoUrl(value) {
+    const clean = String(value || "").trim();
+    if (!clean) return true;
+    // Any origin's copy of the bundled logo counts as the default — absolute
+    // URLs synced from another device (localhost, github.io) must not stick.
+    return clean === "uwc-logo.png"
+      || clean === DEFAULT_PLANNER_LOGO_URL
+      || /\/uwc-logo\.png(\?.*)?$/.test(clean)
+      || clean === "https://united-wc.com/assets/uwc-logo.png"
+      || clean === "https://www.united-wc.com/assets/uwc-logo.png";
+  }
+
+  function serializePlannerLogoUrl(value) {
+    const clean = String(value || "").trim();
+    return isDefaultPlannerLogoUrl(clean) ? "uwc-logo.png" : clean;
+  }
+
   function sanitizePlannerLogoUrl(value, fallback = DEFAULT_PLANNER_LOGO_URL) {
     const clean = String(value || "").trim();
-    if (
-      !clean ||
-      clean === "uwc-logo.png" ||
-      clean === "https://united-wc.com/assets/uwc-logo.png" ||
-      clean === "https://www.united-wc.com/assets/uwc-logo.png"
-    ) {
+    if (isDefaultPlannerLogoUrl(clean)) {
       return String(fallback || "").trim();
     }
     if (isInlineImageDataUrl(clean) && clean.length > MAX_LOGO_DATA_URL_LENGTH) {
@@ -6873,9 +6885,14 @@
     const settingsPayload = normalizePlannerSettings(state.settings, { migrateLegacy: true });
     state.settings = settingsPayload;
     persistSettings();
+    const cloudPayload = {
+      ...settingsPayload,
+      // Store the portable marker, never this device's absolute URL.
+      logoUrl: serializePlannerLogoUrl(settingsPayload.logoUrl)
+    };
     try {
       await usersRef.doc(uid).set({
-        plannerTemplateSettings: settingsPayload,
+        plannerTemplateSettings: cloudPayload,
         plannerTemplateSettingsUpdatedAt: new Date().toISOString()
       }, { merge: true });
     } catch (err) {
