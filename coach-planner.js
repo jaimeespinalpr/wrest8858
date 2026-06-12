@@ -4768,6 +4768,9 @@
     if (!hasPlannerAuthSession()) return;
     const uid = String(getPlannerAuthUser()?.id || "").trim();
     if (!uid) return;
+    // The leaderboard subscribes at module load, usually before the Firebase
+    // session restores; resubscribe now that requests carry the auth token.
+    startMentalLeaderboardSync();
     if (state.plannerHydratedUid === uid) {
       startSharedPlannerCatalogSync({ force: true });
       startPlannerAssignDirectorySync({ force: true });
@@ -6206,6 +6209,233 @@
     els.assignModal?.classList.add("hidden");
   }
 
+  let pendingDevicePlanPdf = null;
+
+  function sanitizePdfText(value) {
+    return String(value || "")
+      .replace(/[‘’]/g, "'")
+      .replace(/[“”]/g, '"')
+      .replace(/[–—]/g, "-")
+      .replace(/[^\x20-\x7E¡-ÿ]/g, "");
+  }
+
+  async function buildPlannerPlanPdfBytes(planName) {
+    if (typeof ensurePdfLibLoaded !== "function") throw new Error("pdf_lib_loader_missing");
+    const PDFLib = await ensurePdfLibLoaded();
+    const doc = await PDFLib.PDFDocument.create();
+    const font = await doc.embedFont(PDFLib.StandardFonts.Helvetica);
+    const bold = await doc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+    const accentHex = ensureDarkPrintColor(state.settings?.printBorderColor, DEFAULT_PRINT_BORDER_COLOR);
+    const accentMatch = /^#?([0-9a-f]{6})$/i.exec(String(accentHex || ""));
+    const accentNum = accentMatch ? parseInt(accentMatch[1], 16) : 0x0d6b4a;
+    const accent = PDFLib.rgb(((accentNum >> 16) & 255) / 255, ((accentNum >> 8) & 255) / 255, (accentNum & 255) / 255);
+    const black = PDFLib.rgb(0.12, 0.14, 0.16);
+    const gray = PDFLib.rgb(0.45, 0.48, 0.52);
+    const pageSize = [612, 792];
+    const margin = 54;
+    const maxWidth = pageSize[0] - margin * 2;
+    let page = doc.addPage(pageSize);
+    let y = pageSize[1] - margin;
+
+    const ensureRoom = (needed) => {
+      if (y - needed < margin) {
+        page = doc.addPage(pageSize);
+        y = pageSize[1] - margin;
+      }
+    };
+    const wrapText = (text, fnt, size) => {
+      const words = sanitizePdfText(text).split(/\s+/).filter(Boolean);
+      const lines = [];
+      let line = "";
+      words.forEach((word) => {
+        const candidate = line ? `${line} ${word}` : word;
+        if (fnt.widthOfTextAtSize(candidate, size) > maxWidth && line) {
+          lines.push(line);
+          line = word;
+        } else {
+          line = candidate;
+        }
+      });
+      if (line) lines.push(line);
+      return lines.length ? lines : [""];
+    };
+    const drawLine = (text, fnt, size, color, gap = 4, indent = 0) => {
+      wrapText(text, fnt, size).forEach((ln) => {
+        ensureRoom(size + gap);
+        page.drawText(ln, { x: margin + indent, y: y - size, size, font: fnt, color });
+        y -= size + gap;
+      });
+    };
+
+    drawLine(state.settings?.clubName || "United Wrestling Club", bold, 20, accent, 6);
+    drawLine(planName, bold, 14, black, 6);
+    const metaParts = [];
+    const dateLabel = formatDateForPrint(state.docInfo.date || getTodayDateKey());
+    if (dateLabel) metaParts.push(`${tr({ en: "Date", es: "Fecha" })}: ${dateLabel}`);
+    const coachName = String(state.settings?.coach || "").trim();
+    if (coachName) metaParts.push(`${tr({ en: "Coach", es: "Entrenador" })}: ${coachName}`);
+    metaParts.push(`${tr({ en: "Total time", es: "Tiempo total" })}: ${state.docInfo.totalTime || "90"} min`);
+    drawLine(metaParts.join("   |   "), font, 10, gray, 12);
+
+    ensureRoom(8);
+    page.drawLine({ start: { x: margin, y }, end: { x: pageSize[0] - margin, y }, thickness: 1.4, color: accent });
+    y -= 14;
+
+    getPlannerCategories().forEach((category) => {
+      const items = (state.schedule[category.id] || [])
+        .map((entry) => String(entry?.name || "").trim())
+        .filter(Boolean);
+      const time = String(state.categoryTimes[category.id] || "").trim();
+      ensureRoom(40);
+      drawLine(`${getCategoryNameById(category.id)}${time ? `  (${time} min)` : ""}`, bold, 12, accent, 6);
+      if (!items.length) {
+        drawLine(tr({ en: "- No exercises listed", es: "- Sin ejercicios anotados" }), font, 10.5, gray, 4, 10);
+      } else {
+        items.forEach((item, index) => drawLine(`${index + 1}. ${item}`, font, 10.5, black, 4, 10));
+      }
+      y -= 8;
+    });
+
+    y -= 6;
+    const footer = String(state.settings?.footerMessage || "").trim()
+      || `${String(state.settings?.coach || "").trim()} ${String(state.settings?.season || "").trim()}`.trim();
+    if (footer) drawLine(footer, font, 9, gray, 4);
+
+    return doc.save();
+  }
+
+  function buildPlanPdfFileName(planName) {
+    const base = sanitizePdfText(planName).replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_") || "training_plan";
+    const dateKey = normalizeDateKeyValue(state.docInfo.date || getTodayDateKey());
+    return `${base}_${dateKey}.pdf`;
+  }
+
+  async function deliverPlanPdfToDevice(bytes, fileName) {
+    const blob = new Blob([bytes], { type: "application/pdf" });
+    // Mobile first: the share sheet is what lets the coach pick a destination
+    // folder (Files app on iOS, file managers on Android).
+    if (isLikelyMobilePrintFlow() && typeof navigator.share === "function" && typeof File === "function") {
+      const file = new File([blob], fileName, { type: "application/pdf" });
+      if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: fileName });
+          return true;
+        } catch (err) {
+          if (err?.name === "AbortError") return false;
+          // fall through to the other delivery methods
+        }
+      }
+    }
+    if (typeof window.showSaveFilePicker === "function") {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: fileName,
+          types: [{ description: "PDF", accept: { "application/pdf": [".pdf"] } }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return true;
+      } catch (err) {
+        if (err?.name === "AbortError") return false;
+        // fall through to the download fallback
+      }
+    }
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 4000);
+    return true;
+  }
+
+  function closeDeviceSavePrompt() {
+    document.getElementById("plannerDeviceSaveModal")?.remove();
+    pendingDevicePlanPdf = null;
+  }
+
+  function showDeviceSavePrompt(planName) {
+    // Remove any leftover dialog node, but keep the pending PDF that
+    // promptSavePlanToDevice just prepared.
+    document.getElementById("plannerDeviceSaveModal")?.remove();
+    const modal = document.createElement("div");
+    modal.className = "planner-modal";
+    modal.id = "plannerDeviceSaveModal";
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+
+    const backdrop = document.createElement("div");
+    backdrop.className = "planner-modal-backdrop";
+    backdrop.addEventListener("click", closeDeviceSavePrompt);
+
+    const card = document.createElement("div");
+    card.className = "planner-modal-card";
+
+    const header = document.createElement("header");
+    const title = document.createElement("h3");
+    title.textContent = tr({ en: "Plan saved", es: "Plan guardado" });
+    header.appendChild(title);
+
+    const body = document.createElement("div");
+    body.className = "planner-modal-body";
+    const question = document.createElement("p");
+    question.textContent = tr({
+      en: `Do you also want to save "${planName}" as a PDF on your device? You can choose where to keep it.`,
+      es: `¿Quieres guardar tambien "${planName}" como PDF en tu dispositivo? Podras escoger donde guardarlo.`
+    });
+    const buttonsRow = document.createElement("div");
+    buttonsRow.className = "planner-device-save-buttons";
+
+    const noBtn = document.createElement("button");
+    noBtn.type = "button";
+    noBtn.className = "ghost";
+    noBtn.textContent = tr({ en: "No, thanks", es: "No, gracias" });
+    noBtn.addEventListener("click", closeDeviceSavePrompt);
+
+    const yesBtn = document.createElement("button");
+    yesBtn.type = "button";
+    yesBtn.className = "primary";
+    yesBtn.textContent = tr({ en: "Yes, save to device", es: "Si, guardar en dispositivo" });
+    yesBtn.addEventListener("click", () => {
+      const pdf = pendingDevicePlanPdf;
+      closeDeviceSavePrompt();
+      if (!pdf) return;
+      // Called inside the tap handler so the share sheet / save dialog keeps
+      // the user-gesture permission browsers require.
+      deliverPlanPdfToDevice(pdf.bytes, pdf.fileName).then((delivered) => {
+        if (delivered) {
+          triggerToast(tr({ en: "Plan saved to your device.", es: "Plan guardado en tu dispositivo." }));
+        }
+      }).catch((err) => {
+        console.warn("Device save failed", err);
+        triggerToast(tr({ en: "Could not save the file.", es: "No se pudo guardar el archivo." }));
+      });
+    });
+
+    buttonsRow.appendChild(noBtn);
+    buttonsRow.appendChild(yesBtn);
+    body.appendChild(question);
+    body.appendChild(buttonsRow);
+    card.appendChild(header);
+    card.appendChild(body);
+    modal.appendChild(backdrop);
+    modal.appendChild(card);
+    (els.settingsModal?.parentNode || document.body).appendChild(modal);
+  }
+
+  async function promptSavePlanToDevice(planName) {
+    try {
+      const bytes = await buildPlannerPlanPdfBytes(planName);
+      pendingDevicePlanPdf = { bytes, fileName: buildPlanPdfFileName(planName) };
+      showDeviceSavePrompt(planName);
+    } catch (err) {
+      console.warn("Could not prepare plan PDF for device save", err);
+    }
+  }
+
   async function savePlannerAsTemplate() {
     const authUser = await waitForPlannerAuthReady(5500);
     if (!authUser?.id) {
@@ -6314,6 +6544,7 @@
       if (!els.templatesModal?.classList.contains("hidden")) {
         loadPlannerTemplates().catch(() => {});
       }
+      promptSavePlanToDevice(cleanName).catch(() => {});
     } catch (err) {
       console.warn("Failed to save planner plan", err);
       const errorCode = String(err?.code || "").trim();
