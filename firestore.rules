@@ -136,6 +136,23 @@ service cloud.firestore {
         && isAllowedDirectMessagePair(participantIds[0], participantIds[1]);
     }
 
+    // The single team-wide chat thread: every signed-in user participates,
+    // so the 2-participant direct-message constraints don't apply to it.
+    function isTeamChatDocId(threadId) {
+      return threadId == "team-chat";
+    }
+
+    function isTeamThreadData(data) {
+      return data.threadKind == "team";
+    }
+
+    function canAccessTeamThread(data) {
+      return signedIn()
+        && isTeamThreadData(data)
+        && data.participantIds is list
+        && request.auth.uid in data.participantIds;
+    }
+
     function isPendingParentCreate() {
       return request.resource.data.role == "parent"
         && request.resource.data.view == "parent"
@@ -419,37 +436,73 @@ service cloud.firestore {
     }
 
     match /message_threads/{threadId} {
-      allow get: if isAdminEmail() || canRepairLegacyMessageThread(resource.data);
-      allow list: if isAdminEmail() || canRepairLegacyMessageThread(resource.data);
-      allow create: if signedIn()
+      // resource == null lets signed-in clients probe whether the team chat
+      // doc exists yet (ensureTeamChatThread does a get before creating it).
+      allow get: if isAdminEmail()
+        || (signedIn() && resource == null)
+        || (signedIn() && isTeamThreadData(resource.data))
+        || canRepairLegacyMessageThread(resource.data);
+      allow list: if isAdminEmail()
+        || (signedIn() && isTeamThreadData(resource.data))
+        || canRepairLegacyMessageThread(resource.data);
+      allow create: if (
+        signedIn()
         && isAllowedDirectMessageParticipants(request.resource.data.participantIds)
-        && request.auth.uid in request.resource.data.participantIds;
-      allow update: if signedIn()
+        && request.auth.uid in request.resource.data.participantIds
+      ) || (
+        signedIn()
+        && isTeamChatDocId(threadId)
+        && isTeamThreadData(request.resource.data)
+        && request.resource.data.participantIds is list
+        && request.auth.uid in request.resource.data.participantIds
+      );
+      allow update: if (
+        signedIn()
         && isAllowedDirectMessageParticipants(request.resource.data.participantIds)
         && (
           request.resource.data.participantIds == resource.data.participantIds
           || canRepairLegacyMessageParticipants()
         )
         && request.auth.uid in request.resource.data.participantIds
-        && (isAdminEmail() || canRepairLegacyMessageThread(resource.data));
-      allow delete: if isAdminEmail() || canRepairLegacyMessageThread(resource.data);
+        && (isAdminEmail() || canRepairLegacyMessageThread(resource.data))
+      ) || (
+        signedIn()
+        && isTeamChatDocId(threadId)
+        && isTeamThreadData(resource.data)
+        && isTeamThreadData(request.resource.data)
+        && request.resource.data.participantIds is list
+        && request.auth.uid in request.resource.data.participantIds
+        && request.resource.data.participantIds.hasAll(resource.data.participantIds)
+      );
+      allow delete: if isAdminEmail()
+        || (!isTeamThreadData(resource.data) && canRepairLegacyMessageThread(resource.data));
 
       match /messages/{messageId} {
         allow get: if isAdminEmail() || (
+          canAccessTeamThread(get(/databases/$(database)/documents/message_threads/$(threadId)).data)
+        ) || (
           canRepairLegacyMessageThread(get(/databases/$(database)/documents/message_threads/$(threadId)).data)
         );
         allow list: if isAdminEmail() || (
+          canAccessTeamThread(get(/databases/$(database)/documents/message_threads/$(threadId)).data)
+        ) || (
           canRepairLegacyMessageThread(get(/databases/$(database)/documents/message_threads/$(threadId)).data)
         );
         allow create: if signedIn()
-          && canRepairLegacyMessageThread(get(/databases/$(database)/documents/message_threads/$(threadId)).data)
+          && (
+            canAccessTeamThread(get(/databases/$(database)/documents/message_threads/$(threadId)).data)
+            || canRepairLegacyMessageThread(get(/databases/$(database)/documents/message_threads/$(threadId)).data)
+          )
           && request.resource.data.senderUid == request.auth.uid
           && request.resource.data.threadId == threadId
           && request.resource.data.text is string
           && request.resource.data.text.size() > 0
           && request.resource.data.text.size() <= 1000;
         allow update: if signedIn()
-          && canRepairLegacyMessageThread(get(/databases/$(database)/documents/message_threads/$(threadId)).data)
+          && (
+            canAccessTeamThread(get(/databases/$(database)/documents/message_threads/$(threadId)).data)
+            || canRepairLegacyMessageThread(get(/databases/$(database)/documents/message_threads/$(threadId)).data)
+          )
           && resource.data.threadId == threadId
           && request.resource.data.threadId == resource.data.threadId
           && request.resource.data.senderUid == resource.data.senderUid
@@ -464,6 +517,9 @@ service cloud.firestore {
             "serverReadAt"
           ]);
         allow delete: if isAdminEmail() || (
+          canAccessTeamThread(get(/databases/$(database)/documents/message_threads/$(threadId)).data)
+          && resource.data.senderUid == request.auth.uid
+        ) || (
           canRepairLegacyMessageThread(get(/databases/$(database)/documents/message_threads/$(threadId)).data)
         );
       }
