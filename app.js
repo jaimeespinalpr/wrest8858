@@ -5528,12 +5528,28 @@ function getBuiltinCoachTemplateSeeds() {
       items: {
         intro: ["Review today's scoring focus", "Highlight one competition carryover cue"],
         warmup: ["Dynamic movement and mobility", "Stance motion and footwork"],
-        drills: ["Single leg finish chain", "Snap to score series", "Short offense entries"],
-        live: ["3 x 1:00 situational goes", "3 x 1:00 live from neutral"],
+        drills: ["Single leg finish chain", "Snap to score series", "Short offense entries", "Front Headlock Position", "Short Offense Position", "Whizzer Position", "Double Leg Finish Position", "Head Inside Single Leg Position"],
+        live: ["3 x 1:00 situational goes", "3 x 1:00 live from neutral", "Front Headlock situations", "Whizzer situations", "Short Offense situations"],
         cooldown: ["Breathing reset", "Mental rep of main finish"],
         announcements: ["Log journal after practice"]
       },
       monthlyNotes: "Use as the anchor technical session when the room needs clean repetition."
+    },
+    {
+      id: "wrestling-positions",
+      name: "Wrestling Positions",
+      type: "day",
+      focus: "Develop positional awareness and execution from key wrestling positions.",
+      coachNotes: "Emphasize correct body position and reaction from each starting point before adding live resistance.",
+      items: {
+        intro: ["Review today's position focus", "Identify scoring opportunities from each position"],
+        warmup: ["Dynamic movement and mobility", "Stance motion and footwork"],
+        drills: ["Front Headlock Position", "Short Offense Position", "Whizzer Position", "Double Leg Finish Position", "Head Inside Single Leg Position"],
+        live: ["Front Headlock situations", "Short Offense situations", "Whizzer situations", "Double Leg finish situations", "Head Inside Single Leg situations"],
+        cooldown: ["Breathing reset", "Mental rep of best position rep"],
+        announcements: ["Log position work in journal after practice"]
+      },
+      monthlyNotes: "Use when the room needs dedicated position-based repetition and situational drilling."
     },
     {
       id: "competition-prep",
