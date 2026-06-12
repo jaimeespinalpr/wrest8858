@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ghetty Motor Home | Cuestionario</title>
+  <meta name="description" content="Cuestionario interactivo para organizar el alquiler de motorhome de Ghetty Motor Home." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <section class="hero-card" aria-label="Encabezado Ghetty Motor Home">
+      <div class="hero-logo-wrap">
+        <img src="" data-logo="assets/ghetty-logo.b64" alt="Logo Ghetty Motor Home" class="hero-logo" />
+      </div>
+      <div class="hero-copy">
+        <p class="eyebrow">Ghetty Motor Home</p>
+        <h1>Cuestionario de organización para alquiler de motorhome</h1>
+        <p class="subtitle">Escoge A, B o C. Si ninguna opción aplica, escribe tu propia respuesta.</p>
+      </div>
+    </section>
+
+    <section id="introPanel" class="panel intro-panel">
+      <h2>Antes de empezar</h2>
+      <p>Estos datos ayudan a identificar quién llenó el cuestionario. Las respuestas principales llegarán por email en formato pregunta + respuesta.</p>
+      <form id="respondentForm" class="respondent-grid">
+        <label>
+          Nombre
+          <input id="respondentName" name="name" type="text" placeholder="Ej. Jaime Espinal" autocomplete="name" />
+        </label>
+        <label>
+          Email
+          <input id="respondentEmail" name="email" type="email" placeholder="ejemplo@email.com" autocomplete="email" />
+        </label>
+        <label>
+          Teléfono
+          <input id="respondentPhone" name="phone" type="tel" placeholder="(000) 000-0000" autocomplete="tel" />
+        </label>
+      </form>
+      <button id="startBtn" class="primary-btn" type="button">Comenzar cuestionario</button>
+    </section>
+
+    <section id="questionPanel" class="panel question-panel hidden" aria-live="polite">
+      <div class="progress-row">
+        <div>
+          <span id="progressText" class="progress-text">Pregunta 1 de 50</span>
+          <h2 id="questionTitle"></h2>
+        </div>
+        <div class="progress-circle" id="progressPercent">0%</div>
+      </div>
+      <div class="progress-bar" aria-hidden="true"><div id="progressFill"></div></div>
+
+      <div id="optionsWrap" class="options-wrap"></div>
+
+      <div class="custom-box">
+        <label for="customAnswer">Otra respuesta</label>
+        <textarea id="customAnswer" rows="3" placeholder="Escribe aquí si ninguna opción aplica..."></textarea>
+        <button id="useCustomBtn" class="ghost-btn" type="button">Usar mi respuesta escrita</button>
+      </div>
+
+      <div class="nav-row">
+        <button id="backBtn" class="secondary-btn" type="button">Atrás</button>
+        <button id="nextBtn" class="primary-btn" type="button">Siguiente</button>
+      </div>
+    </section>
+
+    <section id="reviewPanel" class="panel review-panel hidden">
+      <div class="review-header">
+        <div>
+          <p class="eyebrow">Último paso</p>
+          <h2>Revisa tus respuestas</h2>
+          <p>El email se enviará con cada pregunta y la respuesta escogida o escrita.</p>
+        </div>
+        <div class="review-count" id="reviewCount">50/50</div>
+      </div>
+
+      <div id="reviewList" class="review-list"></div>
+
+      <div class="submit-box">
+        <button id="editLastBtn" class="secondary-btn" type="button">Editar respuestas</button>
+        <button id="downloadBtn" class="ghost-btn" type="button">Descargar copia .txt</button>
+        <button id="submitBtn" class="primary-btn" type="button">Enviar por email</button>
+      </div>
+      <p id="statusMessage" class="status-message" role="status"></p>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
