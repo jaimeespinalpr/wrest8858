@@ -13,6 +13,10 @@
   ];
   const BASE_WRESTLING_CATEGORIES = CATEGORIES.map((category) => ({ ...category }));
   const SHARED_WRESTLING_PLANNER_DOC_ID = "uwc_wrestling_planner_catalog";
+  // Unique id for this page load. Cloud writes are tagged with it so the
+  // realtime listeners can ignore the server echo of our own writes —
+  // re-applying those echoes re-renders the planner mid-edit on mobile.
+  const PLANNER_CLIENT_SESSION_ID = `pc_${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
 
   const CATEGORY_NAME_TRANSLATIONS = {
     roll_call: { en: "Roll Call and Announcements", es: "Lista y anuncios" },
@@ -6643,6 +6647,7 @@
       liftingPlan: normalizeLiftingPlan(state.liftingPlan || buildDefaultLiftingPlan()),
       liftingActiveDay: Math.max(0, Math.min(6, parseInt(String(state.liftingActiveDay || 0), 10) || 0)),
       liftingActiveTab: normalizeLiftingTab(state.liftingTab || "editor"),
+      originClient: PLANNER_CLIENT_SESSION_ID,
       updatedAt: new Date().toISOString()
     };
   }
@@ -6722,8 +6727,12 @@
         return;
       }
       state.plannerClientStateReady = true;
+      const payload = docSnap.data() || {};
+      // Skip the server echo of this page load's own writes — re-applying the
+      // payload and re-rendering here makes the planner jump while editing.
+      if (String(payload.originClient || "") === PLANNER_CLIENT_SESSION_ID) return;
       runWhenPlannerIdle("planner-client-state", () => {
-        applyPlannerClientStatePayload(docSnap.data() || {});
+        applyPlannerClientStatePayload(payload);
         render();
       });
     }, (err) => {
@@ -7162,6 +7171,7 @@
       categoryNames: { ...state.categoryNames },
       categoryTimes: { ...state.categoryTimes },
       exerciseLibrary: normalizeLibraryEntries(state.exerciseLibrary || []),
+      originClient: PLANNER_CLIENT_SESSION_ID,
       updatedAt: getPlannerTimestamp(),
       updatedByUid: String(getPlannerAuthUser()?.id || "").trim(),
       updatedByName: String(getPlannerProfile()?.name || getPlannerAuthUser()?.email || "Coach").trim()
@@ -7204,7 +7214,9 @@
     reconcilePlannerDataForCategories({ keepLibraryUnknown: false });
     persistCategories();
     persistCategoryNames();
-    persistDaily();
+    // Local persistence only: this runs while applying remote catalog data, so
+    // pushing back to the cloud here creates a write -> snapshot -> write loop.
+    persistDaily({ syncCloud: false, updatedAt: state.dailyDraftUpdatedAt });
     persistLibrary();
   }
 
@@ -7278,6 +7290,12 @@
         return;
       }
       const data = docSnap.data() || {};
+      // Skip the server echo of a write made by this page load: local state is
+      // already current and re-applying it rebuilds the rows while the coach types.
+      if (String(data.originClient || "") === PLANNER_CLIENT_SESSION_ID) {
+        state.plannerCatalogReady = true;
+        return;
+      }
       runWhenPlannerIdle("planner-catalog", () => {
         const hasSharedCategories = Array.isArray(data?.categories) && data.categories.length > 0;
         applySharedPlannerCatalogData(data, { mergeLocal: !hasSharedCategories });
@@ -7337,6 +7355,11 @@
         .map((doc) => normalizeCoachLibraryFromUserDoc(doc.id, doc.data() || {}))
         .filter(Boolean)
         .sort((left, right) => left.name.localeCompare(right.name));
+      // This listener covers the whole users collection, so it fires on every
+      // save of our own daily draft. Skip the re-render when nothing changed.
+      const signature = JSON.stringify(rows);
+      if (state.coachLibrariesReady && signature === state.coachLibrariesSignature) return;
+      state.coachLibrariesSignature = signature;
       runWhenPlannerIdle("coach-libraries", () => {
         state.coachLibraries = rows;
         state.coachLibrariesReady = true;
