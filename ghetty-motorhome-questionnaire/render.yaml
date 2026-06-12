@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: ghetty-motorhome-questionnaire
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DISPLAY_TIMEZONE
+        value: America/New_York
