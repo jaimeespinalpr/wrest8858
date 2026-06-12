@@ -1219,6 +1219,9 @@
     settingsLogoInput: document.getElementById("plannerSettingsLogoInput"),
     settingsLogoPreview: document.getElementById("plannerSettingsLogoPreview"),
     settingsLogoPlaceholder: document.getElementById("plannerSettingsLogoPlaceholder"),
+    settingsLogoBox: document.getElementById("plannerSettingsLogoBox"),
+    settingsLogoHint: document.getElementById("plannerSettingsLogoHint"),
+    settingsUploadLogoBtn: document.getElementById("plannerSettingsUploadLogoBtn"),
     settingsRemoveLogoBtn: document.getElementById("plannerSettingsRemoveLogoBtn"),
 
     libraryModal: document.getElementById("plannerLibraryModal"),
@@ -7459,10 +7462,14 @@
       els.settingsLogoPreview.src = logo;
       els.settingsLogoPreview.classList.remove("hidden");
       els.settingsLogoPlaceholder.classList.add("hidden");
+      els.settingsLogoBox?.classList.add("has-logo");
+      els.settingsLogoHint?.classList.remove("hidden");
     } else {
       els.settingsLogoPreview.removeAttribute("src");
       els.settingsLogoPreview.classList.add("hidden");
       els.settingsLogoPlaceholder.classList.remove("hidden");
+      els.settingsLogoBox?.classList.remove("has-logo");
+      els.settingsLogoHint?.classList.add("hidden");
     }
   }
 
@@ -8262,7 +8269,17 @@
     if (els.settingsCloseBtn) els.settingsCloseBtn.textContent = tr({ en: "Close", es: "Cerrar" });
     if (els.settingsCancelBtn) els.settingsCancelBtn.textContent = tr({ en: "Cancel", es: "Cancelar" });
     if (els.settingsSaveBtn) els.settingsSaveBtn.textContent = tr({ en: "Save changes", es: "Guardar cambios" });
-    if (els.settingsRemoveLogoBtn) els.settingsRemoveLogoBtn.textContent = tr({ en: "Remove logo", es: "Quitar logo" });
+    if (els.settingsRemoveLogoBtn) els.settingsRemoveLogoBtn.textContent = tr({ en: "Remove", es: "Quitar" });
+    if (els.settingsUploadLogoBtn) els.settingsUploadLogoBtn.textContent = tr({ en: "Change", es: "Cambiar" });
+    if (els.settingsLogoHint) els.settingsLogoHint.textContent = tr({ en: "Tap to change", es: "Toca para cambiar" });
+    if (els.settingsLogoPlaceholder) {
+      const placeholderTitle = els.settingsLogoPlaceholder.querySelector("strong");
+      const placeholderHint = els.settingsLogoPlaceholder.querySelector(".planner-logo-placeholder-hint");
+      if (placeholderTitle) placeholderTitle.textContent = tr({ en: "Add your club logo", es: "Agrega el logo de tu club" });
+      if (placeholderHint) placeholderHint.textContent = tr({ en: "Tap here to choose an image", es: "Toca aqui para elegir una imagen" });
+    }
+    const logoSettingsTitle = document.querySelector(".planner-logo-settings-title");
+    if (logoSettingsTitle) logoSettingsTitle.textContent = tr({ en: "Plan logo", es: "Logo del plan" });
     if (els.liftingShareBtn) els.liftingShareBtn.textContent = tr({ en: "Share plan", es: "Compartir plan" });
     if (els.liftingPrintBtn) els.liftingPrintBtn.textContent = tr({ en: "Print", es: "Imprimir" });
     if (els.liftingSaveProtocolBtn) els.liftingSaveProtocolBtn.textContent = tr({ en: "Save Protocol", es: "Guardar Protocolo" });
@@ -8875,6 +8892,15 @@
       state.tempSettings.logoUrl = sanitizePlannerLogoUrl("", DEFAULT_PLANNER_LOGO_URL);
       renderSettingsLogoPreview();
     });
+    const openLogoFilePicker = () => {
+      if (!els.settingsLogoInput) return;
+      // Reset so picking the same file again still fires "change" (mobile
+      // Safari keeps the previous selection and silently does nothing).
+      els.settingsLogoInput.value = "";
+      els.settingsLogoInput.click();
+    };
+    els.settingsLogoBox?.addEventListener("click", openLogoFilePicker);
+    els.settingsUploadLogoBtn?.addEventListener("click", openLogoFilePicker);
     els.settingsLogoInput?.addEventListener("change", (event) => {
       const file = event.target.files && event.target.files[0];
       if (!file || !state.tempSettings) return;

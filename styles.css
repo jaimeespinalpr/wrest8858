@@ -11527,40 +11527,129 @@ svg{
 }
 
 .planner-logo-settings{
-  display: flex;
+  display: grid;
   gap: 10px;
-  flex-wrap: wrap;
+  width: 100%;
+}
+
+.planner-logo-settings-title{
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9ab0d4;
+  font-weight: 700;
 }
 
 .planner-logo-preview-box{
-  width: 120px;
-  height: 96px;
-  border: 1px dashed rgba(124, 147, 183, 0.35);
-  border-radius: 10px;
+  position: relative;
+  width: 100%;
+  min-height: 190px;
+  border: 2px dashed rgba(124, 147, 183, 0.4);
+  border-radius: 14px;
+  background: rgba(13, 25, 48, 0.45);
   display: grid;
   place-items: center;
   text-align: center;
-  font-size: 0.82rem;
   color: #9bb1d3;
-  padding: 8px;
+  padding: 14px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.planner-logo-preview-box:hover,
+.planner-logo-preview-box:focus-visible{
+  border-color: rgba(125, 211, 252, 0.75);
+  background: rgba(20, 36, 66, 0.6);
+  outline: none;
+}
+
+.planner-logo-preview-box:active{
+  transform: scale(0.99);
+}
+
+.planner-logo-preview-box.has-logo{
+  border-style: solid;
+  border-color: rgba(124, 147, 183, 0.3);
 }
 
 .planner-logo-preview-box img{
   max-width: 100%;
-  max-height: 100%;
+  max-height: 200px;
   object-fit: contain;
+  border-radius: 8px;
+}
+
+.planner-logo-placeholder{
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  font-size: 0.9rem;
+}
+
+.planner-logo-placeholder strong{
+  color: #d7e4fb;
+  font-size: 0.95rem;
+}
+
+.planner-logo-placeholder-icon{
+  color: #7d93b7;
+  display: inline-flex;
+}
+
+.planner-logo-placeholder-hint{
+  font-size: 0.8rem;
+  color: #8aa2c6;
+}
+
+.planner-logo-edit-hint{
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #dbe9ff;
+  background: rgba(10, 20, 40, 0.72);
+  border: 1px solid rgba(125, 211, 252, 0.35);
+  border-radius: 999px;
+  padding: 4px 11px;
+  pointer-events: none;
+  backdrop-filter: blur(3px);
 }
 
 .planner-logo-buttons{
   display: grid;
-  align-content: start;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 
-.planner-file-label{
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.planner-logo-btn{
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(124, 147, 183, 0.4);
+  background: transparent;
+  color: #c5d6f2;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.planner-logo-btn-upload{
+  border-color: rgba(125, 211, 252, 0.55);
+  color: #aaddff;
+}
+
+.planner-logo-btn-upload:hover{
+  background: rgba(125, 211, 252, 0.12);
+}
+
+.planner-logo-btn-remove:hover{
+  border-color: rgba(248, 113, 113, 0.6);
+  color: #fca5a5;
+  background: rgba(248, 113, 113, 0.08);
 }
 
 .planner-print-presets{
