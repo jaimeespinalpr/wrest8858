@@ -1088,6 +1088,15 @@
   })();
 
   const dailyState = readJson(STORAGE_KEYS.daily, {});
+  const initialPlannerDateSeedKey = resolvePlannerDateSeedKey(
+    dailyState.dateSeedKey || dailyState.plannerDateSeedKey || "",
+    dailyState.updatedAt || ""
+  );
+  const initialPlannerWorkingDate = resolvePlannerWorkingDate(
+    dailyState.date || "",
+    initialPlannerDateSeedKey,
+    dailyState.updatedAt || ""
+  );
   const persistedWrestlingCategories = normalizePlannerCategoryCollection(
     readJson(STORAGE_KEYS.categories, runtimeWrestlingCategories)
   );
@@ -1098,7 +1107,7 @@
     activeTrack: normalizeTrack(readJson(STORAGE_KEYS.track, "wrestling")),
     lastRenderedTrack: normalizeTrack(readJson(STORAGE_KEYS.track, "wrestling")),
     docInfo: {
-      date: String(dailyState.date || ""),
+      date: initialPlannerWorkingDate,
       totalTime: String(dailyState.totalTime || "90")
     },
     settings: normalizePlannerSettings({
@@ -1128,6 +1137,7 @@
     settingsSyncTimer: null,
     dailySyncTimer: null,
     dailyDraftUpdatedAt: String(dailyState.updatedAt || ""),
+    dailyDateSeedKey: initialPlannerDateSeedKey,
     categoryDrafts: {},
     pendingLibraryFocus: "",
     pendingCategoryFocus: "",
@@ -1330,12 +1340,14 @@
 
   function persistDaily({ syncCloud = true, updatedAt = "" } = {}) {
     const safeUpdatedAt = String(updatedAt || "").trim() || new Date().toISOString();
+    state.dailyDateSeedKey = getTodayDateKey();
     state.dailyDraftUpdatedAt = safeUpdatedAt;
     writeJson(STORAGE_KEYS.daily, {
       date: state.docInfo.date,
       totalTime: state.docInfo.totalTime,
       schedule: state.schedule,
       categoryTimes: state.categoryTimes,
+      dateSeedKey: state.dailyDateSeedKey,
       updatedAt: safeUpdatedAt
     });
     if (syncCloud) {
@@ -1466,6 +1478,28 @@
       const total = Math.max(1, parseTimeValue(state.docInfo.totalTime || "90"));
       els.totalTimePrintValue.textContent = `${total} min`;
     }
+  }
+
+  function refreshPlannerWorkingDate({ syncCloud = false, rerender = true } = {}) {
+    const nextDate = resolvePlannerWorkingDate(
+      state.docInfo.date || "",
+      state.dailyDateSeedKey || "",
+      state.dailyDraftUpdatedAt || ""
+    );
+    const nextSeedKey = getTodayDateKey();
+    const dateChanged = Boolean(nextDate && nextDate !== state.docInfo.date);
+    const seedChanged = state.dailyDateSeedKey !== nextSeedKey;
+    if (!dateChanged && !seedChanged) return false;
+    state.docInfo.date = nextDate || nextSeedKey;
+    state.dailyDateSeedKey = nextSeedKey;
+    persistDaily({ syncCloud });
+    if (rerender) {
+      render();
+    } else {
+      if (els.dateInput) els.dateInput.value = state.docInfo.date || "";
+      updatePrintMetaValues();
+    }
+    return true;
   }
 
   function escapePrintHtml(value) {
@@ -5093,7 +5127,44 @@
   }
 
   function getTodayDateKey() {
-    return new Date().toISOString().slice(0, 10);
+    try {
+      if (typeof getCurrentAppDateKey === "function") {
+        const appKey = String(getCurrentAppDateKey(new Date()) || "").trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(appKey)) return appKey;
+      }
+    } catch {
+      // fall through to local date fallback
+    }
+    return dateToDateKey(new Date());
+  }
+
+  function getDateKeyFromTimestamp(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return "";
+    try {
+      if (typeof getCurrentAppDateKey === "function") {
+        const appKey = String(getCurrentAppDateKey(date) || "").trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(appKey)) return appKey;
+      }
+    } catch {
+      // fall through to local date fallback
+    }
+    return dateToDateKey(date);
+  }
+
+  function resolvePlannerDateSeedKey(seedValue = "", updatedAt = "") {
+    return normalizeDateKeyValue(seedValue, { fallbackToday: false }) || getDateKeyFromTimestamp(updatedAt);
+  }
+
+  function resolvePlannerWorkingDate(dateValue = "", seedValue = "", updatedAt = "") {
+    const todayKey = getTodayDateKey();
+    const safeDate = normalizeDateKeyValue(dateValue, { fallbackToday: false });
+    if (!safeDate) return todayKey;
+    const seedKey = resolvePlannerDateSeedKey(seedValue, updatedAt);
+    if (!seedKey || seedKey !== todayKey) return todayKey;
+    return safeDate;
   }
 
   function dateFromDateKey(value) {
@@ -5159,12 +5230,13 @@
     });
   }
 
-  function normalizeDateKeyValue(value) {
+  function normalizeDateKeyValue(value, { fallbackToday = true } = {}) {
     const raw = String(value || "").trim();
+    if (!raw) return fallbackToday ? getTodayDateKey() : "";
     if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
     const date = new Date(raw);
-    if (Number.isNaN(date.getTime())) return getTodayDateKey();
-    return date.toISOString().slice(0, 10);
+    if (Number.isNaN(date.getTime())) return fallbackToday ? getTodayDateKey() : "";
+    return dateToDateKey(date);
   }
 
   function formatDateLabel(value) {
@@ -5431,10 +5503,15 @@
       value?.plannerCategoryTimes || value?.categoryTimes || {},
       resolvedCategories
     );
-    const safeDate = normalizeDateKeyValue(value?.plannerDate || value?.date || "");
+    const safeDate = normalizeDateKeyValue(value?.plannerDate || value?.date || "", { fallbackToday: false });
+    const safeDateSeedKey = resolvePlannerDateSeedKey(
+      value?.plannerDateSeedKey || value?.dateSeedKey || "",
+      value?.updatedAt || value?.updatedAtIso || ""
+    );
     const safeTotalTime = String(value?.plannerTotalTime || value?.totalTime || "").trim();
+    const hasCustomDate = Boolean(safeDate && safeDateSeedKey && safeDate !== getTodayDateKey());
     return Boolean(
-      safeDate
+      hasCustomDate
       || hasPlannerScheduleEntries(safeSchedule, resolvedCategories)
       || hasMeaningfulPlannerCategoryTimes(safeTimes, resolvedCategories)
       || (safeTotalTime && safeTotalTime !== "90")
@@ -5457,7 +5534,12 @@
     state.categoryTimes = normalizeTemplateTimesValue(record.categoryTimes || {}, state.wrestlingCategories);
     state.categoryNames = normalizeTemplateCategoryNamesValue(record.categoryNames || {}, state.wrestlingCategories);
     reconcilePlannerDataForCategories({ keepLibraryUnknown: false });
-    const nextDate = normalizeDateKeyValue(record.savedDate || state.docInfo.date || getTodayDateKey());
+    state.dailyDateSeedKey = resolvePlannerDateSeedKey("", record.updatedAt || record.createdAt || "");
+    const nextDate = resolvePlannerWorkingDate(
+      record.savedDate || state.docInfo.date || "",
+      state.dailyDateSeedKey,
+      record.updatedAt || record.createdAt || ""
+    );
     if (nextDate) {
       state.docInfo.date = nextDate;
     }
@@ -7024,8 +7106,10 @@
     const authUser = getPlannerAuthUser();
     const uid = String(authUser?.id || "").trim();
     if (!usersRef || !uid) return;
+    const dateSeedKey = resolvePlannerDateSeedKey(state.dailyDateSeedKey || "", state.dailyDraftUpdatedAt || "") || getTodayDateKey();
     const payload = {
       date: String(state.docInfo.date || "").trim(),
+      dateSeedKey,
       totalTime: String(state.docInfo.totalTime || "90").trim(),
       schedule: normalizePlannerScheduleState(state.schedule || {}, getPlannerCategories()),
       categoryTimes: normalizePlannerCategoryTimesState(state.categoryTimes || {}, getPlannerCategories())
@@ -7085,7 +7169,15 @@
       }
       if (!localHasData || remoteMs > localMs + 1000) {
         runWhenPlannerIdle("daily-draft-hydrate", () => {
-          state.docInfo.date = String(remoteDraft?.date || "").trim();
+          state.dailyDateSeedKey = resolvePlannerDateSeedKey(
+            remoteDraft?.dateSeedKey || raw?.plannerDailyDraftDateSeedKey || "",
+            remoteUpdatedAt || remoteDraft?.updatedAt || ""
+          );
+          state.docInfo.date = resolvePlannerWorkingDate(
+            remoteDraft?.date || "",
+            state.dailyDateSeedKey,
+            remoteUpdatedAt || remoteDraft?.updatedAt || ""
+          );
           state.docInfo.totalTime = String(remoteDraft?.totalTime || "90").trim() || "90";
           state.schedule = normalizePlannerScheduleState(remoteDraft?.schedule || {}, getPlannerCategories());
           state.categoryTimes = normalizePlannerCategoryTimesState(remoteDraft?.categoryTimes || {}, getPlannerCategories());
@@ -8868,7 +8960,7 @@
     }
 
     if (target === els.dateInput) {
-      state.docInfo.date = String(els.dateInput.value || "");
+      state.docInfo.date = normalizeDateKeyValue(els.dateInput.value || "", { fallbackToday: false }) || getTodayDateKey();
       persistDaily();
       updatePrintMetaValues();
       return;
@@ -9016,10 +9108,18 @@
     }
   }
 
+  function handlePlannerResume() {
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+    const canSyncCloud = Boolean(String(getPlannerAuthUser()?.id || "").trim());
+    refreshPlannerWorkingDate({ syncCloud: canSyncCloud, rerender: true });
+  }
+
   function bindStaticEvents() {
     ["pointerdown", "mousedown", "touchstart", "click", "keydown"].forEach((eventName) => {
       document.addEventListener(eventName, protectPlannerTextFocus, true);
     });
+    document.addEventListener("visibilitychange", handlePlannerResume);
+    window.addEventListener("focus", handlePlannerResume);
     root.addEventListener("click", focusPlannerFieldFromContainer, true);
     root.addEventListener("click", handleRootClick);
     root.addEventListener("pointerdown", handleRootPointerDown);

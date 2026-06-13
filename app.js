@@ -10,7 +10,7 @@ const DEFAULT_LANG = "en";
 const APP_TIMEZONE = "America/New_York";
 const SUPPORTED_LANGS = new Set(["en", "es", "uz", "ru"]);
 const PUBLISH_READY_MODE = String(window.WPL_PUBLISH_READY_MODE || "true").toLowerCase() !== "false";
-const DOMAIN_ASSET_VERSION = "20260612-save-device1";
+const DOMAIN_ASSET_VERSION = "20260612-planner-live-date1";
 const APP_ASSET_BASE_URL = (() => {
   const currentScriptSrc = document.currentScript?.src || "";
   const appScriptSrc = currentScriptSrc || Array.from(document.scripts || [])
@@ -330,7 +330,7 @@ const OFFICIAL_COACH_EMAILS = new Set([
 const COACH_PLANNER_DEFAULTS = {
   clubName: "United Wrestling Club",
   season: "Season 2025-2026",
-  logoUrl: new URL("uwc-logo.png", APP_ASSET_BASE_URL).href,
+  logoUrl: "uwc-logo.png",
   footerMessage: "",
   printAutoColors: false,
   printBorderColor: "#0d6b4a",
@@ -1137,26 +1137,6 @@ async function openProfileShortcut() {
   await showTab(resolveProfileShortcutTab(role));
 }
 
-function clearPlansGuestEntryIntent() {
-  // The /plans/ route auto-enters a coach guest session. When the user
-  // explicitly logs out, drop every marker of that intent so showOnboarding
-  // shows the real sign-in screen instead of bouncing back into guest mode.
-  try { sessionStorage.removeItem("wpl_initial_route"); } catch {}
-  try {
-    if (typeof APP_LAUNCH_CONFIG !== "undefined" && APP_LAUNCH_CONFIG) {
-      APP_LAUNCH_CONFIG.guestPlans = false;
-      if (APP_LAUNCH_CONFIG.tab === "coach-plans") APP_LAUNCH_CONFIG.tab = "";
-    }
-  } catch {}
-  try { window.WPL_ROUTE_TAB = ""; } catch {}
-  try {
-    if (/\/plans\/?$/.test(String(window.location?.pathname || ""))) {
-      const basePath = new URL(".", APP_ASSET_BASE_URL).pathname;
-      window.history.replaceState({}, "", basePath);
-    }
-  } catch {}
-}
-
 function handleHeaderMenuAction(action) {
   if (!action) return;
   closeHeaderMenu();
@@ -1181,7 +1161,6 @@ function handleHeaderMenuAction(action) {
     return;
   }
   if (action === "logout") {
-    clearPlansGuestEntryIntent();
     firebaseAuthInstance?.signOut().catch(() => {});
     stopMediaRealtimeSync();
     stopCoachWorkspaceRealtimeSync();
@@ -1201,7 +1180,6 @@ function handleHeaderMenuAction(action) {
     return;
   }
   if (action === "switch") {
-    clearPlansGuestEntryIntent();
     firebaseAuthInstance?.signOut().catch(() => {});
     stopMediaRealtimeSync();
     stopCoachWorkspaceRealtimeSync();
@@ -7641,12 +7619,8 @@ async function handleSuccessfulAuth(result, { showWelcome = false } = {}) {
       ? profile.plannerTemplateSettings
       : {};
     const rawLogo = String(currentSettings.logoUrl || "").trim();
-    if (
-      rawLogo === "uwc-logo.png" ||
-      rawLogo === "https://united-wc.com/assets/uwc-logo.png" ||
-      rawLogo === "https://www.united-wc.com/assets/uwc-logo.png"
-    ) {
-      currentSettings.logoUrl = new URL("uwc-logo.png", APP_ASSET_BASE_URL).href;
+    if (rawLogo === "https://united-wc.com/assets/uwc-logo.png" || rawLogo === "https://www.united-wc.com/assets/uwc-logo.png") {
+      currentSettings.logoUrl = "uwc-logo.png";
     }
     const mergedSettings = {
       ...buildCoachPlannerTemplateSettings(profile.name || resolvedAuthUser.email || ""),
