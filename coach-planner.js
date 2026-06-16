@@ -82,7 +82,69 @@
     return normalizePlannerCategoryCollection(merged);
   }
 
-  const INITIAL_LIBRARY = [];
+  const POSITION_DRILL_MAP = {
+    neutral: {
+      label: "Neutral",
+      drills: ["Front Headlock Position", "Short Offense Position", "Double Leg Finish Position", "Head Inside Single Leg Position", "Snap to score series", "Hand fighting series"],
+      situations: ["Front Headlock situations", "Short Offense situations", "Double Leg finish situations", "Head Inside Single Leg situations", "3 x 1:00 live from neutral"]
+    },
+    top: {
+      label: "Top",
+      drills: ["Top breakdown series", "Half nelson finish", "Cradle series"],
+      situations: ["Top / bottom starts", "Late-period closeout situations"]
+    },
+    bottom: {
+      label: "Bottom",
+      drills: ["Stand-up and base", "Switch and roll"],
+      situations: ["Top / bottom starts", "Score-first situations"]
+    }
+  };
+
+  const INITIAL_LIBRARY = [
+    { id: "lib-rc-1", name: "Review today's scoring focus", categoryId: "roll_call" },
+    { id: "lib-rc-2", name: "Set match cue for the room", categoryId: "roll_call" },
+    { id: "lib-wu-1", name: "Dynamic movement and mobility", categoryId: "warm_up" },
+    { id: "lib-wu-2", name: "Stance motion and footwork", categoryId: "warm_up" },
+    { id: "lib-wu-3", name: "Hip mobility circuit", categoryId: "warm_up" },
+    { id: "lib-wu-4", name: "Neck and shoulder activation", categoryId: "warm_up" },
+    { id: "lib-wu-5", name: "Sprawl and recover warm-up", categoryId: "warm_up" },
+    { id: "lib-tc-1", name: "Front Headlock Position", categoryId: "techniques" },
+    { id: "lib-tc-2", name: "Short Offense Position", categoryId: "techniques" },
+    { id: "lib-tc-3", name: "Whizzer Position", categoryId: "techniques" },
+    { id: "lib-tc-4", name: "Double Leg Finish Position", categoryId: "techniques" },
+    { id: "lib-tc-5", name: "Head Inside Single Leg Position", categoryId: "techniques" },
+    { id: "lib-tc-6", name: "Single leg finish chain", categoryId: "techniques" },
+    { id: "lib-tc-7", name: "Snap to score series", categoryId: "techniques" },
+    { id: "lib-tc-8", name: "Double leg entry", categoryId: "techniques" },
+    { id: "lib-tc-9", name: "Top breakdown series", categoryId: "techniques" },
+    { id: "lib-tc-10", name: "Half nelson finish", categoryId: "techniques" },
+    { id: "lib-tc-11", name: "Cradle series", categoryId: "techniques" },
+    { id: "lib-tc-12", name: "Stand-up and base", categoryId: "techniques" },
+    { id: "lib-tc-13", name: "Switch and roll", categoryId: "techniques" },
+    { id: "lib-tc-14", name: "Hand fighting series", categoryId: "techniques" },
+    { id: "lib-lw-1", name: "Front Headlock situations", categoryId: "live_wrestling" },
+    { id: "lib-lw-2", name: "Short Offense situations", categoryId: "live_wrestling" },
+    { id: "lib-lw-3", name: "Whizzer situations", categoryId: "live_wrestling" },
+    { id: "lib-lw-4", name: "Double Leg finish situations", categoryId: "live_wrestling" },
+    { id: "lib-lw-5", name: "Head Inside Single Leg situations", categoryId: "live_wrestling" },
+    { id: "lib-lw-6", name: "3 x 1:00 live from neutral", categoryId: "live_wrestling" },
+    { id: "lib-lw-7", name: "Shark tank 4 x 1:30", categoryId: "live_wrestling" },
+    { id: "lib-lw-8", name: "Score-first situations", categoryId: "live_wrestling" },
+    { id: "lib-lw-9", name: "Top / bottom starts", categoryId: "live_wrestling" },
+    { id: "lib-lw-10", name: "Late-period closeout situations", categoryId: "live_wrestling" },
+    { id: "lib-st-1", name: "Hip explosions", categoryId: "strength" },
+    { id: "lib-st-2", name: "Neck bridges", categoryId: "strength" },
+    { id: "lib-st-3", name: "Grip strength circuit", categoryId: "strength" },
+    { id: "lib-st-4", name: "Core and posture work", categoryId: "strength" },
+    { id: "lib-st-5", name: "Medicine ball throws", categoryId: "strength" },
+    { id: "lib-st-6", name: "Level-change squat", categoryId: "strength" },
+    { id: "lib-cd-1", name: "Breathing reset", categoryId: "cool_down" },
+    { id: "lib-cd-2", name: "Mental rep of main finish", categoryId: "cool_down" },
+    { id: "lib-cd-3", name: "Hip and shoulder stretch", categoryId: "cool_down" },
+    { id: "lib-cd-4", name: "Visualization of match scenarios", categoryId: "cool_down" },
+    { id: "lib-an-1", name: "Log journal after practice", categoryId: "announcements" },
+    { id: "lib-an-2", name: "Film review assignment", categoryId: "announcements" }
+  ];
 
   const INITIAL_TIMES = {
     roll_call: "10",
@@ -1097,6 +1159,7 @@
     dailySyncTimer: null,
     dailyDraftUpdatedAt: String(dailyState.updatedAt || ""),
     categoryDrafts: {},
+    librarySearch: "",
     pendingLibraryFocus: "",
     pendingCategoryFocus: "",
     templateRecords: [],
@@ -1209,6 +1272,7 @@
     addCategoryBtn: document.getElementById("plannerAddCategoryBtn"),
     saveLibraryItemBtn: document.getElementById("plannerSaveLibraryItemBtn"),
     libraryGroups: document.getElementById("plannerLibraryGroups"),
+    librarySearchInput: document.getElementById("plannerLibrarySearch"),
     coachLibrariesStatus: document.getElementById("plannerCoachLibrariesStatus"),
     coachLibraries: document.getElementById("plannerCoachLibraries"),
     saveTemplateBtn: document.getElementById("plannerSaveTemplateBtn"),
@@ -7761,8 +7825,57 @@
     const addExerciseTitle = tr({ en: "Add exercise", es: "Agregar ejercicio" });
     const addExercisePlaceholder = tr({ en: "Add new movement/exercise", es: "Agregar nuevo movimiento/ejercicio" });
     const addLabel = tr({ en: "Add +", es: "Agregar +" });
+    const searchTerm = String(state.librarySearch || "").toLowerCase().trim();
+
+    let positionSuggestionsHtml = "";
+    if (state.selectedAthleteIds.length === 1) {
+      try {
+        const selectedId = state.selectedAthleteIds[0];
+        const athletes = typeof getAthletesData === "function" ? (getAthletesData() || []) : [];
+        const athlete = athletes.find((a) => {
+          const aid = String(a.id || a.athleteId || "").trim();
+          const nameId = String(a.name || "").toLowerCase().replace(/\s+/g, "-");
+          return aid === selectedId || nameId === selectedId;
+        });
+        if (athlete) {
+          const pos = String(athlete.favoritePosition || athlete.position || "").toLowerCase().trim();
+          const posInfo = POSITION_DRILL_MAP[pos];
+          const athleteName = String(athlete.name || "").trim();
+          if (posInfo && athleteName) {
+            const addDrillBtn = (name, cat) => `<button type="button" class="ghost" data-action="add-suggestion-drill" data-drill="${escapeHtml(name)}" data-category="${escapeHtml(cat)}">+ ${escapeHtml(name)}</button>`;
+            const drillsHtml = posInfo.drills.map((d) => `<li>${addDrillBtn(d, "techniques")}</li>`).join("");
+            const sitsHtml = posInfo.situations.map((s) => `<li>${addDrillBtn(s, "live_wrestling")}</li>`).join("");
+            positionSuggestionsHtml = `
+              <section class="planner-position-suggestions">
+                <div class="planner-position-suggestions-header">
+                  <span class="position-badge-label">${escapeHtml(posInfo.label)}</span>
+                  <strong>${escapeHtml(tr({ en: `Suggested for ${athleteName}`, es: `Sugerencias para ${athleteName}` }))}</strong>
+                </div>
+                <div class="planner-position-suggestions-grid">
+                  <div>
+                    <p class="small muted">${escapeHtml(tr({ en: "Drills", es: "Ejercicios" }))}</p>
+                    <ul class="planner-suggestion-list">${drillsHtml}</ul>
+                  </div>
+                  <div>
+                    <p class="small muted">${escapeHtml(tr({ en: "Situations", es: "Situaciones" }))}</p>
+                    <ul class="planner-suggestion-list">${sitsHtml}</ul>
+                  </div>
+                </div>
+              </section>
+            `;
+          }
+        }
+      } catch {
+        // ignore errors reading athlete data
+      }
+    }
+
     const groupsHtml = categories.map((category) => {
-      const items = state.exerciseLibrary.filter((entry) => entry.categoryId === category.id);
+      const allItems = state.exerciseLibrary.filter((entry) => entry.categoryId === category.id);
+      const items = searchTerm
+        ? allItems.filter((entry) => String(entry.name || "").toLowerCase().includes(searchTerm))
+        : allItems;
+      if (searchTerm && !items.length) return "";
       const draft = String(state.categoryDrafts[category.id] || "");
       const itemsHtml = items.length
         ? `<ul>
@@ -7798,7 +7911,7 @@
             <div class="planner-library-header-actions">
               <button type="button" class="ghost planner-library-plus" data-action="quick-add-library-item" data-category="${category.id}" title="${escapeHtml(addExerciseTitle)}">+</button>
               <button type="button" class="ghost planner-library-trash" data-action="delete-category" data-category="${category.id}" title="${escapeHtml(deleteCategoryLabel)}">X</button>
-              <span>${items.length}</span>
+              <span>${allItems.length}</span>
             </div>
           </header>
           <div class="planner-library-quick-add">
@@ -7815,7 +7928,7 @@
         </section>
       `;
     }).join("");
-    els.libraryGroups.innerHTML = groupsHtml;
+    els.libraryGroups.innerHTML = positionSuggestionsHtml + groupsHtml;
     if (restorePlannerLibraryEditSnapshot(activeSnapshot)) {
       state.pendingLibraryFocus = "";
       state.pendingCategoryFocus = "";
@@ -8282,6 +8395,12 @@
     if (!trigger) return;
     const action = trigger.dataset.action;
     if (handleMentalAction(action, trigger)) {
+      return;
+    }
+    if (action === "add-suggestion-drill") {
+      const drillName = String(trigger.dataset.drill || "").trim();
+      const categoryId = String(trigger.dataset.category || "").trim();
+      if (drillName && categoryId) addToSchedule(categoryId, drillName);
       return;
     }
     if (action === "add-manual") {
@@ -8804,6 +8923,10 @@
       });
     });
 
+    els.librarySearchInput?.addEventListener("input", (e) => {
+      state.librarySearch = String(e.target?.value || "").toLowerCase().trim();
+      renderLibraryGroups();
+    });
     els.openLibraryBtn?.addEventListener("click", openLibraryModal);
     els.addSectionBtn?.addEventListener("click", () => addPlannerCategory(""));
     els.loadTemplateBtn?.addEventListener("click", openTemplatesModal);

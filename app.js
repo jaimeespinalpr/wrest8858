@@ -20193,7 +20193,22 @@ function renderToday(dayIndex = getCurrentAppDayIndex()) {
   plan.blocks.forEach((block) => {
     const row = document.createElement("div");
     row.className = "session-block";
-    row.innerHTML = `<strong>${block.label}</strong><span>${block.detail}</span>`;
+    if ((block.blockKey === "live" || block.blockKey === "drills") && Array.isArray(block.items) && block.items.length) {
+      const strong = document.createElement("strong");
+      strong.textContent = block.label;
+      const pillsDiv = document.createElement("div");
+      pillsDiv.className = "session-pills";
+      block.items.forEach((item) => {
+        const pill = document.createElement("span");
+        pill.className = `session-pill ${getPositionBadgeClass(item)}`;
+        pill.textContent = item;
+        pillsDiv.appendChild(pill);
+      });
+      row.appendChild(strong);
+      row.appendChild(pillsDiv);
+    } else {
+      row.innerHTML = `<strong>${block.label}</strong><span>${block.detail}</span>`;
+    }
     sessionBlocks.appendChild(row);
   });
   renderAthleteTrackTaskAreas();
@@ -26899,6 +26914,19 @@ function getAthletePortalMediaContext() {
   return null;
 }
 
+function getPositionBadgeClass(text) {
+  const t = String(text || "").toLowerCase();
+  if (t.includes("front headlock")) return "pill--headlock";
+  if (t.includes("short offense")) return "pill--short-offense";
+  if (t.includes("whizzer")) return "pill--whizzer";
+  if (t.includes("double leg")) return "pill--double-leg";
+  if (t.includes("single leg") || t.includes("head inside")) return "pill--single-leg";
+  if (t.includes("neutral")) return "pill--neutral";
+  if (t.includes("top") || t.includes("bottom")) return "pill--position";
+  if (t.includes("situation") || t.includes("shark") || t.includes("live")) return "pill--live";
+  return "pill--default";
+}
+
 function buildAthletePortalTodayPlan() {
   const assignment = getAthletePortalPrimaryAssignment();
   const nextAssignment = assignment ? null : getAthletePortalNextScheduledAssignment(getCurrentAppDateKey());
@@ -26918,7 +26946,9 @@ function buildAthletePortalTodayPlan() {
       if (!Array.isArray(values) || !values.length) return;
       blocks.push({
         label: labels[key] || key,
-        detail: values.join(" - ")
+        detail: values.join(" · "),
+        blockKey: key,
+        items: values
       });
     });
   }
