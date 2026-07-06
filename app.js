@@ -19995,7 +19995,7 @@ function renderTodayActionQueue() {
         const completeBtn = document.createElement("button");
         completeBtn.type = "button";
         completeBtn.className = "primary";
-        completeBtn.textContent = currentLang === "es" ? "Done" : "Done";
+        completeBtn.textContent = currentLang === "es" ? "Hecho" : "Done";
         completeBtn.dataset.action = "mark-assignment-done";
         completeBtn.dataset.assignmentId = assignment.id;
         completeBtn.dataset.viewerRole = "athlete";
@@ -20589,7 +20589,7 @@ function renderPlanDetails(dayIndex) {
           const completeBtn = document.createElement("button");
           completeBtn.type = "button";
           completeBtn.className = "primary";
-          completeBtn.textContent = currentLang === "es" ? "Done" : "Done";
+          completeBtn.textContent = currentLang === "es" ? "Hecho" : "Done";
           completeBtn.dataset.action = "mark-assignment-done";
           completeBtn.dataset.assignmentId = selectedAssignment.id;
           completeBtn.dataset.viewerRole = "athlete";
@@ -24792,7 +24792,7 @@ function renderCoachAssignments() {
     const sourceLabel = currentLang === "es" ? "Origen" : "Source";
     const causeLabel = currentLang === "es" ? "Causa real" : "Real trigger";
     const updateLabel = currentLang === "es" ? "Actualizar estado" : "Update status";
-    const completeLabel = currentLang === "es" ? "Done" : "Done";
+    const completeLabel = currentLang === "es" ? "Hecho" : "Done";
     const openTaskLabel = currentLang === "es" ? "Abrir tarea" : "Open task";
     const mediaLabel = currentLang === "es" ? "Abrir media" : "Open media";
     const discussionLabel = currentLang === "es" ? "Preguntas y comentarios" : "Questions and comments";
@@ -25072,7 +25072,7 @@ function renderCompletionTracking() {
           const completeBtn = document.createElement("button");
           completeBtn.type = "button";
           completeBtn.className = "primary";
-          completeBtn.textContent = currentLang === "es" ? "Done" : "Done";
+          completeBtn.textContent = currentLang === "es" ? "Hecho" : "Done";
           completeBtn.dataset.action = "mark-assignment-done";
           completeBtn.dataset.assignmentId = task.assignment?.id || "";
           completeBtn.dataset.viewerRole = "coach";
@@ -25658,7 +25658,7 @@ function renderDashboard() {
           const completeBtn = document.createElement("button");
           completeBtn.type = "button";
           completeBtn.className = "primary";
-          completeBtn.textContent = currentLang === "es" ? "Done" : "Done";
+          completeBtn.textContent = currentLang === "es" ? "Hecho" : "Done";
           completeBtn.dataset.action = "mark-assignment-done";
           completeBtn.dataset.assignmentId = item.id;
           completeBtn.dataset.viewerRole = "coach";
@@ -25722,7 +25722,11 @@ function renderDashboard() {
       }
     }
   } else {
-    getTeamOverviewData().forEach((line) => {
+    const overviewLines = getTeamOverviewData();
+    if (!overviewLines.length) {
+      teamOverview.innerHTML = `<div class="small muted">${currentLang === "es" ? "No hay tareas pendientes ahora mismo." : "No pending tasks right now."}</div>`;
+    }
+    overviewLines.forEach((line) => {
       const row = document.createElement("div");
       row.className = "small muted";
       row.textContent = line;

@@ -13351,3 +13351,112 @@ body.viewport-mobile .app{
     transform: translate(0, 0);
   }
 }
+
+/* ===== Dark theme coherence pass =====
+   The "United Wrestling Club visual integration" light layer left several
+   controls white after the "Native app refresh" dark layer took over.
+   This section restores one coherent dark look. The messaging workspace
+   (.messages-whatsapp-card) stays light on purpose and is re-asserted at
+   the end; the print sheet (.wtp-print-sheet) uses no shared controls. */
+
+.session-block,
+.accordion-item,
+.template-confirm,
+.dropzone,
+#calendarManagerForm,
+.journal-entry-card,
+.option-list li,
+.selection-block .custom-input{
+  border-color: rgba(109, 139, 191, 0.22);
+  background: linear-gradient(180deg, rgba(16, 27, 47, 0.92), rgba(10, 18, 32, 0.94));
+  color: var(--text);
+}
+
+.action-btn{
+  min-height: 46px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(109, 139, 191, 0.26);
+  background: linear-gradient(180deg, rgba(20, 33, 57, 0.95), rgba(12, 21, 38, 0.96));
+  color: var(--text);
+  font-weight: 600;
+}
+
+.action-btn:hover{
+  border-color: rgba(79, 124, 255, 0.5);
+  background: linear-gradient(180deg, rgba(28, 45, 78, 0.96), rgba(15, 26, 47, 0.97));
+}
+
+/* Form controls: one dark style everywhere outside the messages workspace */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="date"],
+input[type="time"],
+input[type="url"],
+select,
+textarea{
+  border-color: rgba(109, 139, 191, 0.26);
+  background: rgba(7, 14, 27, 0.72);
+  color: var(--text);
+}
+
+input::placeholder,
+textarea::placeholder{
+  color: rgba(152, 169, 196, 0.75);
+}
+
+.search-input{
+  border-color: rgba(109, 139, 191, 0.26);
+  background: rgba(7, 14, 27, 0.72);
+  color: var(--text);
+}
+
+/* Header language switcher: readable text on the dark pill */
+.lang-switch select,
+.app.parent-view-active .lang-switch select{
+  color: var(--text);
+  background: transparent;
+}
+
+/* Pills and chosen items: readable on dark cards */
+.pill{
+  color: var(--text);
+  border-color: rgba(200, 16, 46, 0.45);
+  background: linear-gradient(90deg, rgba(18, 52, 98, 0.4), rgba(200, 16, 46, 0.28));
+}
+
+.chosen-list li{
+  border-color: rgba(45, 212, 191, 0.4);
+  background: rgba(45, 212, 191, 0.12);
+  color: var(--text);
+}
+
+/* Tournament View quick-add: stack label text above its input */
+.tournament-add-form label{
+  display: grid;
+  gap: 6px;
+}
+
+.tournament-add-form label > span{
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 13px;
+}
+
+/* Messaging workspace stays light: re-assert its light controls */
+.messages-whatsapp-card input[type="text"],
+.messages-whatsapp-card input[type="email"],
+.messages-whatsapp-card input[type="url"],
+.messages-whatsapp-card select,
+.messages-whatsapp-card textarea,
+.messages-whatsapp-card .search-input{
+  border-color: rgba(200, 216, 240, 0.94);
+  background: rgba(255, 255, 255, 0.96);
+  color: #0f1726;
+}
+
+.messages-whatsapp-card input::placeholder,
+.messages-whatsapp-card textarea::placeholder{
+  color: #8aa0be;
+}
