@@ -20100,7 +20100,16 @@ function renderTodayActionQueue() {
       }
     });
     actions.appendChild(markReadBtn);
-    if (item.assignmentId) {
+    if (item.kind === "profile_reminder") {
+      const openProfileBtn = document.createElement("button");
+      openProfileBtn.type = "button";
+      openProfileBtn.className = "ghost";
+      openProfileBtn.textContent = currentLang === "es" ? "Ir a mi perfil" : "Open my profile";
+      openProfileBtn.addEventListener("click", () => {
+        showTab("athlete-profile");
+      });
+      actions.appendChild(openProfileBtn);
+    } else if (item.assignmentId) {
       const openAssignmentBtn = document.createElement("button");
       openAssignmentBtn.type = "button";
       openAssignmentBtn.className = "ghost";
@@ -23840,6 +23849,70 @@ async function markWorkspaceNotificationReadById(notificationId = "", coachUid =
     delete next[key];
     announcementReadSyncInFlight = next;
   }
+}
+
+async function sendProfileReminderToCoachAthlete(athleteName = "") {
+  const authUser = getAuthUser();
+  const coachProfile = getProfile();
+  const safeName = String(athleteName || "").trim();
+  if (!authUser?.id || !isCoachRole(coachProfile?.role) || !safeName) return false;
+
+  const rawAthlete = getRawAthleteRecord(safeName) || {};
+  const athleteUid = normalizeUid(rawAthlete.athleteUid || rawAthlete.linkedAthleteUid || rawAthlete.user_id);
+  if (!athleteUid) {
+    toast(currentLang === "es"
+      ? "Este atleta aun no tiene cuenta vinculada en la app, no puede recibir notificaciones."
+      : "This athlete has no linked app account yet, so they cannot receive notifications.");
+    return false;
+  }
+
+  const hasUnreadReminder = coachNotificationsCache.some((record) => (
+    record.kind === "profile_reminder"
+    && (record.recipientUids || []).includes(athleteUid)
+    && !isNotificationReadByUser(record, athleteUid)
+  ));
+  if (hasUnreadReminder) {
+    toast(currentLang === "es"
+      ? "Este atleta ya tiene un recordatorio de perfil sin leer."
+      : "This athlete already has an unread profile reminder.");
+    return false;
+  }
+
+  const notificationsRef = getCoachWorkspaceCollectionRef(COACH_WORKSPACE_NOTIFICATIONS_COLLECTION, authUser.id);
+  if (!notificationsRef) {
+    toast(currentLang === "es" ? "Sin conexion con el workspace." : "Workspace connection unavailable.");
+    return false;
+  }
+
+  const questionnaireMeta = getAthleteQuestionnaireMeta(rawAthlete, { useDom: false });
+  const missing = questionnaireMeta.missing;
+  const coachName = stripUserDisplayNumber(coachProfile?.name || "") || (currentLang === "es" ? "Tu coach" : "Your coach");
+  const title = currentLang === "es" ? "Completa tu perfil de atleta" : "Complete your athlete profile";
+  const body = currentLang === "es"
+    ? `${coachName} te pide completar tu perfil${missing ? ` (${missing} ${missing === 1 ? "campo pendiente" : "campos pendientes"})` : ""}. Abre Profile y termina el cuestionario.`
+    : `${coachName} is asking you to finish your profile${missing ? ` (${missing} ${missing === 1 ? "field" : "fields"} missing)` : ""}. Open Profile and complete the questionnaire.`;
+
+  await withTimeout(
+    notificationsRef.doc().set({
+      coachUid: authUser.id,
+      kind: "profile_reminder",
+      title,
+      body,
+      recipientUids: [athleteUid],
+      recipientRoles: ["athlete"],
+      actorUid: authUser.id,
+      actorName: coachName,
+      readByUids: [],
+      createdAt: getFirestoreServerTimestamp(),
+      updatedAt: getFirestoreServerTimestamp()
+    }),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_profile_reminder_timeout"
+  );
+  toast(currentLang === "es"
+    ? `Recordatorio enviado a ${safeName}.`
+    : `Reminder sent to ${safeName}.`);
+  return true;
 }
 
 function renderCoachAnnouncementsComposer() {
@@ -28666,6 +28739,7 @@ function renderCoachAthleteQuickActions(selectedAthleteName = "") {
       <button type="button" id="coachAthleteQuickEditBtn">${currentLang === "es" ? "Editar perfil completo" : "Edit full profile"}</button>
       <button type="button" id="coachAthleteQuickSummaryBtn">${currentLang === "es" ? "Ver athlete summary" : "View athlete summary"}</button>
       <button type="button" id="coachAthleteQuickMessageBtn">${currentLang === "es" ? "Enviar mensaje" : "Send message"}</button>
+      ${questionnaireMeta.missing ? `<button type="button" id="coachAthleteRemindProfileBtn">${currentLang === "es" ? `Recordar completar perfil (${questionnaireMeta.missing})` : `Remind to finish profile (${questionnaireMeta.missing})`}</button>` : ""}
       <button type="button" id="coachAthleteInviteBtn">${currentLang === "es" ? "Invitar atleta por email" : "Invite athlete by email"}</button>
     </div>
   `;
@@ -28684,6 +28758,18 @@ function renderCoachAthleteQuickActions(selectedAthleteName = "") {
   });
   document.getElementById("coachAthleteQuickMessageBtn")?.addEventListener("click", () => {
     messageCoachAthlete(athlete.name);
+  });
+  document.getElementById("coachAthleteRemindProfileBtn")?.addEventListener("click", (event) => {
+    const btn = event.currentTarget;
+    btn.disabled = true;
+    sendProfileReminderToCoachAthlete(athlete.name)
+      .catch((err) => {
+        console.warn("Profile reminder send failed", err);
+        toast(currentLang === "es" ? "No se pudo enviar el recordatorio." : "Could not send the reminder.");
+      })
+      .finally(() => {
+        btn.disabled = false;
+      });
   });
   document.getElementById("coachAthleteInviteBtn")?.addEventListener("click", () => {
     openCoachAthleteInviteEmail().catch(() => {});
