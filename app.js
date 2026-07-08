@@ -23887,10 +23887,16 @@ async function sendProfileReminderToCoachAthlete(athleteName = "") {
   const questionnaireMeta = getAthleteQuestionnaireMeta(rawAthlete, { useDom: false });
   const missing = questionnaireMeta.missing;
   const coachName = stripUserDisplayNumber(coachProfile?.name || "") || (currentLang === "es" ? "Tu coach" : "Your coach");
-  const title = currentLang === "es" ? "Completa tu perfil de atleta" : "Complete your athlete profile";
-  const body = currentLang === "es"
-    ? `${coachName} te pide completar tu perfil${missing ? ` (${missing} ${missing === 1 ? "campo pendiente" : "campos pendientes"})` : ""}. Abre Profile y termina el cuestionario.`
-    : `${coachName} is asking you to finish your profile${missing ? ` (${missing} ${missing === 1 ? "field" : "fields"} missing)` : ""}. Open Profile and complete the questionnaire.`;
+  const title = missing
+    ? (currentLang === "es" ? "Completa tu perfil de atleta" : "Complete your athlete profile")
+    : (currentLang === "es" ? "Revisa tu perfil de atleta" : "Review your athlete profile");
+  const body = missing
+    ? (currentLang === "es"
+      ? `${coachName} te pide completar tu perfil (${missing} ${missing === 1 ? "campo pendiente" : "campos pendientes"}). Abre Profile y termina el cuestionario.`
+      : `${coachName} is asking you to finish your profile (${missing} ${missing === 1 ? "field" : "fields"} missing). Open Profile and complete the questionnaire.`)
+    : (currentLang === "es"
+      ? `${coachName} te pide revisar y mantener al dia tu perfil. Abre Profile para confirmarlo.`
+      : `${coachName} is asking you to review and keep your profile up to date. Open Profile to confirm it.`);
 
   await withTimeout(
     notificationsRef.doc().set({
@@ -28738,8 +28744,10 @@ function renderCoachAthleteQuickActions(selectedAthleteName = "") {
       <button type="button" class="primary" id="coachAthleteQuickOpenBtn">${currentLang === "es" ? "Trabajar con atleta" : "Work with athlete"}</button>
       <button type="button" id="coachAthleteQuickEditBtn">${currentLang === "es" ? "Editar perfil completo" : "Edit full profile"}</button>
       <button type="button" id="coachAthleteQuickSummaryBtn">${currentLang === "es" ? "Ver athlete summary" : "View athlete summary"}</button>
+      <button type="button" id="coachAthleteRemindProfileBtn">${currentLang === "es"
+        ? `Recordarle al atleta${questionnaireMeta.missing ? ` (${questionnaireMeta.missing} pendientes)` : ""}`
+        : `Send a reminder${questionnaireMeta.missing ? ` (${questionnaireMeta.missing} missing)` : ""}`}</button>
       <button type="button" id="coachAthleteQuickMessageBtn">${currentLang === "es" ? "Enviar mensaje" : "Send message"}</button>
-      ${questionnaireMeta.missing ? `<button type="button" id="coachAthleteRemindProfileBtn">${currentLang === "es" ? `Recordar completar perfil (${questionnaireMeta.missing})` : `Remind to finish profile (${questionnaireMeta.missing})`}</button>` : ""}
       <button type="button" id="coachAthleteInviteBtn">${currentLang === "es" ? "Invitar atleta por email" : "Invite athlete by email"}</button>
     </div>
   `;
