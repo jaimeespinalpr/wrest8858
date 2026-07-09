@@ -13672,3 +13672,16 @@ textarea::placeholder{
   text-transform: capitalize;
 }
 .admin-activity-key-more { opacity: 0.7; }
+
+/* Profile reminder prompt (tap on athlete card) */
+.profile-reminder-prompt-card { max-width: 380px; }
+.profile-reminder-prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+@media (max-width: 560px) {
+  .profile-reminder-prompt-actions { flex-direction: column-reverse; }
+  .profile-reminder-prompt-actions button { width: 100%; }
+}
