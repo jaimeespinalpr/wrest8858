@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Crea tu perfil de atleta de lucha: entrenamiento, competencia y resumen para tu coach. Wrestling Performance Lab." />
+<title>Perfil de Atleta | Wrestling Performance Lab</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23e0392c'/%3E%3Ctext x='50' y='68' font-size='48' font-weight='bold' font-family='Arial' fill='white' text-anchor='middle'%3EW%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="topbar-row">
+        <div class="brand">
+          <span class="brand-mark">WPL</span>
+          <span class="brand-name">Perfil de Atleta</span>
+        </div>
+        <button type="button" class="ghost hidden" id="signOutBtn">Cerrar sesión</button>
+      </div>
+      <p class="topbar-subtitle">Crea tu cuenta y completa tu perfil de lucha. Tu coach lo verá directamente en Wrestling Performance Lab.</p>
+      <div class="stepper" id="stepper">
+        <div class="stepper-item active" data-step="auth"><span class="stepper-dot">1</span> Cuenta</div>
+        <div class="stepper-line"></div>
+        <div class="stepper-item" data-step="profile"><span class="stepper-dot">2</span> Perfil</div>
+        <div class="stepper-line"></div>
+        <div class="stepper-item" data-step="done"><span class="stepper-dot">✓</span> Listo</div>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-shell">
+
+    <!-- STEP 1: AUTH -->
+    <section class="card" id="authCard">
+      <div class="card-header">
+        <h2 id="authTitle">Crear cuenta</h2>
+        <div class="chip">Paso 1 de 2</div>
+      </div>
+
+      <div class="auth-tabs" role="tablist" aria-label="Acceso">
+        <button type="button" class="auth-tab active" id="authTabRegister">Crear cuenta</button>
+        <button type="button" class="auth-tab" id="authTabLogin">Ya tengo cuenta</button>
+      </div>
+
+      <form id="authForm" class="form" novalidate>
+        <div class="grid profile-grid">
+          <label id="acNameField">
+            <span>Nombre completo <em class="req">*</em></span>
+            <input id="acName" type="text" required autocomplete="name" placeholder="ej. Juan Pérez" />
+          </label>
+          <label>
+            <span>Correo electrónico <em class="req">*</em></span>
+            <input id="acEmail" type="email" required autocomplete="email" placeholder="tu@correo.com" />
+          </label>
+          <label>
+            <span>Contraseña <em class="req">*</em></span>
+            <input id="acPassword" type="password" required minlength="6" autocomplete="new-password" placeholder="Mínimo 6 caracteres" />
+          </label>
+        </div>
+        <p class="status-line" id="authStatus" role="status"></p>
+        <div class="form-actions">
+          <button type="submit" class="primary" id="authSubmitBtn">Crear cuenta y continuar</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- STEP 2: PROFILE -->
+    <section class="card hidden" id="profileCard">
+      <div class="card-header">
+        <div>
+          <h2>Perfil del atleta</h2>
+          <p class="small muted" id="profileIdentity"></p>
+        </div>
+        <div class="chip">Paso 2 de 2</div>
+      </div>
+
+      <div class="progress-wrap" aria-hidden="false">
+        <div class="progress-meta">
+          <span class="small muted">Progreso del perfil</span>
+          <span class="small muted" id="profileProgressLabel">0%</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="profileProgressFill"></div></div>
+      </div>
+
+      <form id="athleteProfileForm" class="form" novalidate>
+
+        <!-- PHOTO -->
+        <div class="mini-card profile-photo-callout">
+          <div class="profile-photo-callout-header">
+            <div>
+              <h3>Foto de perfil</h3>
+              <p class="small muted">Sube una foto desde tu dispositivo o pega una URL. Se recorta y optimiza automáticamente.</p>
+            </div>
+            <div id="aPhotoPreview" class="wpl-avatar wpl-avatar-lg profile-photo-preview">AT</div>
+          </div>
+          <div class="profile-photo-field">
+            <div class="profile-photo-uploader">
+              <input id="aPhotoFile" class="profile-photo-input" type="file" accept="image/*" />
+              <button type="button" id="aPhotoChooseBtn" class="primary profile-photo-action">Subir desde el dispositivo</button>
+              <button type="button" id="aPhotoEditBtn" class="ghost profile-photo-action" disabled>Editar foto actual</button>
+              <button type="button" id="aPhotoClearBtn" class="ghost profile-photo-action">Quitar foto</button>
+            </div>
+            <label>
+              <span>O pega una URL de imagen (opcional)</span>
+              <input id="aPhotoUrl" type="url" placeholder="https://..." />
+            </label>
+            <p class="small muted" id="aPhotoStatus">Opcional. Imagen cuadrada recomendada.</p>
+          </div>
+        </div>
+
+        <div class="profile-subtabs" role="tablist" aria-label="Secciones del perfil">
+          <button type="button" class="profile-subtab active" data-profile-tab="training">1 · Entrenamiento</button>
+          <button type="button" class="profile-subtab" data-profile-tab="competition">2 · Competencia</button>
+          <button type="button" class="profile-subtab" data-profile-tab="coaching">3 · Resumen para Coach</button>
+        </div>
+
+        <!-- TRAINING PANEL -->
+        <div class="profile-subpanel" data-profile-panel="training">
+          <div class="mini-card">
+            <h3>Datos básicos</h3>
+            <div class="grid profile-grid">
+              <label>
+                <span>Nombre completo <em class="req">*</em></span>
+                <input id="aName" type="text" required data-progress />
+              </label>
+              <label>
+                <span>Edad</span>
+                <input id="aAge" type="number" min="10" max="60" placeholder="ej. 19" data-progress />
+              </label>
+              <label>
+                <span>Peso actual</span>
+                <input id="aWeight" type="text" placeholder="ej. 70 kg" data-progress />
+              </label>
+              <label>
+                <span>País (opcional)</span>
+                <input id="aCountry" type="text" data-progress />
+              </label>
+              <label>
+                <span>Ciudad/Estado (opcional)</span>
+                <input id="aCity" type="text" data-progress />
+              </label>
+              <label>
+                <span>Escuela (opcional)</span>
+                <input id="aSchool" type="text" data-progress />
+              </label>
+              <label>
+                <span>Club (opcional)</span>
+                <input id="aClub" type="text" data-progress />
+              </label>
+              <label>
+                <span>Grado escolar / nivel</span>
+                <input id="aSchoolGrade" type="text" data-progress />
+              </label>
+            </div>
+          </div>
+
+          <div class="mini-card">
+            <h3>Entrenamiento actual</h3>
+            <label class="full">
+              <span>Rutinas de entrenamiento</span>
+              <textarea id="aTrainingRoutines" rows="2" placeholder="Describe tus rutinas semanales" data-progress></textarea>
+            </label>
+            <div class="grid profile-grid">
+              <label>
+                <span>Volumen semanal</span>
+                <input id="aTrainingVolume" type="text" placeholder="ej. 5 días / semana" data-progress />
+              </label>
+              <label>
+                <span>Técnica más trabajada</span>
+                <input id="aTrainingFocus" type="text" data-progress />
+              </label>
+              <label>
+                <span>Movimiento(s) preferido(s)</span>
+                <input id="aPreferredMoves" type="text" data-progress />
+              </label>
+              <label>
+                <span>Postura</span>
+                <select id="aStance" data-progress>
+                  <option value="">Selecciona...</option>
+                  <option value="left">Izquierda</option>
+                  <option value="right">Derecha</option>
+                  <option value="switch">Cambia (switch)</option>
+                </select>
+              </label>
+            </div>
+            <label class="full">
+              <span>Notas / metas</span>
+              <textarea id="aQuestionnaireNotes" rows="2" data-progress></textarea>
+            </label>
+          </div>
+
+          <div class="mini-card">
+            <h3>Técnicas por defecto</h3>
+            <div class="grid profile-grid">
+              <label>
+                <span>Pierna de ataque</span>
+                <select id="aLeadLeg" data-progress>
+                  <option value="left">Izquierda</option>
+                  <option value="right">Derecha</option>
+                </select>
+              </label>
+              <label>
+                <span>Ataque por izquierda</span>
+                <input id="aLeftAttack" type="text" data-progress />
+              </label>
+              <label>
+                <span>Ataque por derecha</span>
+                <input id="aRightAttack" type="text" data-progress />
+              </label>
+              <label>
+                <span>Agarres preferidos</span>
+                <input id="aPreferredTies" type="text" data-progress />
+              </label>
+            </div>
+            <label class="full">
+              <span>Notas adicionales</span>
+              <textarea id="aMiscNotes" rows="2" data-progress></textarea>
+            </label>
+          </div>
+
+          <div class="mini-card">
+            <h3>Retos actuales</h3>
+            <div class="grid profile-grid">
+              <label>
+                <span>Reto #1</span>
+                <input id="aChallengeOne" type="text" data-progress />
+              </label>
+              <label>
+                <span>Reto #2</span>
+                <input id="aChallengeTwo" type="text" data-progress />
+              </label>
+              <label>
+                <span>Reto #3</span>
+                <input id="aChallengeThree" type="text" data-progress />
+              </label>
+            </div>
+          </div>
+
+          <div class="panel-nav">
+            <span></span>
+            <button type="button" class="ghost panel-next" data-goto="competition">Siguiente: Competencia →</button>
+          </div>
+        </div>
+
+        <!-- COMPETITION PANEL -->
+        <div class="profile-subpanel hidden" data-profile-panel="competition">
+          <div class="mini-card">
+            <h3>Perfil competitivo</h3>
+            <div class="grid profile-grid">
+              <label>
+                <span>Estilo principal <em class="req">*</em></span>
+                <select id="aStyle" required data-progress>
+                  <option value="freestyle">Libre (Freestyle)</option>
+                  <option value="greco-roman">Grecorromana</option>
+                  <option value="folkstyle">Folkstyle</option>
+                </select>
+              </label>
+              <label>
+                <span>Categoría de peso</span>
+                <input id="aWeightClass" type="text" data-progress />
+              </label>
+              <label>
+                <span>Años de experiencia</span>
+                <input id="aYears" type="text" data-progress />
+              </label>
+              <label>
+                <span>Nivel de experiencia</span>
+                <select id="aLevel" data-progress>
+                  <option value="beginner">Principiante</option>
+                  <option value="intermediate" selected>Intermedio</option>
+                  <option value="advanced">Avanzado</option>
+                </select>
+              </label>
+              <label>
+                <span>Posición preferida</span>
+                <select id="aPosition" data-progress>
+                  <option value="neutral" selected>Neutral</option>
+                  <option value="top">Arriba (Top)</option>
+                  <option value="bottom">Abajo (Bottom)</option>
+                </select>
+              </label>
+              <label>
+                <span>Arquetipo</span>
+                <select id="aArchetype" data-progress>
+                  <option value="">Selecciona...</option>
+                  <option value="technician">Técnico</option>
+                  <option value="scrambler">Scrambler</option>
+                  <option value="pummler">Pummler</option>
+                  <option value="counter-wrestler">Contraatacante</option>
+                  <option value="chain-wrestler">Encadenador de ataques</option>
+                </select>
+              </label>
+              <label>
+                <span>Tipo de cuerpo</span>
+                <select id="aBodyType" data-progress>
+                  <option value="">Selecciona...</option>
+                  <option value="compact">Compacto</option>
+                  <option value="long">Largo</option>
+                  <option value="balanced">Balanceado</option>
+                </select>
+              </label>
+              <label>
+                <span>Estrategia de combate</span>
+                <select id="aStrategy" data-progress>
+                  <option value="balanced" selected>Balanceada</option>
+                  <option value="offensive">Ofensiva</option>
+                  <option value="defensive">Defensiva</option>
+                  <option value="counter">Contraataque</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="mini-card">
+            <h3>Plan de combate</h3>
+            <div class="grid profile-grid">
+              <label>
+                <span>Estrategia A</span>
+                <textarea id="aStrategyA" rows="2" data-progress></textarea>
+              </label>
+              <label>
+                <span>Estrategia B</span>
+                <textarea id="aStrategyB" rows="2" data-progress></textarea>
+              </label>
+              <label>
+                <span>Estrategia C</span>
+                <textarea id="aStrategyC" rows="2" data-progress></textarea>
+              </label>
+            </div>
+            <div class="grid profile-grid">
+              <label>
+                <span>Movimientos seguros</span>
+                <textarea id="aSafeMoves" rows="2" data-progress></textarea>
+              </label>
+              <label>
+                <span>Movimientos arriesgados</span>
+                <textarea id="aRiskyMoves" rows="2" data-progress></textarea>
+              </label>
+            </div>
+            <label class="full">
+              <span>Resultados recientes / notas clave</span>
+              <textarea id="aResultsHistory" rows="2" data-progress></textarea>
+            </label>
+          </div>
+
+          <div class="mini-card">
+            <h3>Experiencia internacional</h3>
+            <div class="grid profile-grid">
+              <label>
+                <span>¿Tiene experiencia internacional?</span>
+                <select id="aInternational" data-progress>
+                  <option value="no" selected>No</option>
+                  <option value="yes">Sí</option>
+                </select>
+              </label>
+              <label>
+                <span>Eventos</span>
+                <input id="aInternationalEvents" type="text" data-progress />
+              </label>
+              <label>
+                <span>Años</span>
+                <input id="aInternationalYears" type="text" data-progress />
+              </label>
+            </div>
+          </div>
+
+          <div class="mini-card">
+            <h3>Notas de competencia</h3>
+            <div class="grid profile-grid">
+              <label>
+                <span>Estilo de cues del coach</span>
+                <select id="aCoachCues" data-progress>
+                  <option value="short">Cortos</option>
+                  <option value="calm">Calmados</option>
+                  <option value="energy">Con energía</option>
+                  <option value="specific" selected>Específicos</option>
+                </select>
+              </label>
+            </div>
+            <label class="full">
+              <span>Notas de cues</span>
+              <textarea id="aCueNotes" rows="2" data-progress></textarea>
+            </label>
+            <label class="full">
+              <span>Notas de lesiones</span>
+              <textarea id="aInjuryNotes" rows="2" data-progress></textarea>
+            </label>
+          </div>
+
+          <div class="panel-nav">
+            <button type="button" class="ghost panel-next" data-goto="training">← Entrenamiento</button>
+            <button type="button" class="ghost panel-next" data-goto="coaching">Siguiente: Resumen para Coach →</button>
+          </div>
+        </div>
+
+        <!-- COACHING QUICK PANEL -->
+        <div class="profile-subpanel hidden" data-profile-panel="coaching">
+          <div class="mini-card">
+            <h3>Lectura rápida del atleta</h3>
+            <div class="grid profile-grid">
+              <label>
+                <span>Posición favorita en competencia</span>
+                <select id="aFavoritePosition" data-progress>
+                  <option value="neutral" selected>Neutral</option>
+                  <option value="top">Arriba (Top)</option>
+                  <option value="bottom">Abajo (Bottom)</option>
+                </select>
+              </label>
+              <label>
+                <span>Tendencia psicológica</span>
+                <select id="aPsychTendency" data-progress>
+                  <option value="">Selecciona...</option>
+                  <option value="aggressive">Agresiva</option>
+                  <option value="conservative">Conservadora</option>
+                  <option value="counterattack">Contraataque</option>
+                </select>
+              </label>
+              <label>
+                <span>Error común bajo presión</span>
+                <input id="aPressureError" type="text" data-progress />
+              </label>
+            </div>
+            <label class="full">
+              <span>Señal clave del coach</span>
+              <textarea id="aCoachSignal" rows="2" data-progress></textarea>
+            </label>
+          </div>
+
+          <div class="mini-card">
+            <h3>Palabras clave</h3>
+            <div class="grid profile-grid">
+              <label>
+                <span>Palabra clave #1</span>
+                <input id="aCueWord1" type="text" data-progress />
+              </label>
+              <label>
+                <span>Palabra clave #2</span>
+                <input id="aCueWord2" type="text" data-progress />
+              </label>
+              <label>
+                <span>Palabra clave #3</span>
+                <input id="aCueWord3" type="text" data-progress />
+              </label>
+            </div>
+          </div>
+
+          <div class="mini-card">
+            <h3>Vista de esquina</h3>
+            <div class="grid profile-grid">
+              <label>
+                <span>Setup #1</span>
+                <input id="aSetup1" type="text" data-progress />
+              </label>
+              <label>
+                <span>Setup #2</span>
+                <input id="aSetup2" type="text" data-progress />
+              </label>
+              <label>
+                <span>Setup #3</span>
+                <input id="aSetup3" type="text" data-progress />
+              </label>
+              <label>
+                <span>Cue del coach #1</span>
+                <input id="aCornerCue1" type="text" data-progress />
+              </label>
+              <label>
+                <span>Cue del coach #2</span>
+                <input id="aCornerCue2" type="text" data-progress />
+              </label>
+              <label>
+                <span>Cue del coach #3</span>
+                <input id="aCornerCue3" type="text" data-progress />
+              </label>
+              <label>
+                <span>Recordatorio mental #1</span>
+                <input id="aMentalReminder1" type="text" data-progress />
+              </label>
+              <label>
+                <span>Recordatorio mental #2</span>
+                <input id="aMentalReminder2" type="text" data-progress />
+              </label>
+              <label>
+                <span>Recordatorio mental #3</span>
+                <input id="aMentalReminder3" type="text" data-progress />
+              </label>
+              <label>
+                <span>Advertencia de seguridad #1</span>
+                <input id="aSafetyWarning1" type="text" data-progress />
+              </label>
+              <label>
+                <span>Advertencia de seguridad #2</span>
+                <input id="aSafetyWarning2" type="text" data-progress />
+              </label>
+              <label>
+                <span>Limitación física #1</span>
+                <input id="aPhysicalLimitation1" type="text" data-progress />
+              </label>
+              <label>
+                <span>Limitación física #2</span>
+                <input id="aPhysicalLimitation2" type="text" data-progress />
+              </label>
+            </div>
+            <label class="full">
+              <span>Llamado de competencia</span>
+              <textarea id="aCompetitionCue" rows="2" data-progress></textarea>
+            </label>
+          </div>
+
+          <div class="mini-card">
+            <h3>Top 3 movimientos</h3>
+            <div class="coach-move-grid">
+              <div>
+                <h4 class="small muted">Ofensiva</h4>
+                <input id="aOffense1" type="text" placeholder="Ofensiva 1" data-progress />
+                <input id="aOffense2" type="text" placeholder="Ofensiva 2" data-progress />
+                <input id="aOffense3" type="text" placeholder="Ofensiva 3" data-progress />
+              </div>
+              <div>
+                <h4 class="small muted">Defensiva</h4>
+                <input id="aDefense1" type="text" placeholder="Defensa 1" data-progress />
+                <input id="aDefense2" type="text" placeholder="Defensa 2" data-progress />
+                <input id="aDefense3" type="text" placeholder="Defensa 3" data-progress />
+              </div>
+            </div>
+          </div>
+
+          <div class="panel-nav">
+            <button type="button" class="ghost panel-next" data-goto="competition">← Competencia</button>
+            <span></span>
+          </div>
+        </div>
+
+        <p class="status-line" id="profileStatus" role="status"></p>
+        <div class="form-actions">
+          <button type="submit" class="primary" id="profileSubmitBtn">Guardar perfil</button>
+        </div>
+        <p class="small muted center">Puedes guardar aunque falten campos y completarlos después iniciando sesión de nuevo.</p>
+      </form>
+    </section>
+
+    <!-- DONE -->
+    <section class="card hidden" id="doneCard">
+      <div class="done-hero">
+        <div class="done-check">✓</div>
+        <h2>¡Perfil guardado!</h2>
+        <p class="muted" id="doneSummary">Tu perfil de atleta se guardó correctamente. Tu coach podrá verlo en Wrestling Performance Lab.</p>
+      </div>
+      <div class="form-actions center">
+        <button type="button" class="ghost" id="editAgainBtn">Volver a editar mi perfil</button>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <p class="small muted">Wrestling Performance Lab · Perfil de Atleta</p>
+  </footer>
+
+  <!-- PHOTO CROP MODAL -->
+  <div class="register-modal hidden profile-photo-crop-modal" id="profilePhotoCropModal" role="dialog" aria-modal="true" aria-labelledby="profilePhotoCropTitle">
+    <div class="register-card profile-photo-crop-card" id="profilePhotoCropCard">
+      <div class="register-header">
+        <div>
+          <h3 id="profilePhotoCropTitle">Recortar foto de perfil</h3>
+          <p class="small muted" id="profilePhotoCropSubtitle">Arrastra la imagen y usa zoom para centrar la cara dentro del marco.</p>
+        </div>
+        <button type="button" class="ghost" id="profilePhotoCropCloseBtn" aria-label="Cerrar">×</button>
+      </div>
+      <div class="profile-photo-crop-layout">
+        <div class="profile-photo-crop-viewport" id="profilePhotoCropViewport">
+          <img id="profilePhotoCropImage" alt="" draggable="false" />
+          <div class="profile-photo-crop-mask"></div>
+          <div class="profile-photo-crop-frame"></div>
+        </div>
+        <div class="profile-photo-crop-controls">
+          <label class="profile-photo-crop-zoom-label" id="profilePhotoCropZoomLabel" for="profilePhotoCropZoom">Zoom</label>
+          <input type="range" id="profilePhotoCropZoom" min="1" max="3" step="0.01" value="1" />
+          <p class="small muted" id="profilePhotoCropHint">Ese cuadrado es el resultado final que se guardará.</p>
+        </div>
+      </div>
+      <div class="profile-photo-crop-actions">
+        <button type="button" class="ghost" id="profilePhotoCropCancelBtn">Cancelar</button>
+        <button type="button" class="ghost" id="profilePhotoCropResetBtn">Reiniciar</button>
+        <button type="button" class="primary" id="profilePhotoCropSaveBtn">Usar foto</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.public.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
