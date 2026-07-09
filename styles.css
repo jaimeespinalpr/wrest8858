@@ -13555,3 +13555,120 @@ textarea::placeholder{
 .messages-whatsapp-card textarea::placeholder{
   color: #8aa0be;
 }
+
+/* Supervisor / admin activity feed */
+.admin-activity-card .card-header { align-items: flex-start; }
+
+.admin-stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.admin-stat-tile {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.admin-stat-tile strong { font-size: 22px; line-height: 1.1; }
+.admin-stat-tile span { font-size: 12px; opacity: 0.75; }
+.admin-stat-tile-accent { border-color: rgba(224, 57, 44, 0.55); }
+.admin-stat-tile-alert {
+  border-color: rgba(224, 57, 44, 0.8);
+  background: rgba(224, 57, 44, 0.12);
+}
+
+.admin-activity-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.admin-activity-toolbar .search-input { flex: 1; min-width: 180px; margin: 0; }
+
+.admin-activity-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.admin-activity-filter {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: inherit;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.admin-activity-filter.active {
+  background: #e0392c;
+  border-color: #e0392c;
+  color: #fff;
+  font-weight: 600;
+}
+
+.admin-activity-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 460px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.admin-activity-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.admin-activity-item-new {
+  border-color: rgba(224, 57, 44, 0.6);
+  background: rgba(224, 57, 44, 0.07);
+}
+.admin-activity-avatar { width: 38px; height: 38px; font-size: 13px; flex-shrink: 0; }
+.admin-activity-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.admin-activity-headline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.audit-chip {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  text-transform: uppercase;
+}
+.audit-chip-updated { background: rgba(56, 139, 253, 0.18); color: #6cb1ff; }
+.audit-chip-created { background: rgba(63, 185, 80, 0.18); color: #4ecb61; }
+.audit-chip-photo { background: rgba(163, 113, 247, 0.2); color: #b78cf7; }
+.audit-chip-password { background: rgba(255, 166, 87, 0.2); color: #ffab5e; }
+
+.audit-new-badge {
+  background: #e0392c;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  letter-spacing: 0.05em;
+}
+
+.admin-activity-keys { display: flex; flex-wrap: wrap; gap: 4px; }
+.admin-activity-key {
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 2px 7px;
+  text-transform: capitalize;
+}
+.admin-activity-key-more { opacity: 0.7; }
