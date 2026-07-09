@@ -41,6 +41,7 @@ const els = {};
   "profilePhotoCropModal", "profilePhotoCropCloseBtn", "profilePhotoCropViewport",
   "profilePhotoCropImage", "profilePhotoCropZoom", "profilePhotoCropZoomLabel",
   "profilePhotoCropCancelBtn", "profilePhotoCropResetBtn", "profilePhotoCropSaveBtn",
+  "pwCurrent", "pwNew", "pwConfirm", "pwStatus", "pwBtn",
   "toastStack"
 ].forEach((id) => { els[id] = document.getElementById(id); });
 
@@ -796,6 +797,68 @@ els.athleteProfileForm.addEventListener("submit", async (event) => {
 els.editAgainBtn.addEventListener("click", () => {
   showStep("profile");
   updateProfileProgress();
+});
+
+// ---------- change own password ----------
+
+els.pwBtn?.addEventListener("click", async () => {
+  const currentPassword = els.pwCurrent?.value || "";
+  const newPassword = els.pwNew?.value || "";
+  const confirmPassword = els.pwConfirm?.value || "";
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    setStatus(els.pwStatus, "Completa los tres campos.", "error");
+    return;
+  }
+  if (newPassword.length < 6) {
+    setStatus(els.pwStatus, "La nueva contraseña debe tener al menos 6 caracteres.", "error");
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    setStatus(els.pwStatus, "La nueva contraseña y su confirmación no coinciden.", "error");
+    return;
+  }
+  if (newPassword === currentPassword) {
+    setStatus(els.pwStatus, "La nueva contraseña debe ser diferente a la actual.", "error");
+    return;
+  }
+
+  const user = auth.currentUser;
+  if (!user || !user.email) {
+    setStatus(els.pwStatus, "No hay sesión activa. Vuelve a iniciar sesión.", "error");
+    return;
+  }
+
+  els.pwBtn.disabled = true;
+  setStatus(els.pwStatus, "Actualizando contraseña...");
+  try {
+    const credential = firebase.auth.EmailAuthProvider.credential(user.email, currentPassword);
+    await user.reauthenticateWithCredential(credential);
+    await user.updatePassword(newPassword);
+    els.pwCurrent.value = "";
+    els.pwNew.value = "";
+    els.pwConfirm.value = "";
+    setStatus(els.pwStatus, "Contraseña actualizada correctamente.", "ok");
+    toast("Contraseña actualizada.", "ok");
+  } catch (err) {
+    console.warn("Password change failed", err);
+    const code = String(err?.code || "");
+    let msg;
+    if (code === "auth/wrong-password" || code === "auth/invalid-credential" || code === "auth/invalid-login-credentials") {
+      msg = "La contraseña actual es incorrecta.";
+    } else if (code === "auth/weak-password") {
+      msg = "La nueva contraseña es demasiado débil.";
+    } else if (code === "auth/requires-recent-login") {
+      msg = "Por seguridad, cierra sesión y vuelve a entrar antes de cambiar la contraseña.";
+    } else if (code === "auth/network-request-failed") {
+      msg = "Sin conexión. Revisa tu internet e intenta de nuevo.";
+    } else {
+      msg = "No se pudo actualizar la contraseña.";
+    }
+    setStatus(els.pwStatus, msg, "error");
+  } finally {
+    els.pwBtn.disabled = false;
+  }
 });
 
 // ---------- init ----------
