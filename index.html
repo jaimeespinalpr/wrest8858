@@ -1082,6 +1082,28 @@
               You can edit training, competition, and coaching quick details at any time.
             </p>
           </form>
+          <div class="mini-card account-password-card" data-password-card="athletePw">
+            <h3>Cambiar mi contraseña / Change my password</h3>
+            <p class="small muted">Actualiza la contraseña de tu propia cuenta.</p>
+            <div class="grid profile-grid">
+              <label>
+                <span>Contraseña actual</span>
+                <input id="athletePw_current" type="password" autocomplete="current-password" >
+              </label>
+              <label>
+                <span>Nueva contraseña</span>
+                <input id="athletePw_new" type="password" autocomplete="new-password" minlength="6" >
+              </label>
+              <label>
+                <span>Confirmar nueva contraseña</span>
+                <input id="athletePw_confirm" type="password" autocomplete="new-password" minlength="6" >
+              </label>
+            </div>
+            <p class="small muted" id="athletePw_status" role="status"></p>
+            <div class="row">
+              <button type="button" class="primary" id="athletePw_btn">Actualizar contraseña</button>
+            </div>
+          </div>
           <div class="section-grid">
             <div class="mini-card">
               <h3>Athlete Can</h3>
@@ -1540,6 +1562,28 @@
           <div class="mini-card">
             <h3>International Experience</h3>
             <ul class="list" id="coachInternational"></ul>
+          </div>
+          <div class="mini-card account-password-card" data-password-card="coachPw">
+            <h3>Cambiar mi contraseña / Change my password</h3>
+            <p class="small muted">Actualiza la contraseña de tu propia cuenta de entrenador.</p>
+            <div class="grid profile-grid">
+              <label>
+                <span>Contraseña actual</span>
+                <input id="coachPw_current" type="password" autocomplete="current-password" >
+              </label>
+              <label>
+                <span>Nueva contraseña</span>
+                <input id="coachPw_new" type="password" autocomplete="new-password" minlength="6" >
+              </label>
+              <label>
+                <span>Confirmar nueva contraseña</span>
+                <input id="coachPw_confirm" type="password" autocomplete="new-password" minlength="6" >
+              </label>
+            </div>
+            <p class="small muted" id="coachPw_status" role="status"></p>
+            <div class="row">
+              <button type="button" class="primary" id="coachPw_btn">Actualizar contraseña</button>
+            </div>
           </div>
         </div>
       </section>

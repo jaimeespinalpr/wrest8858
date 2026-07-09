@@ -537,6 +537,29 @@
         </div>
         <p class="small muted center">Puedes guardar aunque falten campos y completarlos después iniciando sesión de nuevo.</p>
       </form>
+
+      <div class="mini-card account-password-card">
+        <h3>Cambiar mi contraseña</h3>
+        <p class="small muted">Actualiza la contraseña de tu propia cuenta.</p>
+        <div class="grid profile-grid">
+          <label>
+            <span>Contraseña actual</span>
+            <input id="pwCurrent" type="password" autocomplete="current-password" />
+          </label>
+          <label>
+            <span>Nueva contraseña</span>
+            <input id="pwNew" type="password" autocomplete="new-password" minlength="6" />
+          </label>
+          <label>
+            <span>Confirmar nueva contraseña</span>
+            <input id="pwConfirm" type="password" autocomplete="new-password" minlength="6" />
+          </label>
+        </div>
+        <p class="status-line" id="pwStatus" role="status"></p>
+        <div class="form-actions">
+          <button type="button" class="primary" id="pwBtn">Actualizar contraseña</button>
+        </div>
+      </div>
     </section>
 
     <!-- DONE -->
