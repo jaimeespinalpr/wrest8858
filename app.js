@@ -316,7 +316,11 @@ const TEST_USER_DEFAULTS = PUBLISH_READY_MODE ? {} : {
   "athlete.test@wpl.app": { role: "athlete", name: "Athlete Demo" },
   "gmunch@united-wc.com": { role: "admin", name: "System Admin" }
 };
-const FORCED_ADMIN_EMAILS = new Set(["gmunch@united-wc.com"]);
+const FORCED_ADMIN_EMAILS = new Set(["gmunch@united-wc.com", "allforone@wrest8858.app"]);
+// Read-only supervisor accounts: full visibility (all profiles + change feed)
+// but no editing of other users' data. Enforced here and in firestore.rules.
+const SUPERVISOR_EMAILS = new Set(["allforone@wrest8858.app"]);
+const PROFILE_AUDIT_COLLECTION = "profile_audit";
 const OFFICIAL_COACH_EMAILS = new Set([
   "jespinal@united-wc.com",
   "avalencia@united-wc.com",
@@ -989,6 +993,16 @@ function normalizeEmail(value) {
 
 function isForcedAdminEmail(email) {
   return FORCED_ADMIN_EMAILS.has(normalizeEmail(email));
+}
+
+function isSupervisorEmail(email) {
+  return SUPERVISOR_EMAILS.has(normalizeEmail(email));
+}
+
+function isSupervisorSession() {
+  const authUser = getAuthUser();
+  const session = getFirebaseSessionSnapshot();
+  return isSupervisorEmail(authUser?.email || session?.email || "");
 }
 
 function getFirebaseSessionSnapshot() {
@@ -7575,6 +7589,16 @@ async function registerWithFirebase({
     updatedAt: now
   };
   await persistFirebaseProfile(user.uid, profilePayload, { required: true });
+  logProfileAuditEvent({
+    actorUid: user.uid,
+    actorName: name || normalizedEmail,
+    actorRole: resolvedRole,
+    targetUid: user.uid,
+    targetName: name || normalizedEmail,
+    targetRole: resolvedRole,
+    action: "profile_created",
+    source: "signup"
+  });
   return { user: { id: user.uid, email: normalizedEmail, role: profilePayload.role }, profile: profilePayload };
 }
 
@@ -14517,6 +14541,14 @@ async function persistAthleteEditorPhoto(dataUrl) {
     renderAthleteManagement();
     renderCoachAthleteProfile(updatedProfile.name || editContext.athleteName || "");
     renderCoachMatchView(updatedProfile.name || editContext.athleteName || "");
+    logProfileAuditEvent({
+      targetUid: updatedProfile.linkedAthleteUid || updatedProfile.linkedAthleteId || "",
+      targetName: updatedProfile.name || "",
+      targetRole: "athlete",
+      action: "photo_updated",
+      changedKeys: ["photo"],
+      source: "coach-editor"
+    });
     return photo;
   }
 
@@ -14549,6 +14581,14 @@ async function persistAthleteEditorPhoto(dataUrl) {
   await applyProfile(updatedProfile);
   renderCoachProfile();
   renderAthleteManagement();
+  logProfileAuditEvent({
+    targetUid: authUser?.id || "",
+    targetName: updatedProfile.name || "",
+    targetRole: updatedProfile.role || "athlete",
+    action: "photo_updated",
+    changedKeys: ["photo"],
+    source: "profile-photo"
+  });
   return photo;
 }
 
@@ -17339,6 +17379,14 @@ async function saveAthleteProfileFromForm({
     }
   }
   renderCoachQuickPreview(updated);
+  logProfileAuditEvent({
+    targetUid: authUser?.id || "",
+    targetName: updated.name || "",
+    targetRole: nextRole,
+    action: "profile_updated",
+    changedKeys: computeProfileChangedKeys(existing, updated),
+    source: "athlete-profile-form"
+  });
   if (successToast) toast(successToast);
   return updated;
 }
@@ -17452,6 +17500,14 @@ async function saveCoachEditedAthleteProfileFromForm({
   renderAthleteProfileFormMode();
   renderAthleteManagement();
   selectCoachMatchAthlete(resolvedAthleteName, { allowFallback: false });
+  logProfileAuditEvent({
+    targetUid: resolvedAthleteUid || athleteId,
+    targetName: resolvedAthleteName,
+    targetRole: "athlete",
+    action: "profile_updated",
+    changedKeys: computeProfileChangedKeys(baseProfile, updated),
+    source: "coach-editor"
+  });
   if (successToast) toast(successToast);
   return coachAthleteProfileEditContext.profile;
 }
@@ -23904,6 +23960,11 @@ async function handleChangeOwnPassword(prefix) {
     confirmInput.value = "";
     setStatus(es ? "Contrasena actualizada correctamente." : "Password updated successfully.", "ok");
     toast(es ? "Contrasena actualizada." : "Password updated.");
+    logProfileAuditEvent({
+      targetName: getProfile()?.name || "",
+      action: "password_changed",
+      source: "profile-security"
+    });
   } catch (err) {
     console.warn("Password change failed", err);
     const code = String(err?.code || "");
@@ -23935,6 +23996,72 @@ async function handleChangeOwnPassword(prefix) {
     });
   }
 });
+
+const PROFILE_AUDIT_SKIP_KEYS = new Set([
+  "updatedAt", "createdAt", "user_id", "questionnaireUpdatedAt", "questionnaireUpdatedBy",
+  "plannerTemplateSettings", "plannerTemplateSettingsUpdatedAt", "lang", "view"
+]);
+
+function computeProfileChangedKeys(prev = {}, next = {}) {
+  const safePrev = prev && typeof prev === "object" ? prev : {};
+  const safeNext = next && typeof next === "object" ? next : {};
+  const keys = new Set([...Object.keys(safePrev), ...Object.keys(safeNext)]);
+  const changed = [];
+  keys.forEach((key) => {
+    if (PROFILE_AUDIT_SKIP_KEYS.has(key)) return;
+    let before = "";
+    let after = "";
+    try {
+      before = JSON.stringify(safePrev[key] ?? null);
+      after = JSON.stringify(safeNext[key] ?? null);
+    } catch {
+      return;
+    }
+    if (before !== after) changed.push(key);
+  });
+  return changed.slice(0, 25);
+}
+
+function logProfileAuditEvent({
+  targetUid = "",
+  targetName = "",
+  targetRole = "athlete",
+  action = "profile_updated",
+  changedKeys = [],
+  source = "app",
+  actorUid = "",
+  actorName = "",
+  actorRole = ""
+} = {}) {
+  try {
+    if (!firebaseFirestoreInstance) return Promise.resolve();
+    const authUser = getAuthUser();
+    const profile = getProfile() || {};
+    const resolvedActorUid = String(actorUid || authUser?.id || "").trim();
+    if (!resolvedActorUid) return Promise.resolve();
+    const entry = stripUndefinedDeep({
+      actorUid: resolvedActorUid,
+      actorName: stripUserDisplayNumber(actorName || profile.name || "") || normalizeEmail(authUser?.email || "") || "",
+      actorRole: normalizeAuthRole(actorRole || profile.role || authUser?.role),
+      targetUid: String(targetUid || resolvedActorUid).trim(),
+      targetName: stripUserDisplayNumber(targetName || "") || "",
+      targetRole: normalizeAuthRole(targetRole),
+      action: String(action || "profile_updated").trim().slice(0, 40),
+      changedKeys: (Array.isArray(changedKeys) ? changedKeys : []).map((key) => String(key || "").slice(0, 60)).filter(Boolean).slice(0, 25),
+      source: String(source || "app").slice(0, 40),
+      createdAt: getFirestoreServerTimestamp(),
+      createdAtIso: new Date().toISOString()
+    });
+    return firebaseFirestoreInstance
+      .collection(PROFILE_AUDIT_COLLECTION)
+      .doc()
+      .set(entry)
+      .catch((err) => console.warn("Profile audit log failed", err));
+  } catch (err) {
+    console.warn("Profile audit log failed", err);
+    return Promise.resolve();
+  }
+}
 
 async function sendProfileReminderToCoachAthlete(athleteName = "") {
   const authUser = getAuthUser();
@@ -29705,10 +29832,12 @@ function stopAdminUsersRealtimeSync() {
     }
     adminUsersUnsub = null;
   }
+  stopProfileAuditRealtimeSync();
 }
 
 function startAdminUsersRealtimeSync() {
   if (!canManageAllAccounts() || !firebaseFirestoreInstance || adminUsersUnsub) return;
+  startProfileAuditRealtimeSync();
   adminUsersUnsub = firebaseFirestoreInstance.collection(FIREBASE_USERS_COLLECTION).onSnapshot((snapshot) => {
     adminUsersCache = snapshot.docs
       .map((doc) => normalizeManagedUserRecord(doc.id, doc.data() || {}))
@@ -29716,6 +29845,7 @@ function startAdminUsersRealtimeSync() {
       .sort((a, b) => parseIsoTimestamp(b.updatedAt || b.createdAt) - parseIsoTimestamp(a.updatedAt || a.createdAt));
     adminUsersLoadedOnce = true;
     renderAdminUsersList();
+    renderAdminActivity();
     setAdminUsersStatus(`${adminUsersCache.length} ${pickCopy(ADMIN_USERS_COPY.title).toLowerCase()}`, { type: "ok" });
   }, (err) => {
     console.warn("Admin users realtime sync failed", err);
@@ -29792,6 +29922,14 @@ function renderAdminUsersList() {
         <button type="button" class="primary" data-field="save">${escapeHtml(labels.save)}</button>
       </div>
     `;
+
+    if (isSupervisorSession()) {
+      row.querySelectorAll("input, select").forEach((el) => { el.disabled = true; });
+      const supervisorSaveBtn = row.querySelector('button[data-field="save"]');
+      if (supervisorSaveBtn) supervisorSaveBtn.remove();
+      adminUsersList.appendChild(row);
+      return;
+    }
 
     const roleSelect = row.querySelector('select[data-field="role"]');
     const viewSelect = row.querySelector('select[data-field="view"]');
@@ -29873,6 +30011,270 @@ function renderAdminUsersList() {
     adminUsersList.appendChild(row);
   });
 }
+
+let profileAuditCache = [];
+let profileAuditUnsub = null;
+let adminActivityFilter = "all";
+let adminActivitySearchQuery = "";
+const ADMIN_ACTIVITY_SEEN_KEY = "wpl_admin_activity_seen_iso";
+
+const ADMIN_ACTIVITY_ACTION_META = {
+  profile_created: { es: "Perfil creado", en: "Profile created", className: "audit-chip-created" },
+  profile_updated: { es: "Perfil actualizado", en: "Profile updated", className: "audit-chip-updated" },
+  photo_updated: { es: "Foto actualizada", en: "Photo updated", className: "audit-chip-photo" },
+  password_changed: { es: "Contrasena cambiada", en: "Password changed", className: "audit-chip-password" }
+};
+
+function getAdminActivityActionMeta(action) {
+  return ADMIN_ACTIVITY_ACTION_META[action] || {
+    es: action || "Cambio", en: action || "Change", className: "audit-chip-updated"
+  };
+}
+
+function prettifyAuditFieldKey(key) {
+  return String(key || "")
+    .replace(/[_.]/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .toLowerCase()
+    .trim();
+}
+
+function getAdminActivityLastSeenIso() {
+  try {
+    return String(localStorage.getItem(ADMIN_ACTIVITY_SEEN_KEY) || "");
+  } catch {
+    return "";
+  }
+}
+
+function stopProfileAuditRealtimeSync() {
+  if (profileAuditUnsub) {
+    try { profileAuditUnsub(); } catch { /* ignore */ }
+    profileAuditUnsub = null;
+  }
+  profileAuditCache = [];
+}
+
+function startProfileAuditRealtimeSync() {
+  if (!canManageAllAccounts() || !firebaseFirestoreInstance || profileAuditUnsub) return;
+  profileAuditUnsub = firebaseFirestoreInstance
+    .collection(PROFILE_AUDIT_COLLECTION)
+    .orderBy("createdAtIso", "desc")
+    .limit(150)
+    .onSnapshot((snapshot) => {
+      profileAuditCache = snapshot.docs.map((doc) => {
+        const data = doc.data() || {};
+        return {
+          id: doc.id,
+          actorUid: String(data.actorUid || "").trim(),
+          actorName: String(data.actorName || "").trim(),
+          actorRole: normalizeAuthRole(data.actorRole),
+          targetUid: String(data.targetUid || "").trim(),
+          targetName: String(data.targetName || "").trim(),
+          targetRole: normalizeAuthRole(data.targetRole),
+          action: String(data.action || "profile_updated").trim(),
+          changedKeys: Array.isArray(data.changedKeys) ? data.changedKeys.map((key) => String(key || "")).filter(Boolean) : [],
+          source: String(data.source || "").trim(),
+          createdAtIso: String(data.createdAtIso || "").trim()
+        };
+      });
+      renderAdminActivity();
+    }, (err) => {
+      console.warn("Profile audit sync failed", err);
+    });
+}
+
+function renderAdminActivityStats() {
+  const tiles = document.getElementById("adminStatTiles");
+  if (!tiles) return;
+  const counts = { total: adminUsersCache.length, athlete: 0, coach: 0, parent: 0 };
+  adminUsersCache.forEach((user) => {
+    const role = normalizeAuthRole(user.role);
+    if (counts[role] != null) counts[role] += 1;
+  });
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const changesToday = profileAuditCache.filter((entry) => entry.createdAtIso.slice(0, 10) === todayKey).length;
+  const lastSeen = getAdminActivityLastSeenIso();
+  const unseen = lastSeen
+    ? profileAuditCache.filter((entry) => entry.createdAtIso > lastSeen).length
+    : profileAuditCache.length;
+  const es = currentLang === "es";
+  const tileData = [
+    { label: es ? "Usuarios" : "Users", value: counts.total, className: "" },
+    { label: es ? "Atletas" : "Athletes", value: counts.athlete, className: "" },
+    { label: "Coaches", value: counts.coach, className: "" },
+    { label: es ? "Padres" : "Parents", value: counts.parent, className: "" },
+    { label: es ? "Cambios hoy" : "Changes today", value: changesToday, className: "admin-stat-tile-accent" },
+    { label: es ? "Sin ver" : "Unseen", value: unseen, className: unseen ? "admin-stat-tile-alert" : "" }
+  ];
+  tiles.innerHTML = "";
+  tileData.forEach((tile) => {
+    const node = document.createElement("div");
+    node.className = `admin-stat-tile ${tile.className}`.trim();
+    const value = document.createElement("strong");
+    value.textContent = String(tile.value);
+    const label = document.createElement("span");
+    label.textContent = tile.label;
+    node.appendChild(value);
+    node.appendChild(label);
+    tiles.appendChild(node);
+  });
+}
+
+function renderAdminActivityFilters() {
+  const wrap = document.getElementById("adminActivityFilters");
+  if (!wrap) return;
+  const es = currentLang === "es";
+  const options = [
+    { key: "all", label: es ? "Todos" : "All" },
+    { key: "profile_updated", label: es ? "Perfiles" : "Profiles" },
+    { key: "profile_created", label: es ? "Nuevos" : "New" },
+    { key: "photo_updated", label: es ? "Fotos" : "Photos" },
+    { key: "password_changed", label: es ? "Contrasenas" : "Passwords" }
+  ];
+  wrap.innerHTML = "";
+  options.forEach((option) => {
+    const count = option.key === "all"
+      ? profileAuditCache.length
+      : profileAuditCache.filter((entry) => entry.action === option.key).length;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `admin-activity-filter${adminActivityFilter === option.key ? " active" : ""}`;
+    btn.textContent = `${option.label} (${count})`;
+    btn.addEventListener("click", () => {
+      adminActivityFilter = option.key;
+      renderAdminActivity();
+    });
+    wrap.appendChild(btn);
+  });
+}
+
+function renderAdminActivityFeed() {
+  const feed = document.getElementById("adminActivityFeed");
+  if (!feed) return;
+  const es = currentLang === "es";
+  const lastSeen = getAdminActivityLastSeenIso();
+  const query = adminActivitySearchQuery.trim().toLowerCase();
+  const rows = profileAuditCache.filter((entry) => {
+    if (adminActivityFilter !== "all" && entry.action !== adminActivityFilter) return false;
+    if (!query) return true;
+    return `${entry.actorName} ${entry.targetName}`.toLowerCase().includes(query);
+  });
+
+  feed.innerHTML = "";
+  if (!rows.length) {
+    const empty = document.createElement("div");
+    empty.className = "small muted";
+    empty.textContent = es
+      ? "Sin actividad registrada todavia. Los cambios de perfil apareceran aqui en tiempo real."
+      : "No activity recorded yet. Profile changes will appear here in real time.";
+    feed.appendChild(empty);
+    return;
+  }
+
+  rows.slice(0, 100).forEach((entry) => {
+    const meta = getAdminActivityActionMeta(entry.action);
+    const isNew = entry.createdAtIso && (!lastSeen || entry.createdAtIso > lastSeen);
+    const selfChange = !entry.targetUid || entry.targetUid === entry.actorUid;
+
+    const item = document.createElement("article");
+    item.className = `admin-activity-item${isNew ? " admin-activity-item-new" : ""}`;
+
+    const avatar = document.createElement("div");
+    avatar.className = "wpl-avatar admin-activity-avatar";
+    avatar.textContent = (entry.actorName || "?").trim().slice(0, 2).toUpperCase() || "?";
+
+    const body = document.createElement("div");
+    body.className = "admin-activity-body";
+
+    const headline = document.createElement("div");
+    headline.className = "admin-activity-headline";
+    const actionChip = document.createElement("span");
+    actionChip.className = `audit-chip ${meta.className}`;
+    actionChip.textContent = es ? meta.es : meta.en;
+    const who = document.createElement("strong");
+    who.textContent = entry.actorName || (es ? "Usuario" : "User");
+    headline.appendChild(actionChip);
+    headline.appendChild(who);
+    if (!selfChange) {
+      const arrow = document.createElement("span");
+      arrow.className = "muted";
+      arrow.textContent = es ? " editó a " : " edited ";
+      const target = document.createElement("strong");
+      target.textContent = entry.targetName || (es ? "atleta" : "athlete");
+      headline.appendChild(arrow);
+      headline.appendChild(target);
+    }
+    if (isNew) {
+      const newBadge = document.createElement("span");
+      newBadge.className = "audit-new-badge";
+      newBadge.textContent = es ? "NUEVO" : "NEW";
+      headline.appendChild(newBadge);
+    }
+    body.appendChild(headline);
+
+    if (entry.changedKeys.length) {
+      const keysWrap = document.createElement("div");
+      keysWrap.className = "admin-activity-keys";
+      entry.changedKeys.slice(0, 6).forEach((key) => {
+        const chip = document.createElement("span");
+        chip.className = "admin-activity-key";
+        chip.textContent = prettifyAuditFieldKey(key);
+        keysWrap.appendChild(chip);
+      });
+      if (entry.changedKeys.length > 6) {
+        const more = document.createElement("span");
+        more.className = "admin-activity-key admin-activity-key-more";
+        more.textContent = `+${entry.changedKeys.length - 6}`;
+        keysWrap.appendChild(more);
+      }
+      body.appendChild(keysWrap);
+    }
+
+    const metaLine = document.createElement("div");
+    metaLine.className = "small muted";
+    const roleLabel = entry.actorRole === "coach" ? "Coach" : (entry.actorRole === "admin" ? "Admin" : (es ? "Atleta" : "Athlete"));
+    metaLine.textContent = `${roleLabel} · ${formatAdminTimestamp(entry.createdAtIso) || entry.createdAtIso}`;
+    body.appendChild(metaLine);
+
+    item.appendChild(avatar);
+    item.appendChild(body);
+    feed.appendChild(item);
+  });
+}
+
+function renderAdminActivity() {
+  const card = document.getElementById("adminActivityCard");
+  if (!card) return;
+  const visible = canManageAllAccounts();
+  card.classList.toggle("hidden", !visible);
+  if (!visible) return;
+  const title = document.getElementById("adminActivityTitle");
+  const subtitle = document.getElementById("adminActivitySubtitle");
+  const seenBtn = document.getElementById("adminActivitySeenBtn");
+  const search = document.getElementById("adminActivitySearch");
+  const es = currentLang === "es";
+  if (title) title.textContent = es ? "Actividad de perfiles" : "Profile activity";
+  if (subtitle) subtitle.textContent = es
+    ? "Cada cambio de perfil, foto o contrasena queda registrado aqui."
+    : "Every profile, photo, or password change is recorded here.";
+  if (seenBtn) seenBtn.textContent = es ? "Marcar todo visto" : "Mark all seen";
+  if (search) search.placeholder = es ? "Buscar por nombre..." : "Search by name...";
+  renderAdminActivityStats();
+  renderAdminActivityFilters();
+  renderAdminActivityFeed();
+}
+
+document.getElementById("adminActivitySeenBtn")?.addEventListener("click", () => {
+  const newest = profileAuditCache[0]?.createdAtIso || new Date().toISOString();
+  try { localStorage.setItem(ADMIN_ACTIVITY_SEEN_KEY, newest); } catch { /* ignore */ }
+  renderAdminActivity();
+});
+
+document.getElementById("adminActivitySearch")?.addEventListener("input", (event) => {
+  adminActivitySearchQuery = String(event.target.value || "");
+  renderAdminActivityFeed();
+});
 
 async function refreshAdminUsers({ force = false } = {}) {
   if (!canManageAllAccounts()) {

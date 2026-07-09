@@ -83,6 +83,43 @@ function stripUndefinedDeep(value) {
   return value;
 }
 
+const PROFILE_AUDIT_SKIP_KEYS = new Set(["updatedAt", "createdAt", "user_id"]);
+
+function computeChangedKeys(prev = {}, next = {}) {
+  const keys = new Set([...Object.keys(prev || {}), ...Object.keys(next || {})]);
+  const changed = [];
+  keys.forEach((key) => {
+    if (PROFILE_AUDIT_SKIP_KEYS.has(key)) return;
+    try {
+      if (JSON.stringify((prev || {})[key] ?? null) !== JSON.stringify((next || {})[key] ?? null)) changed.push(key);
+    } catch { /* ignore */ }
+  });
+  return changed.slice(0, 25);
+}
+
+// Registro de auditoría: el supervisor de Wrestling Performance Lab ve cada
+// cambio de perfil en su panel de actividad. Nunca se registran contraseñas.
+function logAuditEvent(action, { targetName = "", changedKeys = [] } = {}) {
+  try {
+    if (!currentUid) return;
+    db.collection("profile_audit").doc().set({
+      actorUid: currentUid,
+      actorName: targetName || "",
+      actorRole: "athlete",
+      targetUid: currentUid,
+      targetName: targetName || "",
+      targetRole: "athlete",
+      action,
+      changedKeys: changedKeys.slice(0, 25),
+      source: "perfiles-app",
+      createdAt: firebase.firestore?.FieldValue?.serverTimestamp?.() || new Date(),
+      createdAtIso: new Date().toISOString()
+    }).catch((err) => console.warn("Audit log failed", err));
+  } catch (err) {
+    console.warn("Audit log failed", err);
+  }
+}
+
 function toast(message, tone = "") {
   if (!els.toastStack) return;
   const node = document.createElement("div");
@@ -771,6 +808,10 @@ els.athleteProfileForm.addEventListener("submit", async (event) => {
     });
 
     await db.collection(FIREBASE_USERS_COLLECTION).doc(currentUid).set(payload, { merge: true });
+    logAuditEvent(existingProfile ? "profile_updated" : "profile_created", {
+      targetName: payload.name,
+      changedKeys: computeChangedKeys(existingProfile || {}, payload)
+    });
     existingProfile = { ...(existingProfile || {}), ...payload };
 
     els.doneSummary.textContent = `El perfil de ${payload.name} se guardó correctamente. Tu coach podrá verlo en Wrestling Performance Lab.`;
@@ -840,6 +881,7 @@ els.pwBtn?.addEventListener("click", async () => {
     els.pwConfirm.value = "";
     setStatus(els.pwStatus, "Contraseña actualizada correctamente.", "ok");
     toast("Contraseña actualizada.", "ok");
+    logAuditEvent("password_changed", { targetName: existingProfile?.name || els.aName?.value || "" });
   } catch (err) {
     console.warn("Password change failed", err);
     const code = String(err?.code || "");

@@ -12,6 +12,18 @@ service cloud.firestore {
         && request.auth.token.email == "gmunch@united-wc.com";
     }
 
+    // Read-only supervisor account: sees every profile and the audit feed,
+    // but cannot modify other users' data.
+    function isSupervisorEmail() {
+      return signedIn()
+        && request.auth.token.email != null
+        && request.auth.token.email == "allforone@wrest8858.app";
+    }
+
+    function isAnyAdminEmail() {
+      return isAdminEmail() || isSupervisorEmail();
+    }
+
     function isSelf(uid) {
       return signedIn() && request.auth.uid == uid;
     }
@@ -384,15 +396,32 @@ service cloud.firestore {
     // User profiles: self-manage + global admin access for account administration.
     match /users/{uid} {
       allow read: if isSelf(uid)
-        || isAdminEmail()
+        || isAnyAdminEmail()
         || isCoachOrAdminUser()
         || isCoachDirectoryProfile(resource.data)
-        || (signedIn() && resource.data.role == "athlete")
-        || (signedIn() && resource.data.role == "parent");
+        || (
+          signedIn()
+          && resource.data.role == "athlete"
+          && currentUserRole() == "parent"
+          && currentUserStatus() == "verified"
+          && (
+            currentUserLinkedAthleteUid() == uid
+            || (
+              resource.data.linkedAthleteId != null
+              && resource.data.linkedAthleteId != ""
+              && resource.data.linkedAthleteId == currentUserLinkedAthleteId()
+            )
+          )
+        );
       allow create: if (
         isAdminEmail()
         && isAdminAllowedRole(request.resource.data.role)
         && isAllowedViewForRole(request.resource.data.role, request.resource.data.view)
+      ) || (
+        isSelf(uid)
+        && isSupervisorEmail()
+        && request.resource.data.role == "admin"
+        && request.resource.data.view == "admin"
       ) || (
         isSelf(uid)
         && isSelfAllowedRole(request.resource.data.role)
@@ -407,7 +436,13 @@ service cloud.firestore {
         && isAdminAllowedRole(request.resource.data.role)
         && isAllowedViewForRole(request.resource.data.role, request.resource.data.view)
       ) || (
+        isSelf(uid)
+        && isSupervisorEmail()
+        && request.resource.data.role == "admin"
+        && request.resource.data.view == "admin"
+      ) || (
         isCoachOrAdminUser()
+        && !isSupervisorEmail()
         && resource.data.role == "athlete"
         && request.resource.data.role == "athlete"
         && request.resource.data.user_id == resource.data.user_id
@@ -832,6 +867,21 @@ service cloud.firestore {
       match /{document=**} {
         allow read, write: if isAdminEmail() || isSelf(coachUid);
       }
+    }
+
+    // Immutable audit trail of profile changes, written by the user who made
+    // the change and readable only by admin/supervisor accounts.
+    match /profile_audit/{entryId} {
+      allow read: if isAnyAdminEmail();
+      allow create: if signedIn()
+        && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.action is string
+        && request.resource.data.action.size() > 0
+        && request.resource.data.action.size() <= 40
+        && request.resource.data.targetUid is string
+        && request.resource.data.targetUid.size() <= 128;
+      allow update: if false;
+      allow delete: if isAdminEmail();
     }
 
     match /{document=**} {
