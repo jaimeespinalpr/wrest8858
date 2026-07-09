@@ -608,6 +608,101 @@ button:active{
   font-size: 13px;
 }
 
+.session-pills{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.session-pill{
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.16);
+  color: rgba(255,255,255,0.82);
+  white-space: nowrap;
+}
+
+.session-pill.pill--headlock{ background: rgba(234,88,12,0.22); border-color: rgba(234,88,12,0.48); }
+.session-pill.pill--short-offense{ background: rgba(139,92,246,0.22); border-color: rgba(139,92,246,0.48); }
+.session-pill.pill--whizzer{ background: rgba(20,184,166,0.22); border-color: rgba(20,184,166,0.48); }
+.session-pill.pill--double-leg{ background: rgba(59,130,246,0.22); border-color: rgba(59,130,246,0.48); }
+.session-pill.pill--single-leg{ background: rgba(16,185,129,0.22); border-color: rgba(16,185,129,0.48); }
+.session-pill.pill--neutral{ background: rgba(251,191,36,0.22); border-color: rgba(251,191,36,0.48); }
+.session-pill.pill--position{ background: rgba(244,114,182,0.22); border-color: rgba(244,114,182,0.48); }
+.session-pill.pill--live{ background: rgba(99,102,241,0.22); border-color: rgba(99,102,241,0.48); }
+
+.planner-library-search{
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.28);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: inherit;
+  font-size: 14px;
+}
+
+.planner-position-suggestions{
+  background: rgba(0,0,0,0.22);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.planner-position-suggestions-header{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.position-badge-label{
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: rgba(59,130,246,0.28);
+  border: 1px solid rgba(59,130,246,0.5);
+  color: rgba(255,255,255,0.9);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.planner-position-suggestions-grid{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.planner-suggestion-list{
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.planner-suggestion-list li button{
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.78);
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+}
+
+.planner-suggestion-list li button:hover{
+  background: rgba(255,255,255,0.12);
+}
+
 .athlete-track-task-grid{
   margin-top: 14px;
   display: grid;

@@ -5506,12 +5506,28 @@ function getBuiltinCoachTemplateSeeds() {
       items: {
         intro: ["Review today's scoring focus", "Highlight one competition carryover cue"],
         warmup: ["Dynamic movement and mobility", "Stance motion and footwork"],
-        drills: ["Single leg finish chain", "Snap to score series", "Short offense entries"],
-        live: ["3 x 1:00 situational goes", "3 x 1:00 live from neutral"],
+        drills: ["Single leg finish chain", "Snap to score series", "Short offense entries", "Front Headlock Position", "Short Offense Position", "Whizzer Position", "Double Leg Finish Position", "Head Inside Single Leg Position"],
+        live: ["3 x 1:00 situational goes", "3 x 1:00 live from neutral", "Front Headlock situations", "Whizzer situations", "Short Offense situations"],
         cooldown: ["Breathing reset", "Mental rep of main finish"],
         announcements: ["Log journal after practice"]
       },
       monthlyNotes: "Use as the anchor technical session when the room needs clean repetition."
+    },
+    {
+      id: "wrestling-positions",
+      name: "Wrestling Positions",
+      type: "day",
+      focus: "Develop positional awareness and execution from key wrestling positions.",
+      coachNotes: "Emphasize correct body position and reaction from each starting point before adding live resistance.",
+      items: {
+        intro: ["Review today's position focus", "Identify scoring opportunities from each position"],
+        warmup: ["Dynamic movement and mobility", "Stance motion and footwork"],
+        drills: ["Front Headlock Position", "Short Offense Position", "Whizzer Position", "Double Leg Finish Position", "Head Inside Single Leg Position"],
+        live: ["Front Headlock situations", "Short Offense situations", "Whizzer situations", "Double Leg finish situations", "Head Inside Single Leg situations"],
+        cooldown: ["Breathing reset", "Mental rep of best position rep"],
+        announcements: ["Log position work in journal after practice"]
+      },
+      monthlyNotes: "Use when the room needs dedicated position-based repetition and situational drilling."
     },
     {
       id: "competition-prep",
@@ -20084,7 +20100,16 @@ function renderTodayActionQueue() {
       }
     });
     actions.appendChild(markReadBtn);
-    if (item.assignmentId) {
+    if (item.kind === "profile_reminder") {
+      const openProfileBtn = document.createElement("button");
+      openProfileBtn.type = "button";
+      openProfileBtn.className = "ghost";
+      openProfileBtn.textContent = currentLang === "es" ? "Ir a mi perfil" : "Open my profile";
+      openProfileBtn.addEventListener("click", () => {
+        showTab("athlete-profile");
+      });
+      actions.appendChild(openProfileBtn);
+    } else if (item.assignmentId) {
       const openAssignmentBtn = document.createElement("button");
       openAssignmentBtn.type = "button";
       openAssignmentBtn.className = "ghost";
@@ -20177,7 +20202,22 @@ function renderToday(dayIndex = getCurrentAppDayIndex()) {
   plan.blocks.forEach((block) => {
     const row = document.createElement("div");
     row.className = "session-block";
-    row.innerHTML = `<strong>${block.label}</strong><span>${block.detail}</span>`;
+    if ((block.blockKey === "live" || block.blockKey === "drills") && Array.isArray(block.items) && block.items.length) {
+      const strong = document.createElement("strong");
+      strong.textContent = block.label;
+      const pillsDiv = document.createElement("div");
+      pillsDiv.className = "session-pills";
+      block.items.forEach((item) => {
+        const pill = document.createElement("span");
+        pill.className = `session-pill ${getPositionBadgeClass(item)}`;
+        pill.textContent = item;
+        pillsDiv.appendChild(pill);
+      });
+      row.appendChild(strong);
+      row.appendChild(pillsDiv);
+    } else {
+      row.innerHTML = `<strong>${block.label}</strong><span>${block.detail}</span>`;
+    }
     sessionBlocks.appendChild(row);
   });
   renderAthleteTrackTaskAreas();
@@ -23811,6 +23851,76 @@ async function markWorkspaceNotificationReadById(notificationId = "", coachUid =
   }
 }
 
+async function sendProfileReminderToCoachAthlete(athleteName = "") {
+  const authUser = getAuthUser();
+  const coachProfile = getProfile();
+  const safeName = String(athleteName || "").trim();
+  if (!authUser?.id || !isCoachRole(coachProfile?.role) || !safeName) return false;
+
+  const rawAthlete = getRawAthleteRecord(safeName) || {};
+  const athleteUid = normalizeUid(rawAthlete.athleteUid || rawAthlete.linkedAthleteUid || rawAthlete.user_id);
+  if (!athleteUid) {
+    toast(currentLang === "es"
+      ? "Este atleta aun no tiene cuenta vinculada en la app, no puede recibir notificaciones."
+      : "This athlete has no linked app account yet, so they cannot receive notifications.");
+    return false;
+  }
+
+  const hasUnreadReminder = coachNotificationsCache.some((record) => (
+    record.kind === "profile_reminder"
+    && (record.recipientUids || []).includes(athleteUid)
+    && !isNotificationReadByUser(record, athleteUid)
+  ));
+  if (hasUnreadReminder) {
+    toast(currentLang === "es"
+      ? "Este atleta ya tiene un recordatorio de perfil sin leer."
+      : "This athlete already has an unread profile reminder.");
+    return false;
+  }
+
+  const notificationsRef = getCoachWorkspaceCollectionRef(COACH_WORKSPACE_NOTIFICATIONS_COLLECTION, authUser.id);
+  if (!notificationsRef) {
+    toast(currentLang === "es" ? "Sin conexion con el workspace." : "Workspace connection unavailable.");
+    return false;
+  }
+
+  const questionnaireMeta = getAthleteQuestionnaireMeta(rawAthlete, { useDom: false });
+  const missing = questionnaireMeta.missing;
+  const coachName = stripUserDisplayNumber(coachProfile?.name || "") || (currentLang === "es" ? "Tu coach" : "Your coach");
+  const title = missing
+    ? (currentLang === "es" ? "Completa tu perfil de atleta" : "Complete your athlete profile")
+    : (currentLang === "es" ? "Revisa tu perfil de atleta" : "Review your athlete profile");
+  const body = missing
+    ? (currentLang === "es"
+      ? `${coachName} te pide completar tu perfil (${missing} ${missing === 1 ? "campo pendiente" : "campos pendientes"}). Abre Profile y termina el cuestionario.`
+      : `${coachName} is asking you to finish your profile (${missing} ${missing === 1 ? "field" : "fields"} missing). Open Profile and complete the questionnaire.`)
+    : (currentLang === "es"
+      ? `${coachName} te pide revisar y mantener al dia tu perfil. Abre Profile para confirmarlo.`
+      : `${coachName} is asking you to review and keep your profile up to date. Open Profile to confirm it.`);
+
+  await withTimeout(
+    notificationsRef.doc().set({
+      coachUid: authUser.id,
+      kind: "profile_reminder",
+      title,
+      body,
+      recipientUids: [athleteUid],
+      recipientRoles: ["athlete"],
+      actorUid: authUser.id,
+      actorName: coachName,
+      readByUids: [],
+      createdAt: getFirestoreServerTimestamp(),
+      updatedAt: getFirestoreServerTimestamp()
+    }),
+    FIREBASE_OP_TIMEOUT_MS,
+    "firestore_profile_reminder_timeout"
+  );
+  toast(currentLang === "es"
+    ? `Recordatorio enviado a ${safeName}.`
+    : `Reminder sent to ${safeName}.`);
+  return true;
+}
+
 function renderCoachAnnouncementsComposer() {
   if (coachAnnouncementComposeTitle) coachAnnouncementComposeTitle.textContent = currentLang === "es" ? "Broadcast del coach" : "Coach Broadcast";
   if (coachAnnouncementTitleLabel) coachAnnouncementTitleLabel.textContent = currentLang === "es" ? "Titulo" : "Title";
@@ -26887,6 +26997,19 @@ function getAthletePortalMediaContext() {
   return null;
 }
 
+function getPositionBadgeClass(text) {
+  const t = String(text || "").toLowerCase();
+  if (t.includes("front headlock")) return "pill--headlock";
+  if (t.includes("short offense")) return "pill--short-offense";
+  if (t.includes("whizzer")) return "pill--whizzer";
+  if (t.includes("double leg")) return "pill--double-leg";
+  if (t.includes("single leg") || t.includes("head inside")) return "pill--single-leg";
+  if (t.includes("neutral")) return "pill--neutral";
+  if (t.includes("top") || t.includes("bottom")) return "pill--position";
+  if (t.includes("situation") || t.includes("shark") || t.includes("live")) return "pill--live";
+  return "pill--default";
+}
+
 function buildAthletePortalTodayPlan() {
   const assignment = getAthletePortalPrimaryAssignment();
   const nextAssignment = assignment ? null : getAthletePortalNextScheduledAssignment(getCurrentAppDateKey());
@@ -26906,7 +27029,9 @@ function buildAthletePortalTodayPlan() {
       if (!Array.isArray(values) || !values.length) return;
       blocks.push({
         label: labels[key] || key,
-        detail: values.join(" - ")
+        detail: values.join(" · "),
+        blockKey: key,
+        items: values
       });
     });
   }
@@ -28623,6 +28748,9 @@ function renderCoachAthleteQuickActions(selectedAthleteName = "") {
       <button type="button" class="primary" id="coachAthleteQuickOpenBtn">${currentLang === "es" ? "Trabajar con atleta" : "Work with athlete"}</button>
       <button type="button" id="coachAthleteQuickEditBtn">${currentLang === "es" ? "Editar perfil completo" : "Edit full profile"}</button>
       <button type="button" id="coachAthleteQuickSummaryBtn">${currentLang === "es" ? "Ver athlete summary" : "View athlete summary"}</button>
+      <button type="button" id="coachAthleteRemindProfileBtn">${currentLang === "es"
+        ? `Recordarle al atleta${questionnaireMeta.missing ? ` (${questionnaireMeta.missing} pendientes)` : ""}`
+        : `Send a reminder${questionnaireMeta.missing ? ` (${questionnaireMeta.missing} missing)` : ""}`}</button>
       <button type="button" id="coachAthleteQuickMessageBtn">${currentLang === "es" ? "Enviar mensaje" : "Send message"}</button>
       <button type="button" id="coachAthleteInviteBtn">${currentLang === "es" ? "Invitar atleta por email" : "Invite athlete by email"}</button>
     </div>
@@ -28642,6 +28770,18 @@ function renderCoachAthleteQuickActions(selectedAthleteName = "") {
   });
   document.getElementById("coachAthleteQuickMessageBtn")?.addEventListener("click", () => {
     messageCoachAthlete(athlete.name);
+  });
+  document.getElementById("coachAthleteRemindProfileBtn")?.addEventListener("click", (event) => {
+    const btn = event.currentTarget;
+    btn.disabled = true;
+    sendProfileReminderToCoachAthlete(athlete.name)
+      .catch((err) => {
+        console.warn("Profile reminder send failed", err);
+        toast(currentLang === "es" ? "No se pudo enviar el recordatorio." : "Could not send the reminder.");
+      })
+      .finally(() => {
+        btn.disabled = false;
+      });
   });
   document.getElementById("coachAthleteInviteBtn")?.addEventListener("click", () => {
     openCoachAthleteInviteEmail().catch(() => {});
