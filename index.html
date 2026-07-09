@@ -2530,6 +2530,21 @@
               <ul class="list" id="permissionsCannot"></ul>
             </div>
           </div>
+          <div class="mini-card admin-activity-card hidden" id="adminActivityCard">
+            <div class="card-header">
+              <div>
+                <h3 id="adminActivityTitle">Actividad de perfiles</h3>
+                <p class="small muted" id="adminActivitySubtitle">Cada cambio de perfil, foto o contraseña queda registrado aquí.</p>
+              </div>
+              <button type="button" id="adminActivitySeenBtn" class="ghost">Marcar todo visto</button>
+            </div>
+            <div class="admin-stat-tiles" id="adminStatTiles"></div>
+            <div class="admin-activity-toolbar">
+              <div class="admin-activity-filters" id="adminActivityFilters"></div>
+              <input id="adminActivitySearch" class="search-input" type="search" placeholder="Buscar por nombre..." aria-label="Buscar actividad por nombre" >
+            </div>
+            <div id="adminActivityFeed" class="admin-activity-feed"></div>
+          </div>
           <div class="mini-card admin-users-card">
             <div class="card-header">
               <h3 id="adminUsersTitle">Registered users</h3>
