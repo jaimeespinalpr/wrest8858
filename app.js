@@ -23997,6 +23997,126 @@ async function handleChangeOwnPassword(prefix) {
   }
 });
 
+let profileReminderPromptModalEl = null;
+
+function ensureProfileReminderPromptModal() {
+  if (profileReminderPromptModalEl) return profileReminderPromptModalEl;
+  const modal = document.createElement("div");
+  modal.id = "profileReminderPromptModal";
+  modal.className = "register-modal hidden";
+  modal.innerHTML = `
+    <div class="register-card profile-reminder-prompt-card">
+      <div class="register-header">
+        <div>
+          <h3 id="profileReminderPromptTitle"></h3>
+          <p class="small muted" id="profileReminderPromptBody"></p>
+        </div>
+        <button type="button" class="ghost" id="profileReminderPromptCloseBtn" aria-label="Cerrar">×</button>
+      </div>
+      <div class="profile-reminder-prompt-actions">
+        <button type="button" class="ghost" id="profileReminderPromptSkipBtn"></button>
+        <button type="button" class="primary" id="profileReminderPromptSendBtn"></button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  const close = () => modal.classList.add("hidden");
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) close();
+  });
+  modal.querySelector("#profileReminderPromptCloseBtn")?.addEventListener("click", close);
+  modal.querySelector("#profileReminderPromptSkipBtn")?.addEventListener("click", close);
+  profileReminderPromptModalEl = modal;
+  return modal;
+}
+
+function maybePromptProfileReminder(athleteName = "", questionnaireMeta = null) {
+  const missing = Number(questionnaireMeta?.missing || 0);
+  if (!missing || !isCoachRole(getProfile()?.role)) return;
+  const es = currentLang === "es";
+  const modal = ensureProfileReminderPromptModal();
+  const title = modal.querySelector("#profileReminderPromptTitle");
+  const body = modal.querySelector("#profileReminderPromptBody");
+  const skipBtn = modal.querySelector("#profileReminderPromptSkipBtn");
+  const sendBtn = modal.querySelector("#profileReminderPromptSendBtn");
+  if (title) title.textContent = es ? "¿Enviar recordatorio?" : "Send a reminder?";
+  if (body) {
+    body.textContent = es
+      ? `A ${athleteName} le faltan ${missing} campos del perfil. ¿Le envío una notificación para que lo termine?`
+      : `${athleteName} has ${missing} profile fields missing. Send them a notification to finish it?`;
+  }
+  if (skipBtn) skipBtn.textContent = es ? "Ahora no" : "Not now";
+  if (sendBtn) {
+    sendBtn.textContent = es ? "Enviar recordatorio" : "Send reminder";
+    const freshBtn = sendBtn.cloneNode(true);
+    sendBtn.replaceWith(freshBtn);
+    freshBtn.addEventListener("click", () => {
+      freshBtn.disabled = true;
+      sendProfileReminderToCoachAthlete(athleteName)
+        .catch((err) => {
+          console.warn("Profile reminder send failed", err);
+          toast(es ? "No se pudo enviar el recordatorio." : "Could not send the reminder.");
+        })
+        .finally(() => {
+          freshBtn.disabled = false;
+          modal.classList.add("hidden");
+        });
+    });
+  }
+  modal.classList.remove("hidden");
+}
+
+let deviceNotificationPermissionHookInstalled = false;
+let lastAnnouncedWorkspaceNotificationIds = new Set();
+
+function installDeviceNotificationPermissionHook() {
+  if (deviceNotificationPermissionHookInstalled) return;
+  if (typeof Notification === "undefined" || Notification.permission !== "default") return;
+  deviceNotificationPermissionHookInstalled = true;
+  const request = () => {
+    try { Notification.requestPermission().catch(() => {}); } catch { /* ignore */ }
+  };
+  window.addEventListener("pointerdown", request, { once: true });
+}
+
+function announceIncomingWorkspaceNotifications(records = []) {
+  const authUser = getAuthUser();
+  if (!authUser?.id) return;
+  const fresh = records.filter((record) => (
+    record?.id
+    && !lastAnnouncedWorkspaceNotificationIds.has(record.id)
+    && !isNotificationReadByUser(record, authUser.id)
+  ));
+  const isFirstLoad = lastAnnouncedWorkspaceNotificationIds.size === 0;
+  records.forEach((record) => { if (record?.id) lastAnnouncedWorkspaceNotificationIds.add(record.id); });
+  if (isFirstLoad || !fresh.length) return;
+
+  fresh.slice(0, 3).forEach((record) => {
+    const title = record.title || (currentLang === "es" ? "Notificacion del coach" : "Coach notification");
+    const body = record.body || "";
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      try {
+        const systemNote = new Notification(title, {
+          body,
+          icon: "uwc-logo.png",
+          badge: "uwc-logo.png",
+          tag: `wpl-${record.id}`
+        });
+        systemNote.onclick = () => {
+          try { window.focus(); } catch { /* ignore */ }
+          if (record.kind === "profile_reminder") showTab("athlete-profile");
+          systemNote.close();
+        };
+      } catch (err) {
+        console.warn("System notification failed", err);
+      }
+    }
+    if (!document.hidden) {
+      toast(`${title}: ${body}`.slice(0, 140));
+    }
+  });
+}
+
 const PROFILE_AUDIT_SKIP_KEYS = new Set([
   "updatedAt", "createdAt", "user_id", "questionnaireUpdatedAt", "questionnaireUpdatedBy",
   "plannerTemplateSettings", "plannerTemplateSettingsUpdatedAt", "lang", "view"
@@ -27475,6 +27595,8 @@ function refreshAthletePortalDataSync() {
       athletePortalNotificationsCache = coachWorkspaceSortByUpdated(
         snapshot.docs.map((doc) => normalizeCoachNotificationRecord(doc.id, doc.data() || {}, { coachUid }))
       );
+      installDeviceNotificationPermissionHook();
+      announceIncomingWorkspaceNotifications(athletePortalNotificationsCache);
       renderToday(getCurrentAppDayIndex());
       renderPlanGrid(getCurrentAppDayIndex());
     }, (err) => console.warn("Athlete notifications sync failed", err))
@@ -29093,6 +29215,7 @@ function renderAthleteManagement() {
     card.addEventListener("click", () => {
       selectedCoachAthleteRosterName = athlete.name;
       selectCoachMatchAthlete(athlete.name, { allowFallback: false });
+      maybePromptProfileReminder(athlete.name, questionnaireMeta);
     });
     athleteList.appendChild(card);
   });
