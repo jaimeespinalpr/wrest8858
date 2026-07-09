@@ -23851,6 +23851,91 @@ async function markWorkspaceNotificationReadById(notificationId = "", coachUid =
   }
 }
 
+async function handleChangeOwnPassword(prefix) {
+  const currentInput = document.getElementById(`${prefix}_current`);
+  const newInput = document.getElementById(`${prefix}_new`);
+  const confirmInput = document.getElementById(`${prefix}_confirm`);
+  const statusEl = document.getElementById(`${prefix}_status`);
+  const btn = document.getElementById(`${prefix}_btn`);
+  if (!currentInput || !newInput || !confirmInput) return;
+  const es = currentLang === "es";
+  const setStatus = (msg, tone = "") => {
+    if (!statusEl) return;
+    statusEl.textContent = msg || "";
+    statusEl.classList.remove("ok", "error");
+    if (tone) statusEl.classList.add(tone);
+  };
+
+  const currentPassword = currentInput.value;
+  const newPassword = newInput.value;
+  const confirmPassword = confirmInput.value;
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    setStatus(es ? "Completa los tres campos." : "Fill in all three fields.", "error");
+    return;
+  }
+  if (newPassword.length < 6) {
+    setStatus(es ? "La nueva contrasena debe tener al menos 6 caracteres." : "New password must be at least 6 characters.", "error");
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    setStatus(es ? "La nueva contrasena y su confirmacion no coinciden." : "New password and confirmation do not match.", "error");
+    return;
+  }
+  if (newPassword === currentPassword) {
+    setStatus(es ? "La nueva contrasena debe ser diferente a la actual." : "New password must differ from the current one.", "error");
+    return;
+  }
+
+  const user = firebaseAuthInstance?.currentUser;
+  if (!user || !user.email || typeof firebase === "undefined" || !firebase.auth?.EmailAuthProvider) {
+    setStatus(es ? "No hay sesion activa. Vuelve a iniciar sesion." : "No active session. Please sign in again.", "error");
+    return;
+  }
+
+  if (btn) btn.disabled = true;
+  setStatus(es ? "Actualizando contrasena..." : "Updating password...");
+  try {
+    const credential = firebase.auth.EmailAuthProvider.credential(user.email, currentPassword);
+    await user.reauthenticateWithCredential(credential);
+    await user.updatePassword(newPassword);
+    currentInput.value = "";
+    newInput.value = "";
+    confirmInput.value = "";
+    setStatus(es ? "Contrasena actualizada correctamente." : "Password updated successfully.", "ok");
+    toast(es ? "Contrasena actualizada." : "Password updated.");
+  } catch (err) {
+    console.warn("Password change failed", err);
+    const code = String(err?.code || "");
+    let msg;
+    if (code === "auth/wrong-password" || code === "auth/invalid-credential" || code === "auth/invalid-login-credentials") {
+      msg = es ? "La contrasena actual es incorrecta." : "Current password is incorrect.";
+    } else if (code === "auth/weak-password") {
+      msg = es ? "La nueva contrasena es demasiado debil." : "New password is too weak.";
+    } else if (code === "auth/requires-recent-login") {
+      msg = es
+        ? "Por seguridad, cierra sesion y vuelve a entrar antes de cambiar la contrasena."
+        : "For security, sign out and sign back in before changing your password.";
+    } else if (code === "auth/network-request-failed") {
+      msg = es ? "Sin conexion. Revisa tu internet e intenta de nuevo." : "No connection. Check your internet and try again.";
+    } else {
+      msg = es ? "No se pudo actualizar la contrasena." : "Could not update the password.";
+    }
+    setStatus(msg, "error");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+["athletePw", "coachPw"].forEach((prefix) => {
+  const btn = document.getElementById(`${prefix}_btn`);
+  if (btn) {
+    btn.addEventListener("click", () => {
+      handleChangeOwnPassword(prefix).catch((err) => console.warn("Password change handler failed", err));
+    });
+  }
+});
+
 async function sendProfileReminderToCoachAthlete(athleteName = "") {
   const authUser = getAuthUser();
   const coachProfile = getProfile();
