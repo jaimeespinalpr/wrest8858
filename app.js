@@ -24066,6 +24066,120 @@ function maybePromptProfileReminder(athleteName = "", questionnaireMeta = null) 
   modal.classList.remove("hidden");
 }
 
+let coachAthleteActionSheetEl = null;
+
+function ensureCoachAthleteActionSheet() {
+  if (coachAthleteActionSheetEl) return coachAthleteActionSheetEl;
+  const modal = document.createElement("div");
+  modal.id = "coachAthleteActionSheet";
+  modal.className = "register-modal hidden coach-athlete-action-sheet-overlay";
+  modal.innerHTML = `
+    <div class="register-card coach-athlete-action-sheet">
+      <div class="coach-athlete-action-sheet-grip" aria-hidden="true"></div>
+      <div class="coach-athlete-action-sheet-header">
+        <span class="wpl-avatar coach-athlete-action-sheet-avatar" data-sheet-avatar></span>
+        <div class="coach-athlete-action-sheet-copy">
+          <h3 data-sheet-name></h3>
+          <p class="small muted" data-sheet-meta></p>
+          <span class="status-pill" data-sheet-progress></span>
+        </div>
+        <button type="button" class="ghost coach-athlete-action-sheet-close" data-sheet-close aria-label="Cerrar">×</button>
+      </div>
+      <div class="coach-athlete-action-sheet-buttons" data-sheet-buttons></div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  const close = () => modal.classList.add("hidden");
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) close();
+  });
+  modal.querySelector("[data-sheet-close]")?.addEventListener("click", close);
+  coachAthleteActionSheetEl = modal;
+  return modal;
+}
+
+function openCoachAthleteActionSheet(athleteName = "") {
+  const athlete = getAthletesData().find((item) => item.name === athleteName);
+  if (!athlete || !isCoachRole(getProfile()?.role)) return;
+  const es = currentLang === "es";
+  const modal = ensureCoachAthleteActionSheet();
+  const rawAthlete = getRawAthleteRecord(athlete.name) || athlete;
+  const questionnaireMeta = getAthleteQuestionnaireMeta(rawAthlete, { useDom: false });
+  const missing = questionnaireMeta.missing;
+
+  renderAvatarElement(modal.querySelector("[data-sheet-avatar]"), {
+    photo: getProfilePhotoValue(rawAthlete),
+    name: athlete.name,
+    fallback: "AT"
+  });
+  const nameEl = modal.querySelector("[data-sheet-name]");
+  if (nameEl) nameEl.textContent = athlete.name;
+  const metaEl = modal.querySelector("[data-sheet-meta]");
+  if (metaEl) {
+    metaEl.textContent = [athlete.weightClass, athlete.style, athlete.level]
+      .filter(Boolean).join(" • ") || (es ? "Sin datos de competencia" : "No competition data");
+  }
+  const progressEl = modal.querySelector("[data-sheet-progress]");
+  if (progressEl) {
+    progressEl.className = `status-pill ${questionnaireMeta.pillClass}`;
+    progressEl.textContent = es
+      ? `Perfil ${questionnaireMeta.progress.completed}/${questionnaireMeta.progress.total}${missing ? ` · ${missing} pendientes` : " · completo"}`
+      : `Profile ${questionnaireMeta.progress.completed}/${questionnaireMeta.progress.total}${missing ? ` · ${missing} missing` : " · complete"}`;
+  }
+
+  const buttonsWrap = modal.querySelector("[data-sheet-buttons]");
+  if (!buttonsWrap) return;
+  buttonsWrap.innerHTML = "";
+  const close = () => modal.classList.add("hidden");
+  const actions = [
+    {
+      label: es ? "✏️ Editar perfil" : "✏️ Edit profile",
+      className: "primary",
+      run: () => editCoachAthleteRecord(athlete.name).catch((err) => {
+        console.warn("Coach athlete edit action failed", err);
+        toast(es ? "No se pudo editar el atleta." : "Could not edit athlete.");
+      })
+    },
+    missing ? {
+      label: es ? `🔔 Recordarle que lo termine (${missing} pendientes)` : `🔔 Remind to finish (${missing} missing)`,
+      className: "coach-athlete-action-sheet-remind",
+      run: () => sendProfileReminderToCoachAthlete(athlete.name).catch((err) => {
+        console.warn("Profile reminder send failed", err);
+        toast(es ? "No se pudo enviar el recordatorio." : "Could not send the reminder.");
+      })
+    } : null,
+    {
+      label: es ? "📋 Ver resumen del atleta" : "📋 View athlete summary",
+      className: "",
+      run: () => openAthleteSummaryView(athlete.name)
+    },
+    {
+      label: es ? "💬 Enviar mensaje" : "💬 Send message",
+      className: "",
+      run: () => messageCoachAthlete(athlete.name)
+    },
+    {
+      label: es ? "🗂 Abrir workspace completo" : "🗂 Open full workspace",
+      className: "",
+      run: () => openCoachAthleteWorkspace(athlete.name)
+    }
+  ].filter(Boolean);
+
+  actions.forEach((action) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = action.className;
+    btn.textContent = action.label;
+    btn.addEventListener("click", () => {
+      close();
+      action.run();
+    });
+    buttonsWrap.appendChild(btn);
+  });
+
+  modal.classList.remove("hidden");
+}
+
 let deviceNotificationPermissionHookInstalled = false;
 let lastAnnouncedWorkspaceNotificationIds = new Set();
 
@@ -29202,10 +29316,9 @@ function renderAthleteManagement() {
           ${pendingCount ? `<span class="status-pill status-pill-pending">${currentLang === "es" ? "Pending" : "Pending"}: ${pendingCount}</span>` : ""}
           ${alertCount ? `<span class="status-pill status-pill-alert">${currentLang === "es" ? "Alerts" : "Alerts"}: ${alertCount}</span>` : ""}
           ${pendingParentCount ? `<span class="status-pill status-pill-journal">${currentLang === "es" ? "Pending parents" : "Pending parents"}: ${pendingParentCount}</span>` : ""}
-          ${missingProfile ? `<span class="status-pill ${questionnaireMeta.pillClass}">${currentLang === "es" ? "Missing profile" : "Missing profile"}: ${missingProfile}</span>` : `<span class="status-pill status-pill-active">${currentLang === "es" ? "Profile ready" : "Profile ready"}</span>`}
+          ${missingProfile ? `<span class="status-pill ${questionnaireMeta.pillClass}">${currentLang === "es" ? "Perfil incompleto" : "Missing profile"}: ${missingProfile}</span>` : `<span class="status-pill status-pill-active">${currentLang === "es" ? "Perfil completo" : "Profile ready"}</span>`}
         </div>
       </div>
-      <div class="small muted">${currentLang === "es" ? "Tap to make this the active athlete across coach workflow." : "Tap to make this the active athlete across coach workflow."}</div>
     `;
     renderAvatarElement(card.querySelector("[data-athlete-avatar]"), {
       photo: getProfilePhotoValue(rawAthlete || athlete),
@@ -29215,7 +29328,7 @@ function renderAthleteManagement() {
     card.addEventListener("click", () => {
       selectedCoachAthleteRosterName = athlete.name;
       selectCoachMatchAthlete(athlete.name, { allowFallback: false });
-      maybePromptProfileReminder(athlete.name, questionnaireMeta);
+      openCoachAthleteActionSheet(athlete.name);
     });
     athleteList.appendChild(card);
   });
