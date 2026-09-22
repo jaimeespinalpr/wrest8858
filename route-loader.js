@@ -47,8 +47,21 @@
     }
   }
 
+  function loadDefenseTrainingLibrarySeed() {
+    if (window.WPL_DEFENSE_TRAINING_LIBRARY_SEED_REQUESTED) return;
+    window.WPL_DEFENSE_TRAINING_LIBRARY_SEED_REQUESTED = true;
+    var script = document.createElement("script");
+    script.src = resolveAppAssetUrl("defense-training-library-seed.js?v=20260922-defense-library1");
+    script.async = false;
+    script.onerror = function() {
+      console.warn("WPL defense training seed failed to load");
+    };
+    document.head.appendChild(script);
+  }
+
   function runScripts(scripts, index) {
     if (index >= scripts.length) {
+      loadDefenseTrainingLibrarySeed();
       pruneRoutePanels(document);
       return;
     }
