@@ -7,6 +7,9 @@
   }
 
   window.WPL_ROUTED_BOOTSTRAP = true;
+  window.WPL_FORCE_ENGLISH_UI = true;
+  window.WPL_DEFAULT_LANGUAGE = "en";
+  window.currentLang = "en";
 
   var ROUTE_PANEL_MAP = {
     today: ["panel-today"],
@@ -37,8 +40,16 @@
     }
   }
 
+  function forceEnglishScriptVersion(raw) {
+    var clean = String(raw || "").trim();
+    if (/^app\.js(?:\?|$)/.test(clean)) {
+      return "app.js?v=20260922-english-ui1";
+    }
+    return clean;
+  }
+
   function resolveAppAssetUrl(rawValue) {
-    var raw = String(rawValue || "").trim();
+    var raw = forceEnglishScriptVersion(rawValue);
     if (!raw) return raw;
     try {
       return new URL(raw, getAppRootUrl()).href;
